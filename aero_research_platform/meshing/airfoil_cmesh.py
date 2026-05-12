@@ -41,19 +41,21 @@ class MeshSpec:
     thickness: float = 0.12
     farfield_radius: float = 500.0  # chords
     n_airfoil_per_side: int = 257  # 513-point closed loop -> STL resolution
-    # Background block-mesh cell counts. Stage-4 baseline: 80x40x1 background.
+    # Background block-mesh cell counts. Stage-4 baseline: 100x50x1.
     # snappyHexMesh's surface refinement + layer addition pushes the final
-    # cell count past the 200k NASA-TMR-Family-II target.
-    n_x: int = 80
-    n_y: int = 40
+    # cell count past the 100k lower bound.
+    n_x: int = 100
+    n_y: int = 50
     n_z: int = 1
     grading_x: float = 1.0
     grading_y: float = 1.0
     z_thickness: float = 0.1  # extrude depth for OpenFOAM 2D-equivalent
-    # snappyHexMesh refinement.
-    surface_refinement_min: int = 5
-    surface_refinement_max: int = 6
-    refinement_box_level: int = 4  # box around airfoil + near wake
+    # snappyHexMesh refinement. Levels of 7-8 give surface cell size
+    # ~10c/2^8 = 0.04c, ~50 cells along the airfoil. Outer refinement
+    # box adds intermediate density between background + surface.
+    surface_refinement_min: int = 7
+    surface_refinement_max: int = 8
+    refinement_box_level: int = 5  # box around airfoil + near wake
     # Boundary-layer prism inflation.
     n_layers: int = 30
     first_layer_thickness: float = 1.0e-6  # y+ < 1 at Re=6e6
@@ -277,9 +279,8 @@ addLayersControls
     }}
 
     expansionRatio    {spec.expansion_ratio};
-    finalLayerThickness 0.6;
-    minThickness        0.01;
     firstLayerThickness {spec.first_layer_thickness};
+    minThickness        {spec.first_layer_thickness * 0.5};
     nGrow               0;
     featureAngle        180;
     slipFeatureAngle    30;
