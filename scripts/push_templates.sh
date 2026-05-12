@@ -76,5 +76,14 @@ rsync -avz -e "ssh ${SSH_OPT[*]}" \
     "${REPO_ROOT}/README.md" \
     "${USER}@${HOST}:~/aero-research-platform/"
 
+# Scripts (preamble.sh + pull) — the LLM-generated run.sh sources
+# preamble.sh from /home/${USER}/aero-research-platform/scripts/, so
+# this rsync IS load-bearing for every run.
+ssh "${SSH_OPT[@]}" "${USER}@${HOST}" "mkdir -p ~/aero-research-platform/scripts"
+rsync -avz -e "ssh ${SSH_OPT[*]}" \
+    "${REPO_ROOT}/scripts/preamble.sh" \
+    "${USER}@${HOST}:~/aero-research-platform/scripts/"
+ssh "${SSH_OPT[@]}" "${USER}@${HOST}" "chmod +x ~/aero-research-platform/scripts/preamble.sh"
+
 echo "Done. Remote listings:"
 ssh "${SSH_OPT[@]}" "${USER}@${HOST}" "ls -la ~/templates/ && echo --- && ls -la ~/aero-research-platform/aero_research_platform/"
