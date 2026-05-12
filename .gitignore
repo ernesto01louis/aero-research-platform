@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build
+build/
+dist/
+wheels/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+.python-version
+
+# uv lockfile is checked in for reproducibility
+# (do not exclude uv.lock)
+
+# Local secrets
+.env
+.env.local
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bulk data — keep .gitkeep stubs only
+data/*
+!data/.gitkeep
+results/*
+!results/.gitkeep
+
+# DVC (if/when activated; mirrors orchestrator .gitignore pattern)
+/dvc-cache/

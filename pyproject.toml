@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aero-research-platform"
+version = "0.0.0"
+description = "Aero research platform — consumer of ai-orchestrator. Three-loop architecture: LLM hypothesis × RL/evo via surrogates × CFD validation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Louis", email = "louis_ernesto@aol.com" }]
+keywords = ["aerodynamics", "cfd", "openfoam", "physicsnemo", "riblets", "ai-orchestrator"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    # The aero repo is a CONSUMER. It imports the orchestrator's public
+    # SDK only — never reaches into orchestrator-internal modules.
+    # Range pin lets MINOR bumps (e.g. 0.1.0a1 with hitl_mode) flow.
+    "ai-orchestrator-client>=0.1.0a0,<0.2",
+    "PyYAML>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.6",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Repository = "https://github.com/ernesto01louis/aero-research-platform"
+Orchestrator = "https://github.com/ernesto01louis/ai-orchestrator"
+
+# Pluggy entry points discovered by the orchestrator's evidence-bundle
+# plugin host. Targets are stubs today (return [] from compute_evidence);
+# real calculators land in Stage 5/6. The orchestrator's pluggy
+# discovery requires `pip install aero-research-platform` in the
+# orchestrator's Python env — see RUNBOOK § "Activate evidence/ entry
+# points (Stage 5/6)".
+[project.entry-points."ai_orchestrator_evidence"]
+aero_metrics = "aero_research_platform.evidence.aero_metrics:hook"
+riblet_drag_reduction = "aero_research_platform.evidence.riblet_drag_reduction:hook"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aero_research_platform"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",   # line length — handled by formatter
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["aero_research_platform"]
+# tests/ is intentionally permissive — pytest discovery patterns,
+# inline imports, and conftest fixtures don't benefit from --strict.
+exclude = ["tests/", "notebooks/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
