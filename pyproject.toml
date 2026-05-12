@@ -63,6 +63,10 @@ packages = ["aero_research_platform"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Notebook cells get linted under their own rules — accept the
+# notebook-specific patterns (unused-on-purpose imports, terse cell
+# logic) without polluting the strict-Python tree.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
