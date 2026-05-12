@@ -4,23 +4,61 @@
 # per the design brief but is currently a no-op (SDK CampaignCreate uses
 # extra="ignore"; core/budget.py treats <=0 as unlimited). See
 # RUNBOOK.md § "budget_total_usd current behavior".
+#
+# Stage-4 patch (2026-05-12): turbulence model switched from k-omega SST
+# to Spalart-Allmaras. The NASA TMR Cl/Cd reference values cited in the
+# hypothesis (Cl≈1.0909, Cd≈0.01231 at α=10°) are SA-model numbers, so
+# the run model must match. The prompt now points at the case template
+# pre-staged on the aero LXC by scripts/push_templates.sh — Stage 5/6
+# campaigns will reuse the same staging contract.
 name: naca0012-baseline-validation
 hypothesis: |
-  OpenFOAM v2412 simpleFoam with k-omega SST, run on a NASA-TMR-grade C-grid
-  with 897x257 cells and farfield ~500c away, reproduces the NASA Turbulence
-  Modeling Resource published lift/drag for NACA 0012 at M=0.15, Re=6e6,
-  alpha=0deg and 10deg to within +/-2% on Cl and +/-10% on Cd. If we miss
-  that bar, our CFD pipeline is wrong and no riblet result is trustworthy
-  until we fix it. Reference: NASA TMR SA-model results for NACA 0012 at
-  alpha=10 → CFL3D and FUN3D Family-II finest grid converge to Cl ~= 1.0909
-  and Cd ~= 0.01231 (codes agree within max 1% lift / 4% drag).
+  OpenFOAM v2412 simpleFoam with the Spalart-Allmaras turbulence model,
+  run on a NASA-TMR-equivalent hex-dominant mesh (snappyHexMesh refinement
+  levels 5-6 on the airfoil + 30 prism layers, farfield ~500c away,
+  >100k cells), reproduces the NASA Turbulence Modeling Resource published
+  lift/drag for NACA 0012 at M=0.15, Re=6e6, alpha=0deg and 10deg to
+  within +/-2% on Cl and +/-10% on Cd. If we miss that bar, our CFD
+  pipeline is wrong and no riblet result is trustworthy until we fix it.
+  Reference: NASA TMR SA-model results for NACA 0012 at alpha=10
+  → CFL3D and FUN3D Family-II finest grid converge to Cl ~= 1.0909 and
+  Cd ~= 0.01231 (codes agree within max 1% lift / 4% drag).
 template:
   project_name: naca0012-baseline-{aoa}
   prompt: |
-    Steady-state RANS of NACA 0012 at AoA, M=0.15, Re=6e6 (c=1m), OpenFOAM
-    v2412 simpleFoam, k-omega SST, low-Re wall function. Mesh: structured
-    C-grid 897x257, farfield 500c. Report Cl, Cd, y+ on airfoil surface
-    from postProcessing/forceCoeffs1/. Save final time VTK.
+    Steady-state RANS of NACA 0012 at AoA={aoa} degrees, M=0.15, Re=6e6,
+    chord=1. OpenFOAM v2412 simpleFoam with the Spalart-Allmaras
+    turbulence model. Wall-resolved (y+ < 1).
+
+    A complete case template is pre-staged on the target at
+    /home/aero/templates/naca0012-simpleFoam/ (0/, constant/, system/
+    plus scripts/generate_mesh.py and scripts/set_aoa.py). DO NOT
+    rewrite the case files — just copy and parameterize.
+
+    The exact bash recipe to execute (do not deviate, do not Python-ify):
+
+        source /home/aero/aero-research-platform/scripts/preamble.sh \
+          || source ~/preamble.sh
+        cp -r /home/aero/templates/naca0012-simpleFoam ./case
+        cd ./case
+        python scripts/generate_mesh.py --case-dir .
+        python scripts/set_aoa.py --aoa {aoa} --case-dir .
+        blockMesh > log.blockMesh 2>&1
+        surfaceFeatureExtract > log.surfaceFeatureExtract 2>&1 || true
+        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
+        decomposePar -force > log.decomposePar 2>&1
+        mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
+        reconstructPar -latestTime > log.reconstructPar 2>&1
+        foamLog log.simpleFoam || true
+
+    Report Cl and Cd from postProcessing/forceCoeffs1/0/coefficient.dat
+    averaged over the final 200 iterations. Report y+ from
+    postProcessing/yPlus/*/yPlus.dat (mean + max on the airfoil patch).
+    Save the final time as VTK via `foamToVTK -latestTime`.
+
+    Convergence: residuals < 1e-6 on Ux/Uy/p/nuTilda; force coefficients
+    drift < 0.1% over the last 200 iterations.
   planner_model: qwen2.5:72b
   generator_models: [qwen2.5-coder:32b]
   judge_model: qwen2.5:72b
