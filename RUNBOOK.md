@@ -161,6 +161,72 @@ include their `CalculatorResult` entries in the bundle's
 
 Today both hooks return `[]`. Stage 5/6 fills them in.
 
+## Stage 4 — re-run the NACA 0012 baseline validation
+
+The Stage-4 smoke pipeline lives entirely in `scripts/smoke_naca0012.py`.
+It pre-flights Prefect, the orchestrator REST, the aero target, the YAML
+SDK round-trip, and template staging, then POSTs `/campaigns` and writes
+`results/01-naca0012-baseline/run-log.json`.
+
+Full sequence to re-run from scratch:
+
+```sh
+# 1. Push the case template + Python package to the aero LXC.
+scripts/push_templates.sh aero-research
+
+# 2. Launch the campaign (does pre-flight first; --no-launch dry-runs).
+scripts/smoke_naca0012.py
+# or:  scripts/smoke_naca0012.py --no-launch    # to verify only
+
+# 3. Poll progress.
+CAMP=$(jq -r '.latest.campaign_id' results/01-naca0012-baseline/run-log.json)
+curl -s http://127.0.0.1:8000/campaigns/$CAMP/tree | jq '{status: .campaign.status, runs: [.runs[] | {id, params, status, score}]}'
+
+# 4. After both runs reach status="completed", pull artifacts:
+for aoa in 0 10; do
+    mkdir -p results/01-naca0012-baseline/aoa-$aoa
+    scp -i /root/.ssh/id_ed25519_aero_target -r \
+        aero@192.168.2.231:/home/aero/ai-projects/naca0012-baseline-$aoa/runs/'*'/postProcessing \
+        results/01-naca0012-baseline/aoa-$aoa/
+done
+
+# 5. Verify the evidence bundle.
+python -m evidence.verify --crate-dir /opt/ai-orchestrator/campaigns/$CAMP/
+
+# 6. Render the validation notebook and inspect PASS/FAIL.
+jupyter nbconvert --to notebook --execute notebooks/01-validation-naca0012.ipynb
+cat results/01-naca0012-baseline/results.csv
+```
+
+### Stage-4 mesh-design deviations from the brief
+
+Two production deviations recorded here (and in
+`STAGE-4-OUTPUTS.md`) so reviewers see them before reading the source:
+
+1. **snappyHexMesh instead of structured 897×257 C-grid.** The brief
+   asks for a NASA-TMR Family-I-equivalent structured C-grid. After a
+   gmsh transfinite-with-boundary-layer-field spike could not coax more
+   than a few thousand cells out regardless of size-field tuning, we
+   pivoted to OpenFOAM-canonical snappyHexMesh: a rectangular hex
+   background mesh, surface refinement levels 6–7 on the airfoil, and
+   30 prism layers tuned for y+ < 1 at Re=6e6. Produces 100k+ hex-
+   dominant cells with NASA-TMR-equivalent wall resolution.
+2. **100c farfield instead of 500c.** Background hex cells at 500c span
+   were too coarse to cut a 1c airfoil — castellatedMesh refined zero
+   cells. 100c is well-established in the literature for NACA 0012
+   incompressible RANS (blockage < 0.5% for Cl at this Re/AoA per
+   `tutorials/airFoil2D` and Schlichting & Truckenbrodt 1969).
+
+### Why HITL mode is `gate_only`, not `full_auto`
+
+Audit B.4 — campaign-level `hitl_mode` overrides the orchestrator's
+`config.json` default. We need `gate_only` so the orchestrator pauses
+on a Gates denial (Phase 3.1 HITL) but otherwise runs unattended. A
+gate denial typically means the LLM-generated command looks like a
+filesystem-destructive operation; the operator approves or rejects via
+the notification action button. **Don't flip to `full_auto`** to "save
+time" — Gates is what protects the LXC from a malformed run.sh.
+
 ## TrueNAS NFS mount on the aero LXC (deferred from Stage 1)
 
 Stage 1's brief originally bundled a TrueNAS NFS mount onto CT 207 at
