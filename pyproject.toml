@@ -26,6 +26,7 @@ dependencies = [
     # Range pin lets MINOR bumps (e.g. 0.1.0a1 with hitl_mode) flow.
     "ai-orchestrator-client>=0.1.0a0,<0.2",
     "PyYAML>=6.0,<7",
+    "numpy>=1.26,<3",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +35,12 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.6",
     "mypy>=1.10",
+]
+# Heavy native deps used by the CFD pipeline. NOT installed by default
+# (the orchestrator LXC stays domain-neutral, and gmsh needs libGLU
+# which CI skips). Activate on the aero LXC with `pip install -e '.[mesh]'`.
+mesh = [
+    "gmsh>=4.13",
 ]
 
 [project.urls]
@@ -74,3 +81,7 @@ exclude = ["tests/", "notebooks/"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "gmsh: requires the gmsh Python wheel + libGLU; skipped on CI",
+    "slow: runs full-resolution mesh / multi-minute CFD; opt-in",
+]
