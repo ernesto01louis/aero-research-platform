@@ -1,0 +1,30 @@
+# Phase 1.1 of aero-research-platform. Hypothesis is REFORMS §1
+# pre-registration — the orchestrator's CampaignCreate model rejects
+# blank values. `budget_total_usd: 0.0` at the top level is preserved
+# per the design brief but is currently a no-op (SDK CampaignCreate uses
+# extra="ignore"; core/budget.py treats <=0 as unlimited). See
+# RUNBOOK.md § "budget_total_usd current behavior".
+name: naca0012-baseline-validation
+hypothesis: |
+  OpenFOAM v2412 simpleFoam with k-omega SST, run on a NASA-TMR-grade C-grid
+  with 897x257 cells and farfield ~500c away, reproduces the NASA Turbulence
+  Modeling Resource published lift/drag for NACA 0012 at M=0.15, Re=6e6,
+  alpha=0deg and 10deg to within +/-2% on Cl and +/-10% on Cd. If we miss
+  that bar, our CFD pipeline is wrong and no riblet result is trustworthy
+  until we fix it. Reference: NASA TMR SA-model results for NACA 0012 at
+  alpha=10 → CFL3D and FUN3D Family-II finest grid converge to Cl ~= 1.0909
+  and Cd ~= 0.01231 (codes agree within max 1% lift / 4% drag).
+template:
+  project_name: naca0012-baseline-{aoa}
+  prompt: |
+    Steady-state RANS of NACA 0012 at AoA, M=0.15, Re=6e6 (c=1m), OpenFOAM
+    v2412 simpleFoam, k-omega SST, low-Re wall function. Mesh: structured
+    C-grid 897x257, farfield 500c. Report Cl, Cd, y+ on airfoil surface
+    from postProcessing/forceCoeffs1/. Save final time VTK.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params: { aoa: [0, 10] }
+budget_total_usd: 0.0

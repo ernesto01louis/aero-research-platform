@@ -1,0 +1,49 @@
+# Shared deploy-target metadata — not consumed by the orchestrator.
+#
+# A human-readable cross-reference for the values that the
+# `deploy_target` key in each campaign YAML resolves to inside the
+# orchestrator's config.json. Keeps future campaigns from having to
+# grep STAGE-2-OUTPUTS.md to remember which user / venv / hardware
+# the aero-research target points at.
+#
+# When adding a new deploy target:
+#   1. Edit orchestrator's /opt/ai-orchestrator/config.json
+#      `ssh_targets[]` (use core.locks.locked_write_json — file locking
+#      is mandatory).
+#   2. Restart `ai-orchestrator.service`.
+#   3. Add a row here documenting the operational facts.
+
+targets:
+  aero-research:
+    host: 192.168.2.231          # LAN address; tailnet works too
+    ssh_user: aero
+    ssh_key_path_on_orchestrator: /root/.ssh/id_ed25519_aero_target
+    proxmox_ctid: 207
+    proxmox_storage: Storage     # see /opt/aero-bootstrap/README.md "Rootfs storage" deviation
+    distro: Debian 12 (bookworm)
+    cpu_cores: 16
+    memory_gb: 32
+    swap_gb: 4
+    rootfs_gb: 200
+    privileged: false
+    apparmor: default
+    gpu_passthrough: scaffolded-off  # commented in /etc/pve/lxc/207.conf
+
+    aero_stack:
+      openfoam: v2412               # ESI Debian repo
+      python: /opt/aero-venv/bin/python  # 3.11; system python is /usr/bin/python3.11
+      physicsnemo: "2.0"
+      gmsh: installed
+      cadquery: installed
+      pytorch: installed (CPU on-prem; CUDA via SkyPilot bursts)
+      stable_baselines3: installed
+      pymoo: installed
+
+    nfs:
+      mount_point: /mnt/aero          # currently empty placeholder
+      status: deferred-stage-3        # see RUNBOOK § "TrueNAS NFS mount on the aero LXC"
+
+    sudo_allowlist:
+      - apt-get
+      - apt
+      - systemctl                     # narrow vs. orchestrator allowlist (no npm)

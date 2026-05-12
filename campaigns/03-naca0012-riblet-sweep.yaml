@@ -1,0 +1,35 @@
+# Phase 1.3 of aero-research-platform. Hypothesis is REFORMS §1
+# pre-registration — the orchestrator's CampaignCreate model rejects
+# blank values. `budget_total_usd: 0.0` at the top level is preserved
+# per the design brief but is currently a no-op (SDK CampaignCreate uses
+# extra="ignore"; core/budget.py treats <=0 as unlimited). See
+# RUNBOOK.md § "budget_total_usd current behavior".
+name: naca0012-static-riblet-parametric-sweep
+hypothesis: |
+  A static blade-riblet patch (h/s=0.5, t/s=0.02) on the suction surface of
+  NACA 0012 between x/c=0.10 and 0.90 at chord Re=1e6, swept across s+ in
+  [10, 25], produces peak drag reduction of 3-10% relative to the smooth
+  airfoil at alpha=0deg. The 4% cruise-fuel-saving figure quoted on the
+  MicroTau product page (microtau.com.au/product) is a NET aircraft-level
+  number; the underlying ~8% riblet drag-reduction figure traces to a 1988
+  NASA report (NTRS 19880005573: "The riblet performance (8 percent net
+  drag reduction thus far)"), NOT to MicroTau itself. Our 3-10% bound is
+  the range we'd consider physically credible for THIS surface fraction
+  and Re. Outside that range, flag for re-examination of mesh resolution
+  near riblet tips (Bechert 1997 warns tip sharpness dominates the curve).
+template:
+  project_name: naca0012-riblet-{s_plus_target}
+  prompt: |
+    NACA 0012 with blade-riblet patch on suction surface x/c=[0.10, 0.90].
+    h/s=0.5, t/s=0.02, aligned with local mean flow. Sweep target s+ at
+    mid-chord. Cells-per-riblet-pitch >= 16. Re-run smooth-airfoil baseline
+    at every s+ for self-consistent DR. Report Cl, Cd, riblet-region
+    skin-friction integral, DR vs baseline.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params:
+  s_plus_target: [10, 12, 14, 16, 18, 20, 22, 25]
+budget_total_usd: 0.0

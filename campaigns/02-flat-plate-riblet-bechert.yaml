@@ -1,0 +1,34 @@
+# Phase 1.2 of aero-research-platform. Hypothesis is REFORMS §1
+# pre-registration — the orchestrator's CampaignCreate model rejects
+# blank values. `budget_total_usd: 0.0` at the top level is preserved
+# per the design brief but is currently a no-op (SDK CampaignCreate uses
+# extra="ignore"; core/budget.py treats <=0 as unlimited). See
+# RUNBOOK.md § "budget_total_usd current behavior".
+name: flat-plate-blade-riblet-bechert-1997-replication
+hypothesis: |
+  Static blade riblets at h/s=0.5 on a zero-pressure-gradient flat plate,
+  swept across s+ in [5, 40], reproduce Bechert et al. 1997 JFM 338:59-87
+  Figure 5. Reference values are reported by Heidarian et al. JAFM 11(3):
+  679-688, 2018 in a comparison table citing Bechert: "Oil Blade Riblet
+  ~9.9%" peak drag reduction. We expect peak DR within +/-2 pp at s+ ~17;
+  crossover s+ ~27 within +/-3. (Note: Heidarian's own RANS results were
+  ~11% for sawtooth/scalloped; we are calibrating against the Bechert
+  blade-riblet experimental column, not Heidarian's CFD column.) If RANS
+  misses, escalate to wall-resolved LES on a SkyPilot A100 burst per the
+  Mele & Tognaccini 2022 MDPI Fluids 7(7):249 RANS-riblet practice.
+template:
+  project_name: flat-plate-riblet-{s_plus}-h{h_over_s}
+  prompt: |
+    Periodic-strip flat plate, blade-riblet bottom wall (h/s as given,
+    t/s=0.02 per Bechert). Drive BL state to target s+. Compute DR vs
+    smooth-wall baseline at same Re_theta. Report DR%, s+, datum
+    convention for force normalization.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params:
+  s_plus: [5, 10, 15, 17, 20, 25, 30, 35, 40]
+  h_over_s: [0.5]
+budget_total_usd: 0.0
