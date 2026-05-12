@@ -39,8 +39,14 @@ template:
 
         source /home/aero/aero-research-platform/scripts/preamble.sh \
           || source ~/preamble.sh
-        cp -r /home/aero/templates/naca0012-simpleFoam ./case
-        cd ./case
+        # Run OpenFOAM in a persistent directory so postProcessing/ + logs
+        # survive after the orchestrator's sandbox is torn down. The
+        # persistent path is keyed on project_name (Stage-2 deviation #4).
+        CASE_DIR=/home/aero/ai-projects/naca0012-baseline-{aoa}/case
+        rm -rf "$CASE_DIR"
+        mkdir -p "$CASE_DIR"
+        cp -r /home/aero/templates/naca0012-simpleFoam/. "$CASE_DIR/"
+        cd "$CASE_DIR"
         python scripts/generate_mesh.py --case-dir .
         python scripts/set_aoa.py --aoa {aoa} --case-dir .
         blockMesh > log.blockMesh 2>&1
@@ -51,11 +57,15 @@ template:
         mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
         reconstructPar -latestTime > log.reconstructPar 2>&1
         foamLog log.simpleFoam || true
+        foamToVTK -latestTime > log.foamToVTK 2>&1 || true
+
+    Outputs to persist at $CASE_DIR (do NOT cd away before they finish
+    writing): postProcessing/forceCoeffs1/0/coefficient.dat,
+    postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
 
     Report Cl and Cd from postProcessing/forceCoeffs1/0/coefficient.dat
     averaged over the final 200 iterations. Report y+ from
     postProcessing/yPlus/*/yPlus.dat (mean + max on the airfoil patch).
-    Save the final time as VTK via `foamToVTK -latestTime`.
 
     Convergence: residuals < 1e-6 on Ux/Uy/p/nuTilda; force coefficients
     drift < 0.1% over the last 200 iterations.
