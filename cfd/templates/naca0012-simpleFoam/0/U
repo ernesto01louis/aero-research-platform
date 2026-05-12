@@ -1,0 +1,59 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2412                                 |
+|   \\  /    A nd           | Web:      www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+// AoA-templated velocity initial / boundary conditions.
+// {{AOA_RAD}} and {{U_X}}/{{U_Y}} are filled in by scripts/set_aoa.py.
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform ({{U_X}} {{U_Y}} 0);
+
+boundaryField
+{
+    airfoil
+    {
+        type            noSlip;
+    }
+
+    inlet
+    {
+        type            freestreamVelocity;
+        freestreamValue uniform ({{U_X}} {{U_Y}} 0);
+    }
+
+    outlet
+    {
+        type            freestreamVelocity;
+        freestreamValue uniform ({{U_X}} {{U_Y}} 0);
+    }
+
+    top
+    {
+        type            freestreamVelocity;
+        freestreamValue uniform ({{U_X}} {{U_Y}} 0);
+    }
+
+    bottom
+    {
+        type            freestreamVelocity;
+        freestreamValue uniform ({{U_X}} {{U_Y}} 0);
+    }
+
+    frontAndBack
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

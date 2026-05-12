@@ -1,0 +1,43 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      p;
+}
+
+dimensions      [0 2 -2 0 0 0 0];   // kinematic pressure for incompressible
+
+internalField   uniform 0;
+
+boundaryField
+{
+    airfoil
+    {
+        type            zeroGradient;
+    }
+    inlet
+    {
+        type            freestreamPressure;
+        freestreamValue uniform 0;
+    }
+    outlet
+    {
+        type            freestreamPressure;
+        freestreamValue uniform 0;
+    }
+    top
+    {
+        type            freestreamPressure;
+        freestreamValue uniform 0;
+    }
+    bottom
+    {
+        type            freestreamPressure;
+        freestreamValue uniform 0;
+    }
+    frontAndBack
+    {
+        type            empty;
+    }
+}

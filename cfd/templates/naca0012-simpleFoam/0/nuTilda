@@ -1,0 +1,48 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      nuTilda;
+}
+
+// NASA TMR SA freestream: nuTilda_infty / nu = 3 (medium turbulence intensity).
+// With nu = 1/Re = 1/6e6, nuTilda_infty = 3e-6 / 6 = 5e-7. Using 5e-7
+// gives moderate viscosity ratio at freestream that matches Family-II runs.
+
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 5e-7;
+
+boundaryField
+{
+    airfoil
+    {
+        type            fixedValue;
+        value           uniform 0;
+    }
+    inlet
+    {
+        type            freestream;
+        freestreamValue uniform 5e-7;
+    }
+    outlet
+    {
+        type            freestream;
+        freestreamValue uniform 5e-7;
+    }
+    top
+    {
+        type            freestream;
+        freestreamValue uniform 5e-7;
+    }
+    bottom
+    {
+        type            freestream;
+        freestreamValue uniform 5e-7;
+    }
+    frontAndBack
+    {
+        type            empty;
+    }
+}
