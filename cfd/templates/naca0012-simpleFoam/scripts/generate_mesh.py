@@ -37,25 +37,25 @@ def _add_repo_to_path() -> None:
 def _cli() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--case-dir", type=Path, default=Path("."))
-    p.add_argument("--n-x", type=int, default=80, help="background hex cells in x")
-    p.add_argument("--n-y", type=int, default=40, help="background hex cells in y")
+    p.add_argument("--n-x", type=int, default=None, help="background hex cells in x")
+    p.add_argument("--n-y", type=int, default=None, help="background hex cells in y")
     p.add_argument(
         "--surface-refinement-min",
         type=int,
-        default=5,
+        default=None,
         help="minimum snappyHexMesh refinement level on the airfoil",
     )
     p.add_argument(
         "--surface-refinement-max",
         type=int,
-        default=6,
+        default=None,
         help="maximum snappyHexMesh refinement level on the airfoil",
     )
-    p.add_argument("--n-layers", type=int, default=30, help="prism boundary-layer count")
+    p.add_argument("--n-layers", type=int, default=None, help="prism boundary-layer count")
     p.add_argument(
         "--first-layer-thickness",
         type=float,
-        default=1e-6,
+        default=None,
         help="first prism cell wall distance (chord units)",
     )
     args = p.parse_args()
@@ -63,14 +63,19 @@ def _cli() -> None:
     _add_repo_to_path()
     from aero_research_platform.meshing.airfoil_cmesh import MeshSpec, write_all
 
-    spec = MeshSpec(
-        n_x=args.n_x,
-        n_y=args.n_y,
-        surface_refinement_min=args.surface_refinement_min,
-        surface_refinement_max=args.surface_refinement_max,
-        n_layers=args.n_layers,
-        first_layer_thickness=args.first_layer_thickness,
-    )
+    # Build the spec by overriding only the CLI args the operator supplied.
+    overrides = {
+        k: v for k, v in {
+            "n_x": args.n_x,
+            "n_y": args.n_y,
+            "surface_refinement_min": args.surface_refinement_min,
+            "surface_refinement_max": args.surface_refinement_max,
+            "n_layers": args.n_layers,
+            "first_layer_thickness": args.first_layer_thickness,
+        }.items()
+        if v is not None
+    }
+    spec = MeshSpec(**overrides)
     paths = write_all(spec, args.case_dir)
     print(f"Wrote {len(paths)} mesh files under {args.case_dir}:")
     for name, path in paths.items():

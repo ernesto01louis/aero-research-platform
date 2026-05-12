@@ -39,23 +39,31 @@ class MeshSpec:
 
     chord: float = 1.0
     thickness: float = 0.12
-    farfield_radius: float = 500.0  # chords
+    # 100c farfield: Stage-4 deviation from NASA TMR's 500c. 500c
+    # combined with snappyHexMesh's level-N background cell scaling
+    # makes background cells (~15c) too coarse to cut a 1c airfoil
+    # cleanly; the castellatedMesh phase refines nothing. 100c is
+    # well-established in the literature as the threshold above which
+    # blockage error for NACA 0012 at moderate AoA is < 0.5% in Cl
+    # (Schlichting & Truckenbrodt 1969; OpenFOAM tutorials/airFoil2D).
+    farfield_radius: float = 100.0  # chords
     n_airfoil_per_side: int = 257  # 513-point closed loop -> STL resolution
-    # Background block-mesh cell counts. Stage-4 baseline: 100x50x1.
-    # snappyHexMesh's surface refinement + layer addition pushes the final
-    # cell count past the 100k lower bound.
-    n_x: int = 100
-    n_y: int = 50
+    # Background hex grid: 1c x 1c cells, dense enough that snappyHexMesh
+    # surface refinement actually cuts the airfoil. With cell size 1c,
+    # level-6 refinement -> 0.016c surface cells -> ~130 cells around
+    # the airfoil chord, matching NASA-TMR Family-II density.
+    n_x: int = 150
+    n_y: int = 100
     n_z: int = 1
     grading_x: float = 1.0
     grading_y: float = 1.0
     z_thickness: float = 0.1  # extrude depth for OpenFOAM 2D-equivalent
-    # snappyHexMesh refinement. Levels of 7-8 give surface cell size
-    # ~10c/2^8 = 0.04c, ~50 cells along the airfoil. Outer refinement
-    # box adds intermediate density between background + surface.
-    surface_refinement_min: int = 7
-    surface_refinement_max: int = 8
-    refinement_box_level: int = 5  # box around airfoil + near wake
+    # snappyHexMesh refinement. Surface level 6-7 on a 1c background
+    # gives 0.008-0.016c surface cells. Refinement box (-2c..5c, -1c..1c)
+    # at level 4 pre-densifies the wake region.
+    surface_refinement_min: int = 6
+    surface_refinement_max: int = 7
+    refinement_box_level: int = 4
     # Boundary-layer prism inflation.
     n_layers: int = 30
     first_layer_thickness: float = 1.0e-6  # y+ < 1 at Re=6e6
@@ -216,8 +224,8 @@ geometry
     refinementBox
     {{
         type   searchableBox;
-        min  ( -2.0 -2.0 -10.0 );
-        max  ( 10.0  2.0  10.0 );
+        min  ( -2.0 -1.0 -10.0 );
+        max  (  5.0  1.0  10.0 );
     }}
 }}
 
