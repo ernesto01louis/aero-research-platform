@@ -1,0 +1,55 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+
+ddtSchemes
+{
+    default         steadyState;
+}
+
+gradSchemes
+{
+    default         Gauss linear;
+    // Softer multi-directional limiter (Stage-4.x α=10 lesson — see
+    // /opt/aero-research-platform/STAGE-4-OUTPUTS.md Issue 4). The flat
+    // plate has no Kutta condition but a hard cellLimited still suppresses
+    // gradient development through the riblet boundary layer.
+    grad(U)         cellMDLimited Gauss linear 0.5;
+    grad(p)         cellLimited Gauss linear 1;
+}
+
+divSchemes
+{
+    default         none;
+    div(phi,U)      bounded Gauss linearUpwindV grad(U);
+    div(phi,k)      bounded Gauss upwind;
+    div(phi,omega)  bounded Gauss upwind;
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         corrected;
+}
+
+wallDist
+{
+    // Poisson is more robust than meshWave on cells with very small
+    // determinant (Stage-4.x lesson). kOmegaSST uses wall distance for
+    // F1/F2 blending, so robustness here matters.
+    method          Poisson;
+}

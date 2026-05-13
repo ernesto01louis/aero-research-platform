@@ -1,0 +1,45 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      nut;
+}
+
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    inlet
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    outlet
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    top
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    bottomWall
+    {
+        // nutLowReWallFunction returns 0 at the wall for wall-resolved
+        // y+ < 1 meshes — correct behaviour for Stage 5's prism stack.
+        type            nutLowReWallFunction;
+        value           uniform 0;
+    }
+    frontPeriodic
+    {
+        type            cyclic;
+    }
+    backPeriodic
+    {
+        type            cyclic;
+    }
+}

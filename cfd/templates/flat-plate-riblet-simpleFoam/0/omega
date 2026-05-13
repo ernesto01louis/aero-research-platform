@@ -1,0 +1,50 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      omega;
+}
+
+// Freestream specific dissipation rate. Menter's recommended ratio
+// nuT_infty / nu = O(0.01) at Re_c=6e6 with k_infty=1.5e-6 gives
+// omega_infty = k_infty / (nuT_infty/nu * nu) ~ k / (0.01 / 6e6 * 1/6e6)
+// ~ 90. Use omega_infty=100 — well within the Menter robustness band
+// (omega O(10..1000) is universally fine for kOmegaSST).
+dimensions      [0 0 -1 0 0 0 0];
+
+internalField   uniform 100;
+
+boundaryField
+{
+    inlet
+    {
+        type            freestream;
+        freestreamValue uniform 100;
+    }
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform 100;
+        value           uniform 100;
+    }
+    top
+    {
+        type            slip;
+    }
+    bottomWall
+    {
+        // omegaWallFunction handles both wall-resolved (y+<1) and
+        // wall-function (y+>30) regimes via Menter's blending.
+        type            omegaWallFunction;
+        value           uniform 100;
+    }
+    frontPeriodic
+    {
+        type            cyclic;
+    }
+    backPeriodic
+    {
+        type            cyclic;
+    }
+}

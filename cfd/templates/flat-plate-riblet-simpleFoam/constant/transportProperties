@@ -1,0 +1,15 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+
+transportModel  Newtonian;
+
+// Non-dimensional units: chord c = 1, U_infty = 1.
+// Re_c = 1 / nu. Stage 5 reference Re_c = 1e6 — matches Bechert's
+// flat-plate test section in the oil channel (Bechert et al. 1997
+// JFM 338:59-87 Section 2). Tunable from generate_mesh.py override.
+nu              1e-6;
