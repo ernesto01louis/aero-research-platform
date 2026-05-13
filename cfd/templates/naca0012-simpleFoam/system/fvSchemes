@@ -46,5 +46,9 @@ snGradSchemes
 
 wallDist
 {
-    method          meshWave;
+    // Stage-4.x: switched from meshWave to Poisson. meshWave on cells
+    // with very small determinant returns near-zero wall distance,
+    // which makes SA's destruction term pow3(nuTilda/d^3) overflow to
+    // FPE. Poisson is more robust on degenerate cells.
+    method          Poisson;
 }

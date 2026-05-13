@@ -39,6 +39,17 @@ solvers
         relTol          0.1;
         nSweeps         2;
     }
+
+    // y-field is the Poisson wall-distance variable (fvSchemes wallDist.method=Poisson).
+    // meshWave was producing near-zero d in degenerate prism cells, which
+    // overflowed SA's pow3(nuTilda/d^3) destruction term to FPE.
+    yPsi
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0.0;
+    }
 }
 
 SIMPLE

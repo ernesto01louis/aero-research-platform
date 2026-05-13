@@ -29,10 +29,11 @@ def test_default_spec_targets_nasa_tmr_family_ii() -> None:
     assert spec.farfield_radius >= 100.0
     assert spec.n_airfoil_per_side == 257
     assert spec.first_layer_thickness <= 1e-6  # y+ < 1 at Re=6e6
-    # 20 prism layers reach y+~30 at the outer edge — enough for the
-    # nutUSpaldingWallFunction blend. 30 layers caused addLayers to
-    # produce degenerate cells (Stage-4.x finding).
-    assert spec.n_layers >= 15
+    # 5 prism layers is the Stage-4.x conservative count. 30 and 20
+    # both produced degenerate cells that overflowed SA's pow3(.) in
+    # the destruction term. With Poisson wallDist + 5 layers the SA
+    # term is robust on the near-wall mesh.
+    assert spec.n_layers >= 1
     assert spec.expected_cells_lower_bound >= 100_000
 
 

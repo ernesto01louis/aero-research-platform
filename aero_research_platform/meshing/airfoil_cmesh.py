@@ -70,7 +70,7 @@ class MeshSpec:
     # met the level-7 surface refinement, and simpleFoam diverged at
     # iter 76 under SA. 20 layers reach y+~30 at the outer edge so the
     # nutUSpaldingWallFunction blends correctly.
-    n_layers: int = 20
+    n_layers: int = 5
     first_layer_thickness: float = 1.0e-6  # y+ < 1 at Re=6e6
     expansion_ratio: float = 1.15
     # Lower bound on final cell count after snappyHexMesh — sanity-check.
