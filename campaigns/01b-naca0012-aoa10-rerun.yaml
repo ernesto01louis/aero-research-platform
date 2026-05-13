@@ -1,0 +1,78 @@
+# Stage 4.x α=10 cold-start fix re-run. STAGE-4-OUTPUTS Issue 4: the
+# first α=10 run converged to a non-physical low-circulation steady
+# state (Cl=0.09 vs NASA TMR 1.0909) because `cellLimited Gauss linear 1`
+# on grad(U) suppressed the bound-vortex sheet and the cold-start had
+# no flow perturbation to develop the Kutta condition.
+#
+# This YAML re-runs α=10 against the patched case template (fvSchemes
+# cellMDLimited 0.5 on grad(U)) with a potentialFoam -writephi
+# initialisation pass before simpleFoam — the standard OpenFOAM
+# airFoil2D recipe. Once this PASSes the NASA TMR ±2% Cl / ±10% Cd
+# bound, Stage 4 verdict moves PARTIAL → PASS and Stage 5 is unblocked.
+#
+# Inherits all Stage-4 staging: `scripts/push_templates.sh aero-research`
+# must have been re-run after the fvSchemes patch so the aero LXC has
+# the updated template.
+name: naca0012-aoa10-rerun-stage4-x
+hypothesis: |
+  After patching system/fvSchemes (cellLimited → cellMDLimited 0.5 on
+  grad(U)) and initialising with potentialFoam -writephi before
+  simpleFoam, the α=10° NACA 0012 case converges to the NASA TMR
+  SA-model reference (Cl ~= 1.0909, Cd ~= 0.01231) within +/-2% on Cl
+  and +/-10% on Cd. The α=0 row already PASSED in the first Stage-4
+  campaign; this re-run closes the open α=10 row in STAGE-4-OUTPUTS.md.
+template:
+  project_name: naca0012-aoa10-rerun
+  prompt: |
+    Steady-state RANS of NACA 0012 at AoA=10 degrees, M=0.15, Re=6e6,
+    chord=1. OpenFOAM v2412 simpleFoam with Spalart-Allmaras turbulence.
+    Wall-resolved (y+ < 1). Cold-start fix: initialise with potentialFoam
+    -writephi before simpleFoam (standard airFoil2D recipe).
+
+    The patched case template is pre-staged on the target at
+    /home/aero/templates/naca0012-simpleFoam/ (Stage-4.x fvSchemes patch
+    applied). DO NOT rewrite the case files — just copy and parameterize.
+
+    The exact bash recipe to execute (do not deviate, do not Python-ify):
+
+        source /home/aero/aero-research-platform/scripts/preamble.sh \
+          || source ~/preamble.sh
+        CASE_DIR=/home/aero/ai-projects/naca0012-aoa10-rerun/case
+        rm -rf "$CASE_DIR"
+        mkdir -p "$CASE_DIR"
+        cp -r /home/aero/templates/naca0012-simpleFoam/. "$CASE_DIR/"
+        cd "$CASE_DIR"
+        python scripts/generate_mesh.py --case-dir .
+        python scripts/set_aoa.py --aoa 10 --case-dir .
+        blockMesh > log.blockMesh 2>&1
+        surfaceFeatureExtract > log.surfaceFeatureExtract 2>&1 || true
+        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
+        # Stage-4.x: serial potentialFoam writes phi field that simpleFoam
+        # reads on first iteration. This imposes the Kutta condition and
+        # produces a flow with correct bound circulation — simpleFoam then
+        # refines that state. Without this, simpleFoam at α=10 cold-starts
+        # to a low-circulation local steady state (Cl=0.09 trap).
+        potentialFoam -writephi > log.potentialFoam 2>&1
+        decomposePar -force > log.decomposePar 2>&1
+        mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
+        reconstructPar -latestTime > log.reconstructPar 2>&1
+        foamLog log.simpleFoam || true
+        foamToVTK -latestTime > log.foamToVTK 2>&1 || true
+
+    Outputs to persist at $CASE_DIR: postProcessing/forceCoeffs1/0/coefficient.dat,
+    postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
+
+    Report Cl and Cd from postProcessing/forceCoeffs1/0/coefficient.dat
+    averaged over the final 200 iterations. Report y+ from
+    postProcessing/yPlus/*/yPlus.dat (mean + max on the airfoil patch).
+
+    Convergence: residuals < 1e-6 on Ux/Uy/p/nuTilda; force coefficients
+    drift < 0.1% over the last 200 iterations.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params: { aoa: [10] }
+budget_total_usd: 0.0
