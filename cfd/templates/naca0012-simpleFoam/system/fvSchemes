@@ -14,7 +14,14 @@ ddtSchemes
 gradSchemes
 {
     default         Gauss linear;
-    grad(U)         cellLimited Gauss linear 1;
+    // Stage-4.x α=10 fix: cellLimited Gauss linear 1 (the hard clamp)
+    // suppressed the bound-vortex sheet that sets the Kutta condition
+    // at incidence — simpleFoam settled to a low-circulation steady
+    // state (Cl=0.09 instead of NASA TMR 1.09). cellMDLimited with
+    // limiter strength 0.5 is multi-directional and softer; still
+    // stable on the 7.7k degenerate cells from snappyHexMesh addLayers
+    // but lets the gradient develop the lift.
+    grad(U)         cellMDLimited Gauss linear 0.5;
     grad(p)         cellLimited Gauss linear 1;
 }
 
