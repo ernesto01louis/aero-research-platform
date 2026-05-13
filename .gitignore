@@ -45,6 +45,10 @@ Thumbs.db
 # Bulk data — keep .gitkeep stubs only
 data/*
 !data/.gitkeep
+# Small reference datasets (digitized literature curves) are calibration
+# inputs, not bulk artifacts — commit them so the notebook is reproducible.
+!data/bechert-1997-fig5/
+!data/bechert-1997-fig5/**
 results/*
 !results/.gitkeep
 # Per-campaign run logs are small (campaign_id + flow_run_id pointers)

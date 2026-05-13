@@ -1,0 +1,28 @@
+# Bechert et al. 1997 JFM 338:59-87 — Figure 5, blade-riblet curve at h/s=0.5.
+# Drag reduction (%) vs wall-unit pitch s+ = s u_tau / nu.
+# Source DOI: 10.1017/S0022112096004673
+# Provenance + extraction method: see ./README.md
+# Sign convention: positive DR% = drag REDUCTION vs smooth baseline at
+# matched Re_theta. Negative values past the crossover indicate drag
+# INCREASE (riblets too coarse relative to viscous sublayer).
+#
+# Canonical anchor points (Heidarian et al. JAFM 11(3):679-688, 2018
+# Table — "Oil Blade Riblet ~9.9%" at peak, crossover near s+ ~27):
+#   peak DR  ~ 9.9%  at  s+ ~ 17
+#   crossover ~ 0%   at  s+ ~ 27
+#
+s_plus,dr_percent
+5,-1.5
+8,3.0
+10,5.0
+12,7.0
+15,8.8
+17,9.9
+20,9.0
+22,7.0
+25,3.5
+27,0.0
+30,-3.5
+33,-6.5
+35,-8.5
+40,-12.0
