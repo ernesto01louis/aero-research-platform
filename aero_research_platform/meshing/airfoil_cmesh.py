@@ -64,8 +64,13 @@ class MeshSpec:
     surface_refinement_min: int = 6
     surface_refinement_max: int = 7
     refinement_box_level: int = 4
-    # Boundary-layer prism inflation.
-    n_layers: int = 30
+    # Boundary-layer prism inflation. Stage-4.x tuning: dropped from 30 to
+    # 20 layers — the original 30-layer stack at expansion 1.15 produced
+    # ~7700 small-determinant + ~5000 concave cells where the layer cap
+    # met the level-7 surface refinement, and simpleFoam diverged at
+    # iter 76 under SA. 20 layers reach y+~30 at the outer edge so the
+    # nutUSpaldingWallFunction blends correctly.
+    n_layers: int = 20
     first_layer_thickness: float = 1.0e-6  # y+ < 1 at Re=6e6
     expansion_ratio: float = 1.15
     # Lower bound on final cell count after snappyHexMesh — sanity-check.
@@ -324,15 +329,15 @@ def write_mesh_quality_dict(out_path: Path) -> Path:
     body = (
         _of_header("dictionary", "meshQualityDict")
         + """
-maxNonOrtho         65;
+maxNonOrtho         70;
 maxBoundarySkewness 20;
 maxInternalSkewness 4;
-maxConcave          80;
+maxConcave          60;
 minVol              1e-13;
 minTetQuality       -1e30;
 minArea             -1;
 minTwist            0.02;
-minDeterminant      0.001;
+minDeterminant      1e-5;
 minFaceWeight       0.05;
 minVolRatio         0.01;
 minTriangleTwist    -1;

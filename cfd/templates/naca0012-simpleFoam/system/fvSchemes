@@ -21,8 +21,11 @@ gradSchemes
 divSchemes
 {
     default         none;
+    // Stage-4.x tuning: SA's near-wall production was the culprit
+    // when degenerate cells were present. First-order `upwind` on
+    // nuTilda is strictly bounded; sacrifices accuracy for stability.
     div(phi,U)      bounded Gauss linearUpwindV grad(U);
-    div(phi,nuTilda) bounded Gauss linearUpwind grad(nuTilda);
+    div(phi,nuTilda) bounded Gauss upwind;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 

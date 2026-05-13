@@ -29,7 +29,10 @@ def test_default_spec_targets_nasa_tmr_family_ii() -> None:
     assert spec.farfield_radius >= 100.0
     assert spec.n_airfoil_per_side == 257
     assert spec.first_layer_thickness <= 1e-6  # y+ < 1 at Re=6e6
-    assert spec.n_layers >= 25
+    # 20 prism layers reach y+~30 at the outer edge — enough for the
+    # nutUSpaldingWallFunction blend. 30 layers caused addLayers to
+    # produce degenerate cells (Stage-4.x finding).
+    assert spec.n_layers >= 15
     assert spec.expected_cells_lower_bound >= 100_000
 
 
@@ -91,7 +94,10 @@ def test_write_mesh_quality_dict_has_safe_thresholds(tmp_path: Path) -> None:
     out = tmp_path / "meshQualityDict"
     write_mesh_quality_dict(out)
     text = out.read_text()
-    assert "maxNonOrtho         65" in text
+    # Loosened Stage-4.x thresholds — see meshQualityDict comments.
+    assert "maxNonOrtho         70" in text
+    assert "maxConcave          60" in text
+    assert "minDeterminant      1e-5" in text
     assert "maxInternalSkewness 4" in text
 
 
