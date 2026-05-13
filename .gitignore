@@ -47,6 +47,10 @@ data/*
 !data/.gitkeep
 results/*
 !results/.gitkeep
+# Per-campaign run logs are small (campaign_id + flow_run_id pointers)
+# and worth committing as evidence the campaign was launched. Real
+# CFD artifacts (postProcessing, VTK, polyMesh) stay out.
+!results/**/run-log.json
 
 # DVC (if/when activated; mirrors orchestrator .gitignore pattern)
 /dvc-cache/
