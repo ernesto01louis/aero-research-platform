@@ -4,6 +4,12 @@
 # per the design brief but is currently a no-op (SDK CampaignCreate uses
 # extra="ignore"; core/budget.py treats <=0 as unlimited). See
 # RUNBOOK.md § "budget_total_usd current behavior".
+#
+# Stage-5 wiring (2026-05-13): k-omega SST per Mele & Tognaccini 2022.
+# Cartesian-product sweep across 9 s+ values × 2 surfaces (riblet +
+# smooth baseline) = 18 sub-runs. The paired baseline at each s+ shares
+# the same domain + Re_θ so DR% = (Cd_smooth - Cd_riblet) / Cd_smooth is
+# self-consistent at every sweep point.
 name: flat-plate-blade-riblet-bechert-1997-replication
 hypothesis: |
   Static blade riblets at h/s=0.5 on a zero-pressure-gradient flat plate,
@@ -17,12 +23,63 @@ hypothesis: |
   misses, escalate to wall-resolved LES on a SkyPilot A100 burst per the
   Mele & Tognaccini 2022 MDPI Fluids 7(7):249 RANS-riblet practice.
 template:
-  project_name: flat-plate-riblet-{s_plus}-h{h_over_s}
+  project_name: flat-plate-{surface}-{s_plus}-h{h_over_s}
   prompt: |
-    Periodic-strip flat plate, blade-riblet bottom wall (h/s as given,
-    t/s=0.02 per Bechert). Drive BL state to target s+. Compute DR vs
-    smooth-wall baseline at same Re_theta. Report DR%, s+, datum
-    convention for force normalization.
+    Periodic-strip flat plate, OpenFOAM v2412 simpleFoam with k-omega SST.
+    Bottom wall is either Bechert blade riblets (h/s as given, t/s=0.02)
+    or smooth (paired baseline at matched Re_θ). Drive BL state to target
+    s+. Compute Cd from wall-shear-stress integration over the measurement
+    window. DR% computed in the validation notebook from paired riblet +
+    smooth sub-runs at each s+.
+
+    A complete case template is pre-staged on the target at
+    /home/aero/templates/flat-plate-riblet-simpleFoam/ (0/, constant/,
+    system/ plus scripts/generate_mesh.py). DO NOT rewrite the case
+    files — just copy and parameterize.
+
+    The exact bash recipe to execute (do not deviate, do not Python-ify):
+
+        source /home/aero/aero-research-platform/scripts/preamble.sh \
+          || source ~/preamble.sh
+        CASE_DIR=/home/aero/ai-projects/flat-plate-{surface}-{s_plus}-h{h_over_s}/case
+        rm -rf "$CASE_DIR"
+        mkdir -p "$CASE_DIR"
+        cp -r /home/aero/templates/flat-plate-riblet-simpleFoam/. "$CASE_DIR/"
+        cd "$CASE_DIR"
+        if [ "{surface}" = "riblet" ]; then
+            RIBLET_FLAG="--riblet-enabled"
+        else
+            RIBLET_FLAG=""
+        fi
+        python scripts/generate_mesh.py \
+            --case-dir . \
+            --s-plus {s_plus} \
+            --h-over-s {h_over_s} \
+            $RIBLET_FLAG
+        blockMesh > log.blockMesh 2>&1
+        # snappyHexMesh is a no-op for the smooth case (castellatedMesh=false,
+        # snap=false) but still runs addLayers on the bottomWall patch so
+        # the smooth baseline matches riblet wall resolution. For the riblet
+        # case it does the full castellated+snap+layers cycle on the STL.
+        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
+        potentialFoam -writephi > log.potentialFoam 2>&1
+        decomposePar -force > log.decomposePar 2>&1
+        mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
+        reconstructPar -latestTime > log.reconstructPar 2>&1
+        foamLog log.simpleFoam || true
+        foamToVTK -latestTime > log.foamToVTK 2>&1 || true
+
+    Outputs to persist at $CASE_DIR (do NOT cd away before they finish
+    writing): postProcessing/wallShearStress/0/wallShearStress.dat,
+    postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
+
+    Report mean tau_w on the bottomWall patch averaged over the final
+    2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
+    (mean + max on the bottomWall patch — target < 1).
+
+    Convergence: residuals < 1e-6 on Ux/Uy/p/k/omega; wall shear stress
+    drift < 0.5% over the last 1000 iterations.
   planner_model: qwen2.5:72b
   generator_models: [qwen2.5-coder:32b]
   judge_model: qwen2.5:72b
@@ -31,4 +88,5 @@ template:
 params:
   s_plus: [5, 10, 15, 17, 20, 25, 30, 35, 40]
   h_over_s: [0.5]
+  surface: [riblet, smooth]
 budget_total_usd: 0.0
