@@ -63,7 +63,13 @@ template:
         mkdir -p "$CASE_DIR"
         cp -r /home/aero/templates/naca0012-simpleFoam/. "$CASE_DIR/"
         cd "$CASE_DIR"
-        python scripts/generate_mesh.py --case-dir .
+        # Stage-4.x mesh-refinement override: drop first_layer_thickness
+        # 10× (1e-6 → 1e-7) to push y+ below 1 even at α=10 where the
+        # suction-side peak velocity drives local wall shear high. The
+        # default mesh (n_layers=5, first_layer=1e-6) gave y+~1167 at
+        # α=10, which puts SA's wall function in the wrong regime and
+        # smears the bound-vortex sheet — Cl trapped at ~0.10.
+        python scripts/generate_mesh.py --case-dir . --first-layer-thickness 1e-7
         python scripts/set_aoa.py --aoa 10 --case-dir .
         blockMesh > log.blockMesh 2>&1
         surfaceFeatureExtract > log.surfaceFeatureExtract 2>&1 || true
