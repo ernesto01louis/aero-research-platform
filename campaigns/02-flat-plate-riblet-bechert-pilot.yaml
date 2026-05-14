@@ -1,0 +1,76 @@
+# Stage-5 PILOT: single-point smoke before the full 18-run sweep.
+# Identical to 02-flat-plate-riblet-bechert.yaml except params is reduced
+# to one sweep point (s+=17, riblet only) — the hypothesis-peak case.
+# Walks the full chain (planner -> SSH -> blockMesh -> snappyHex -> simpleFoam
+# -> wallShearStress pull -> evidence bundle -> manifest verify) once for
+# the price of one sub-run. After PASS, launch the full YAML.
+name: flat-plate-blade-riblet-bechert-1997-pilot
+hypothesis: |
+  Pilot smoke for the Stage-5 Bechert blade-riblet sweep. Single sub-run
+  at s+=17 (hypothesis peak), h/s=0.5, riblet surface. Validates the
+  end-to-end pipeline: orchestrator -> aero-research SSH -> mesh -> CFD ->
+  results pull -> evidence bundle -> Merkle root. Pass criterion: y+<1 on
+  bottomWall, residuals <1e-6 on Ux/Uy/p/k/omega, non-degraded evidence
+  bundle (Prefect happy-path, runs[].llm_calls populated).
+template:
+  project_name: flat-plate-pilot-{surface}-{s_plus}-h{h_over_s}
+  prompt: |
+    Periodic-strip flat plate, OpenFOAM v2412 simpleFoam with k-omega SST.
+    Bottom wall is Bechert blade riblets (h/s as given, t/s=0.02). Drive
+    BL state to target s+. Compute Cd from wall-shear-stress integration
+    over the measurement window.
+
+    A complete case template is pre-staged on the target at
+    /home/aero/templates/flat-plate-riblet-simpleFoam/ (0/, constant/,
+    system/ plus scripts/generate_mesh.py). DO NOT rewrite the case
+    files — just copy and parameterize.
+
+    The exact bash recipe to execute (do not deviate, do not Python-ify):
+
+        source /home/aero/aero-research-platform/scripts/preamble.sh \
+          || source ~/preamble.sh
+        CASE_DIR=/home/aero/ai-projects/flat-plate-pilot-{surface}-{s_plus}-h{h_over_s}/case
+        rm -rf "$CASE_DIR"
+        mkdir -p "$CASE_DIR"
+        cp -r /home/aero/templates/flat-plate-riblet-simpleFoam/. "$CASE_DIR/"
+        cd "$CASE_DIR"
+        if [ "{surface}" = "riblet" ]; then
+            RIBLET_FLAG="--riblet-enabled"
+        else
+            RIBLET_FLAG=""
+        fi
+        python scripts/generate_mesh.py \
+            --case-dir . \
+            --s-plus {s_plus} \
+            --h-over-s {h_over_s} \
+            $RIBLET_FLAG
+        blockMesh > log.blockMesh 2>&1
+        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
+        potentialFoam -writephi > log.potentialFoam 2>&1
+        decomposePar -force > log.decomposePar 2>&1
+        mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
+        reconstructPar -latestTime > log.reconstructPar 2>&1
+        foamLog log.simpleFoam || true
+        foamToVTK -latestTime > log.foamToVTK 2>&1 || true
+
+    Outputs to persist at $CASE_DIR (do NOT cd away before they finish
+    writing): postProcessing/wallShearStress/0/wallShearStress.dat,
+    postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
+
+    Report mean tau_w on the bottomWall patch averaged over the final
+    2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
+    (mean + max on the bottomWall patch — target < 1).
+
+    Convergence: residuals < 1e-6 on Ux/Uy/p/k/omega; wall shear stress
+    drift < 0.5% over the last 1000 iterations.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params:
+  s_plus: [17]
+  h_over_s: [0.5]
+  surface: [riblet]
+budget_total_usd: 0.0

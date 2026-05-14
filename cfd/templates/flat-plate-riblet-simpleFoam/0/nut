@@ -27,7 +27,7 @@ boundaryField
         type            calculated;
         value           uniform 0;
     }
-    bottomWall
+    "(bottomWall|riblets)"
     {
         // nutLowReWallFunction returns 0 at the wall for wall-resolved
         // y+ < 1 meshes — correct behaviour for Stage 5's prism stack.

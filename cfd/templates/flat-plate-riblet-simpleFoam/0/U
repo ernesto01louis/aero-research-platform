@@ -27,7 +27,9 @@ boundaryField
     {
         type            slip;
     }
-    bottomWall
+    // Riblet case: snappyHexMesh adds the `riblets` patch from the STL
+    // solid name. Smooth case: only `bottomWall` exists. Regex matches both.
+    "(bottomWall|riblets)"
     {
         type            noSlip;
     }

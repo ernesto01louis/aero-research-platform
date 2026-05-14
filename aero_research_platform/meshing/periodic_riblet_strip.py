@@ -60,14 +60,21 @@ class FlatPlateRibletMeshSpec:
     n_y_per_pitch: int = 16
     n_z: int = 80
     grading_x: float = 1.0
-    # z-grading > 1 packs cells toward the wall (z=0). 100 gives ~1% of
-    # plate_height as the first cell at the wall; with snappyHexMesh's
-    # addLayers stage on top of that we drop into the y+ < 1 regime.
-    grading_z: float = 100.0
-    # snappyHexMesh refinement around the riblet STL. Sharp blade tips need
-    # higher levels than the airfoil leading edge.
-    surface_refinement_min: int = 7
-    surface_refinement_max: int = 8
+    # z-grading > 1 packs cells toward the wall (z=0). With the spanwise
+    # mesh already at O(2e-5) chord at n_y_per_pitch=16, grading_z=100
+    # creates a first-cell-to-prism-stack jump of ~14x that addLayers
+    # cannot bridge cleanly — yields max-aspect-ratio cells in the
+    # thousands. 30 gives ~3e-3 chord at the wall, an order of magnitude
+    # closer to the prism stack height (1.15^12 - 1)/0.15 * 1e-6 ≈ 4e-5.
+    grading_z: float = 30.0
+    # snappyHexMesh refinement around the riblet STL. At n_y_per_pitch=16
+    # the BASE spanwise cell is already ~2e-5 chord (sub-pitch), so
+    # surface refinement levels above ~4 over-refine: each level halves,
+    # so level 4 = 1.25e-6 chord — well under the t/s=0.02 blade tip width.
+    # Levels 7-8 (initial guess inherited from airfoil context) produced
+    # a 17.3M-cell mesh that failed checkMesh with all cells under-determinant.
+    surface_refinement_min: int = 3
+    surface_refinement_max: int = 4
     # Prism inflation — flat plate has no STL+snappy degeneracy issues that
     # forced Stage-4's n_layers down to 5, so we run a fuller stack here.
     n_layers: int = 12

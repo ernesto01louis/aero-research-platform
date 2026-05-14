@@ -32,7 +32,7 @@ boundaryField
     {
         type            slip;
     }
-    bottomWall
+    "(bottomWall|riblets)"
     {
         // omegaWallFunction handles both wall-resolved (y+<1) and
         // wall-function (y+>30) regimes via Menter's blending.
