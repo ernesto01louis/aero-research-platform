@@ -71,7 +71,12 @@ class MeshSpec:
     # iter 76 under SA. 20 layers reach y+~30 at the outer edge so the
     # nutUSpaldingWallFunction blends correctly.
     n_layers: int = 5
-    first_layer_thickness: float = 1.0e-6  # y+ < 1 at Re=6e6
+    # Stage-4.x mesh refinement: dropped 10× (1e-6 → 1e-7) after Campaign 5
+    # showed y+~1167 at α=10 (suction-side peak velocity drives local wall
+    # shear ~10× chord-averaged). With 1e-7 the wall function regime is
+    # reasonable (y+ ~120 at peak, ~12 chord-averaged) and the bound-vortex
+    # sheet can develop — without this, simpleFoam traps Cl at ~0.10.
+    first_layer_thickness: float = 1.0e-7  # y+ < 1 at Re=6e6 nominal
     expansion_ratio: float = 1.15
     # Lower bound on final cell count after snappyHexMesh — sanity-check.
     expected_cells_lower_bound: int = 100_000
