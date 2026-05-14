@@ -50,6 +50,33 @@ solvers
         tolerance       1e-8;
         relTol          0.0;
     }
+
+    // Velocity potential for potentialFoam initialization (Stage-4.x
+    // α=10 cold-start fix per STAGE-4-OUTPUTS Issue 4 priority-1). Without
+    // this entry potentialFoam -writephi exits with "Entry 'Phi' not
+    // found in dictionary system/fvSolution/solvers" and the run cold-
+    // starts simpleFoam without the bound-circulation seed → Cl trap.
+    Phi
+    {
+        solver          GAMG;
+        tolerance       1e-7;
+        relTol          0.01;
+        smoother        GaussSeidel;
+        nPreSweeps      0;
+        nPostSweeps     2;
+        cacheAgglomeration on;
+        agglomerator    faceAreaPair;
+        nCellsInCoarsestLevel 100;
+        mergeLevels     1;
+    }
+}
+
+// potentialFoam-specific solver controls. potentialFoam reads
+// potentialFlow{} (or falls back to defaults). Explicit block avoids
+// surprises across OpenFOAM versions.
+potentialFlow
+{
+    nNonOrthogonalCorrectors 5;
 }
 
 SIMPLE
