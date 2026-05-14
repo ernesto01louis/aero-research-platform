@@ -24,6 +24,26 @@ hypothesis: |
 template:
   project_name: naca0012-aoa10-rerun
   prompt: |
+    PLAN OUTPUT REQUIRED:
+        language    = "bash"
+        entrypoint  = "run.sh"
+        project_type = "script"
+        execution_mode = "generate"
+
+    DO NOT pick language=python. DO NOT write a Python wrapper that calls
+    subprocess.run / os.system / shell=True on the commands below. The
+    orchestrator's executor only routes BASH entry points to deploy_target
+    (the aero-research SSH host). Python entry points are confined to the
+    orchestrator's local /tmp/ai_sandbox/ and CANNOT reach the remote
+    aero LXC's filesystem — every path below (/home/aero/...) is remote.
+
+    This task is the verbatim transport of a bash recipe to the remote
+    OpenFOAM case directory on the aero-research LXC. Wrap the recipe
+    below in a single run.sh and emit it as the only file; the generator
+    must not add a Python harness.
+
+    --- TASK CONTEXT (informational, do not deviate from the recipe) ---
+
     Steady-state RANS of NACA 0012 at AoA=10 degrees, M=0.15, Re=6e6,
     chord=1. OpenFOAM v2412 simpleFoam with Spalart-Allmaras turbulence.
     Wall-resolved (y+ < 1). Cold-start fix: initialise with potentialFoam
@@ -31,7 +51,8 @@ template:
 
     The patched case template is pre-staged on the target at
     /home/aero/templates/naca0012-simpleFoam/ (Stage-4.x fvSchemes patch
-    applied). DO NOT rewrite the case files — just copy and parameterize.
+    + Phi solver applied). DO NOT rewrite the case files — just copy and
+    parameterize.
 
     The exact bash recipe to execute (do not deviate, do not Python-ify):
 
