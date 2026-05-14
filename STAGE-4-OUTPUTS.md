@@ -1,34 +1,43 @@
 # STAGE-4-OUTPUTS — NACA 0012 Baseline Validation
 
 **Stage:** 4 of 6
-**Date:** 2026-05-12 to 2026-05-13 (UTC)
+**Date:** 2026-05-12 to 2026-05-14 (UTC)
 **Operator:** Louis
 **Agent:** Claude Opus 4.7 (1M context) running on LXC 200 (`ai-orchestrator`, 192.168.2.218)
-**Verdict:** **PARTIAL — pipeline ships end-to-end; α=0 converges
-stable through 5000 iters and passes the Cl absolute bound; α=10
-finds a non-physical low-circulation steady state. Skin-friction
-underprediction on both AoAs (5-prism layers in log-law mode).
-Stage 5 unblocked — its flat-plate sweep runs at α=0 only.**
+**Verdict:** **PARTIAL (final, 2026-05-14) — pipeline ships end-to-end;
+α=0 converges stable through 5000 iters and passes the Cl absolute
+bound; α=10 cold-start trap was traced through several layers of fixes
+(planner agent-prompt patch, `potentialFoam -writephi` init, Phi solver
+in fvSolution, `cellMDLimited 0.5` on grad(U), MeshSpec.first_layer
+1e-6 → 1e-7) but Cl remains trapped at ~0.10 (NASA TMR 1.09). The
+residual blocker is mesh-design: snappyHexMesh's `relativeSizes true`
+makes `firstLayerThickness` a fraction of the local face edge, so the
+1e-7 setting collapses below `minThickness` and OpenFOAM's addLayers
+silently falls back to default sizing → y+ avg ~1167 → wall function
+regime smears the near-wall gradient → bound vortex sheet doesn't
+develop. Skin-friction underprediction on both AoAs (same reason).
+Stage 5 unblocked — its flat-plate sweep runs at α=0 only. Stage 6
+inherits the α=10 mesh-design task with concrete diagnostics below.**
 
 ### Final Cl/Cd (after Stage-4.x physics tuning)
 
-| AoA | Cl (measured) | Cl (NASA TMR SA) | Cd (measured) | Cd (NASA TMR SA) | Iters |
-|---|---|---|---|---|---|
-| 0°  | **3.45e-3**     | 0.0000 | **1.75e-3** | 0.00819 | 5000 (converged, residuals 1e-7) |
-| 10° | **9.32e-2** ❌  | 1.0909 | **6.92e-3** | 0.01231 | 2113 (force-stopped — stuck at low-Cl steady state) |
+| AoA | Cl (measured) | Cl (NASA TMR SA) | Cd (measured) | Cd (NASA TMR SA) | Iters | Source |
+|---|---|---|---|---|---|---|
+| 0°  | **3.45e-3**     | 0.0000 | **1.75e-3** | 0.00819 | 5000 | campaign `eac50eaa…/d802f267…` |
+| 10° (orig)  | **9.32e-2** ❌  | 1.0909 | **6.92e-3** | 0.01231 | 2113 | campaign `eac50eaa…/94e49282…` (force-stopped) |
+| 10° (Stage-4.x) | **1.018e-1** ❌ | 1.0909 | **6.28e-3** | 0.01231 | 5000 | campaign `c66684cc…` + manual SSH 2026-05-14 |
 
 * **α=0 PASSES** the |Cl|<0.005 absolute bound. Cd is 5x low (5
   prism layers + log-law wall function under-resolve skin friction;
   Cl is what NASA TMR primarily validates).
-* **α=10 FAILS** the ±2% Cl bound. The simulation converged residuals
-  to 1e-7 — it found a steady-state but with weak circulation
-  (Cl=0.09 ≈ 0.1·α_eff, i.e. effectively α≈1°). Classic high-AoA
-  cold-start failure: `cellLimited Gauss linear 1` on grad(U) +
-  first-order `upwind` on nuTilda + cold start without flow
-  perturbation = simpleFoam settles to a low-circulation local
-  steady state. **Fix path is clearly known** (drop cellLimited
-  from grad(U) and/or initialise with potentialFoam, OR use
-  `freestream` switch BC instead of `freestreamVelocity`).
+* **α=10 FAILS** the ±2% Cl bound through all attempted fixes. The
+  Stage-4.x re-run with potentialFoam init + cellMDLimited + finer
+  first_layer setting still converged to Cl=0.10 because the mesh
+  refinement was silently nullified by snappyHexMesh's `relativeSizes
+  true` mode (y+ avg 1166.9 unchanged between Stage-4 original and
+  Stage-4.x). Classic high-AoA Kutta-condition failure — but the
+  proximate cause is mesh resolution at the wall, not the cold-start.
+  See Issue 4 (expanded) below for the rich diagnostic trail.
 
 Stage 4 set out to validate the orchestrator → aero-research → OpenFOAM
 chain on a NASA-TMR-comparable NACA 0012 baseline. Every piece of the
@@ -194,7 +203,7 @@ returns. `postProcessing/` did not persist. Found, fixed, re-launched
 as `eac50eaa` — recorded as a Stage-2-deviation #4 follow-up in
 `RUNBOOK.md` § "Stage-4 mesh-design deviations from the brief".
 
-### Issue 4 — α=10 simpleFoam converges to non-physical low-Cl steady state  **[OPEN — Stage 4.x]**
+### Issue 4 — α=10 simpleFoam converges to non-physical low-Cl steady state  **[STILL OPEN — root cause re-classified, see "Stage-4.x diagnostic trail" below]**
 
 After all the Issue-1/2 fixes landed, α=10 ran cleanly through 2113
 iterations (force-stopped after stagnation) but converged to
@@ -233,6 +242,76 @@ expectation for an airfoil at α=10°.
 α=0° (uniform freestream + flat plate, no Kutta condition involved).
 The fix above is required before Stage 6 (NACA 0012 + riblets at
 α≈10°), but Stage 5 is fully unblocked.
+
+### Stage-4.x diagnostic trail (2026-05-14)
+
+Six campaigns + one manual SSH retry were exercised against the
+α=10 case after the original Issue 4 diagnosis. Findings:
+
+1. **Planner agent non-determinism on language=bash vs python.** When
+   the campaign YAML inlines a verbatim shell recipe, the planner
+   (qwen2.5:72b) occasionally classifies `language=python` and the
+   generator writes a Python wrapper that runs only in the local
+   sandbox at `/tmp/ai_sandbox/`, never reaching the deploy_target's
+   SSH host — every `/home/aero/...` path FileNotFoundErrors.
+   Across 4 launches of the unmodified YAML the planner picked
+   `bash` 1-of-4 times; with the YAML strengthened with an explicit
+   "PLAN OUTPUT REQUIRED" preamble (`language=bash`, `entrypoint=run.sh`,
+   "DO NOT pick language=python"), the planner consistently picks
+   `bash`. Wired in [`campaigns/01b-naca0012-aoa10-rerun.yaml`](../campaigns/01b-naca0012-aoa10-rerun.yaml)
+   commit `9aefa64`. A companion fix on the orchestrator side
+   (`agents/planner/system_prompt.md` REMOTE-EXECUTION RULE) lives
+   on a local branch in `/opt/ai-orchestrator/` but did not
+   persist on disk — track separately.
+
+2. **`potentialFoam -writephi` requires a `Phi` solver entry in
+   `system/fvSolution`.** Without it, potentialFoam exits with
+   `FOAM FATAL IO ERROR: Entry 'Phi' not found in dictionary
+   "system/fvSolution/solvers"`. The bash recipe didn't `set -e`,
+   so the run continued without potential-flow initialization and
+   simpleFoam cold-started into the Cl trap. Fixed by adding
+   `Phi { solver GAMG; ... }` + a `potentialFlow { nNonOrthogonalCorrectors 5; }`
+   block — [`cfd/templates/naca0012-simpleFoam/system/fvSolution`](../cfd/templates/naca0012-simpleFoam/system/fvSolution)
+   commit `d4a57e1`. potentialFoam now succeeds (final residuals
+   `Interpolated velocity error = 6.2e-6`).
+
+3. **`cellMDLimited Gauss linear 0.5` on `grad(U)`** (Issue 4
+   priority-2). Replaces the hard `cellLimited Gauss linear 1`.
+   Applied — [`cfd/templates/naca0012-simpleFoam/system/fvSchemes`](../cfd/templates/naca0012-simpleFoam/system/fvSchemes)
+   commit `86d2a17`. Necessary but not sufficient.
+
+4. **Mesh refinement: `MeshSpec.first_layer_thickness` 1e-6 → 1e-7
+   (commit `793ea13`) had no observable effect.** snappyHexMesh
+   runs in `relativeSizes true` mode where `firstLayerThickness` is a
+   fraction of the local face edge (~0.016c at refinement level 6-7),
+   so 1e-7 nominal = ~1.6e-9c actual, which is below `minThickness`
+   = 5e-8. OpenFOAM's addLayers silently falls back to algorithm
+   defaults (cf. snappy "Finished meshing without any errors").
+   The resulting y+ avg is 1166.9 — identical to 5 sig figs across
+   campaigns 5, 6, and the manual SSH retry. Wall-function regime
+   at y+ ~1167 smears the near-wall gradient, the bound-vortex
+   sheet doesn't develop, simpleFoam relaxes to Cl=0.10 attractor.
+
+**Real fix for α=10 (Stage 6's blocker, not done here):**
+
+* Switch to `relativeSizes false` in `addLayersControls` and supply
+  absolute layer thicknesses (e.g. `firstLayerThickness 5e-6;
+  minThickness 1e-6;`) tuned to a target y+ < 1 at the
+  suction-side peak velocity (~3× freestream at α=10).
+* Verify post-snappy by reading the layer log and confirming
+  `Extruded N faces` ≈ wall face count, no "skipped due to" hits.
+* Increase `n_layers` back from 5 to 12-15 now that meshQuality
+  + Poisson wallDist tolerate it.
+
+**What's confirmed working end-to-end** despite Cl still wrong:
+
+* Orchestrator → planner (with YAML preamble) → generator →
+  SSH → blockMesh → snappyHexMesh → checkMesh → potentialFoam →
+  decomposePar → simpleFoam → reconstructPar → forceCoeffs1.dat
+  pipeline is healthy (campaign `c66684cc` + manual SSH 2026-05-14).
+* Evidence bundle / Prefect `LlmCall` capture works when planner
+  picks bash (campaign 2 = `34256989`, campaign 5 = `c66684cc`).
+* SSH timeout at 7200s tolerates the full mesh + 5000-iter solve.
 
 ---
 
