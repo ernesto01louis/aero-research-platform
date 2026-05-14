@@ -317,7 +317,11 @@ snapControls
 
 addLayersControls
 {{
-    relativeSizes true;
+    // Stage 4.x lesson: `relativeSizes true` reinterprets
+    // firstLayerThickness as a fraction of the local face edge,
+    // silently falling back to snappy defaults and yielding y+ >> 1.
+    // `false` honors the absolute chord-units value in FlatPlateRibletMeshSpec.
+    relativeSizes false;
     layers
     {{
         {layers_target}
