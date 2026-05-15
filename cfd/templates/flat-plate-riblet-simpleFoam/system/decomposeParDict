@@ -6,6 +6,9 @@ FoamFile
     object      decomposeParDict;
 }
 
-numberOfSubdomains 4;
+// 16-way decomposition — the aero-research LXC has 16 cores. A 4-way
+// split left 12 cores idle and a full 10000-iter run took >7200s,
+// overrunning the orchestrator's SSH timeout (pilot v5, run dfcb59b5).
+numberOfSubdomains 16;
 
 method          scotch;
