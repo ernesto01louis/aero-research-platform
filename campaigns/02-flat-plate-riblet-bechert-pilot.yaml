@@ -66,15 +66,7 @@ template:
             --h-over-s {h_over_s} \
             $RIBLET_FLAG
         blockMesh > log.blockMesh 2>&1
-        # snappyHexMesh ONLY for the smooth baseline — the riblet case
-        # uses a structured multi-block blockMesh that already contains
-        # the blade geometry. Running snappy on the riblet case would be
-        # a no-op at best (no STL) and is skipped.
-        if [ "{surface}" = "smooth" ]; then
-            snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
-        fi
         checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
-        potentialFoam -writephi > log.potentialFoam 2>&1
         decomposePar -force > log.decomposePar 2>&1
         mpirun -np 4 simpleFoam -parallel > log.simpleFoam 2>&1
         reconstructPar -latestTime > log.reconstructPar 2>&1
