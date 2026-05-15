@@ -273,7 +273,17 @@ geometry
         }}
     }}
 """
-        layers_target = "riblets"
+        # Prism layers go on bottomWall (the flat region between riblets),
+        # NOT on the riblet STL surface. Pilot v2 (run 3a1eba19) showed
+        # that targeting addLayers at `riblets` produces 28k negative-volume
+        # cells: the prism stack height (2.4e-5 chord at first_layer=1e-6,
+        # ratio=1.15, n=12) is ~19x bigger than the level-4 castellated
+        # cells around the STL (1.25e-6 chord), so addLayers tries to
+        # extrude prism layers into cells that are smaller than the stack
+        # and produces topological inversions. The riblet patch gets y+<<1
+        # from castellated refinement alone: cell_size * u_tau / nu =
+        # 1.25e-6 * 53.5 ≈ 6.7e-5, well below 1.
+        layers_target = "bottomWall"
         castellated_features = "    features ( );\n"
         location_in_mesh = f"( {spec.plate_length / 2.0} {spec.spanwise_extent / 2.0} {spec.plate_height / 2.0} )"
         castellated_mesh = "true"
