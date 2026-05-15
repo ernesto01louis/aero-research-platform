@@ -6,21 +6,22 @@ Stage 5 domain: a rectangular box
     y ∈ [0, n_pitches * pitch_s]     (spanwise; cyclic periodic)
     z ∈ [0, plate_height]            (wall-normal; bottom = wall, top = slip)
 
-Two variants share the same writer:
+Two variants, dispatched by ``write_all`` on ``spec.riblet_enabled``:
 
-* ``riblet_enabled=True``  — bottom wall is the Bechert blade-riblet surface
-  built by extruding ``aero_research_platform.geometry.riblet.blade_strip_profile``
-  along the streamwise axis. snappyHexMesh refines around it; addLayers grows
-  prism layers tuned for y+ < 1 at the riblet tip.
+* ``riblet_enabled=True``  — bottom wall is the Bechert blade-riblet surface,
+  defined geometrically via a **structured multi-block** blockMeshDict (5
+  blocks per pitch period). No STL, no snappyHexMesh. Three pilot iterations
+  with the snappy + STL + addLayers approach (pilots v1-v3, 2026-05-14/15)
+  produced 28k negative-volume cells regardless of where addLayers targeted:
+  the cell-size mismatch between castellated cells around the STL (~1e-6 c
+  at refinement level 4) and the absolute prism stack height (~2e-5 c) is
+  topologically inconsistent. The structured writer sidesteps the issue
+  entirely — blade walls are blockMesh patches, not STL surfaces.
 
-* ``riblet_enabled=False`` — bottom wall is smooth (the blockMesh bottom face
-  directly). snappyHexMeshDict is still written (with addLayers on the
-  ``bottomWall`` patch) so the prism resolution matches the riblet case at
-  identical Re_θ; ``write_all`` skips ``riblets.stl`` and the
-  ``refinementSurfaces`` block.
-
-The mesh-quality thresholds inherit Stage-4's proven SA-stable settings
-(see ``meshing.airfoil_cmesh``).
+* ``riblet_enabled=False`` — smooth flat plate, a single-block blockMesh
+  with grading toward z=0. The legacy snappy + addLayers path is still
+  available for matched wall resolution against an STL-based riblet
+  reference if needed.
 """
 
 from __future__ import annotations
@@ -88,6 +89,45 @@ class FlatPlateRibletMeshSpec:
     riblet_enabled: bool = True
     expected_cells_lower_bound: int = 200_000
 
+    # ── structured multi-block (riblet_enabled=True) parameters ──────────
+    # Per-pitch topology: 8 blocks per period, across THREE z-bands:
+    #
+    #   z-band 1  [0, h]          groove region (riblet height)
+    #   z-band 2  [h, z_bl]       boundary-layer-resolved band above the tips
+    #   z-band 3  [z_bl, Lz]      freestream
+    #
+    #   band 1: A (groove-L), B (groove-R)               — 2 blocks
+    #   band 2: C (above-grL), D (blade-slot), E (above-grR) — 3 blocks
+    #   band 3: F (above-grL), G (blade-slot), H (above-grR) — 3 blocks
+    #
+    # The blade solid material (y∈[blade_left, blade_right], z∈[0, h]) is
+    # NOT a mesh block — blockMesh leaves that region empty. Its three
+    # fluid-facing faces (two side walls + the tip) form the `riblets`
+    # patch. The riblet tip is the z=h face of block D (band-2 blade-slot).
+    #
+    # Three z-bands because the riblet height (h ≈ 1.6e-4 c at s+=17) is
+    # ~0.3% of the BL thickness (δ ≈ 0.056 c at the measurement station).
+    # A single tall block z∈[h, Lz] cannot wall-resolve the tip without an
+    # extreme grading factor (~3800) and pathological aspect ratios. The
+    # band-2 split keeps the BL-resolving cells in a thin band that grades
+    # cleanly.
+    n_y_groove: int = 8         # cells per groove-half (one of two grooves per pitch)
+    n_y_blade: int = 1          # cells across the blade slot above the tip
+    n_z_groove: int = 16        # cells in z-band 1 [0, h]
+    n_z_bl: int = 60            # cells in z-band 2 [h, z_bl]
+    n_z_outer: int = 30         # cells in z-band 3 [z_bl, Lz]
+    # z_bl: top of the BL-resolved band, as a fraction of plate_height.
+    # ~0.1 c comfortably contains the δ≈0.056 c BL at the measurement window.
+    z_bl_fraction: float = 0.1
+    # z-grading: simpleGrading X = last_cell / first_cell ratio.
+    # Band 1 (groove) is so thin that uniform spacing already gives y+<<1.
+    # Band 2 packs cells at z=h (the tip wall + the BL): X≈276 with
+    # n_z_bl=60 over a 0.1 c band → first cell ≈ 3.3e-5 c → y+ ≈ 0.9.
+    # Band 3 is freestream — uniform.
+    grading_z_groove: float = 1.0
+    grading_z_bl: float = 276.0
+    grading_z_outer: float = 1.0
+
     @property
     def spanwise_extent(self) -> float:
         return self.n_pitches_spanwise * self.pitch_s
@@ -152,6 +192,293 @@ def _of_header(class_name: str, obj_name: str) -> str:
         f"    object      {obj_name};\n"
         "}\n"
     )
+
+
+def write_block_mesh_dict_structured(spec: FlatPlateRibletMeshSpec, out_path: Path) -> Path:
+    """Write a structured multi-block blockMeshDict for the riblet case.
+
+    Topology (per pitch period k = 0..n_pitches-1):
+
+        y columns (iy): k*s,  k*s+(s-t)/2,  k*s+(s+t)/2,  (k+1)*s
+        z rows    (iz): 0,    h,            z_bl,         Lz
+
+    Eight blocks per period, across three z-bands:
+        band 1 [0, h]:      A (groove-L, iy 0->1), B (groove-R, iy 2->3)
+        band 2 [h, z_bl]:   C (iy 0->1), D (blade-slot, iy 1->2), E (iy 2->3)
+        band 3 [z_bl, Lz]:  F (iy 0->1), G (blade-slot, iy 1->2), H (iy 2->3)
+
+    The blade solid material (iy 1->2, iz 0->1) is NOT a block — its
+    three fluid-facing faces (two side walls + the tip) form the
+    ``riblets`` patch (the tip is the z=h face of block D). Cyclic
+    patches at y=0 and y=Ly, `top` at z=Lz, `bottomWall` on the groove
+    floors at z=0.
+    """
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if not spec.riblet_enabled:
+        raise RuntimeError(
+            "write_block_mesh_dict_structured called with riblet_enabled=False; "
+            "use write_block_mesh_dict for the smooth baseline."
+        )
+
+    s = spec.pitch_s
+    h = spec.blade_spec().height_h
+    t = spec.blade_spec().thickness_t
+    Lx = spec.plate_length
+    Lz = spec.plate_height
+    z_bl = spec.z_bl_fraction * Lz
+    n_p = spec.n_pitches_spanwise
+
+    # Build unique y-column coordinates: 1 + 3*n_p columns total.
+    y_cols: list[float] = [0.0]
+    for k in range(n_p):
+        y_cols.extend([k * s + (s - t) / 2.0, k * s + (s + t) / 2.0, (k + 1) * s])
+    n_y_cols = len(y_cols)
+    z_rows = [0.0, h, z_bl, Lz]
+    n_z_rows = len(z_rows)
+    x_slabs = [0.0, Lx]
+    n_x_slabs = len(x_slabs)
+
+    def v(ix: int, iy: int, iz: int) -> int:
+        return ix * n_y_cols * n_z_rows + iy * n_z_rows + iz
+
+    # Vertex list emitted in (ix, iy, iz) order.
+    vertex_lines: list[str] = []
+    for ix in range(n_x_slabs):
+        for iy in range(n_y_cols):
+            for iz in range(n_z_rows):
+                vidx = v(ix, iy, iz)
+                vertex_lines.append(
+                    f"    ( {x_slabs[ix]} {y_cols[iy]} {z_rows[iz]} )  // {vidx}"
+                )
+
+    # Hex corner order (per blockMesh convention):
+    #   0: x_lo y_lo z_lo,  1: x_hi y_lo z_lo,  2: x_hi y_hi z_lo,  3: x_lo y_hi z_lo
+    #   4: x_lo y_lo z_hi,  5: x_hi y_lo z_hi,  6: x_hi y_hi z_hi,  7: x_lo y_hi z_hi
+    def hex_corners(iy_lo: int, iy_hi: int, iz_lo: int, iz_hi: int) -> tuple[int, ...]:
+        return (
+            v(0, iy_lo, iz_lo), v(1, iy_lo, iz_lo), v(1, iy_hi, iz_lo), v(0, iy_hi, iz_lo),
+            v(0, iy_lo, iz_hi), v(1, iy_lo, iz_hi), v(1, iy_hi, iz_hi), v(0, iy_hi, iz_hi),
+        )
+
+    def block_line(iy_lo: int, iy_hi: int, iz_lo: int, iz_hi: int,
+                   n_y: int, n_z: int, grading_z: float) -> str:
+        c = hex_corners(iy_lo, iy_hi, iz_lo, iz_hi)
+        return (
+            f"    hex ({' '.join(str(i) for i in c)}) "
+            f"( {spec.n_x} {n_y} {n_z} ) "
+            f"simpleGrading ( {spec.grading_x} 1 {grading_z} )"
+        )
+
+    block_lines: list[str] = []
+    for k in range(n_p):
+        iy_left = 3 * k
+        iy_bl = 3 * k + 1
+        iy_br = 3 * k + 2
+        iy_right = 3 * k + 3
+        # band 1 [iz 0->1]: groove-L (A), groove-R (B)
+        block_lines.append(block_line(iy_left, iy_bl, 0, 1,
+                                      spec.n_y_groove, spec.n_z_groove, spec.grading_z_groove))
+        block_lines.append(block_line(iy_br, iy_right, 0, 1,
+                                      spec.n_y_groove, spec.n_z_groove, spec.grading_z_groove))
+        # band 2 [iz 1->2]: above-groove-L (C), blade-slot (D), above-groove-R (E)
+        block_lines.append(block_line(iy_left, iy_bl, 1, 2,
+                                      spec.n_y_groove, spec.n_z_bl, spec.grading_z_bl))
+        block_lines.append(block_line(iy_bl, iy_br, 1, 2,
+                                      spec.n_y_blade, spec.n_z_bl, spec.grading_z_bl))
+        block_lines.append(block_line(iy_br, iy_right, 1, 2,
+                                      spec.n_y_groove, spec.n_z_bl, spec.grading_z_bl))
+        # band 3 [iz 2->3]: above-groove-L (F), blade-slot (G), above-groove-R (H)
+        block_lines.append(block_line(iy_left, iy_bl, 2, 3,
+                                      spec.n_y_groove, spec.n_z_outer, spec.grading_z_outer))
+        block_lines.append(block_line(iy_bl, iy_br, 2, 3,
+                                      spec.n_y_blade, spec.n_z_outer, spec.grading_z_outer))
+        block_lines.append(block_line(iy_br, iy_right, 2, 3,
+                                      spec.n_y_groove, spec.n_z_outer, spec.grading_z_outer))
+
+    # Patch faces. Each face is 4 vertex indices CCW viewed from outside.
+    inlet_faces: list[str] = []
+    outlet_faces: list[str] = []
+    top_faces: list[str] = []
+    bottom_faces: list[str] = []
+    riblet_faces: list[str] = []
+    front_faces: list[str] = []  # y = 0
+    back_faces: list[str] = []   # y = Ly
+
+    def face(a: int, b: int, c_: int, d: int) -> str:
+        return f"            ( {a} {b} {c_} {d} )"
+
+    # Generic block-face emitters (outward-normal CCW orderings).
+    def x_lo_face(iy_lo: int, iy_hi: int, iz_lo: int, iz_hi: int) -> str:
+        return face(v(0, iy_lo, iz_lo), v(0, iy_lo, iz_hi), v(0, iy_hi, iz_hi), v(0, iy_hi, iz_lo))
+
+    def x_hi_face(iy_lo: int, iy_hi: int, iz_lo: int, iz_hi: int) -> str:
+        return face(v(1, iy_lo, iz_lo), v(1, iy_hi, iz_lo), v(1, iy_hi, iz_hi), v(1, iy_lo, iz_hi))
+
+    def z_lo_face(iy_lo: int, iy_hi: int, iz: int) -> str:
+        return face(v(0, iy_lo, iz), v(0, iy_hi, iz), v(1, iy_hi, iz), v(1, iy_lo, iz))
+
+    def z_hi_face(iy_lo: int, iy_hi: int, iz: int) -> str:
+        return face(v(0, iy_lo, iz), v(1, iy_lo, iz), v(1, iy_hi, iz), v(0, iy_hi, iz))
+
+    def y_lo_face(iy: int, iz_lo: int, iz_hi: int) -> str:
+        return face(v(0, iy, iz_lo), v(1, iy, iz_lo), v(1, iy, iz_hi), v(0, iy, iz_hi))
+
+    def y_hi_face(iy: int, iz_lo: int, iz_hi: int) -> str:
+        return face(v(0, iy, iz_lo), v(0, iy, iz_hi), v(1, iy, iz_hi), v(1, iy, iz_lo))
+
+    for k in range(n_p):
+        iy_left = 3 * k
+        iy_bl = 3 * k + 1
+        iy_br = 3 * k + 2
+        iy_right = 3 * k + 3
+        is_first = k == 0
+        is_last = k == n_p - 1
+
+        # All 8 blocks as (iy_lo, iy_hi, iz_lo, iz_hi) tuples.
+        groove_l_1 = (iy_left, iy_bl, 0, 1)
+        groove_r_1 = (iy_br, iy_right, 0, 1)
+        band2_l = (iy_left, iy_bl, 1, 2)
+        band2_slot = (iy_bl, iy_br, 1, 2)
+        band2_r = (iy_br, iy_right, 1, 2)
+        band3_l = (iy_left, iy_bl, 2, 3)
+        band3_slot = (iy_bl, iy_br, 2, 3)
+        band3_r = (iy_br, iy_right, 2, 3)
+        all_blocks = [groove_l_1, groove_r_1, band2_l, band2_slot,
+                      band2_r, band3_l, band3_slot, band3_r]
+
+        # inlet / outlet — every block.
+        for (yl, yh, zl, zh) in all_blocks:
+            inlet_faces.append(x_lo_face(yl, yh, zl, zh))
+            outlet_faces.append(x_hi_face(yl, yh, zl, zh))
+
+        # bottomWall — z=0 floors of band-1 groove blocks only.
+        bottom_faces.append(z_lo_face(iy_left, iy_bl, 0))
+        bottom_faces.append(z_lo_face(iy_br, iy_right, 0))
+
+        # top — z=Lz faces of band-3 blocks.
+        top_faces.append(z_hi_face(iy_left, iy_bl, 3))
+        top_faces.append(z_hi_face(iy_bl, iy_br, 3))
+        top_faces.append(z_hi_face(iy_br, iy_right, 3))
+
+        # riblets — blade side walls (band-1) + blade tip (band-2 slot z=h floor).
+        riblet_faces.append(y_hi_face(iy_bl, 0, 1))   # left blade side wall
+        riblet_faces.append(y_lo_face(iy_br, 0, 1))   # right blade side wall
+        riblet_faces.append(z_lo_face(iy_bl, iy_br, 1))  # blade tip at z=h
+
+        # frontPeriodic (y=0) — y_lo faces of the leftmost period's L-stack.
+        if is_first:
+            front_faces.append(y_lo_face(iy_left, 0, 1))
+            front_faces.append(y_lo_face(iy_left, 1, 2))
+            front_faces.append(y_lo_face(iy_left, 2, 3))
+
+        # backPeriodic (y=Ly) — y_hi faces of the rightmost period's R-stack.
+        if is_last:
+            back_faces.append(y_hi_face(iy_right, 0, 1))
+            back_faces.append(y_hi_face(iy_right, 1, 2))
+            back_faces.append(y_hi_face(iy_right, 2, 3))
+
+    vertices_block = "\n".join(vertex_lines)
+    blocks_block = "\n".join(block_lines)
+    inlet_block = "\n".join(inlet_faces)
+    outlet_block = "\n".join(outlet_faces)
+    top_block = "\n".join(top_faces)
+    bottom_block = "\n".join(bottom_faces)
+    riblet_block = "\n".join(riblet_faces)
+    front_block = "\n".join(front_faces)
+    back_block = "\n".join(back_faces)
+
+    body = (
+        _of_header("dictionary", "blockMeshDict")
+        + f"""
+convertToMeters 1.0;
+
+vertices
+(
+{vertices_block}
+);
+
+blocks
+(
+{blocks_block}
+);
+
+edges
+(
+);
+
+boundary
+(
+    inlet
+    {{
+        type patch;
+        faces
+        (
+{inlet_block}
+        );
+    }}
+    outlet
+    {{
+        type patch;
+        faces
+        (
+{outlet_block}
+        );
+    }}
+    top
+    {{
+        type patch;
+        faces
+        (
+{top_block}
+        );
+    }}
+    bottomWall
+    {{
+        type wall;
+        faces
+        (
+{bottom_block}
+        );
+    }}
+    riblets
+    {{
+        type wall;
+        faces
+        (
+{riblet_block}
+        );
+    }}
+    frontPeriodic
+    {{
+        type cyclic;
+        neighbourPatch backPeriodic;
+        faces
+        (
+{front_block}
+        );
+    }}
+    backPeriodic
+    {{
+        type cyclic;
+        neighbourPatch frontPeriodic;
+        faces
+        (
+{back_block}
+        );
+    }}
+);
+
+mergePatchPairs
+(
+);
+"""
+    )
+    out_path.write_text(body)
+    n_blocks = 8 * n_p
+    _LOG.info("Wrote structured blockMeshDict: %d blocks, %d vertices to %s",
+              n_blocks, len(vertex_lines), out_path)
+    return out_path
 
 
 def write_block_mesh_dict(spec: FlatPlateRibletMeshSpec, out_path: Path) -> Path:
@@ -408,16 +735,25 @@ errorReduction      0.75;
 def write_all(spec: FlatPlateRibletMeshSpec, case_dir: Path) -> dict[str, Path]:
     """Emit every mesh-related file for the flat-plate case.
 
-    Layout written under ``case_dir`` (riblet_enabled):
-        constant/triSurface/riblets.stl   (only when riblet_enabled)
-        system/blockMeshDict
-        system/snappyHexMeshDict
-        system/meshQualityDict
+    Dispatches on ``spec.riblet_enabled``:
+
+    * Riblet case (True): structured multi-block blockMeshDict only. No
+      STL, no snappyHexMeshDict. The blade geometry is baked into the
+      block topology — see ``write_block_mesh_dict_structured``.
+
+    * Smooth baseline (False): single-block blockMeshDict + the legacy
+      snappy + addLayers stack for matched wall resolution.
     """
     case_dir = Path(case_dir)
     paths: dict[str, Path] = {}
     if spec.riblet_enabled:
-        paths["stl"] = write_riblet_stl(spec, case_dir / "constant" / "triSurface" / "riblets.stl")
+        paths["blockMeshDict"] = write_block_mesh_dict_structured(
+            spec, case_dir / "system" / "blockMeshDict"
+        )
+        paths["meshQualityDict"] = write_mesh_quality_dict(
+            case_dir / "system" / "meshQualityDict"
+        )
+        return paths
     paths["blockMeshDict"] = write_block_mesh_dict(spec, case_dir / "system" / "blockMeshDict")
     paths["snappyHexMeshDict"] = write_snappy_hex_mesh_dict(
         spec, case_dir / "system" / "snappyHexMeshDict"

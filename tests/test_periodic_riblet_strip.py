@@ -9,6 +9,7 @@ from aero_research_platform.meshing.periodic_riblet_strip import (
     FlatPlateRibletMeshSpec,
     write_all,
     write_block_mesh_dict,
+    write_block_mesh_dict_structured,
     write_mesh_quality_dict,
     write_riblet_stl,
     write_snappy_hex_mesh_dict,
@@ -119,17 +120,24 @@ def test_mesh_quality_dict_inherits_stage4_thresholds(tmp_path: Path) -> None:
     assert "minDeterminant      1e-5" in text
 
 
-def test_write_all_riblet_emits_full_tree(tmp_path: Path) -> None:
+def test_write_all_riblet_emits_structured_blockmesh_only(tmp_path: Path) -> None:
+    """Riblet case: structured multi-block blockMeshDict + meshQualityDict only.
+
+    No STL, no snappyHexMeshDict — the blade geometry is baked into the
+    block topology. This is the post-pilot-v3 architecture change after
+    snappy + STL + addLayers produced 28k negative-volume cells.
+    """
     spec = FlatPlateRibletMeshSpec(riblet_enabled=True, n_pitches_spanwise=2)
     paths = write_all(spec, tmp_path)
-    assert (tmp_path / "constant" / "triSurface" / "riblets.stl").exists()
     assert (tmp_path / "system" / "blockMeshDict").exists()
-    assert (tmp_path / "system" / "snappyHexMeshDict").exists()
     assert (tmp_path / "system" / "meshQualityDict").exists()
-    assert set(paths) == {"stl", "blockMeshDict", "snappyHexMeshDict", "meshQualityDict"}
+    assert not (tmp_path / "constant" / "triSurface" / "riblets.stl").exists()
+    assert not (tmp_path / "system" / "snappyHexMeshDict").exists()
+    assert set(paths) == {"blockMeshDict", "meshQualityDict"}
 
 
-def test_write_all_smooth_omits_stl(tmp_path: Path) -> None:
+def test_write_all_smooth_keeps_snappy_path(tmp_path: Path) -> None:
+    """Smooth baseline still uses single-block blockMesh + snappy + addLayers."""
     spec = FlatPlateRibletMeshSpec(riblet_enabled=False)
     paths = write_all(spec, tmp_path)
     assert not (tmp_path / "constant" / "triSurface" / "riblets.stl").exists()
@@ -137,3 +145,69 @@ def test_write_all_smooth_omits_stl(tmp_path: Path) -> None:
     assert (tmp_path / "system" / "snappyHexMeshDict").exists()
     assert "stl" not in paths
     assert set(paths) == {"blockMeshDict", "snappyHexMeshDict", "meshQualityDict"}
+
+
+def test_structured_dict_has_n_blocks_8_times_n_pitches(tmp_path: Path) -> None:
+    """8 blocks per pitch period: 2 groove + 3 BL-band + 3 freestream."""
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=True, n_pitches_spanwise=4)
+    out = tmp_path / "blockMeshDict"
+    write_block_mesh_dict_structured(spec, out)
+    text = out.read_text()
+    hex_lines = [line for line in text.splitlines() if line.strip().startswith("hex (")]
+    assert len(hex_lines) == 8 * spec.n_pitches_spanwise
+
+
+def test_structured_dict_has_riblet_patch(tmp_path: Path) -> None:
+    """blade walls + tip form a `riblets` wall patch (no STL needed)."""
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=True, n_pitches_spanwise=2)
+    out = tmp_path / "blockMeshDict"
+    write_block_mesh_dict_structured(spec, out)
+    text = out.read_text()
+    assert "riblets" in text
+    # Three riblet faces per period: two side walls + one tip.
+    # Look at the riblets patch faces block specifically.
+    riblets_section = text.split("riblets")[1].split("frontPeriodic")[0]
+    riblet_face_lines = [
+        line for line in riblets_section.splitlines()
+        if re.match(r"\s*\( \d+ \d+ \d+ \d+ \)", line)
+    ]
+    assert len(riblet_face_lines) == 3 * spec.n_pitches_spanwise
+
+
+def test_structured_dict_has_cyclic_pair(tmp_path: Path) -> None:
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=True)
+    out = tmp_path / "blockMeshDict"
+    write_block_mesh_dict_structured(spec, out)
+    text = out.read_text()
+    assert "frontPeriodic" in text
+    assert "backPeriodic" in text
+    assert "neighbourPatch backPeriodic" in text
+    assert "neighbourPatch frontPeriodic" in text
+
+
+def test_structured_dict_vertex_count(tmp_path: Path) -> None:
+    """2 x_slabs * (1 + 3*n_p) y_cols * 4 z_rows total vertices.
+
+    Four z-rows: 0, h, z_bl, Lz (three z-bands).
+    """
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=True, n_pitches_spanwise=4)
+    out = tmp_path / "blockMeshDict"
+    write_block_mesh_dict_structured(spec, out)
+    text = out.read_text()
+    vertex_lines = [
+        line for line in text.splitlines()
+        if re.match(r"\s*\( -?\d.*-?\d.*-?\d.*\)\s*//\s*\d", line)
+    ]
+    expected = 2 * (1 + 3 * spec.n_pitches_spanwise) * 4
+    assert len(vertex_lines) == expected
+
+
+def test_structured_dict_rejects_smooth_spec() -> None:
+    """Structured writer is riblet-only; smooth case has no blade geometry."""
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=False)
+    try:
+        write_block_mesh_dict_structured(spec, Path("/tmp/_unused"))
+    except RuntimeError as e:
+        assert "riblet_enabled" in str(e).lower()
+    else:
+        raise AssertionError("expected RuntimeError")

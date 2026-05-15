@@ -1,24 +1,45 @@
 # Stage-5 PILOT: single-point smoke before the full 18-run sweep.
 # Identical to 02-flat-plate-riblet-bechert.yaml except params is reduced
 # to one sweep point (s+=17, riblet only) — the hypothesis-peak case.
-# Walks the full chain (planner -> SSH -> blockMesh -> snappyHex -> simpleFoam
-# -> wallShearStress pull -> evidence bundle -> manifest verify) once for
+# Walks the full chain (planner -> SSH -> blockMesh -> simpleFoam ->
+# wallShearStress pull -> evidence bundle -> manifest verify) once for
 # the price of one sub-run. After PASS, launch the full YAML.
+#
+# Pilot v4 (2026-05-15): the riblet case now uses a structured
+# multi-block blockMesh — no snappyHexMesh, no STL. Pilots v1-v3 with
+# snappy + STL + addLayers all produced 28k negative-volume cells.
 name: flat-plate-blade-riblet-bechert-1997-pilot
 hypothesis: |
   Pilot smoke for the Stage-5 Bechert blade-riblet sweep. Single sub-run
   at s+=17 (hypothesis peak), h/s=0.5, riblet surface. Validates the
   end-to-end pipeline: orchestrator -> aero-research SSH -> mesh -> CFD ->
   results pull -> evidence bundle -> Merkle root. Pass criterion: y+<1 on
-  bottomWall, residuals <1e-6 on Ux/Uy/p/k/omega, non-degraded evidence
-  bundle (Prefect happy-path, runs[].llm_calls populated).
+  the riblets + bottomWall patches, residuals <1e-6 on Ux/Uy/p/k/omega,
+  non-degraded evidence bundle (Prefect happy-path, runs[].llm_calls
+  populated).
 template:
   project_name: flat-plate-pilot-{surface}-{s_plus}-h{h_over_s}
   prompt: |
+    PLAN OUTPUT REQUIRED:
+        language    = "bash"
+        entrypoint  = "run.sh"
+        project_type = "script"
+        execution_mode = "generate"
+
+    DO NOT pick language=python. DO NOT write a Python wrapper that calls
+    subprocess.run / os.system / shell=True on the commands below. The
+    orchestrator's executor only routes BASH entry points to deploy_target
+    (the aero-research SSH host). Python entry points are confined to the
+    orchestrator's local /tmp/ai_sandbox/ and CANNOT reach the remote
+    aero LXC's filesystem — every path below (/home/aero/...) is remote.
+
+    --- TASK CONTEXT (informational, do not deviate from the recipe) ---
+
     Periodic-strip flat plate, OpenFOAM v2412 simpleFoam with k-omega SST.
-    Bottom wall is Bechert blade riblets (h/s as given, t/s=0.02). Drive
-    BL state to target s+. Compute Cd from wall-shear-stress integration
-    over the measurement window.
+    Bottom wall is Bechert blade riblets (h/s as given, t/s=0.02), built
+    as a structured multi-block mesh (blockMesh only — NO snappyHexMesh).
+    Drive BL state to target s+. Compute Cd from wall-shear-stress
+    integration over the measurement window.
 
     A complete case template is pre-staged on the target at
     /home/aero/templates/flat-plate-riblet-simpleFoam/ (0/, constant/,
@@ -45,7 +66,13 @@ template:
             --h-over-s {h_over_s} \
             $RIBLET_FLAG
         blockMesh > log.blockMesh 2>&1
-        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        # snappyHexMesh ONLY for the smooth baseline — the riblet case
+        # uses a structured multi-block blockMesh that already contains
+        # the blade geometry. Running snappy on the riblet case would be
+        # a no-op at best (no STL) and is skipped.
+        if [ "{surface}" = "smooth" ]; then
+            snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        fi
         checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
         potentialFoam -writephi > log.potentialFoam 2>&1
         decomposePar -force > log.decomposePar 2>&1
@@ -58,9 +85,9 @@ template:
     writing): postProcessing/wallShearStress/0/wallShearStress.dat,
     postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
 
-    Report mean tau_w on the bottomWall patch averaged over the final
-    2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
-    (mean + max on the bottomWall patch — target < 1).
+    Report mean tau_w on the riblets + bottomWall patches averaged over
+    the final 2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
+    (mean + max — target < 1).
 
     Convergence: residuals < 1e-6 on Ux/Uy/p/k/omega; wall shear stress
     drift < 0.5% over the last 1000 iterations.
