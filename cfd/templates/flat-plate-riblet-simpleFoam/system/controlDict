@@ -24,20 +24,19 @@ runTimeModifiable yes;
 
 functions
 {
-    // Drag-extraction strategy: integrate wall shear stress over the
-    // bottomWall patch in the converged tail. forceCoeffs is airfoil-
-    // specific (CofR, lift/drag axes) and the wrong tool for ZPG flat
-    // plate. The notebook in notebooks/02-bechert-1997-replication.ipynb
-    // pulls postProcessing/wallShearStress/0/wallShearStress.dat, averages
-    // over the last 2000 iterations, and integrates over the measurement
-    // window (set in FlatPlateRibletMeshSpec.meas_window_x_start..end).
+    // Drag in the periodic channel: the meanVelocityForce in
+    // constant/fvOptions logs the applied mean pressure gradient each
+    // iteration (grep "Pressure gradient" log.simpleFoam). At matched
+    // bulk velocity Ubar, DR% = (dpdx_smooth - dpdx_riblet)/dpdx_smooth.
+    // wallShearStress is still emitted as an independent cross-check —
+    // integral tau_w over the wetted walls must balance the body force.
     wallShearStress
     {
         type            wallShearStress;
         libs            ("libfieldFunctionObjects.so");
         writeControl    timeStep;
         writeInterval   10;
-        patches         ( bottomWall );
+        patches         ( bottomWall riblets );
         log             yes;
     }
 
@@ -55,6 +54,6 @@ functions
         type            yPlus;
         libs            ("libfieldFunctionObjects.so");
         writeControl    writeTime;
-        patches         ( bottomWall );
+        patches         ( bottomWall riblets );
     }
 }

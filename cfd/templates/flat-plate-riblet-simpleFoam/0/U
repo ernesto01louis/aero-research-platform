@@ -8,27 +8,28 @@ FoamFile
 
 dimensions      [0 1 -1 0 0 0 0];
 
-internalField   uniform (1 0 0);
+// Streamwise-periodic channel, normalized on u_tau=1. Initial guess at
+// the bulk velocity (~15 u_tau for a Re_tau=180 channel); the
+// meanVelocityForce in constant/fvOptions drives it to the target.
+internalField   uniform (15 0 0);
 
 boundaryField
 {
-    inlet
+    xMinCyclic
     {
-        type            freestreamVelocity;
-        freestreamValue uniform (1 0 0);
+        type            cyclic;
     }
-    outlet
+    xMaxCyclic
     {
-        type            inletOutlet;
-        inletValue      uniform (1 0 0);
-        value           uniform (1 0 0);
+        type            cyclic;
     }
     top
     {
-        type            slip;
+        type            symmetryPlane;
     }
-    // Riblet case: snappyHexMesh adds the `riblets` patch from the STL
-    // solid name. Smooth case: only `bottomWall` exists. Regex matches both.
+    // Riblet case has both `bottomWall` (groove floors) and `riblets`
+    // (blade walls + tips). Smooth case has only `bottomWall`. Regex
+    // matches whichever exist.
     "(bottomWall|riblets)"
     {
         type            noSlip;

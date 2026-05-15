@@ -185,6 +185,24 @@ def test_structured_dict_has_cyclic_pair(tmp_path: Path) -> None:
     assert "neighbourPatch frontPeriodic" in text
 
 
+def test_structured_dict_is_periodic_channel(tmp_path: Path) -> None:
+    """Periodic channel: cyclic x pair, symmetryPlane top, no inlet/outlet."""
+    spec = FlatPlateRibletMeshSpec(riblet_enabled=True)
+    out = tmp_path / "blockMeshDict"
+    write_block_mesh_dict_structured(spec, out)
+    text = out.read_text()
+    # streamwise cyclic pair (replaces inlet/outlet)
+    assert "xMinCyclic" in text
+    assert "xMaxCyclic" in text
+    assert "neighbourPatch xMaxCyclic" in text
+    assert "neighbourPatch xMinCyclic" in text
+    # channel centreline is a symmetry plane, not a freestream patch
+    assert "type symmetryPlane" in text
+    # no developing-BL inlet/outlet patches
+    assert "inlet" not in text
+    assert "outlet" not in text
+
+
 def test_structured_dict_vertex_count(tmp_path: Path) -> None:
     """2 x_slabs * (1 + 3*n_p) y_cols * 4 z_rows total vertices.
 

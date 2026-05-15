@@ -44,20 +44,34 @@ _LOG = logging.getLogger(__name__)
 
 @dataclass
 class FlatPlateRibletMeshSpec:
-    """Configuration for the periodic-strip flat-plate mesh (riblet or smooth)."""
+    """Configuration for the streamwise-periodic channel mesh (riblet or smooth).
 
-    # Domain extents (chord units; chord=1 in the run).
-    plate_length: float = 4.0
+    See STAGE-5-REDESIGN.md. Normalized on the channel half-height
+    delta = plate_height = 1, friction velocity u_tau = 1, kinematic
+    viscosity nu = 1/re_tau. The riblet pitch is s = s+ / re_tau, so at
+    re_tau=180 a s+=17 riblet has pitch ~0.094 delta — isotropic cells,
+    no aspect-ratio pathology (contrast the abandoned developing-BL
+    domain where s ~ 3e-4 chord forced 4700:1 aspect ratios).
+    """
+
+    # Channel half-height (delta) — the wall-normal extent z in [0, delta].
     plate_height: float = 1.0
-    # Riblet pitch (chord units). For the Bechert sweep this is computed at
-    # runtime from a target s+ via ``geometry.riblet.s_from_s_plus``.
-    pitch_s: float = 0.002
+    # Streamwise periodic extent (delta units). ~3 delta is the canonical
+    # minimal-channel length; riblets run streamwise so this is
+    # independent of the riblet pitch.
+    plate_length: float = 3.0
+    # Friction Reynolds number Re_tau = u_tau * delta / nu. 180 is the
+    # canonical low-Re channel (Kim-Moin-Moser 1987). nu = 1/re_tau.
+    re_tau: float = 180.0
+    # Riblet pitch (delta units). For the Bechert sweep this is computed
+    # at runtime as s = s+ / re_tau (scripts/generate_mesh.py).
+    pitch_s: float = 0.094
     n_pitches_spanwise: int = 4   # ≥ 4 per Stage-5 brief
     h_over_s: float = BECHERT_BLADE_H_OVER_S
     t_over_s: float = BECHERT_BLADE_T_OVER_S
     # Background hex grid. n_y_per_pitch ≥ 16 per Stage-5 brief
     # (Bechert tip-sharpness — under-resolved tips kill the DR).
-    n_x: int = 400
+    n_x: int = 200
     n_y_per_pitch: int = 16
     n_z: int = 80
     grading_x: float = 1.0
@@ -105,28 +119,31 @@ class FlatPlateRibletMeshSpec:
     # fluid-facing faces (two side walls + the tip) form the `riblets`
     # patch. The riblet tip is the z=h face of block D (band-2 blade-slot).
     #
-    # Three z-bands because the riblet height (h ≈ 1.6e-4 c at s+=17) is
-    # ~0.3% of the BL thickness (δ ≈ 0.056 c at the measurement station).
-    # A single tall block z∈[h, Lz] cannot wall-resolve the tip without an
-    # extreme grading factor (~3800) and pathological aspect ratios. The
-    # band-2 split keeps the BL-resolving cells in a thin band that grades
-    # cleanly.
+    # Three z-bands keep cell sizes wall-resolved near z=0 and the riblet
+    # tips while coarsening into the channel core. In the periodic channel
+    # (delta=1, Re_tau=180) the bands are thin enough in absolute terms
+    # that only mild grading is needed — contrast the abandoned
+    # developing-BL domain that needed grading ~276.
     n_y_groove: int = 8         # cells per groove-half (one of two grooves per pitch)
     n_y_blade: int = 1          # cells across the blade slot above the tip
     n_z_groove: int = 16        # cells in z-band 1 [0, h]
-    n_z_bl: int = 60            # cells in z-band 2 [h, z_bl]
+    n_z_bl: int = 24            # cells in z-band 2 [h, z_bl]
     n_z_outer: int = 30         # cells in z-band 3 [z_bl, Lz]
-    # z_bl: top of the BL-resolved band, as a fraction of plate_height.
-    # ~0.1 c comfortably contains the δ≈0.056 c BL at the measurement window.
+    # z_bl: top of the near-wall resolved band, as a fraction of the
+    # channel half-height. 0.1 delta sits just above the riblet tips
+    # (h ~ 0.047 delta at s+=17) and inside the buffer layer.
     z_bl_fraction: float = 0.1
     # z-grading: simpleGrading X = last_cell / first_cell ratio.
-    # Band 1 (groove) is so thin that uniform spacing already gives y+<<1.
-    # Band 2 packs cells at z=h (the tip wall + the BL): X≈276 with
-    # n_z_bl=60 over a 0.1 c band → first cell ≈ 3.3e-5 c → y+ ≈ 0.9.
-    # Band 3 is freestream — uniform.
+    # Band 1 (groove, ~0.047 delta / 16 cells): uniform — y+~0.5 at the
+    #   wall already (cell ~0.003 delta, Re_tau=180).
+    # Band 2 (~0.053 delta / 24 cells): X=4 packs mildly toward z=h
+    #   (the riblet tip + high-shear region); first cell ~0.0013 -> y+~0.23.
+    # Band 3 (channel core, ~0.9 delta / 30 cells): X=20 grows cells from
+    #   the band-2 match (~0.005) into the coarse core (~0.09). Keeps the
+    #   z=z_bl interface jump small; core aspect ratio dx/dz ~ 0.16.
     grading_z_groove: float = 1.0
-    grading_z_bl: float = 276.0
-    grading_z_outer: float = 1.0
+    grading_z_bl: float = 4.0
+    grading_z_outer: float = 20.0
 
     @property
     def spanwise_extent(self) -> float:
@@ -209,9 +226,14 @@ def write_block_mesh_dict_structured(spec: FlatPlateRibletMeshSpec, out_path: Pa
 
     The blade solid material (iy 1->2, iz 0->1) is NOT a block — its
     three fluid-facing faces (two side walls + the tip) form the
-    ``riblets`` patch (the tip is the z=h face of block D). Cyclic
-    patches at y=0 and y=Ly, `top` at z=Lz, `bottomWall` on the groove
-    floors at z=0.
+    ``riblets`` patch (the tip is the z=h face of block D).
+
+    Boundary patches (streamwise-periodic channel — see STAGE-5-REDESIGN.md):
+        xMinCyclic / xMaxCyclic   cyclic pair at x=0 / x=Lx
+        frontPeriodic / backPeriodic   cyclic pair at y=0 / y=Ly
+        top                       symmetryPlane at z=Lz (channel centreline)
+        bottomWall                wall on the groove floors at z=0
+        riblets                   wall — blade side walls + tips
     """
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -409,17 +431,19 @@ edges
 
 boundary
 (
-    inlet
+    xMinCyclic
     {{
-        type patch;
+        type cyclic;
+        neighbourPatch xMaxCyclic;
         faces
         (
 {inlet_block}
         );
     }}
-    outlet
+    xMaxCyclic
     {{
-        type patch;
+        type cyclic;
+        neighbourPatch xMinCyclic;
         faces
         (
 {outlet_block}
@@ -427,7 +451,7 @@ boundary
     }}
     top
     {{
-        type patch;
+        type symmetryPlane;
         faces
         (
 {top_block}
@@ -476,7 +500,7 @@ mergePatchPairs
     )
     out_path.write_text(body)
     n_blocks = 8 * n_p
-    _LOG.info("Wrote structured blockMeshDict: %d blocks, %d vertices to %s",
+    _LOG.info("Wrote structured periodic-channel blockMeshDict: %d blocks, %d vertices to %s",
               n_blocks, len(vertex_lines), out_path)
     return out_path
 

@@ -6,30 +6,25 @@ FoamFile
     object      k;
 }
 
-// Freestream turbulent kinetic energy. With U_infty=1 (non-dim) and
-// turbulence intensity Tu = 0.1% (canonical low-disturbance wind tunnel
-// — matches NASA TMR flat-plate ZPG references), k_infty = 1.5*(Tu*U)^2
-// = 1.5e-6. Small but nonzero so kOmegaSST has something to transport.
+// Turbulent kinetic energy, normalized on u_tau=1. A Re_tau=180 channel
+// has k ~ O(1-4) u_tau^2; a uniform 1.0 initial guess relaxes fine.
 dimensions      [0 2 -2 0 0 0 0];
 
-internalField   uniform 1.5e-6;
+internalField   uniform 1.0;
 
 boundaryField
 {
-    inlet
+    xMinCyclic
     {
-        type            freestream;
-        freestreamValue uniform 1.5e-6;
+        type            cyclic;
     }
-    outlet
+    xMaxCyclic
     {
-        type            inletOutlet;
-        inletValue      uniform 1.5e-6;
-        value           uniform 1.5e-6;
+        type            cyclic;
     }
     top
     {
-        type            slip;
+        type            symmetryPlane;
     }
     "(bottomWall|riblets)"
     {

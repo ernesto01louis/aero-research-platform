@@ -8,8 +8,9 @@ FoamFile
 
 transportModel  Newtonian;
 
-// Non-dimensional units: chord c = 1, U_infty = 1.
-// Re_c = 1 / nu. Stage 5 reference Re_c = 1e6 — matches Bechert's
-// flat-plate test section in the oil channel (Bechert et al. 1997
-// JFM 338:59-87 Section 2). Tunable from generate_mesh.py override.
-nu              1e-6;
+// Streamwise-periodic channel, normalized on the half-height delta=1
+// and friction velocity u_tau=1. The friction Reynolds number is
+// Re_tau = u_tau * delta / nu, so nu = 1/Re_tau. At the canonical
+// Re_tau = 180 (Kim, Moin & Moser 1987): nu = 1/180 = 5.5556e-3.
+// Keep this consistent with --re-tau passed to scripts/generate_mesh.py.
+nu              5.5556e-3;

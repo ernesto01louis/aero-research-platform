@@ -54,6 +54,11 @@ SIMPLE
 {
     nNonOrthogonalCorrectors 0;
     consistent      yes;
+    // Periodic channel: pressure BCs are all cyclic / symmetryPlane /
+    // zeroGradient — no Dirichlet anchor — so pressure floats. Pin it
+    // at one cell or GAMG solves a singular system.
+    pRefCell        0;
+    pRefValue       0;
     residualControl
     {
         p           1e-6;

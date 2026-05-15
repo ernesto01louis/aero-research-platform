@@ -12,19 +12,17 @@ internalField   uniform 0;
 
 boundaryField
 {
-    inlet
+    xMinCyclic
     {
-        type            freestreamPressure;
-        freestreamValue uniform 0;
+        type            cyclic;
     }
-    outlet
+    xMaxCyclic
     {
-        type            fixedValue;
-        value           uniform 0;
+        type            cyclic;
     }
     top
     {
-        type            slip;
+        type            symmetryPlane;
     }
     "(bottomWall|riblets)"
     {

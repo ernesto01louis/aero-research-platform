@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Generate the flat-plate periodic-strip mesh files for this case.
+"""Generate the streamwise-periodic channel mesh files for this case.
 
-Lays down ``constant/triSurface/riblets.stl`` (when ``--riblet-enabled``),
-``system/blockMeshDict``, ``system/snappyHexMeshDict``,
-``system/meshQualityDict`` based on
-``aero_research_platform.meshing.periodic_riblet_strip``.
+Lays down ``system/blockMeshDict`` + ``system/meshQualityDict`` based on
+``aero_research_platform.meshing.periodic_riblet_strip``. See
+STAGE-5-REDESIGN.md for the periodic-channel rationale.
 
-The pitch ``s`` is computed from the target ``s+`` via
-``s+ = s * u_tau / nu``. We use a canonical Re_θ ≈ 1500 at the measurement
-station which gives ``u_tau / U_infty ≈ 0.0535`` from the Schlichting
-flat-plate correlation; the actual u_τ is measured post-hoc from
-``wallShearStress`` in the converged tail and the achieved ``s+`` is
-reported in the notebook.
+The mesh is normalized on the channel half-height delta=1, friction
+velocity u_tau=1, kinematic viscosity nu=1/Re_tau. The riblet pitch is
 
-The orchestrator-generated run.sh calls this script before running
-``blockMesh`` + ``snappyHexMesh`` proper.
+    s = s+ / Re_tau          (s+ = s * u_tau / nu = s * Re_tau)
+
+so a s+=17 riblet at Re_tau=180 has pitch ~0.094 delta — a sizeable
+fraction of the domain, giving isotropic cells.
+
+The orchestrator-generated run.sh calls this script before ``blockMesh``.
+No snappyHexMesh — the riblet geometry is baked into the block topology.
 """
 
 from __future__ import annotations
@@ -23,11 +23,8 @@ import argparse
 import sys
 from pathlib import Path
 
-# Canonical u_tau / U_infty from Schlichting flat-plate correlation at
-# Re_theta ≈ 1500 (Tu < 0.1%). See Schlichting & Truckenbrodt 1969.
-# Used as the pitch-sizing assumption — the achieved s+ is reported
-# post-hoc from the measured wallShearStress.
-DEFAULT_U_TAU_RATIO: float = 0.0535
+# Canonical low-Reynolds channel (Kim, Moin & Moser 1987). nu = 1/Re_tau.
+DEFAULT_RE_TAU: float = 180.0
 
 
 def _add_repo_to_path() -> None:
@@ -54,7 +51,7 @@ def _cli() -> None:
         "--s-plus",
         type=float,
         required=True,
-        help="target wall-unit pitch s+ for this sub-run",
+        help="target wall-unit riblet pitch s+ for this sub-run",
     )
     p.add_argument(
         "--h-over-s",
@@ -71,28 +68,18 @@ def _cli() -> None:
     p.add_argument(
         "--riblet-enabled",
         action="store_true",
-        help="generate the riblet STL + snappy refinement; omit for smooth baseline",
+        help="generate the structured riblet blockMesh; omit for the smooth baseline",
     )
     p.add_argument(
-        "--u-tau-ratio",
+        "--re-tau",
         type=float,
-        default=DEFAULT_U_TAU_RATIO,
-        help="assumed u_tau/U_infty for pitch sizing (Schlichting Re_theta~1500)",
-    )
-    p.add_argument(
-        "--nu",
-        type=float,
-        default=1.0e-6,
-        help="kinematic viscosity (must match constant/transportProperties)",
+        default=DEFAULT_RE_TAU,
+        help="friction Reynolds number; pitch s = s+/Re_tau, nu = 1/Re_tau",
     )
     p.add_argument("--plate-length", type=float, default=None)
     p.add_argument("--plate-height", type=float, default=None)
     p.add_argument("--n-pitches-spanwise", type=int, default=None)
     p.add_argument("--n-x", type=int, default=None)
-    p.add_argument("--n-y-per-pitch", type=int, default=None)
-    p.add_argument("--n-z", type=int, default=None)
-    p.add_argument("--n-layers", type=int, default=None)
-    p.add_argument("--first-layer-thickness", type=float, default=None)
     args = p.parse_args()
 
     _add_repo_to_path()
@@ -102,9 +89,11 @@ def _cli() -> None:
         write_all,
     )
 
-    u_tau = args.u_tau_ratio  # U_infty = 1 (non-dim) so u_tau = ratio.
-    pitch_s = s_from_s_plus(s_plus=args.s_plus, u_tau=u_tau, nu=args.nu)
-    print(f"target s+ = {args.s_plus}  ->  pitch_s = {pitch_s:.6e} c")
+    # delta = 1, u_tau = 1, nu = 1/Re_tau  ->  s = s+ / Re_tau.
+    u_tau = 1.0
+    nu = 1.0 / args.re_tau
+    pitch_s = s_from_s_plus(s_plus=args.s_plus, u_tau=u_tau, nu=nu)
+    print(f"target s+ = {args.s_plus}  Re_tau = {args.re_tau}  ->  pitch_s = {pitch_s:.6e} delta")
 
     overrides = {
         k: v for k, v in {
@@ -112,15 +101,12 @@ def _cli() -> None:
             "plate_height": args.plate_height,
             "n_pitches_spanwise": args.n_pitches_spanwise,
             "n_x": args.n_x,
-            "n_y_per_pitch": args.n_y_per_pitch,
-            "n_z": args.n_z,
-            "n_layers": args.n_layers,
-            "first_layer_thickness": args.first_layer_thickness,
         }.items()
         if v is not None
     }
     spec = FlatPlateRibletMeshSpec(
         pitch_s=pitch_s,
+        re_tau=args.re_tau,
         h_over_s=args.h_over_s,
         t_over_s=args.t_over_s,
         riblet_enabled=args.riblet_enabled,
