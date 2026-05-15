@@ -68,7 +68,11 @@ class FlatPlateRibletMeshSpec:
     t_over_s: float = BECHERT_BLADE_T_OVER_S
     # Background hex grid. n_y_per_pitch ≥ 16 per Stage-5 brief
     # (Bechert tip-sharpness — under-resolved tips kill the DR).
-    n_x: int = 200
+    # n_x trimmed 200->120: the periodic channel is statistically
+    # homogeneous in x, so streamwise resolution can be modest. Combined
+    # with the leaner z-bands below this gives ~440k cells — an 8-core
+    # (physical) run finishes inside the orchestrator's 7200s SSH timeout.
+    n_x: int = 120
     n_y_per_pitch: int = 16
     n_z: int = 80
     grading_x: float = 1.0
@@ -123,9 +127,9 @@ class FlatPlateRibletMeshSpec:
     # developing-BL domain that needed grading ~276.
     n_y_groove: int = 8         # cells per groove-half (one of two grooves per pitch)
     n_y_blade: int = 1          # cells across the blade slot above the tip
-    n_z_groove: int = 16        # cells in z-band 1 [0, h]
-    n_z_bl: int = 24            # cells in z-band 2 [h, z_bl]
-    n_z_outer: int = 30         # cells in z-band 3 [z_bl, Lz]
+    n_z_groove: int = 16        # cells in z-band 1 [0, h] — keeps y+<1 at the wall
+    n_z_bl: int = 18            # cells in z-band 2 [h, z_bl] (trimmed 24->18)
+    n_z_outer: int = 20         # cells in z-band 3 [z_bl, Lz] — channel core, low gradients (trimmed 30->20)
     # z_bl: top of the near-wall resolved band, as a fraction of the
     # channel half-height. 0.1 delta sits just above the riblet tips
     # (h ~ 0.047 delta at s+=17) and inside the buffer layer.

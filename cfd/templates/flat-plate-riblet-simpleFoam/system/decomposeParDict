@@ -6,9 +6,11 @@ FoamFile
     object      decomposeParDict;
 }
 
-// 16-way decomposition — the aero-research LXC has 16 cores. A 4-way
-// split left 12 cores idle and a full 10000-iter run took >7200s,
-// overrunning the orchestrator's SSH timeout (pilot v5, run dfcb59b5).
-numberOfSubdomains 16;
+// 8-way decomposition — the aero-research LXC's AMD Ryzen has 16
+// hardware threads but only 8 physical cores. CFD is FP/memory-bound
+// so hyperthreads add ~no throughput; 16 MPI ranks just oversubscribe
+// and pay extra halo-exchange cost (pilot v7: 16-way ~= 4-way speed).
+// 8 ranks on 8 physical cores is the real sweet spot.
+numberOfSubdomains 8;
 
 method          scotch;
