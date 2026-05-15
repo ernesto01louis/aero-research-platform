@@ -10,6 +10,9 @@
 # smooth baseline) = 18 sub-runs. The paired baseline at each s+ shares
 # the same domain + Re_θ so DR% = (Cd_smooth - Cd_riblet) / Cd_smooth is
 # self-consistent at every sweep point.
+#
+# 2026-05-15: riblet case uses a structured multi-block blockMesh (no
+# snappyHexMesh, no STL) — see campaigns/02-...-pilot.yaml header.
 name: flat-plate-blade-riblet-bechert-1997-replication
 hypothesis: |
   Static blade riblets at h/s=0.5 on a zero-pressure-gradient flat plate,
@@ -25,12 +28,28 @@ hypothesis: |
 template:
   project_name: flat-plate-{surface}-{s_plus}-h{h_over_s}
   prompt: |
+    PLAN OUTPUT REQUIRED:
+        language    = "bash"
+        entrypoint  = "run.sh"
+        project_type = "script"
+        execution_mode = "generate"
+
+    DO NOT pick language=python. DO NOT write a Python wrapper that calls
+    subprocess.run / os.system / shell=True on the commands below. The
+    orchestrator's executor only routes BASH entry points to deploy_target
+    (the aero-research SSH host). Python entry points are confined to the
+    orchestrator's local /tmp/ai_sandbox/ and CANNOT reach the remote
+    aero LXC's filesystem — every path below (/home/aero/...) is remote.
+
+    --- TASK CONTEXT (informational, do not deviate from the recipe) ---
+
     Periodic-strip flat plate, OpenFOAM v2412 simpleFoam with k-omega SST.
-    Bottom wall is either Bechert blade riblets (h/s as given, t/s=0.02)
-    or smooth (paired baseline at matched Re_θ). Drive BL state to target
-    s+. Compute Cd from wall-shear-stress integration over the measurement
-    window. DR% computed in the validation notebook from paired riblet +
-    smooth sub-runs at each s+.
+    Bottom wall is either Bechert blade riblets (h/s as given, t/s=0.02,
+    structured multi-block mesh — NO snappyHexMesh) or smooth (paired
+    baseline at matched Re_θ). Drive BL state to target s+. Compute Cd
+    from wall-shear-stress integration over the measurement window.
+    DR% computed in the validation notebook from paired riblet + smooth
+    sub-runs at each s+.
 
     A complete case template is pre-staged on the target at
     /home/aero/templates/flat-plate-riblet-simpleFoam/ (0/, constant/,
@@ -57,11 +76,12 @@ template:
             --h-over-s {h_over_s} \
             $RIBLET_FLAG
         blockMesh > log.blockMesh 2>&1
-        # snappyHexMesh is a no-op for the smooth case (castellatedMesh=false,
-        # snap=false) but still runs addLayers on the bottomWall patch so
-        # the smooth baseline matches riblet wall resolution. For the riblet
-        # case it does the full castellated+snap+layers cycle on the STL.
-        snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        # snappyHexMesh ONLY for the smooth baseline — the riblet case
+        # uses a structured multi-block blockMesh that already contains
+        # the blade geometry.
+        if [ "{surface}" = "smooth" ]; then
+            snappyHexMesh -overwrite > log.snappyHexMesh 2>&1
+        fi
         checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
         potentialFoam -writephi > log.potentialFoam 2>&1
         decomposePar -force > log.decomposePar 2>&1
@@ -74,9 +94,9 @@ template:
     writing): postProcessing/wallShearStress/0/wallShearStress.dat,
     postProcessing/yPlus/*/yPlus.dat, VTK/, log.*.
 
-    Report mean tau_w on the bottomWall patch averaged over the final
-    2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
-    (mean + max on the bottomWall patch — target < 1).
+    Report mean tau_w on the riblets + bottomWall patches averaged over
+    the final 2000 iterations. Report y+ from postProcessing/yPlus/*/yPlus.dat
+    (mean + max — target < 1).
 
     Convergence: residuals < 1e-6 on Ux/Uy/p/k/omega; wall shear stress
     drift < 0.5% over the last 1000 iterations.
