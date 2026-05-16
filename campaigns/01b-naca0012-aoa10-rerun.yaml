@@ -1,23 +1,32 @@
 # Stage 4.x α=10 cold-start fix re-run. STAGE-4-OUTPUTS Issue 4: the
 # first α=10 run converged to a non-physical low-circulation steady
-# state (Cl=0.09 vs NASA TMR 1.0909) because `cellLimited Gauss linear 1`
-# on grad(U) suppressed the bound-vortex sheet and the cold-start had
-# no flow perturbation to develop the Kutta condition.
+# state (Cl≈0.10 vs NASA TMR 1.0909). TWO compounding causes, both
+# now fixed:
+#   1. `cellLimited Gauss linear 1` on grad(U) suppressed the bound-
+#      vortex sheet and the cold-start had no flow perturbation to
+#      develop the Kutta condition — patched to cellMDLimited 0.5 plus
+#      a potentialFoam -writephi initialisation pass.
+#   2. The addLayers prism stack never resolved the wall: snappyHexMesh
+#      ran relativeSizes=true, so firstLayerThickness was a FRACTION of
+#      the local surface cell — the "1e-7" override collapsed below
+#      minThickness and addLayers reverted to defaults, leaving y+~1167.
+#      Fixed in airfoil_cmesh.py: relativeSizes=false (absolute lengths),
+#      first layer 5e-6c, 15 prism layers.
 #
-# This YAML re-runs α=10 against the patched case template (fvSchemes
-# cellMDLimited 0.5 on grad(U)) with a potentialFoam -writephi
-# initialisation pass before simpleFoam — the standard OpenFOAM
-# airFoil2D recipe. Once this PASSes the NASA TMR ±2% Cl / ±10% Cd
-# bound, Stage 4 verdict moves PARTIAL → PASS and Stage 5 is unblocked.
+# This YAML re-runs α=10 against the patched case template + the fixed
+# mesh generator. Once it PASSes the NASA TMR ±2% Cl / ±10% Cd bound
+# (and y+ avg < 1), Stage 4 verdict moves PARTIAL → PASS.
 #
 # Inherits all Stage-4 staging: `scripts/push_templates.sh aero-research`
-# must have been re-run after the fvSchemes patch so the aero LXC has
-# the updated template.
+# must be re-run after the airfoil_cmesh.py + fvSchemes patches so the
+# aero LXC has the updated template + meshing package.
 name: naca0012-aoa10-rerun-stage4-x
 hypothesis: |
-  After patching system/fvSchemes (cellLimited → cellMDLimited 0.5 on
-  grad(U)) and initialising with potentialFoam -writephi before
-  simpleFoam, the α=10° NACA 0012 case converges to the NASA TMR
+  After (1) patching system/fvSchemes (cellLimited → cellMDLimited 0.5
+  on grad(U)) with a potentialFoam -writephi initialisation pass, and
+  (2) fixing the addLayers mesh mode (relativeSizes false, absolute
+  5e-6c first layer, 15 prism layers) so the wall is genuinely resolved
+  at y+ avg < 1, the α=10° NACA 0012 case converges to the NASA TMR
   SA-model reference (Cl ~= 1.0909, Cd ~= 0.01231) within +/-2% on Cl
   and +/-10% on Cd. The α=0 row already PASSED in the first Stage-4
   campaign; this re-run closes the open α=10 row in STAGE-4-OUTPUTS.md.
@@ -63,13 +72,16 @@ template:
         mkdir -p "$CASE_DIR"
         cp -r /home/aero/templates/naca0012-simpleFoam/. "$CASE_DIR/"
         cd "$CASE_DIR"
-        # Stage-4.x mesh-refinement override: drop first_layer_thickness
-        # 10× (1e-6 → 1e-7) to push y+ below 1 even at α=10 where the
-        # suction-side peak velocity drives local wall shear high. The
-        # default mesh (n_layers=5, first_layer=1e-6) gave y+~1167 at
-        # α=10, which puts SA's wall function in the wrong regime and
-        # smears the bound-vortex sheet — Cl trapped at ~0.10.
-        python scripts/generate_mesh.py --case-dir . --first-layer-thickness 1e-7
+        # α=10 mesh fix: the prior "1e-7" override never bit — with
+        # snappyHexMesh relativeSizes=true, firstLayerThickness is a
+        # FRACTION of the local surface cell, so 1e-7 collapsed below
+        # minThickness and addLayers reverted to defaults (y+~1167, Cl
+        # trapped at ~0.10). Force absolute-length mode and a 15-layer
+        # wall-resolved stack. These match the airfoil_cmesh.py defaults;
+        # passed explicitly so the campaign recipe is self-documenting.
+        python scripts/generate_mesh.py --case-dir . \
+          --first-layer-thickness 5e-6 --min-thickness 1e-6 \
+          --n-layers 15 --relative-sizes false
         python scripts/set_aoa.py --aoa 10 --case-dir .
         blockMesh > log.blockMesh 2>&1
         surfaceFeatureExtract > log.surfaceFeatureExtract 2>&1 || true
