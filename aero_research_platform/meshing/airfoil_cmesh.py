@@ -64,19 +64,25 @@ class MeshSpec:
     surface_refinement_min: int = 6
     surface_refinement_max: int = 7
     refinement_box_level: int = 4
-    # Boundary-layer prism inflation. Stage-4.x tuning: dropped from 30 to
-    # 20 layers — the original 30-layer stack at expansion 1.15 produced
-    # ~7700 small-determinant + ~5000 concave cells where the layer cap
-    # met the level-7 surface refinement, and simpleFoam diverged at
-    # iter 76 under SA. 20 layers reach y+~30 at the outer edge so the
-    # nutUSpaldingWallFunction blends correctly.
-    n_layers: int = 5
-    # Stage-4.x mesh refinement: dropped 10× (1e-6 → 1e-7) after Campaign 5
-    # showed y+~1167 at α=10 (suction-side peak velocity drives local wall
-    # shear ~10× chord-averaged). With 1e-7 the wall function regime is
-    # reasonable (y+ ~120 at peak, ~12 chord-averaged) and the bound-vortex
-    # sheet can develop — without this, simpleFoam traps Cl at ~0.10.
-    first_layer_thickness: float = 1.0e-7  # y+ < 1 at Re=6e6 nominal
+    # Boundary-layer prism inflation. The alpha=10 fix raised this from 5 to
+    # 15: a wall-resolved stack needs enough layers to carry the boundary
+    # layer off the wall before the outer expansion meets the level-7
+    # surface cells. 15 layers at expansion 1.15 from a 5e-6c first cell
+    # span ~2.4e-4c — comfortably hosted by the castellated cells without
+    # the small-determinant collapse the original 30-layer stack caused.
+    n_layers: int = 15
+    # alpha=10 root-cause fix. The Stage-4.x "1e-6 → 1e-7" tuning never bit:
+    # with relativeSizes TRUE, firstLayerThickness is a FRACTION of the
+    # local surface-cell edge (~0.016c), so 1e-7 resolved to ~1.6e-9c —
+    # below minThickness — and addLayers silently reverted to defaults,
+    # leaving y+~1167 at the alpha=10 suction peak and Cl trapped at ~0.10.
+    # The fix is the MODE, not the magnitude: relative_sizes=False makes
+    # the two fields below ABSOLUTE chord-fractions. 5e-6c gives y+~1
+    # chord-averaged (y+ a few at the suction peak); iterate on the aero
+    # LXC against the checkMesh/yPlus logs if the peak needs y+<1.
+    relative_sizes: bool = False
+    first_layer_thickness: float = 5.0e-6  # absolute chord-fraction
+    min_thickness: float = 1.0e-6  # absolute; addLayers floor
     expansion_ratio: float = 1.15
     # Lower bound on final cell count after snappyHexMesh — sanity-check.
     expected_cells_lower_bound: int = 100_000
@@ -287,7 +293,7 @@ snapControls
 
 addLayersControls
 {{
-    relativeSizes true;
+    relativeSizes {str(spec.relative_sizes).lower()};
     layers
     {{
         airfoil
@@ -298,7 +304,7 @@ addLayersControls
 
     expansionRatio    {spec.expansion_ratio};
     firstLayerThickness {spec.first_layer_thickness};
-    minThickness        {spec.first_layer_thickness * 0.5};
+    minThickness        {spec.min_thickness};
     nGrow               0;
     featureAngle        180;
     slipFeatureAngle    30;

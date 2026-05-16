@@ -56,7 +56,22 @@ def _cli() -> None:
         "--first-layer-thickness",
         type=float,
         default=None,
-        help="first prism cell wall distance (chord units)",
+        help="first prism cell wall distance (chord units; absolute when "
+        "--relative-sizes is false)",
+    )
+    p.add_argument(
+        "--min-thickness",
+        type=float,
+        default=None,
+        help="addLayers minThickness floor (chord units; absolute when "
+        "--relative-sizes is false)",
+    )
+    p.add_argument(
+        "--relative-sizes",
+        type=lambda s: s.lower() in ("true", "1", "yes"),
+        default=None,
+        help="snappyHexMesh relativeSizes mode (true|false). false makes "
+        "first-layer/min thickness absolute lengths — the alpha=10 fix.",
     )
     args = p.parse_args()
 
@@ -72,6 +87,8 @@ def _cli() -> None:
             "surface_refinement_max": args.surface_refinement_max,
             "n_layers": args.n_layers,
             "first_layer_thickness": args.first_layer_thickness,
+            "min_thickness": args.min_thickness,
+            "relative_sizes": args.relative_sizes,
         }.items()
         if v is not None
     }

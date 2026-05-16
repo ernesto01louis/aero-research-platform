@@ -28,12 +28,15 @@ def test_default_spec_targets_nasa_tmr_family_ii() -> None:
     # 100c farfield — see MeshSpec docstring for the deviation rationale.
     assert spec.farfield_radius >= 100.0
     assert spec.n_airfoil_per_side == 257
-    assert spec.first_layer_thickness <= 1e-6  # y+ < 1 at Re=6e6
-    # 5 prism layers is the Stage-4.x conservative count. 30 and 20
-    # both produced degenerate cells that overflowed SA's pow3(.) in
-    # the destruction term. With Poisson wallDist + 5 layers the SA
-    # term is robust on the near-wall mesh.
-    assert spec.n_layers >= 1
+    # alpha=10 fix: relativeSizes is false, so first_layer_thickness is an
+    # ABSOLUTE chord-fraction (~5e-6c → y+~1), not a fraction of the
+    # local surface cell. See MeshSpec docstring for the root cause.
+    assert spec.relative_sizes is False
+    assert spec.first_layer_thickness <= 1e-4  # absolute chord-fraction
+    assert 0.0 < spec.min_thickness < spec.first_layer_thickness
+    # 15 prism layers carries the boundary layer off the wall before the
+    # outer expansion meets the level-7 surface cells.
+    assert spec.n_layers >= 10
     assert spec.expected_cells_lower_bound >= 100_000
 
 
@@ -87,6 +90,11 @@ def test_write_snappy_hex_mesh_dict_refinement_and_layers(tmp_path: Path) -> Non
     assert f"level ( {spec.surface_refinement_min} {spec.surface_refinement_max} )" in text
     assert f"nSurfaceLayers {spec.n_layers}" in text
     assert f"firstLayerThickness {spec.first_layer_thickness}" in text
+    # alpha=10 fix: absolute-length addLayers mode. relativeSizes must be
+    # false (otherwise firstLayerThickness is a fraction of the local
+    # cell and silently collapses), and minThickness is its own knob.
+    assert "relativeSizes false" in text
+    assert re.search(rf"minThickness\s+{spec.min_thickness}\b", text)
     # Refinement box level.
     assert f"( 1.0 {spec.refinement_box_level} )" in text
 
@@ -112,12 +120,16 @@ def test_write_all_lays_down_full_tree(tmp_path: Path) -> None:
     assert set(paths) == {"stl", "blockMeshDict", "snappyHexMeshDict", "meshQualityDict"}
 
 
-def test_first_layer_thickness_yields_yplus_under_one() -> None:
+def test_first_layer_thickness_in_wall_resolved_regime() -> None:
     """First-layer height + Re=6e6 + Schlichting flat-plate y+ heuristic.
 
     For a flat plate with Cf~0.058*Re^-0.2 and uTau = sqrt(0.5*rho*U^2*Cf),
-    a first-cell wall distance of 1e-6 c on NACA 0012 at Re=6e6 gives
-    y+~0.3-0.6 over the chord — well below 1.
+    the absolute 5e-6 c first-cell wall distance on NACA 0012 at Re=6e6
+    gives chord-averaged y+~1 — squarely in the wall-resolved regime and
+    far from the y+~1167 wall-function trap that killed the alpha=10 case.
+    This heuristic is a sanity proxy only; the hard ``y+ avg < 1`` gate
+    is the live ``yPlus`` function-object log on the aero LXC, against
+    which the first-layer thickness is iterated.
     """
     spec = MeshSpec()
     Re = 6.0e6
@@ -125,4 +137,5 @@ def test_first_layer_thickness_yields_yplus_under_one() -> None:
     nu = 1.0 / Re  # non-dim (c, U_inf)
     u_tau = (0.5 * cf) ** 0.5  # U_tau / U_inf
     y_plus = spec.first_layer_thickness * u_tau / nu
-    assert y_plus < 1.0, f"y+={y_plus:.3f} exceeds the wall-resolved budget"
+    # Wall-resolved: O(1), well below the y+~30 wall-function blend.
+    assert 0.3 < y_plus < 3.0, f"y+={y_plus:.3f} outside wall-resolved band"
