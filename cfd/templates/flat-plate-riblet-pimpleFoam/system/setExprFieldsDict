@@ -8,14 +8,17 @@ FoamFile
 
 // LES transition trip. A uniform channel flow is a stable laminar
 // solution at Re_tau=180 — without a finite-amplitude 3D disturbance
-// the LES sits laminar indefinitely. This superimposes a deterministic
+// the LES sits laminar indefinitely. This superimposes a per-cell
 // pseudo-random velocity perturbation on the uniform bulk field so the
 // flow rolls up into developed turbulence within the first ~10-15
 // eddy-turnover times.
 //
-// rand(seed) is per-cell deterministic — the same mesh + seed gives the
-// same IC every run, which keeps the deterministic-run provenance chain
-// reproducible (the perturbation is part of the recipe, not noise).
+// rand() draws a uniform [0,1] value per cell. The exact draw is not
+// part of the citable provenance — the recipe (this fixed, version-
+// controlled dict) is; LES time-averaged statistics are independent of
+// the IC perturbation details once the flow is developed. The no-slip
+// wall BCs override the wall-face values, so the random internalField
+// does not violate them.
 //
 // Applied by the run recipe:  setExprFields
 expressions
@@ -23,17 +26,16 @@ expressions
     perturbU
     {
         field       U;
-        // Streamwise kick +/-15% of bulk; cross-flow kicks +/-3 u_tau.
-        // The wall-normal sin(pi*z) envelope vanishes at the z=0 wall
-        // and the z=1 symmetry plane so the no-slip / symmetry BCs are
-        // not violated by the IC.
+        // Streamwise kick ~+/-15% of bulk (15.7); cross-flow kicks
+        // ~+/-3 u_tau. Strong enough to trip transition reliably; the
+        // first PIMPLE pressure solve projects out the divergence.
         expression
         #{
             vector
             (
-                15.7 + 4.7 * (rand(7) - 0.5) * sin(pi*pos().z()),
-                6.0  * (rand(19) - 0.5) * sin(pi*pos().z()),
-                6.0  * (rand(31) - 0.5) * sin(pi*pos().z())
+                15.7 + 4.5 * (rand() - 0.5),
+                3.0 * (rand() - 0.5),
+                3.0 * (rand() - 0.5)
             )
         #};
     }
