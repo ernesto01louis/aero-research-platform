@@ -207,7 +207,13 @@ def write_block_mesh_dict_structured(spec: FlatPlateRibletMeshSpec, out_path: Pa
     t = spec.blade_spec().thickness_t
     Lx = spec.plate_length
     Lz = spec.plate_height
-    z_bl = spec.z_bl_fraction * Lz
+    # z_bl is the top of the near-wall band; the z-rows are [0, h, z_bl, Lz]
+    # and MUST stay monotonic. At large s+ the riblet is tall (h = 0.5*s+/Re_tau
+    # — e.g. s+=40, Re_tau=180 -> h=0.111 delta) and can exceed the nominal
+    # z_bl_fraction*Lz, which would invert the z-rows and make blockMesh
+    # reject the blocks. Floor z_bl at 1.4*h so band 2 always has real
+    # thickness above the tip.
+    z_bl = min(max(spec.z_bl_fraction * Lz, 1.4 * h), 0.9 * Lz)
     n_p = spec.n_pitches_spanwise
 
     # Build unique y-column coordinates: 1 + 3*n_p columns total.
