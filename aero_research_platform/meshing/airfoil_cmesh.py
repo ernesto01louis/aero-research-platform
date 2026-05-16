@@ -64,13 +64,17 @@ class MeshSpec:
     surface_refinement_min: int = 6
     surface_refinement_max: int = 7
     refinement_box_level: int = 4
-    # Boundary-layer prism inflation. The alpha=10 fix raised this from 5 to
-    # 15: a wall-resolved stack needs enough layers to carry the boundary
-    # layer off the wall before the outer expansion meets the level-7
-    # surface cells. 15 layers at expansion 1.15 from a 5e-6c first cell
-    # span ~2.4e-4c — comfortably hosted by the castellated cells without
-    # the small-determinant collapse the original 30-layer stack caused.
-    n_layers: int = 15
+    # Boundary-layer prism inflation. The alpha=10 fix needs the prism
+    # stack to bridge from a 5e-6c first cell (y+~1) up to a final cell
+    # large enough that the layer/castellation interface clears snappy's
+    # minFaceWeight 0.05 check. With too few / too-slow-growing layers
+    # the top layer is tiny against the ~0.008c level-7 castellated cell
+    # (interpolation weight ~6e-4 << 0.05), so addLayers rejects EVERY
+    # wall face and extrudes ZERO layers — leaving y+~1167 (the original
+    # Stage-4 alpha=10 trap). 20 layers at expansion 1.3 grow the stack
+    # to a ~7e-4c final cell -> face weight ~0.09 at the castellation
+    # interface: the geometric condition for addLayers to succeed.
+    n_layers: int = 20
     # alpha=10 root-cause fix. The Stage-4.x "1e-6 → 1e-7" tuning never bit:
     # with relativeSizes TRUE, firstLayerThickness is a FRACTION of the
     # local surface-cell edge (~0.016c), so 1e-7 resolved to ~1.6e-9c —
@@ -83,7 +87,10 @@ class MeshSpec:
     relative_sizes: bool = False
     first_layer_thickness: float = 5.0e-6  # absolute chord-fraction
     min_thickness: float = 1.0e-6  # absolute; addLayers floor
-    expansion_ratio: float = 1.15
+    # 1.3 (not the gentler 1.15): see n_layers — the final prism cell
+    # must be large enough to clear minFaceWeight at the castellation
+    # interface. 1.15 would need ~36 layers to reach the same final size.
+    expansion_ratio: float = 1.3
     # Lower bound on final cell count after snappyHexMesh — sanity-check.
     expected_cells_lower_bound: int = 100_000
 
@@ -323,6 +330,26 @@ addLayersControls
 meshQualityControls
 {{
     #include "meshQualityDict"
+    // Relaxed limits addLayers falls back to when the strict checks
+    // above would reject a layer — lets the boundary-layer stack
+    // extrude through the few faces (sharp trailing edge, high-curvature
+    // leading edge) where the strict mesh-quality envelope cannot also
+    // host the prism cells. Without this, a handful of bad faces abort
+    // the whole-airfoil extrusion.
+    relaxed
+    {{
+        maxNonOrtho             75;
+        maxBoundarySkewness     25;
+        maxInternalSkewness     8;
+        maxConcave              80;
+        minVol                  1e-13;
+        minTetQuality           -1e30;
+        minTwist                0.001;
+        minDeterminant          1e-6;
+        minFaceWeight           0.02;
+        minVolRatio             0.001;
+        minTriangleTwist        -1;
+    }}
 }}
 
 writeFlatTriSurface false;
