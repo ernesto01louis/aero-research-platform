@@ -501,4 +501,55 @@ New Stage-4 findings for Stage 5/6 to plan around:
 
 ---
 
+## Stage-4.x re-investigation (2026-05-16) — alpha=10 mesh, real root cause
+
+The alpha=10 re-run was re-opened. The prior diagnosis (cold-start /
+fvSchemes) was real but secondary; the binding blocker is the
+near-wall mesh, and the true cause was found by live SSH mesh builds:
+
+**Root cause 1 — `relativeSizes true`.** `write_snappy_hex_mesh_dict`
+emitted `addLayersControls { relativeSizes true; }`. In that mode
+`firstLayerThickness` is a *fraction of the local surface cell*
+(~0.016c), so the Stage-4.x "1e-6 -> 1e-7" override resolved to
+~1.6e-9c — below `minThickness` — and addLayers reverted to defaults.
+The "1e-7 tuning" never actually changed the mesh. Fixed: `MeshSpec`
+gains `relative_sizes=False` + explicit `min_thickness`;
+`first_layer_thickness` is now an absolute 5e-6c. (commit `ecd2bf7`)
+
+**Root cause 2 — `minFaceWeight` rejects the layer/castellation
+interface.** With `relativeSizes false` the addLayers log showed
+`Extruding 0 out of 10880 faces (0%)` — *zero* layers extruded, y+
+still ~1167. Reason: a 5e-6c first layer directly under the ~0.008c
+level-7 castellated cell gives that shared face an interpolation
+weight ~6e-4, far below snappy's `minFaceWeight 0.05`, so every wall
+face is rejected. Mitigation: grow the stack (20 layers, expansion
+1.3 -> ~7e-4c final cell, face weight ~0.09) + a `relaxed`
+meshQualityControls sub-dict. (commit `2154d85`)
+
+**Result — still PARTIAL.** Attempt 2 raised wall-face extrusion from
+0% to 77.6% and checkMesh max aspect ratio from 2.8 to 73.5 (real
+near-wall cells now present), but addLayers still collapses the stack
+to ~2.2 layers average (63% of target thickness). The alpha=10 solve
+y+ improved 1167 -> 514 average — better, but still firmly in the
+wall-function regime, and Cl is not recovered. **snappyHexMesh
+addLayers cannot deliver a fully wall-resolved high-Re airfoil
+boundary layer here** — the structural reason behind this PARTIAL
+verdict.
+
+**Recommended structural fix (Stage-4 follow-up):** a structured C-mesh
+generator — the mesh the original brief asked for, before Stage 4
+deviated to snappyHexMesh. A structured C-grid builds the wall-normal
+resolution into the topology (smooth y+~1 grading), with no addLayers
+step to fail. The Stage-5 `periodic_riblet_strip.py` proves the same
+codebase can write fully structured multi-block blockMesh; an airfoil
+C-mesh is the analogous module and would also give Stage 6 a clean
+LES-grade airfoil mesh.
+
+**alpha=10 does NOT block Stage 6.** The committed Stage-6 sweep
+(`campaigns/03-naca0012-riblet-sweep.yaml`) runs at alpha=0 only — the
+alpha=0 row already PASSED. Stage 4 stays PARTIAL pending the
+structured C-mesh; it is not on the Stage-6 critical path.
+
+---
+
 End of STAGE-4-OUTPUTS.
