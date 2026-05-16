@@ -1,0 +1,68 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+
+solvers
+{
+    p
+    {
+        solver          GAMG;
+        tolerance       1e-6;
+        relTol          0.05;
+        smoother        GaussSeidel;
+        nPreSweeps      0;
+        nPostSweeps     2;
+        cacheAgglomeration on;
+        agglomerator    faceAreaPair;
+        nCellsInCoarsestLevel 100;
+        mergeLevels     1;
+    }
+
+    // Final PIMPLE pressure corrector — solve to a tight tolerance so
+    // the time-accurate solution is divergence-free at the end of each
+    // step.
+    pFinal
+    {
+        $p;
+        relTol          0;
+    }
+
+    "(U|UFinal)"
+    {
+        solver          smoothSolver;
+        smoother        GaussSeidel;
+        tolerance       1e-7;
+        relTol          0;
+        nSweeps         2;
+    }
+}
+
+PIMPLE
+{
+    // Transient LES: 2 outer correctors is enough at maxCo 0.5 (the
+    // step is small, so the non-linear coupling is weak per step).
+    nOuterCorrectors        2;
+    nCorrectors             2;
+    nNonOrthogonalCorrectors 1;
+
+    // Periodic channel: pressure BCs are all cyclic / symmetryPlane /
+    // zeroGradient — no Dirichlet anchor — so pressure floats. Pin it
+    // at one cell or GAMG solves a singular system.
+    pRefCell        0;
+    pRefValue       0;
+}
+
+// No under-relaxation for the time-accurate PIMPLE loop — the timestep
+// (CFL-limited) provides the stability the RANS case got from
+// relaxationFactors.
+relaxationFactors
+{
+    equations
+    {
+        ".*"            1;
+    }
+}

@@ -1,0 +1,53 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+
+ddtSchemes
+{
+    // 2nd-order implicit backward differencing — the standard LES time
+    // scheme. CrankNicolson 0.9 is an alternative; backward is more
+    // robust on the start-up transient from the random IC.
+    default         backward;
+}
+
+gradSchemes
+{
+    // No limiter — LES needs the resolved gradients. The riblet groove
+    // is well-resolved in the structured mesh; a cellLimited/cellMD
+    // limiter (used for the RANS case) would clip the resolved
+    // turbulent fluctuations.
+    default         Gauss linear;
+    grad(U)         Gauss linear;
+}
+
+divSchemes
+{
+    default         none;
+    // LUST (Linear-Upwind Stabilised Transport): 75% linear + 25%
+    // linearUpwind. The low-dissipation scheme recommended for LES on
+    // structured-but-graded meshes — pure "Gauss linear" central
+    // differencing can ring on the band-2/band-3 grading interface,
+    // while linearUpwindV alone over-dissipates the SGS-resolved
+    // scales. LUST is the OpenFOAM channel/LES default compromise.
+    div(phi,U)      Gauss LUST grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         corrected;
+}

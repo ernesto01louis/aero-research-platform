@@ -1,0 +1,39 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      turbulenceProperties;
+}
+
+// Stage-5 escalation: RANS k-omega SST FAILED to reproduce the Bechert
+// 1997 blade-riblet drag-reduction curve (measured peak +0.2% vs
+// experimental +9.9% — STAGE-5-OUTPUTS.md). Root cause: the isotropic
+// eddy-viscosity closure cannot carry the anisotropic protrusion-height
+// mechanism (Luchini 1991). The pre-registered escalation is
+// wall-resolved LES — the closure that resolves the near-wall
+// anisotropy directly.
+
+simulationType  LES;
+
+LES
+{
+    // WALE (Nicoud & Ducros 1999) over dynamic Smagorinsky: WALE has the
+    // correct near-wall asymptotics — the SGS viscosity nu_sgs -> 0 like
+    // y^3 at the wall WITHOUT a test-filter or wall damping, which is
+    // exactly what a wall-resolved riblet-groove mesh needs (the groove
+    // walls and tips are all no-slip). Robust on the graded structured
+    // mesh; no test-filtering to break across the cyclic patches.
+    LESModel        WALE;
+    turbulence      on;
+    printCoeffs     on;
+
+    // Cube-root-of-cell-volume filter width. The structured riblet mesh
+    // is near-isotropic in the groove (Stage-5 mesh: dx+ ~ 9, dy+ ~ 1,
+    // dz+ ~ 0.5), so cubeRootVol is a faithful delta.
+    delta           cubeRootVol;
+    cubeRootVolCoeffs
+    {
+        deltaCoeff      1;
+    }
+}

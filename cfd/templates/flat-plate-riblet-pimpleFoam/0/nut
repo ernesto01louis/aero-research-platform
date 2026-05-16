@@ -1,0 +1,43 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      nut;
+}
+
+// Sub-grid-scale eddy viscosity. WALE computes nut in the interior; on a
+// wall-resolved mesh (y+ ~ O(1)) the physical wall value is zero, so the
+// no-slip walls take fixedValue 0 rather than a wall function.
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    xMinCyclic
+    {
+        type            cyclic;
+    }
+    xMaxCyclic
+    {
+        type            cyclic;
+    }
+    top
+    {
+        type            symmetryPlane;
+    }
+    "(bottomWall|riblets)"
+    {
+        type            fixedValue;
+        value           uniform 0;
+    }
+    frontPeriodic
+    {
+        type            cyclic;
+    }
+    backPeriodic
+    {
+        type            cyclic;
+    }
+}

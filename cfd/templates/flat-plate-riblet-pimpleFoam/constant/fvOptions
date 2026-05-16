@@ -1,0 +1,26 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvOptions;
+}
+
+// Streamwise-periodic channel forcing. meanVelocityForce adjusts a
+// uniform body force every iteration so the volume-averaged streamwise
+// velocity holds at Ubar — the standard channel-flow driver (the
+// OpenFOAM `channel395` tutorial pattern).
+//
+// Ubar = 15.7 u_tau is the canonical bulk velocity for a Re_tau=180
+// channel (Kim, Moin & Moser 1987 DNS: U_bulk/u_tau ~ 15.7,
+// Re_bulk ~ 2800). The riblet and smooth sub-runs share this Ubar; the
+// drag reduction is read from the applied pressure gradient:
+//   DR% = (dpdx_smooth - dpdx_riblet) / dpdx_smooth * 100
+// meanVelocityForce logs the gradient each iteration.
+momentumSource
+{
+    type            meanVelocityForce;
+    selectionMode   all;
+    fields          (U);
+    Ubar            (15.7 0 0);
+}

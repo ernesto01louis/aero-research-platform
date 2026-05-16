@@ -1,0 +1,40 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      setExprFieldsDict;
+}
+
+// LES transition trip. A uniform channel flow is a stable laminar
+// solution at Re_tau=180 — without a finite-amplitude 3D disturbance
+// the LES sits laminar indefinitely. This superimposes a deterministic
+// pseudo-random velocity perturbation on the uniform bulk field so the
+// flow rolls up into developed turbulence within the first ~10-15
+// eddy-turnover times.
+//
+// rand(seed) is per-cell deterministic — the same mesh + seed gives the
+// same IC every run, which keeps the deterministic-run provenance chain
+// reproducible (the perturbation is part of the recipe, not noise).
+//
+// Applied by the run recipe:  setExprFields
+expressions
+(
+    perturbU
+    {
+        field       U;
+        // Streamwise kick +/-15% of bulk; cross-flow kicks +/-3 u_tau.
+        // The wall-normal sin(pi*z) envelope vanishes at the z=0 wall
+        // and the z=1 symmetry plane so the no-slip / symmetry BCs are
+        // not violated by the IC.
+        expression
+        #{
+            vector
+            (
+                15.7 + 4.7 * (rand(7) - 0.5) * sin(pi*pos().z()),
+                6.0  * (rand(19) - 0.5) * sin(pi*pos().z()),
+                6.0  * (rand(31) - 0.5) * sin(pi*pos().z())
+            )
+        #};
+    }
+);

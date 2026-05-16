@@ -1,0 +1,16 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+
+// 8-way decomposition — the aero-research LXC's AMD Ryzen has 16
+// hardware threads but only 8 physical cores. CFD is FP/memory-bound
+// so hyperthreads add ~no throughput; 16 MPI ranks just oversubscribe
+// and pay extra halo-exchange cost (pilot v7: 16-way ~= 4-way speed).
+// 8 ranks on 8 physical cores is the real sweet spot.
+numberOfSubdomains 8;
+
+method          scotch;

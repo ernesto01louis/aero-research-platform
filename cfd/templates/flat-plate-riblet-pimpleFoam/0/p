@@ -1,0 +1,39 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      p;
+}
+
+dimensions      [0 2 -2 0 0 0 0];   // kinematic pressure, incompressible
+
+internalField   uniform 0;
+
+boundaryField
+{
+    xMinCyclic
+    {
+        type            cyclic;
+    }
+    xMaxCyclic
+    {
+        type            cyclic;
+    }
+    top
+    {
+        type            symmetryPlane;
+    }
+    "(bottomWall|riblets)"
+    {
+        type            zeroGradient;
+    }
+    frontPeriodic
+    {
+        type            cyclic;
+    }
+    backPeriodic
+    {
+        type            cyclic;
+    }
+}

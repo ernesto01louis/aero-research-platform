@@ -1,0 +1,72 @@
+# Stage-5 LES ESCALATION — full sweep. Pre-registered recipe-of-record.
+#
+# DEFERRED. This is the full 9-point LES sweep that follows the 4-run
+# pilot (campaigns/04-flat-plate-riblet-les-pilot.yaml). It launches
+# ONLY after BOTH of these hold:
+#   1. The pilot PASSED — LES recovered the +9% drag-reduction plateau
+#      at s+ in {15, 17, 20} (peak within +/-2pp of Bechert +9.9%).
+#   2. The operator has set up SkyPilot cloud credentials, run
+#      `sky check`, and flipped `sky.enabled=true` in the orchestrator
+#      config — see RUNBOOK and sky/openfoam-cpu.yaml.
+#
+# Why a cloud burst: 9 riblet + 1 smooth = 10 wall-resolved LES runs at
+# ~3-7 days/case on the 8-core aero LXC is ~2-3 MONTHS serial. On a
+# ~64-vCPU cloud CPU instance each case is ~6-18h; the sweep finishes in
+# days. Estimated cost ~$100-500 total (on-demand) — see sky/openfoam-cpu
+# for the cost discipline. pimpleFoam is CPU-bound; no GPU is used.
+#
+# Execution model: each (s_plus, surface) sub-run launches a SkyPilot
+# cluster from sky/openfoam-cpu.yaml via the orchestrator's
+# `POST /runs/{id}/burst` route, runs the LES on the cloud node, pulls
+# results back, and registers them via
+# core.deterministic_run.register_deterministic_run()
+# (provenance_mode="deterministic"). The three-tier cost discipline
+# applies: per-burst USD ceiling + per-campaign budget + idle-stop.
+#
+# Sweep points — the same 9 s+ values as the Stage-5 RANS sweep, so the
+# LES curve is directly comparable. The RANS run found s+ 5/10/30/35
+# were mesh artifacts; the 469ea0f z_bl-flooring fix (already in
+# periodic_riblet_strip.py) meshes all 9 cleanly for LES.
+name: flat-plate-blade-riblet-bechert-1997-les-sweep
+hypothesis: |
+  Wall-resolved LES (WALE, pimpleFoam) of the streamwise-periodic riblet
+  channel at Re_tau=180 reproduces the full Bechert 1997 blade-riblet
+  drag-reduction curve across s+ in {5, 10, 15, 17, 20, 25, 30, 35, 40}.
+  The curve shows the characteristic rise to a peak near s+~17 then a
+  roll-off into drag INCREASE at large s+. Pre-registered acceptance
+  (unchanged from Stage 5, NOT relaxed after seeing pilot data): peak
+  drag reduction within +/-2pp of the Bechert experimental peak +9.9%,
+  and the s+ of the peak within +/-3 of the experimental s+~17. DR% is
+  read from the time-averaged meanVelocityForce pressure gradient
+  against the single smooth-baseline LES run. On PASS, Stage 5 verdict
+  moves FAIL -> PASS (RANS escalated to LES) and Stage 6 inherits the
+  LES method and the s+ -> protrusion-height calibration.
+template:
+  project_name: flat-plate-les-{surface}-{s_plus}-h{h_over_s}
+  prompt: |
+    Wall-resolved LES of the streamwise-periodic riblet channel — the
+    SAME recipe as campaigns/04-flat-plate-riblet-les-pilot.yaml, with
+    one change: the case runs on a SkyPilot cloud burst rather than the
+    aero-research LXC. The burst is launched from sky/openfoam-cpu.yaml;
+    that spec clones the aero repo on the cloud node, stages the
+    flat-plate-riblet-pimpleFoam template, runs the identical mesh +
+    setExprFields + pimpleFoam chain, and rsyncs postProcessing/ + logs
+    back. See sky/openfoam-cpu.yaml for the per-case env contract
+    (S_PLUS, SURFACE, H_OVER_S).
+
+    The LES mesh resolution, WALE model, schemes, and DR-measurement
+    method are byte-identical to the pilot template — only the compute
+    venue differs. Each cloud case is ~6-18h wall-clock on ~64 vCPU.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params:
+  s_plus: [5, 10, 15, 17, 20, 25, 30, 35, 40]
+  h_over_s: [0.5]
+  surface: [riblet]
+# Cloud burst — set a real per-campaign ceiling once cloud creds exist.
+# 0.0 here keeps it inert until the operator deliberately raises it
+# alongside flipping sky.enabled=true (Stage-5 LES escalation gate).
+budget_total_usd: 0.0

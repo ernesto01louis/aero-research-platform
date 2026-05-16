@@ -1,0 +1,102 @@
+# sky/openfoam-cpu.yaml — CPU cloud burst for OpenFOAM cases too large
+# for the on-prem aero LXC.
+#
+# Stage-5 LES escalation: the wall-resolved LES sweep
+# (campaigns/05-flat-plate-riblet-les-sweep.yaml) is ~2-3 months of
+# serial wall-clock on the 8-core aero LXC. This spec runs one LES case
+# on a high-core-count cloud CPU instance (~6-18h/case), so the 9-point
+# sweep finishes in days.
+#
+# pimpleFoam is CPU-bound — OpenFOAM has no native GPU solver — so this
+# is a CPU burst, NOT a GPU burst (contrast sky/train-fno.yaml).
+#
+# Invoked by the orchestrator's POST /runs/{id}/burst route with
+# spec_name="openfoam-cpu"; the per-case env contract (S_PLUS / SURFACE /
+# H_OVER_S) is overridden per sub-run. The three-tier cost discipline
+# applies — per-burst USD ceiling at launch, per-campaign budget at
+# accrual, idle-stop daemon failsafe.
+
+name: aero-openfoam-cpu
+
+resources:
+  # ~64 vCPU is the sweet spot: a ~1M-cell Re_tau=180 LES decomposes
+  # cleanly to ~60 MPI ranks. cpus: "64+" lets SkyPilot pick the
+  # cheapest matching instance across the configured clouds.
+  cpus: 64+
+  memory: 64+
+  disk_size: 100
+  # On-demand, NOT spot: a wall-resolved LES case is a 6-18h run with no
+  # native checkpoint/resume, so a spot preemption mid-run loses the
+  # whole case. Flip use_spot to true ONLY if the operator accepts
+  # re-running preempted cases (it roughly halves the per-hour cost).
+  use_spot: false
+
+envs:
+  # Overridden per sub-run by the burst route.
+  S_PLUS: "17"
+  SURFACE: riblet            # riblet | smooth
+  H_OVER_S: "0.5"
+  AERO_REPO: https://github.com/ernesto01louis/aero-research-platform
+  ORCHESTRATOR_RUN_ID: unset
+
+setup: |
+  set -euo pipefail
+  # OpenFOAM v2412 from the ESI apt repository (matches the aero LXC).
+  wget -q -O - https://dl.openfoam.com/add-debian-repo.sh | sudo bash
+  sudo apt-get install -y --no-install-recommends openfoam2412-default rsync
+  # The mesh generator is pure-Python (numpy only).
+  python3 -m pip install --quiet "numpy>=1.26,<3"
+  git clone --depth 1 "${AERO_REPO}" "${HOME}/aero-research-platform"
+
+run: |
+  set -euo pipefail
+  # shellcheck disable=SC1091
+  source /usr/lib/openfoam/openfoam2412/etc/bashrc
+  export PYTHONPATH="${HOME}/aero-research-platform:${PYTHONPATH:-}"
+  REPO="${HOME}/aero-research-platform"
+  TPL="${REPO}/cfd/templates/flat-plate-riblet-pimpleFoam"
+
+  CASE="${HOME}/case"
+  rm -rf "${CASE}" && mkdir -p "${CASE}"
+  cp -r "${TPL}/." "${CASE}/"
+  cd "${CASE}"
+
+  if [ "${SURFACE}" = "riblet" ]; then
+    RIBLET_FLAG="--riblet-enabled"
+  else
+    RIBLET_FLAG=""
+  fi
+
+  # LES mesh resolution — identical to the pilot recipe.
+  python3 scripts/generate_mesh.py \
+    --case-dir . \
+    --s-plus "${S_PLUS}" \
+    --h-over-s "${H_OVER_S}" \
+    --n-x 60 --n-z-outer 28 --grading-z-outer 8 --grading-z 10 \
+    ${RIBLET_FLAG}
+
+  # Decompose across all available vCPUs (the template ships an 8-way
+  # decomposeParDict for the aero LXC; the cloud node has many more).
+  NP="$(nproc)"
+  sed -i "s/^numberOfSubdomains.*/numberOfSubdomains ${NP};/" system/decomposeParDict
+
+  blockMesh                       > log.blockMesh        2>&1
+  checkMesh -allTopology -allGeometry > log.checkMesh     2>&1
+  setExprFields                   > log.setExprFields    2>&1
+  decomposePar -force             > log.decomposePar     2>&1
+  mpirun -np "${NP}" pimpleFoam -parallel > log.pimpleFoam 2>&1
+  reconstructPar -latestTime      > log.reconstructPar   2>&1
+  foamToVTK -latestTime           > log.foamToVTK 2>&1 || true
+
+  # Collect the citation-grade artifacts under ~/results/ — the
+  # orchestrator's burst-stop step rsyncs this directory back to the
+  # aero repo's results/ tree before `sky down`, where it is registered
+  # via register_deterministic_run().
+  OUT="${HOME}/results"
+  mkdir -p "${OUT}"
+  cp -r postProcessing "${OUT}/" 2>/dev/null || true
+  cp log.* "${OUT}/" 2>/dev/null || true
+  cp -r VTK "${OUT}/" 2>/dev/null || true
+  LATEST="$(foamListTimes -case . | tail -1 || true)"
+  [ -n "${LATEST}" ] && cp -r "${LATEST}" "${OUT}/" 2>/dev/null || true
+  echo "openfoam-cpu burst done: run_id=${ORCHESTRATOR_RUN_ID} s+=${S_PLUS} surface=${SURFACE}"

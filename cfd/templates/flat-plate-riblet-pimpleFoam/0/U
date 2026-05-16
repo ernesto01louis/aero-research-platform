@@ -1,0 +1,48 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+
+dimensions      [0 1 -1 0 0 0 0];
+
+// Streamwise-periodic channel, normalized on u_tau = 1. internalField is
+// a uniform bulk guess; the meanVelocityForce in constant/fvOptions
+// drives the volume average to Ubar. LES needs a finite-amplitude 3D
+// perturbation to transition (uniform flow is a stable laminar solution
+// at Re_tau=180) — system/setExprFieldsDict superimposes a deterministic
+// pseudo-random kick, applied by `setExprFields` after blockMesh.
+internalField   uniform (15.7 0 0);
+
+boundaryField
+{
+    xMinCyclic
+    {
+        type            cyclic;
+    }
+    xMaxCyclic
+    {
+        type            cyclic;
+    }
+    top
+    {
+        type            symmetryPlane;
+    }
+    // Riblet case has both `bottomWall` (groove floors) and `riblets`
+    // (blade walls + tips). Smooth case has only `bottomWall`. Regex
+    // matches whichever exist.
+    "(bottomWall|riblets)"
+    {
+        type            noSlip;
+    }
+    frontPeriodic
+    {
+        type            cyclic;
+    }
+    backPeriodic
+    {
+        type            cyclic;
+    }
+}

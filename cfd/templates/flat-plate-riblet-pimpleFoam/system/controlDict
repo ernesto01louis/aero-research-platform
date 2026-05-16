@@ -1,0 +1,97 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+
+// Wall-resolved LES of the streamwise-periodic riblet channel. Time is
+// in eddy-turnover units T = delta / u_tau = 1 (delta = u_tau = 1).
+//
+// endTime 40 T = ~15 T initial transient (let the random IC roll up
+// into developed turbulence) + ~25 T statistics window. fieldAverage
+// below starts at t=15. deltaT is a seed only — adjustTimeStep drives
+// it from the CFL condition (maxCo 0.5).
+application     pimpleFoam;
+startFrom       startTime;
+startTime       0;
+stopAt          endTime;
+endTime         40;
+deltaT          2e-3;
+writeControl    runTime;
+writeInterval   5;
+purgeWrite      3;
+writeFormat     ascii;
+writePrecision  8;
+writeCompression off;
+timeFormat      general;
+timePrecision   8;
+runTimeModifiable yes;
+
+// LES is transient: the timestep follows the CFL number, not a fixed
+// iteration count. maxCo 0.5 keeps the central-difference convection
+// stable; maxDeltaT caps it during the quiescent start-up.
+adjustTimeStep  yes;
+maxCo           0.5;
+maxDeltaT       0.01;
+
+functions
+{
+    // Drag in the periodic channel: the meanVelocityForce in
+    // constant/fvOptions logs the applied mean pressure gradient every
+    // timestep (grep "Pressure gradient" log.pimpleFoam). At matched
+    // bulk velocity Ubar, DR% = (dpdx_smooth - dpdx_riblet)/dpdx_smooth,
+    // with dpdx the TIME-AVERAGE over the statistics window — see the
+    // fieldAverage window below and notebooks/02-bechert-1997-replication.
+    wallShearStress
+    {
+        type            wallShearStress;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    writeTime;
+        patches         ( bottomWall riblets );
+        log             yes;
+    }
+
+    yPlus
+    {
+        type            yPlus;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    writeTime;
+        patches         ( bottomWall riblets );
+    }
+
+    // Time-average U and p over the statistics window. prime2Mean gives
+    // the resolved Reynolds stresses for the LES quality check (resolved
+    // TKE fraction). timeStart 15 skips the initial transient.
+    fieldAverage
+    {
+        type            fieldAverage;
+        libs            ("libfieldFunctionObjects.so");
+        timeStart       15;
+        writeControl    writeTime;
+        fields
+        (
+            U
+            {
+                mean        on;
+                prime2Mean  on;
+                base        time;
+            }
+            p
+            {
+                mean        on;
+                prime2Mean  on;
+                base        time;
+            }
+        );
+    }
+
+    // Courant number to the log so the transient can be monitored.
+    courantNo
+    {
+        type            CourantNo;
+        libs            ("libfieldFunctionObjects.so");
+        writeControl    writeTime;
+    }
+}

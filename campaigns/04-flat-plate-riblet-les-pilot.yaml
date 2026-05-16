@@ -1,0 +1,130 @@
+# Stage-5 LES ESCALATION — pilot. Pre-registered recipe-of-record.
+#
+# Stage 5 RANS k-omega SST FAILED to reproduce the Bechert 1997 blade-
+# riblet drag-reduction curve (measured peak +0.2% vs experimental
+# +9.9% — STAGE-5-OUTPUTS.md). Root cause: the isotropic eddy-viscosity
+# closure cannot carry the anisotropic protrusion-height mechanism
+# (Luchini 1991). The pre-registered escalation is wall-resolved LES.
+#
+# This is the 4-run PILOT (3 riblet + 1 smooth baseline), run on the
+# LOCAL aero-research LXC, that confirms LES recovers the +9% plateau
+# before the full 9-point sweep is committed to a cloud burst
+# (campaigns/05-flat-plate-riblet-les-sweep.yaml).
+#
+# Execution model: like the Stage-5 RANS sweep, each run is executed
+# SSH-direct on the aero LXC and registered via the orchestrator's
+# core.deterministic_run.register_deterministic_run() — the recipe is
+# fully fixed here, so there is no LLM planner/generator provenance to
+# capture (provenance_mode="deterministic"). This YAML is the
+# pre-registration document; it is NOT POSTed to /campaigns.
+#
+# Runs (all share one campaign_id):
+#   s+=15 riblet, s+=17 riblet, s+=20 riblet  — params grid below
+#   smooth baseline (surface=smooth)          — s+-independent, run ONCE
+#                                                (the smooth channel has
+#                                                no riblets; DR is read
+#                                                against this single run)
+name: flat-plate-blade-riblet-bechert-1997-les-pilot
+hypothesis: |
+  Wall-resolved LES (WALE sub-grid model, pimpleFoam) of the streamwise-
+  periodic riblet channel at Re_tau=180 reproduces the Bechert 1997
+  blade-riblet drag-reduction curve where RANS k-omega SST failed. For
+  the three trustworthy-band pilot points s+ in {15, 17, 20}, the
+  measured drag reduction DR% = (dpdx_smooth - dpdx_riblet)/dpdx_smooth
+  lands in the +7..+12% band that brackets the Bechert experimental
+  values (+8.8 / +9.9 / +9.0% respectively). dpdx is the TIME-AVERAGE
+  of the meanVelocityForce pressure gradient over the LES statistics
+  window (t in [15, 40] eddy-turnover times). Pass criterion: all three
+  pilot points in +7..+12%, peak within +/-2pp of Bechert +9.9%,
+  resolved-TKE fraction > 0.8 (LES quality). On PASS, the full 9-point
+  sweep is launched on a SkyPilot cloud burst.
+template:
+  project_name: flat-plate-les-{surface}-{s_plus}-h{h_over_s}
+  prompt: |
+    PLAN OUTPUT REQUIRED:
+        language    = "bash"
+        entrypoint  = "run.sh"
+        project_type = "script"
+        execution_mode = "generate"
+
+    DO NOT pick language=python. DO NOT write a Python wrapper that calls
+    subprocess.run / os.system / shell=True on the commands below. The
+    orchestrator's executor only routes BASH entry points to deploy_target
+    (the aero-research SSH host). Python entry points are confined to the
+    orchestrator's local /tmp/ai_sandbox/ and CANNOT reach the remote
+    aero LXC's filesystem — every path below (/home/aero/...) is remote.
+
+    --- TASK CONTEXT (informational, do not deviate from the recipe) ---
+
+    Wall-resolved LES of a streamwise-periodic channel, OpenFOAM v2412
+    pimpleFoam with the WALE sub-grid model. Bottom wall is either the
+    Bechert blade riblets (h/s as given, t/s=0.02; structured multi-block
+    blockMesh — NO snappyHexMesh) or a smooth wall. A deterministic
+    pseudo-random IC perturbation (setExprFields) trips transition.
+    Drag reduction is read from the time-averaged mean pressure gradient.
+
+    The LES case template is pre-staged on the target at
+    /home/aero/templates/flat-plate-riblet-pimpleFoam/ (0/, constant/,
+    system/ plus scripts/generate_mesh.py). DO NOT rewrite the case
+    files — just copy and parameterize.
+
+    The exact bash recipe to execute (do not deviate, do not Python-ify):
+
+        source /home/aero/aero-research-platform/scripts/preamble.sh \
+          || source ~/preamble.sh
+        CASE_DIR=/home/aero/ai-projects/flat-plate-les-{surface}-{s_plus}-h{h_over_s}/case
+        rm -rf "$CASE_DIR"
+        mkdir -p "$CASE_DIR"
+        cp -r /home/aero/templates/flat-plate-riblet-pimpleFoam/. "$CASE_DIR/"
+        cd "$CASE_DIR"
+        if [ "{surface}" = "riblet" ]; then
+            RIBLET_FLAG="--riblet-enabled"
+        else
+            RIBLET_FLAG=""
+        fi
+        # LES mesh resolution: trim streamwise (LES tolerates dx+~10-20;
+        # the RANS dx+~4.5 over-resolves) and give the channel core a
+        # better-resolved, gentler-graded band (the LUST scheme rings on
+        # aggressive grading). Near-wall / groove resolution carries over
+        # from the RANS structured mesh unchanged (already dz+~0.5).
+        python scripts/generate_mesh.py \
+            --case-dir . \
+            --s-plus {s_plus} \
+            --h-over-s {h_over_s} \
+            --n-x 60 --n-z-outer 28 --grading-z-outer 8 --grading-z 10 \
+            $RIBLET_FLAG
+        blockMesh > log.blockMesh 2>&1
+        checkMesh -allTopology -allGeometry > log.checkMesh 2>&1
+        # setExprFields applies the system/setExprFieldsDict pseudo-random
+        # velocity perturbation to 0/U — runs on the serial mesh BEFORE
+        # decomposePar.
+        setExprFields > log.setExprFields 2>&1
+        decomposePar -force > log.decomposePar 2>&1
+        mpirun -np 8 pimpleFoam -parallel > log.pimpleFoam 2>&1
+        reconstructPar -latestTime > log.reconstructPar 2>&1
+        foamToVTK -latestTime > log.foamToVTK 2>&1 || true
+
+    Outputs to persist at $CASE_DIR (do NOT cd away before they finish
+    writing): postProcessing/, log.pimpleFoam (carries the per-timestep
+    "Pressure gradient" line from meanVelocityForce), the time-averaged
+    UMean/pMean/UPrime2Mean fields in the latest time directory, VTK/.
+
+    Report the time-averaged mean pressure gradient dpdx over the LES
+    statistics window (t in [15, 40]). Report y+ from
+    postProcessing/yPlus/*/yPlus.dat (mean + max — target < 1). Report
+    the resolved-TKE fraction from UPrime2Mean vs the sub-grid
+    contribution (LES quality target > 0.8).
+
+    NOTE — LES is transient and long-running: a single case is ~3-7 days
+    of wall-clock on the 8-core aero LXC. The orchestrator SSH timeout
+    does not bound it; the run is launched detached (nohup) and polled.
+  planner_model: qwen2.5:72b
+  generator_models: [qwen2.5-coder:32b]
+  judge_model: qwen2.5:72b
+  deploy_target: aero-research
+  hitl_mode: gate_only
+params:
+  s_plus: [15, 17, 20]
+  h_over_s: [0.5]
+  surface: [riblet]
+budget_total_usd: 0.0
