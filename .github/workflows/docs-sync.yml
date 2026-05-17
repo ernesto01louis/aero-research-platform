@@ -1,0 +1,21 @@
+name: docs-sync
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  status-block:
+    name: README STATUS block consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check README STATUS block matches latest handoff
+        run: |
+          chmod +x scripts/regenerate_status.sh
+          scripts/regenerate_status.sh --check

@@ -1,0 +1,15 @@
+# dvc.yaml — DVC pipeline stages.
+#
+# Empty as of Stage 01. Populated by Stage 04 (provenance backbone) with
+# the data-versioning pipeline anchored on the four-fold provenance tuple
+# (git_sha, dvc_input_hash, container_sif_sha256, config_hash).
+#
+# Subsequent stages add per-domain pipelines:
+#   Stage 05  — TMR reference data ingest
+#   Stage 08  — AhmedML / WindsorML / DrivAerML loaders
+#   Stage 09  — DoMINO training pipeline
+#   Stage 10  — Transolver / FIGConvNet / X-MGN / MoE pipelines
+#   Stage 12  — DPW-7 / HLPW-5 / ERCOFTAC reference data ingest
+#   Stage 15  — literature corpus ingest
+
+stages: {}

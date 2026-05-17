@@ -1,0 +1,54 @@
+# Citation File Format v1.2.0 — https://citation-file-format.github.io/
+# Validate with: cffconvert --validate
+cff-version: 1.2.0
+title: aero-research-platform
+message: |
+  If you use this software in academic work, please cite the Zenodo deposit
+  (DOI to be reserved in Stage 04) AND the four-tuple provenance fields of
+  the specific run you reference: (git_sha, dvc_input_hash,
+  container_sif_sha256, config_hash). The four-tuple is what makes the
+  citation point to a *specific result*, not just to the platform.
+type: software
+authors:
+  - given-names: Louis Ernesto
+    family-names: Schulte Moredo
+    email: gr7x8mjy5d@privaterelay.appleid.com
+    # TODO(stage-04 or stage-15): backfill ORCID once registered at orcid.org
+    # orcid: https://orcid.org/0000-0000-0000-0000
+repository-code: https://github.com/ernesto01louis/aero-research-platform
+url: https://github.com/ernesto01louis/aero-research-platform
+abstract: |
+  A fully open-source, peer-review-grade, hardware-agnostic research platform
+  for computational aerodynamics. Integrates classical CFD (OpenFOAM-ESI,
+  SU2, PyFR, NekRS), differentiable CFD (JAX-Fluids 2.0), ML surrogates
+  (NVIDIA PhysicsNeMo: DoMINO, Transolver, FIGConvNet, X-MeshGraphNet, MoE),
+  multi-physics coupling (preCICE 3), V&V automation against NASA TMR / AIAA
+  DPW/HLPW / ERCOFTAC, UQ via UQpy+Dakota, multi-cloud GPU orchestration
+  (RunPod/Lambda Labs/Vast.ai), and agentic CAE (NVIDIA NeMo Agent Toolkit
+  + AI-Q Blueprint fork). Every result traces to a four-tuple provenance
+  record (git SHA, DVC input hash, Apptainer SIF SHA256, config hash).
+keywords:
+  - computational fluid dynamics
+  - aerodynamics
+  - OpenFOAM
+  - SU2
+  - PyFR
+  - NekRS
+  - JAX-Fluids
+  - PhysicsNeMo
+  - DoMINO
+  - Transolver
+  - preCICE
+  - fluid-structure interaction
+  - verification and validation
+  - uncertainty quantification
+  - neural operators
+  - mixture of experts
+  - agentic CAE
+  - provenance
+  - reproducibility
+license: GPL-3.0
+version: 0.0.1
+date-released: "2026-05-17"
+# TODO(stage-04): reserve Zenodo concept DOI, fill below
+# doi: 10.5281/zenodo.XXXXXXX

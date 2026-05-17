@@ -1,0 +1,230 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aero"
+version = "0.0.1"
+description = "Open-source peer-review-grade computational aerodynamics research platform"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Louis Ernesto Schulte Moredo", email = "gr7x8mjy5d@privaterelay.appleid.com" },
+]
+keywords = [
+    "computational-fluid-dynamics",
+    "aerodynamics",
+    "openfoam",
+    "su2",
+    "pyfr",
+    "nekrs",
+    "jax-fluids",
+    "physicsnemo",
+    "domino",
+    "transolver",
+    "precice",
+    "fluid-structure-interaction",
+    "verification-validation",
+    "uncertainty-quantification",
+    "neural-operators",
+    "agentic-cae",
+    "provenance",
+    "reproducibility",
+]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Operating System :: POSIX :: Linux",
+]
+# Base deps — stdlib + these only. PLATFORM-NOT-HUB invariant.
+dependencies = [
+    "numpy>=2.0",
+    "pydantic>=2.7",
+    "typer>=0.12",
+    "loguru>=0.7",
+    "dvc>=3.55",
+]
+
+[project.urls]
+Homepage = "https://github.com/ernesto01louis/aero-research-platform"
+Repository = "https://github.com/ernesto01louis/aero-research-platform"
+Issues = "https://github.com/ernesto01louis/aero-research-platform/issues"
+Changelog = "https://github.com/ernesto01louis/aero-research-platform/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+# Heavy / domain-specific extras are populated in their respective stages.
+# Each kept as a placeholder list so `pip install -e .[<extra>]` resolves
+# cleanly (to nothing) until the stage that populates it lands.
+
+# Stage 03 — OpenFOAM walking skeleton
+openfoam = [
+    # populated in stage-03: pyfoam>=2024.5, ofpp>=0.12, xarray>=2024.10
+]
+
+# Stage 06 — SU2 v8 adapter
+su2 = [
+    # populated in stage-06: SU2 Python wrapper, mpi4py, meshio
+]
+
+# Stage 07 — PyFR (flux reconstruction GPU)
+pyfr = [
+    # populated in stage-07: pyfr (gmsh, h5py, mako)
+]
+
+# Stage 07 — NekRS (spectral element GPU)
+nekrs = [
+    # populated in stage-07: nekrs Python bindings if available
+]
+
+# Stage 08 — JAX-Fluids 2.0 (differentiable CFD)
+jax-fluids = [
+    # populated in stage-08: jax-fluids, jaxlib (CUDA version pinned)
+]
+
+# Stage 09 — NVIDIA PhysicsNeMo (CUDA 12)
+physicsnemo-cu12 = [
+    # populated in stage-09: nvidia-physicsnemo[cu12], pyg, warp-lang
+]
+
+# Stage 11 — preCICE 3 multi-physics coupling
+precice = [
+    # populated in stage-11: pyprecice
+]
+
+# Stage 04 — provenance backbone
+provenance = [
+    # populated in stage-04: mlflow>=2.20, dvc[s3], boto3, hydra-core,
+    # omegaconf, psycopg2-binary, alembic
+]
+
+# Stage 12 — UQ via UQpy + Dakota
+uq = [
+    # populated in stage-12: UQpy, chaospy, salib, pyDOE3
+]
+
+# Stage 14 — agentic CAE
+agentic = [
+    # populated in stage-14: nvidia-nat, langgraph, mcp
+]
+
+# Stage 15 — literature mining
+literature = [
+    # populated in stage-15: semanticscholar, arxiv, pyalex,
+    # sentence-transformers, pgvector
+]
+
+# Stage 13 — multi-cloud GPU orchestration
+gpu-rental = [
+    # populated in stage-13: runpod, lambdalabs, vast-python
+]
+orchestration = [
+    # populated in stage-13: prefect>=3.0, covalent
+]
+
+# Development
+dev = [
+    "ruff>=0.13",
+    "mypy>=1.18",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.6",
+    "pre-commit>=4.6",
+    "cffconvert>=2.0",
+    "validate-pyproject>=0.24",
+]
+
+# Documentation
+docs = [
+    # populated in stage-16: mkdocs>=1.6, mkdocs-material>=9.5,
+    # mkdocstrings[python]>=0.27
+]
+
+# -----------------------------------------------------------------------------
+# Tooling
+# -----------------------------------------------------------------------------
+
+[tool.hatch.build.targets.wheel]
+packages = ["aero"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["aero", "tests"]
+
+[tool.ruff.lint]
+# Default rule set + stricter idioms
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",  # line length handled by formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true   # liberal default; tightened per-module below
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+# Strict on aero/ core only. Per Hard Rule 8 / Constitution Invariant 2,
+# relaxations to this stricture require an ADR.
+module = "aero.*"
+strict = true
+disallow_any_explicit = false   # numpy/pydantic interop needs flexibility
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+# Tests are lenient by convention; assertions carry the contract.
+module = "tests.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "slow: long-running test (skipped in default unit suite)",
+    "vv: verification & validation test against reference data",
+    "stage_03: tests gated to stage 03 deliverables",
+    "stage_04: tests gated to stage 04 deliverables",
+    "stage_05: tests gated to stage 05 deliverables",
+    "stage_06: tests gated to stage 06 deliverables",
+    "stage_07: tests gated to stage 07 deliverables",
+    "stage_08: tests gated to stage 08 deliverables",
+    "stage_09: tests gated to stage 09 deliverables",
+    "stage_10: tests gated to stage 10 deliverables",
+    "stage_11: tests gated to stage 11 deliverables",
+    "stage_12: tests gated to stage 12 deliverables",
+    "stage_13: tests gated to stage 13 deliverables",
+    "stage_14: tests gated to stage 14 deliverables",
+    "stage_15: tests gated to stage 15 deliverables",
+    "stage_16: tests gated to stage 16 deliverables",
+]
+
+[tool.uv]
+required-version = ">=0.5"

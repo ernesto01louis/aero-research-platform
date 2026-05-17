@@ -1,0 +1,26 @@
+name: vv-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # nightly placeholder — will run real V&V cases from Stage 05 onward
+    - cron: "0 5 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: V&V smoke (placeholder — wired real in Stage 05)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Placeholder
+        run: |
+          echo "::notice::V&V smoke not yet wired. Stage 05 replaces this with"
+          echo "::notice::a real TMR-case run against the OpenFOAM adapter on a"
+          echo "::notice::self-hosted runner labeled 'vv'. See ADR-005 (forthcoming)."
+          echo "Stage 01 placeholder — exiting 0."
