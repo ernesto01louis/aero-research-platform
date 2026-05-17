@@ -1,0 +1,59 @@
+# Secrets and environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.p12
+secrets/
+
+# Apptainer / container artifacts
+*.sif
+*.sif.tmp
+_apptainer_*/
+
+# Python build/test caches
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+.eggs/
+
+# Testing & linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# DVC / MLflow / data
+.dvc/cache/
+.dvc/tmp/
+mlruns/
+mlartifacts/
+data/raw/
+data/scratch/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*~
+
+# Misc
+*.log
+.aider*
+node_modules/

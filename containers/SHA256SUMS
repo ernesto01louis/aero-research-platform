@@ -1,0 +1,20 @@
+# containers/SHA256SUMS
+#
+# SHA256 manifest of every Apptainer SIF the platform produces. Populated
+# stage-by-stage:
+#   Stage 02 — `_base.sif`, `hello-world.sif`
+#   Stage 03 — `openfoam-esi.sif`
+#   Stage 06 — `su2-v8.sif`
+#   Stage 07 — `pyfr.sif`, `nekrs.sif`
+#   Stage 08 — `jax-fluids.sif`
+#   Stage 09 — `physicsnemo.sif`
+#   Stage 11 — `precice-distribution.sif`
+#   Stage 12 — `dakota.sif`
+#
+# Format: same as `sha256sum` output (`<sha256> <name>`).
+# All SIFs are signed; signing key fingerprint at SIGNING_KEY_FINGERPRINT.txt
+# (created in Stage 02).
+#
+# Stage 04+: the `container_sif_sha256` MLflow provenance tag is sourced
+# from this file. Any run logging a SHA not present here fails the
+# `provenance-completeness` CI check.
