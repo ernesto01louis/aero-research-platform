@@ -86,12 +86,17 @@ EOF
   next_stage="$(extract_field "$latest" next_stage)"
   next_stage_name="$(extract_field "$latest" next_stage_name)"
 
+  # Strip any leading "Stage NN — " prefix from next_stage_name (frontmatter
+  # convention from the template puts it there; output template adds its own).
+  local next_clean
+  next_clean="$(printf '%s' "$next_stage_name" | sed -E 's/^Stage[[:space:]]+[0-9]+[[:space:]]+(—|-)[[:space:]]*//')"
+
   cat <<EOF
 **Latest tag:** ${stage_tag:-v0.0.0}  ·  **Status:** ${status:-unknown}  ·  **Completed:** ${date_completed:-—}
 
 **$stage_name** — most recent stage.
 
-**Next:** Stage ${next_stage:-?} — ${next_stage_name:-TBD}.
+**Next:** Stage ${next_stage:-?} — ${next_clean:-TBD}.
 
 See [\`docs/handoffs/\`](docs/handoffs/) for per-stage exit notes and
 [\`CHANGELOG.md\`](CHANGELOG.md) for the version-tagged change log.
