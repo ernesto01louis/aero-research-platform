@@ -1,0 +1,69 @@
+name: commit-lint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  conventional-commits:
+    name: enforce Conventional Commits on PR title and every commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install commitlint
+        run: |
+          npm install --no-save \
+            @commitlint/cli@19 \
+            @commitlint/config-conventional@19
+      - name: Write commitlint config
+        run: |
+          cat > commitlint.config.js <<'EOF'
+          module.exports = {
+            extends: ['@commitlint/config-conventional'],
+            rules: {
+              // Format: <type>(stage-NN): <subject>
+              'type-enum': [2, 'always', [
+                'feat', 'fix', 'chore', 'docs', 'test',
+                'refactor', 'ci', 'perf', 'style', 'build'
+              ]],
+              'scope-empty': [2, 'never'],
+              'scope-case': [2, 'always', 'lower-case'],
+              'scope-pattern': [2, 'always', /^stage-\d{2}$/],
+              'subject-empty': [2, 'never'],
+              'subject-full-stop': [2, 'never', '.'],
+              'header-max-length': [2, 'always', 100],
+            },
+            plugins: [
+              {
+                rules: {
+                  'scope-pattern': ({scope}, when, pattern) => {
+                    if (!scope) return [false, 'scope must be present'];
+                    if (!pattern.test(scope)) {
+                      return [false, `scope "${scope}" must match ${pattern}`];
+                    }
+                    return [true];
+                  }
+                }
+              }
+            ]
+          };
+          EOF
+      - name: Validate PR title
+        run: echo "${{ github.event.pull_request.title }}" | npx commitlint
+      - name: Validate every commit in the PR
+        run: |
+          npx commitlint \
+            --from "${{ github.event.pull_request.base.sha }}" \
+            --to   "${{ github.event.pull_request.head.sha }}" \
+            --verbose

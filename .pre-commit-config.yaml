@@ -1,0 +1,80 @@
+# Pre-commit hooks for aero-research-platform.
+# Run on every commit; never bypass with --no-verify.
+# Install once after cloning: `pre-commit install`
+# Update pins quarterly: `pre-commit autoupdate`
+#
+# Per Constitution Invariant 6, these are part of the commit conventions
+# contract.
+
+repos:
+  # Core sanity checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-toml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # Ruff — lint + format (replaces black, isort, flake8, etc.)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.13
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # Mypy — strict on aero/ only (per Invariant 2 / ADR-001)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.1.0
+    hooks:
+      - id: mypy
+        files: '^aero/'
+        additional_dependencies:
+          - "pydantic>=2.7"
+          - "numpy>=2.0"
+          - "typer>=0.12"
+          - "loguru>=0.7"
+
+  # Pyproject.toml validation
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.25
+    hooks:
+      - id: validate-pyproject
+
+  # Secret scanning
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Local hooks — repo-internal scripts
+  - repo: local
+    hooks:
+      - id: pytest-unit
+        name: pytest unit (fail-fast)
+        description: Run the unit test suite; fail-fast on first failure.
+        entry: pytest -q tests/unit -x
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: docs-status-sync
+        name: docs status sync (check README STATUS block)
+        description: |
+          Verify that README's STATUS block matches what scripts/regenerate_status.sh
+          would produce from the latest post-stage handoff. Fails if hand-edited.
+        entry: scripts/regenerate_status.sh --check
+        language: system
+        files: '^(README\.md|docs/handoffs/.*-DONE-.*\.md|\.aero-stage)$'
+        pass_filenames: false

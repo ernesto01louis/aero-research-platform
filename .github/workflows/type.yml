@@ -1,0 +1,33 @@
+name: type
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: type-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mypy:
+    name: mypy (strict on aero/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ">=0.5"
+      - name: Install dev extras
+        run: uv pip install --system -e ".[dev]"
+      - name: Mypy on aero/
+        run: mypy aero/
