@@ -87,11 +87,16 @@ template:
         # better-resolved, gentler-graded band (the LUST scheme rings on
         # aggressive grading). Near-wall / groove resolution carries over
         # from the RANS structured mesh unchanged (already dz+~0.5).
+        # --n-pitches-spanwise 8: the LES box must exceed the ~100
+        # wall-unit minimal-channel width or turbulence relaminarises
+        # (the RANS-era 4 pitches = 60-80 wall units does not sustain
+        # resolved turbulence). 8 pitches = 120-160 wall units.
         python scripts/generate_mesh.py \
             --case-dir . \
             --s-plus {s_plus} \
             --h-over-s {h_over_s} \
             --n-x 60 --n-z-outer 28 --grading-z-outer 8 --grading-z 10 \
+            --n-pitches-spanwise 8 \
             $RIBLET_FLAG
         blockMesh > log.blockMesh 2>&1
         checkMesh -allTopology -allGeometry > log.checkMesh 2>&1

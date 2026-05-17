@@ -67,12 +67,15 @@ run: |
     RIBLET_FLAG=""
   fi
 
-  # LES mesh resolution — identical to the pilot recipe.
+  # LES mesh resolution — identical to the pilot recipe (incl.
+  # --n-pitches-spanwise 8: the LES box must exceed the ~100 wall-unit
+  # minimal-channel width or turbulence relaminarises).
   python3 scripts/generate_mesh.py \
     --case-dir . \
     --s-plus "${S_PLUS}" \
     --h-over-s "${H_OVER_S}" \
     --n-x 60 --n-z-outer 28 --grading-z-outer 8 --grading-z 10 \
+    --n-pitches-spanwise 8 \
     ${RIBLET_FLAG}
 
   # Decompose across all available vCPUs (the template ships an 8-way

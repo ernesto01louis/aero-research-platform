@@ -6,21 +6,26 @@ FoamFile
     object      setExprFieldsDict;
 }
 
-// LES transition trip. A uniform (or purely random) field at
-// Re_bulk ~= 2826 is sub-critical: white noise dissipates at the grid
-// scale and the channel relaminarises (first pilot attempt settled to
-// the laminar Poiseuille pressure gradient ~0.29 instead of the
-// turbulent ~1.0). Transition needs a COHERENT finite-amplitude
-// disturbance — counter-rotating streamwise rolls whose wall-normal
-// velocity lifts low-momentum fluid off the wall (the lift-up
-// mechanism) and seeds streaks that break down into turbulence.
+// LES transition trip — streamwise-vortex initial condition.
 //
-// This superimposes x-z coherent rolls (streamwise + wall-normal +
-// spanwise components, amplitude ~20-25% of bulk) plus a per-cell
-// random component that breaks the residual 2-D symmetry into a 3-D
-// field. sin(pi*z) envelopes vanish at the z=0 wall and z=1 symmetry
-// plane so the BCs are not violated. pi is written numerically to
-// avoid any dependence on the exprFields constant/function spelling.
+// History: a pure rand() white-noise IC laminarised (energy at the
+// grid scale, dissipates); coherent x-z rolls ALSO laminarised — but
+// that second failure was the spanwise DOMAIN, not the IC: 4 riblet
+// pitches is only 60-80 wall units wide, below the ~100 wall-unit
+// minimal-channel threshold (Jimenez & Moin 1991), so turbulence
+// cannot self-sustain regardless of the IC. The campaign now runs 8
+// pitches (120-160 wall units).
+//
+// This IC superimposes x-uniform counter-rotating STREAMWISE VORTICES
+// (the optimal transient-growth structure — Butler & Farrell 1992):
+// the y-z-plane circulation lifts low-momentum fluid off the wall,
+// generating streamwise streaks that break down into turbulence. u_y
+// and u_z share the sin/cos(C3*y) structure so they form vortices;
+// u_x is the streak. A smaller per-cell random component breaks the
+// residual x-symmetry. sin(pi*z) envelopes vanish at the z=0 wall and
+// z=1 symmetry plane. pi written numerically; C3 = 2*pi/0.56 sets a
+// ~0.56-delta (~100 wall-unit) spanwise wavelength — the natural
+// near-wall streak spacing.
 //
 // Applied by the run recipe:  setExprFields
 expressions
@@ -28,20 +33,19 @@ expressions
     perturbU
     {
         field       U;
-        // KX = 2*pi*2/Lx with Lx=3 -> two streamwise wavelengths.
-        // Amplitudes: streamwise/spanwise roll 4.0, wall-normal 3.5
-        // (~22% of the 15.7 bulk), random 3-D break-up +/-1.0.
+        // Amplitudes: streak 4.0, wall-normal 3.0, spanwise 2.0
+        // (~13-25% of the 15.7 bulk), random +/-0.75.
         expression
         #{
             vector
             (
                 15.7
-                  + 4.0 * sin(3.14159265*pos().z()) * cos(4.18879020*pos().x())
-                  + 2.0 * (rand() - 0.5),
-                4.0 * sin(3.14159265*pos().z()) * cos(4.18879020*pos().x())
-                  + 2.0 * (rand() - 0.5),
-                3.5 * sin(3.14159265*pos().z()) * sin(4.18879020*pos().x())
-                  + 2.0 * (rand() - 0.5)
+                  + 4.0 * sin(3.14159265*pos().z()) * cos(11.22*pos().y())
+                  + 1.5 * (rand() - 0.5),
+                2.0 * cos(3.14159265*pos().z()) * sin(11.22*pos().y())
+                  + 1.5 * (rand() - 0.5),
+                3.0 * sin(3.14159265*pos().z()) * cos(11.22*pos().y())
+                  + 1.5 * (rand() - 0.5)
             )
         #};
     }
