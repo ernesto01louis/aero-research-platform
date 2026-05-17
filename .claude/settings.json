@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "_comment_about_this_file": [
+    "Project-scoped Claude Code settings for aero-research-platform.",
+    "PreToolUse hooks block dangerous Bash patterns; Stop hook gates on the",
+    "current stage's handoff existing. Update as the project grows; every",
+    "new heavy capability (Postgres write, cloud-GPU launch, container",
+    "publish) should land with a matching PreToolUse guard."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(uv:*)",
+      "Bash(pre-commit:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(mypy:*)",
+      "Bash(python3:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(sha256sum:*)",
+      "Bash(jq:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(curl:* https://*)",
+      "Bash(wget:* https://*)",
+      "Bash(tree:*)",
+      "Bash(diff:*)",
+      "Bash(cffconvert:*)",
+      "Bash(validate-pyproject:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf $HOME)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf /etc/*)",
+      "Bash(rm -rf /var/*)",
+      "Bash(rm -rf /usr/*)",
+      "Bash(rm -rf /root/projects/aero-research-platform.PRIOR-REMOTE-CLONE-do-not-touch/*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push origin +*)",
+      "Bash(git reset --hard origin/main)",
+      "Bash(dvc destroy*)",
+      "Bash(pct destroy*)",
+      "Bash(pct stop*)",
+      "Bash(qm destroy*)",
+      "Bash(qm stop*)"
+    ]
+  },
+  "hooks": {
+    "_doc": "PreToolUse blocks dangerous shell patterns the permissions allow-list cannot catch via simple prefix match (SQL, multi-line scripts). Stop checks the post-stage handoff exists.",
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-dangerous-bash.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "scripts/check_handoff_exists.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "mcp_servers": {
+    "_doc": "MCP server configuration is deferred — uncomment per stage. Filesystem stays scoped to the repo root; GitHub MCP uses gh's existing token; Postgres MCP lands in Stage 04 once the aero_provenance DB exists on LXC 202.",
+    "_commented_filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/root/projects/aero-research-platform"]
+    },
+    "_commented_github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<read-from-vault-or-gh-token>"
+      }
+    },
+    "_commented_postgres_stage04_onward": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://aero_provenance_reader@<aero-postgres-host>:5432/aero_provenance"],
+      "env": {
+        "PGPASSWORD": "<read-from-vault>"
+      }
+    }
+  }
+}
