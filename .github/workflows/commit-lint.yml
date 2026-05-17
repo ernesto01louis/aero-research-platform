@@ -42,7 +42,10 @@ jobs:
               'scope-pattern': [2, 'always', /^stage-\d{2}$/],
               'subject-empty': [2, 'never'],
               'subject-full-stop': [2, 'never', '.'],
+              'subject-case': [0],   // proper nouns abound (OpenFOAM, NASA, Claude Code, PhysicsNeMo, MLflow); enforcement is impractical
               'header-max-length': [2, 'always', 100],
+              'body-max-line-length': [0],   // long URLs and pasted output are common in body
+              'footer-max-line-length': [0], // same for footers (Co-Authored-By + long emails, etc.)
             },
             plugins: [
               {
