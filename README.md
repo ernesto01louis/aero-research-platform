@@ -15,8 +15,14 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Stage 01 in progress** — repository scaffolding and conventions. No solver,
-ML, or domain code yet.
+**Latest tag:** v0.0.1  ·  **Status:** complete  ·  **Completed:** 2026-05-17
+
+**Stage 01 — Scaffolding & Conventions** — most recent stage.
+
+**Next:** Stage 02 — Proxmox Topology & Container Build Pipeline.
+
+See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
+[`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
 <!-- STATUS:END -->
 
 ## Quick start
