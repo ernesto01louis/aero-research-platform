@@ -8,6 +8,9 @@
 *.p12
 secrets/
 
+# Claude Code local settings (operator-specific, not committed)
+.claude/settings.local.json
+
 # Apptainer / container artifacts
 *.sif
 *.sif.tmp
