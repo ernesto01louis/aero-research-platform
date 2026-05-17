@@ -1,0 +1,40 @@
+# containers/_base.def — aero-research-platform base Apptainer image.
+#
+# Minimal Ubuntu 24.04 LTS. Later stages build their solver / tooling SIFs
+# FROM this image so the provenance chain has a single, SHA256-pinned root.
+#
+# Base image pinned by digest (Hard Rule 8 — pin heavy deps exactly):
+#   ubuntu:24.04  ->  sha256:c4a8d550...41c7b   (Docker Hub index, 2026-04-15)
+#
+# NOTE: %post does NO network operations. The Apptainer build sandbox inside
+# the unprivileged aero-build LXC cannot open sockets ("socket: Permission
+# denied"), so apt cannot run during a build. Package installation for real
+# solver images is a Stage 03+ concern — see the Stage 02 handoff.
+#
+# Built, signed, and SHA256-recorded by scripts/build_base_sifs.sh.
+
+Bootstrap: docker
+From: ubuntu@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b5cfca2330194ebcc41c7b
+
+%labels
+    org.aero.component   base
+    org.aero.stage       02
+    org.aero.base-image  ubuntu:24.04
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only setup (no network — see the header note): the standard
+    # aero bind-mount targets, baked into the image.
+    mkdir -p /opt/aero /data /work
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%test
+    . /etc/os-release
+    echo "aero base image — ${PRETTY_NAME}"
+    test "${VERSION_ID}" = "24.04"
+
+%runscript
+    echo "aero-research-platform base image (Ubuntu 24.04, Stage 02)"

@@ -1,0 +1,22 @@
+# containers/hello-world.def — trivial aero test SIF.
+#
+# Builds FROM the local _base.sif; the localimage bootstrap exercises the
+# build-from-local-SIF path that later solver images rely on. Prints
+# "hello aero" when run — scripts/verify_stage_02.sh uses this as the
+# Stage 02 container-pipeline gate.
+#
+# Build:  apptainer build hello-world.sif hello-world.def
+#         (requires _base.sif in the working directory)
+
+Bootstrap: localimage
+From: _base.sif
+
+%labels
+    org.aero.component   hello-world
+    org.aero.stage       02
+
+%test
+    echo "hello-world.sif built OK"
+
+%runscript
+    echo "hello aero"
