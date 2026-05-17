@@ -6,19 +6,21 @@ FoamFile
     object      setExprFieldsDict;
 }
 
-// LES transition trip. A uniform channel flow is a stable laminar
-// solution at Re_tau=180 — without a finite-amplitude 3D disturbance
-// the LES sits laminar indefinitely. This superimposes a per-cell
-// pseudo-random velocity perturbation on the uniform bulk field so the
-// flow rolls up into developed turbulence within the first ~10-15
-// eddy-turnover times.
+// LES transition trip. A uniform (or purely random) field at
+// Re_bulk ~= 2826 is sub-critical: white noise dissipates at the grid
+// scale and the channel relaminarises (first pilot attempt settled to
+// the laminar Poiseuille pressure gradient ~0.29 instead of the
+// turbulent ~1.0). Transition needs a COHERENT finite-amplitude
+// disturbance — counter-rotating streamwise rolls whose wall-normal
+// velocity lifts low-momentum fluid off the wall (the lift-up
+// mechanism) and seeds streaks that break down into turbulence.
 //
-// rand() draws a uniform [0,1] value per cell. The exact draw is not
-// part of the citable provenance — the recipe (this fixed, version-
-// controlled dict) is; LES time-averaged statistics are independent of
-// the IC perturbation details once the flow is developed. The no-slip
-// wall BCs override the wall-face values, so the random internalField
-// does not violate them.
+// This superimposes x-z coherent rolls (streamwise + wall-normal +
+// spanwise components, amplitude ~20-25% of bulk) plus a per-cell
+// random component that breaks the residual 2-D symmetry into a 3-D
+// field. sin(pi*z) envelopes vanish at the z=0 wall and z=1 symmetry
+// plane so the BCs are not violated. pi is written numerically to
+// avoid any dependence on the exprFields constant/function spelling.
 //
 // Applied by the run recipe:  setExprFields
 expressions
@@ -26,16 +28,20 @@ expressions
     perturbU
     {
         field       U;
-        // Streamwise kick ~+/-15% of bulk (15.7); cross-flow kicks
-        // ~+/-3 u_tau. Strong enough to trip transition reliably; the
-        // first PIMPLE pressure solve projects out the divergence.
+        // KX = 2*pi*2/Lx with Lx=3 -> two streamwise wavelengths.
+        // Amplitudes: streamwise/spanwise roll 4.0, wall-normal 3.5
+        // (~22% of the 15.7 bulk), random 3-D break-up +/-1.0.
         expression
         #{
             vector
             (
-                15.7 + 4.5 * (rand() - 0.5),
-                3.0 * (rand() - 0.5),
-                3.0 * (rand() - 0.5)
+                15.7
+                  + 4.0 * sin(3.14159265*pos().z()) * cos(4.18879020*pos().x())
+                  + 2.0 * (rand() - 0.5),
+                4.0 * sin(3.14159265*pos().z()) * cos(4.18879020*pos().x())
+                  + 2.0 * (rand() - 0.5),
+                3.5 * sin(3.14159265*pos().z()) * sin(4.18879020*pos().x())
+                  + 2.0 * (rand() - 0.5)
             )
         #};
     }
