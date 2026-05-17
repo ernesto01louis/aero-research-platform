@@ -1,0 +1,94 @@
+---
+# aero-base — baseline configuration applied to every aero LXC.
+
+- name: Update apt cache and dist-upgrade
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+  register: aero_apt_upgrade
+  retries: 5
+  delay: 15
+  until: aero_apt_upgrade is succeeded
+
+- name: Install baseline packages
+  ansible.builtin.apt:
+    name: "{{ aero_base_packages }}"
+    state: present
+
+- name: Check whether uv is already installed
+  ansible.builtin.stat:
+    path: "{{ uv_install_dir }}/uv"
+  register: aero_uv_bin
+
+- name: Install uv (Astral standalone installer)
+  ansible.builtin.shell: "set -o pipefail && curl -LsSf https://astral.sh/uv/install.sh | sh"
+  args:
+    executable: /bin/bash
+  environment:
+    UV_INSTALL_DIR: "{{ uv_install_dir }}"
+  when: not aero_uv_bin.stat.exists
+  changed_when: true
+
+- name: Create the aero-admin group
+  ansible.builtin.group:
+    name: "{{ aero_admin_user }}"
+    state: present
+
+- name: Create the aero-admin automation user
+  ansible.builtin.user:
+    name: "{{ aero_admin_user }}"
+    group: "{{ aero_admin_user }}"
+    shell: /bin/bash
+    create_home: true
+    comment: "aero-research-platform automation user"
+    state: present
+
+- name: Authorize the aero fleet key for aero-admin
+  ansible.posix.authorized_key:
+    user: "{{ aero_admin_user }}"
+    key: "{{ aero_admin_pubkey }}"
+    state: present
+    exclusive: false
+
+- name: Install the scoped sudoers policy for aero-admin
+  ansible.builtin.template:
+    src: aero-admin-sudoers.j2
+    dest: /etc/sudoers.d/aero-admin
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Allow SSH from trusted CIDRs (ufw)
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    src: "{{ item }}"
+  loop: "{{ aero_trusted_cidrs }}"
+
+- name: Allow node-exporter from trusted CIDRs (ufw)
+  community.general.ufw:
+    rule: allow
+    port: "{{ node_exporter_port | string }}"
+    proto: tcp
+    src: "{{ item }}"
+  loop: "{{ aero_trusted_cidrs }}"
+
+- name: Set ufw default policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled
+
+- name: Ensure node-exporter is enabled and running
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started

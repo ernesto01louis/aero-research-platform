@@ -1,0 +1,37 @@
+---
+# aero-nfs-client — mount the TrueNAS aero/ NFS export and wire the
+# /opt/aero/* convenience symlinks. Applied to build, dev, vv, mlflow.
+
+- name: Ensure nfs-common is installed
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+
+- name: Create the NFS mountpoint
+  ansible.builtin.file:
+    path: "{{ aero_nfs_mountpoint }}"
+    state: directory
+    mode: "0755"
+
+- name: Mount the TrueNAS aero export (persistent via fstab)
+  ansible.posix.mount:
+    path: "{{ aero_nfs_mountpoint }}"
+    src: "{{ aero_nfs_server }}:{{ aero_nfs_export }}"
+    fstype: nfs4
+    opts: "{{ aero_nfs_options }}"
+    state: mounted
+
+- name: Create /opt/aero
+  ansible.builtin.file:
+    path: /opt/aero
+    state: directory
+    mode: "0755"
+
+- name: Symlink /opt/aero/* into the NFS mount
+  ansible.builtin.file:
+    src: "{{ item.target }}"
+    dest: "{{ item.link }}"
+    state: link
+    force: true
+    follow: false
+  loop: "{{ aero_opt_symlinks }}"

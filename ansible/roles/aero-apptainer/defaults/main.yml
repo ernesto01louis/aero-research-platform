@@ -1,0 +1,15 @@
+---
+# aero-apptainer role defaults.
+#
+# Apptainer is pinned; the .deb is fetched from the official GitHub release
+# and SHA256-verified. Pin recorded in docs/adrs/ADR-002-proxmox-topology.md.
+apptainer_version: "1.5.0"
+apptainer_deb_url: "https://github.com/apptainer/apptainer/releases/download/v{{ apptainer_version }}/apptainer_{{ apptainer_version }}_amd64.deb"
+apptainer_deb_sha256: "fbc27204d0ec0440dfa0ae589089e4b2baf192315b4ac22dfae02b78b28981ea"
+
+# subuid/subgid ranges for unprivileged --fakeroot builds. Ranges must not
+# overlap, so each user gets its own block of apptainer_subid_count IDs.
+apptainer_subid_count: 65536
+apptainer_fakeroot_users:
+  - {user: root, subid_start: 100000}
+  - {user: "{{ aero_admin_user }}", subid_start: 165536}
