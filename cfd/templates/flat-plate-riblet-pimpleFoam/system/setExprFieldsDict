@@ -6,26 +6,26 @@ FoamFile
     object      setExprFieldsDict;
 }
 
-// LES transition trip — streamwise-vortex initial condition.
+// LES transition trip — broadband multi-mode initial condition.
 //
-// History: a pure rand() white-noise IC laminarised (energy at the
-// grid scale, dissipates); coherent x-z rolls ALSO laminarised — but
-// that second failure was the spanwise DOMAIN, not the IC: 4 riblet
-// pitches is only 60-80 wall units wide, below the ~100 wall-unit
-// minimal-channel threshold (Jimenez & Moin 1991), so turbulence
-// cannot self-sustain regardless of the IC. The campaign now runs 8
-// pitches (120-160 wall units).
+// History: three single-/few-mode trips all relaminarised. Attempt 3
+// (x-uniform streamwise vortices, adequate 8-pitch box) is the
+// instructive one: the vortices DID drive lift-up and streaks, but
+// with no intermediate-scale streamwise-varying disturbance the
+// streaks had nothing to break down into — transient growth is
+// transient, the streaks decayed, the channel relaminarised. At
+// Re_bulk ~2826 laminar Poiseuille is linearly stable, so a perturbation
+// that merely decays leaves the flow laminar.
 //
-// This IC superimposes x-uniform counter-rotating STREAMWISE VORTICES
-// (the optimal transient-growth structure — Butler & Farrell 1992):
-// the y-z-plane circulation lifts low-momentum fluid off the wall,
-// generating streamwise streaks that break down into turbulence. u_y
-// and u_z share the sin/cos(C3*y) structure so they form vortices;
-// u_x is the streak. A smaller per-cell random component breaks the
-// residual x-symmetry. sin(pi*z) envelopes vanish at the z=0 wall and
-// z=1 symmetry plane. pi written numerically; C3 = 2*pi/0.56 sets a
-// ~0.56-delta (~100 wall-unit) spanwise wavelength — the natural
-// near-wall streak spacing.
+// This IC is genuinely broadband — energy spread across several
+// (kx, ky, kz) modes per component, not one. It carries BOTH:
+//   * x-uniform streamwise vortices (cos(ky*y) terms) for lift-up, and
+//   * oblique modes (sin(kx*x)*sin/cos(ky*y)) at intermediate scale —
+//     the streamwise-varying disturbance that breaks streaks down into
+//     sustained turbulence.
+// Wavenumbers: kx over Lx=3 (2pi/3, 4pi/3); ky ~ 0.56-delta streak
+// spacing (11.22) and its first harmonic (22.44); kz as sin(n*pi*z)
+// (vanishes at the z=0 wall and z=1 symmetry plane). pi numeric.
 //
 // Applied by the run recipe:  setExprFields
 expressions
@@ -33,19 +33,22 @@ expressions
     perturbU
     {
         field       U;
-        // Amplitudes: streak 4.0, wall-normal 3.0, spanwise 2.0
-        // (~13-25% of the 15.7 bulk), random +/-0.75.
         expression
         #{
             vector
             (
                 15.7
                   + 4.0 * sin(3.14159265*pos().z()) * cos(11.22*pos().y())
-                  + 1.5 * (rand() - 0.5),
+                  + 2.0 * sin(3.14159265*pos().z()) * sin(4.18879*pos().x())
+                  + 1.5 * sin(6.28319*pos().z()) * sin(2.09440*pos().x()) * cos(11.22*pos().y())
+                  + 0.8 * (rand() - 0.5),
                 2.0 * cos(3.14159265*pos().z()) * sin(11.22*pos().y())
-                  + 1.5 * (rand() - 0.5),
+                  + 1.5 * sin(3.14159265*pos().z()) * sin(2.09440*pos().x()) * sin(11.22*pos().y())
+                  + 0.8 * (rand() - 0.5),
                 3.0 * sin(3.14159265*pos().z()) * cos(11.22*pos().y())
-                  + 1.5 * (rand() - 0.5)
+                  + 2.0 * sin(3.14159265*pos().z()) * sin(2.09440*pos().x()) * cos(11.22*pos().y())
+                  + 1.5 * sin(6.28319*pos().z()) * cos(4.18879*pos().x()) * sin(22.44*pos().y())
+                  + 0.8 * (rand() - 0.5)
             )
         #};
     }

@@ -27,13 +27,14 @@ gradSchemes
 divSchemes
 {
     default         none;
-    // LUST (Linear-Upwind Stabilised Transport): 75% linear + 25%
-    // linearUpwind. The low-dissipation scheme recommended for LES on
-    // structured-but-graded meshes — pure "Gauss linear" central
-    // differencing can ring on the band-2/band-3 grading interface,
-    // while linearUpwindV alone over-dissipates the SGS-resolved
-    // scales. LUST is the OpenFOAM channel/LES default compromise.
-    div(phi,U)      Gauss LUST grad(U);
+    // Pure central differencing — zero numerical dissipation, the
+    // canonical channel-LES convection scheme (OpenFOAM channel395
+    // tutorial). LUST's 25% upwind component was tried first but adds
+    // enough numerical dissipation to help drain a marginally-sustained
+    // transitional flow back to laminar; central preserves the resolved
+    // turbulent energy. If this rings on the graded core, fall back to
+    // `Gauss LUST grad(U)`.
+    div(phi,U)      Gauss linear;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 
