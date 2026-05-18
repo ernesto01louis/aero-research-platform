@@ -1,15 +1,10 @@
 ---
 # aero-nfs-client role defaults.
 #
-# The TrueNAS `aero/` NFS export. aero_nfs_export is set to the real dataset
-# path once the Stage 02 TrueNAS configuration step has created it; see
-# scripts/setup_truenas_aero_dataset.sh and ADR-002.
-aero_nfs_server: "192.168.2.100"
-aero_nfs_export: "/mnt/aero-pool/aero"
-aero_nfs_mountpoint: /mnt/aero
-aero_nfs_options: "rw,vers=4.2,_netdev,hard,noatime"
-
-# /opt/aero/* convenience symlinks pointing into the NFS mount.
+# The TrueNAS aero/ export is mounted on the Proxmox HOST (/mnt/aero-nfs) and
+# bind-mounted into this LXC at /mnt/aero via a Proxmox `mp` entry — NFS
+# cannot be mounted inside an unprivileged LXC (kernel restriction; see
+# ADR-002). This role only wires the /opt/aero/* convenience symlinks.
 aero_opt_symlinks:
   - {link: /opt/aero/containers, target: /mnt/aero/containers}
   - {link: /opt/aero/datasets, target: /mnt/aero/datasets}

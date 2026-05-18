@@ -1,0 +1,11 @@
+# aero-research-platform — Apptainer container-image signing key.
+# Generated Stage 02 on aero-build. PGP, 4096-bit.
+# Identity: aero-research-platform <aero@aero-research-platform.local>
+#
+# The PRIVATE key lives in the aero-build keyring (passphrase-protected;
+# passphrase in /root/.config/aero/signing.env, mode 0600) with an encrypted
+# escrow copy on the TrueNAS aero/ NFS dataset. Only the public fingerprint
+# below is committed. See SECURITY.md and ADR-002.
+#
+# Public key fingerprint:
+682F6145EC8EF3025D754D5E95BD4549ED3D6A77  # gitleaks:allow -- public PGP fingerprint, not a secret
