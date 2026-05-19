@@ -56,16 +56,25 @@ class CaseSpec(BaseModel):
         default="kOmegaSST", description="RAS turbulence closure."
     )
 
-    # --- mesh resolution (2D C-grid) ---
-    farfield_radius_chords: float = Field(
-        default=20.0, gt=1.0, description="Outer O-grid boundary radius, in chords."
+    # --- mesh resolution (2D multi-block C-grid) ---
+    # The Stage-05 C-grid replaces the Stage-03 four-block O-grid: a rectangular
+    # far field at `farfield_extent_chords`, an explicit wake cut downstream of
+    # the trailing edge, and the airfoil surface split at mid-chord. See ADR-005.
+    farfield_extent_chords: float = Field(
+        default=100.0, gt=1.0, description="Rectangular far-field half-extent, in chords."
     )
     n_surface: int = Field(
-        default=120, gt=3, description="Cells along each airfoil quarter (O-grid block)."
+        default=120, gt=3, description="Cells along each airfoil surface half (LE-mid, mid-TE)."
     )
-    n_normal: int = Field(default=100, gt=3, description="Cells wall-normal to the far field.")
+    n_normal: int = Field(default=120, gt=3, description="Cells wall-normal to the far field.")
+    n_front: int = Field(
+        default=48, gt=3, description="Streamwise cells in the front block (inlet to LE)."
+    )
+    n_wake: int = Field(
+        default=72, gt=3, description="Streamwise cells in the wake block (TE to outlet)."
+    )
     first_cell_height: float = Field(
-        default=5.0e-6, gt=0, description="Wall-normal first-cell height, in chords."
+        default=2.0e-6, gt=0, description="Wall-normal first-cell height, in chords."
     )
     turbulence_intensity: float = Field(
         default=0.001, gt=0, description="Freestream turbulence intensity (fraction)."
