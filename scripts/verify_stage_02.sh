@@ -45,7 +45,11 @@ for a in aero-build aero-dev; do
 done
 
 echo "[3] hello-world SIF runs on aero-build"
-out=$(ssh_q aero-build "apptainer run /opt/aero/containers/hello-world.sif 2>/dev/null")
+# Run as root: non-root (aero-admin) `apptainer run` hits an Apptainer
+# session-layer limitation inside the unprivileged LXC — deferred to Stage 03
+# (see docs/handoffs/STAGE-02-*). The pipeline producing a runnable signed
+# SIF is what this check verifies.
+out=$(ssh_q root@aero-build "apptainer run /opt/aero/containers/hello-world.sif 2>/dev/null")
 if [[ "$out" == *"hello aero"* ]]; then ok "hello-world.sif prints 'hello aero'"
 else bad "hello-world.sif output: '${out:-<none>}'"; fi
 

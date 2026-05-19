@@ -10,19 +10,19 @@
 #   exit 2 — block; stderr is shown to the model
 #
 # Patterns blocked:
-#   * SQL `DROP TABLE` / `DROP DATABASE` / `DROP ROLE` (any case)
-#     — Stage 04 hits this when configuring Postgres on LXC 202; the rule is
-#     "never drop existing non-aero objects". Aero-namespaced drops still
-#     need explicit `approved` per the project brief.
-#   * `git push --force-with-lease` is also blocked (still rewrites history;
-#     use `git revert` instead)
-#   * `--no-verify` flag on git commit/push (Hard Rule 6)
-#   * `--dangerously-skip-permissions` (Hard Rule 6)
-#   * `--allow-dirty` on aero CLI without `git_sha=*-dirty` in MLflow
-#     (placeholder; full enforcement in Stage 04)
+#   * SQL `DROP TABLE` / `DROP DATABASE` / `DROP ROLE` / `DROP SCHEMA`
+#   * `git push --force-with-lease` (still rewrites history)
+#   * `--no-verify` / `--dangerously-skip-permissions` (Hard Rule 6)
+#   * Stage 02: `pct destroy|stop` / `qm destroy|stop` even inside compound
+#     commands (the permissions deny-list only prefix-matches)
+#   * Stage 02: file-level writes to protected host config — `/etc/pve/`,
+#     `/etc/network/interfaces`, `/etc/subuid`, `/etc/subgid` (Hard Rule 5;
+#     use the Proxmox API — pvesh/pct/qm — instead of editing these by hand)
+#   * Stage 02: SSH to a shared non-aero host (TrueNAS / Postgres / Grafana)
+#     carrying a destructive verb — those services are read-only to the aero
+#     stack (Hard Rule 11). Aero LXC aliases are unrestricted.
 #
-# This script is a defense-in-depth layer; the permission allowlist in
-# settings.json is the first line.
+# Defense-in-depth layer; the permission allowlist in settings.json is first.
 
 set -euo pipefail
 
@@ -39,25 +39,55 @@ block() {
   exit 2
 }
 
-# Case-insensitive matches for SQL destructive ops
+# --- SQL destructive ops (case-insensitive) ---
 shopt -s nocasematch
 if [[ "$cmd" =~ (drop[[:space:]]+(table|database|role|schema)) ]]; then
   block "SQL DROP detected. Per Stage-04 propose-first policy, all DROP ops on existing Postgres objects require explicit operator 'approved'."
 fi
 shopt -u nocasematch
 
-# Git history-rewriting
+# --- Git history-rewriting ---
 if [[ "$cmd" =~ (git[[:space:]]+push[[:space:]].*--force-with-lease) ]]; then
   block "git push --force-with-lease still rewrites history. Use git revert."
 fi
 
-# Skip-verification flags
+# --- Skip-verification flags ---
 if [[ "$cmd" =~ --no-verify ]]; then
   block "--no-verify violates Hard Rule 6 (pre-commit hooks are not optional). If a hook is wrong, fix the hook."
 fi
 
 if [[ "$cmd" =~ --dangerously-skip-permissions ]]; then
   block "--dangerously-skip-permissions is forbidden outside ephemeral containers (Hard Rule 6)."
+fi
+
+# --- Destructive Proxmox guest operations (compound-command safe) ---
+shopt -s nocasematch
+if [[ "$cmd" =~ (^|[^[:alnum:]_/])pct[[:space:]]+(destroy|stop)([^[:alnum:]]|$) ]]; then
+  block "pct destroy/stop is forbidden. Aero LXCs use 'pct reboot'/'pct shutdown'; never stop or destroy a guest (Hard Rule 11)."
+fi
+if [[ "$cmd" =~ (^|[^[:alnum:]_/])qm[[:space:]]+(destroy|stop)([^[:alnum:]]|$) ]]; then
+  block "qm destroy/stop is forbidden — VMs are pre-existing non-aero infrastructure (Hard Rule 11)."
+fi
+shopt -u nocasematch
+
+# --- File-level writes to protected host configuration ---
+protected='/etc/pve/|/etc/network/interfaces|/etc/subuid|/etc/subgid'
+if [[ "$cmd" =~ ($protected) ]]; then
+  if [[ "$cmd" =~ (\>|sed[[:space:]]+-i|(^|[[:space:]])(tee|truncate)[[:space:]]) ]]; then
+    block "File-level write to a protected host path ($protected) requires explicit operator 'approved' (Hard Rule 5). Change Proxmox config via the API (pvesh/pct/qm/pvesm), not by editing these files."
+  fi
+fi
+
+# --- SSH to shared non-aero hosts must stay read-only ---
+if [[ "$cmd" =~ (^|[^[:alnum:]_])ssh[[:space:]] ]]; then
+  shared='truenas|postgres-server|grafana-server|192\.168\.2\.100|192\.168\.2\.184|192\.168\.2\.188'
+  if [[ "$cmd" =~ ($shared) ]]; then
+    shopt -s nocasematch
+    if [[ "$cmd" =~ ((^|[[:space:]])rm[[:space:]]|mkfs|(^|[[:space:]])dd[[:space:]]|systemctl[[:space:]]+(stop|restart|disable|mask)|apt(-get)?[[:space:]]+(install|remove|purge|upgrade)|drop[[:space:]]+(table|database)|pct[[:space:]]+(destroy|stop)|qm[[:space:]]+(destroy|stop)) ]]; then
+      block "SSH to a shared non-aero host carrying a destructive verb. The shared services (TrueNAS/Postgres/Grafana) are read-only to the aero stack (Hard Rule 11)."
+    fi
+    shopt -u nocasematch
+  fi
 fi
 
 exit 0
