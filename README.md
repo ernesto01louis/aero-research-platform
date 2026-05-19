@@ -34,6 +34,19 @@ pip install aero  # platform core only — stdlib + numpy + pydantic
 Optional extras are gated per solver / ML framework. See
 [`pyproject.toml`](pyproject.toml) for the full list.
 
+### Run the OpenFOAM walking skeleton
+
+The Stage 03 walking skeleton runs a NACA 0012 case end-to-end — Apptainer
+OpenFOAM-ESI `simpleFoam` on an aero LXC — and reports the drag coefficient:
+
+```sh
+pip install -e ".[openfoam]"
+aero run naca0012 --executor local-ssh
+```
+
+This needs the aero Proxmox cluster (Stage 02) with the OpenFOAM SIF published
+on `aero-build`. Expected: Cd ≈ 0.0079 (±25% walking-skeleton band).
+
 ## Documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — session-start invariants and conventions
