@@ -133,10 +133,16 @@ byte-equal to these four tags. (`dvc_input_hash 44136fa3…` is `sha256("{}")`
 ## 5. CI/CD changes
 
 - `.github/workflows/provenance-completeness.yml` — new self-hosted (`vv`)
-  job; the slow test passes 2/2 in 87s.
+  job; runs the NACA 0012 case end-to-end and asserts the four-fold contract.
 - `.pre-commit-config.yaml`: `check-added-large-files` excludes `uv.lock`.
-- Not yet a required status check (needs the `vv` runner registered + the
-  `AERO_PROVENANCE_DSN` repo secret) — §7.
+- Repo secrets added: `AERO_PROVENANCE_DSN`, `AERO_DVC_ACCESS_KEY_ID`,
+  `AERO_DVC_SECRET_ACCESS_KEY` (the latter two feed DVC's boto3 credential
+  chain — `.dvc/config.local` is gitignored, absent on a CI checkout).
+- The `vv` self-hosted runner is registered and online on `aero-build`;
+  **PR #5's CI is fully green — all 7 checks pass**, including
+  `provenance-completeness` and `vv-smoke` (each ~2m20s).
+- `provenance-completeness` is *not yet a required* status check — promoting
+  it (a branch-protection change) is the one remaining CI follow-up (§7).
 - The five existing required checks (lint/type/test/docs-sync/commit-lint)
   are unchanged.
 
@@ -167,16 +173,18 @@ byte-equal to these four tags. (`dvc_input_hash 44136fa3…` is `sha256("{}")`
 
 ## 7. Open items for the next stage (and beyond)
 
-**Operator follow-ups (close the two ⚠️):**
-- **`AERO_PROVENANCE_DSN` GitHub repo secret** — set it so the
-  `provenance-completeness` workflow runs. Value:
-  `postgresql://aero_mlflow_user:<URL-encoded pw>@192.168.2.184:5432/aero_provenance`
-  (password from Vault `aero/postgres/aero_mlflow_user`, percent-encoded).
-- **Zenodo concept DOI** — enable the GitHub-Zenodo integration; the DOI is
-  minted at the first GitHub Release (`v0.0.4`). Backfill `CITATION.cff`
-  then. See `docs/release/zenodo.md`.
-- **Register the `vv` self-hosted runner** (still open from Stage 03), then
-  promote `provenance-completeness` (and `vv-smoke`) to required checks.
+**Done after the handoff was first written** (recorded here for the next
+session): the `AERO_PROVENANCE_DSN` / `AERO_DVC_*` repo secrets are set; the
+`vv` self-hosted runner is registered and online; **PR #5's CI is fully
+green (7/7)**.
+
+**Operator follow-ups still open:**
+- **Merge PR #5**, then tag `v0.0.4` on `main` and publish the GitHub
+  Release. The Release triggers Zenodo to mint the concept DOI.
+- **Zenodo concept DOI** — minted at the `v0.0.4` GitHub Release; backfill
+  `CITATION.cff` with it afterwards. See `docs/release/zenodo.md`.
+- **Promote `provenance-completeness` to a required status check** on `main`
+  (a branch-protection change) now that it is proven green — optional.
 
 **Stage 05 (V&V Harness):**
 - Key each V&V run on the four-tuple — `compute_provenance` returns the
