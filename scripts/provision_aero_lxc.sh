@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scripts/provision_aero_lxc.sh
 #
-# Stage 02 — idempotent provisioner for the seven aero-* LXC containers.
+# Stage 02 — idempotent provisioner for the aero-* LXC containers
+# (Stage 04 appends aero-vault, LXC 217).
 # Runs ON the Proxmox host as root. Uses raw `pct` (see ADR-002 for why the
 # Ansible Proxmox module was not used: we are root on the host, so `pct` is
 # the native, zero-credential path).
@@ -14,7 +15,7 @@
 #
 # Idempotent: a container that already exists is left untouched. This script
 # only ever creates and starts; it never stops or destroys anything, and it
-# only ever touches IDs 210-216.
+# only ever touches IDs 210-217.
 #
 # Usage:  ./scripts/provision_aero_lxc.sh
 
@@ -37,6 +38,7 @@ FLEET=(
   "214 aero-prefect  4   8192  30 2048 192.168.2.236 10.10.10.24"
   "215 aero-agent    8  16384 100 2048 192.168.2.237 10.10.10.25"
   "216 aero-lit      4   8192 100 2048 192.168.2.238 10.10.10.26"
+  "217 aero-vault    2   4096  20 2048 192.168.2.239 10.10.10.27"
 )
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -106,4 +108,4 @@ done
 [[ -f "$KNOWN_HOSTS" ]] && sort -u "$KNOWN_HOSTS" -o "$KNOWN_HOSTS"
 
 log "provisioning complete — aero-* fleet:"
-pct list | awk 'NR==1 || $0 ~ /aero-(build|dev|mlflow|vv|prefect|agent|lit)/'
+pct list | awk 'NR==1 || $0 ~ /aero-(build|dev|mlflow|vv|prefect|agent|lit|vault)/'
