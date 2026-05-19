@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aero-research-platform &mdash; V&amp;V Dashboard</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2328; }
+  h1 { font-size: 1.4rem; }
+  table { border-collapse: collapse; margin-top: 1rem; }
+  th, td { border: 1px solid #d0d7de; padding: 0.4rem 0.8rem; text-align: left; }
+  th { background: #f6f8fa; }
+  .mono { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+  .banner { color: #fff; background: #cf222e; padding: 0.5rem 1rem;
+             display: inline-block; font-weight: 700; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>aero-research-platform &mdash; V&amp;V Dashboard</h1>
+<p class="banner">ATTENTION NEEDED</p>
+<p>Canonical NASA TMR verification cases. A red dashboard blocks
+<code>production</code>-tagged runs (ADR-005). Generated 2026-05-19 19:30 UTC.</p>
+<table>
+  <thead>
+    <tr><th>Case</th><th>Status</th><th>Metric errors</th>
+        <th>git SHA</th><th>MLflow run</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>flat_plate_te</td><td style="color:#fff;background:#cf222e;font-weight:600">FAIL</td><td>cf 15.30%</td><td class="mono">eacc5dad617d</td><td class="mono"></td></tr>
+    <tr><td>bump_2d</td><td style="color:#fff;background:#cf222e;font-weight:600">FAIL</td><td>&mdash;</td><td class="mono">eacc5dad617d</td><td class="mono"></td></tr>
+    <tr><td>naca0012_verification</td><td style="color:#fff;background:#cf222e;font-weight:600">FAIL</td><td>cd 20.90%</td><td class="mono">eacc5dad617d</td><td class="mono"></td></tr>
+  </tbody>
+</table>
+</body>
+</html>

@@ -9,6 +9,45 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.5] - 2026-05-19
+
+### Added — Stage 05 (V&V Harness Against NASA TMR)
+
+- `aero/vv/` — the solver-agnostic V&V harness: `BenchmarkCase` / `SolverLike`
+  protocols, the `BenchmarkResult` model family, and `BenchmarkRunner`
+  (prepare → mesh → solve → evaluate → compare, logging the four-fold tuple
+  with a `validation_tag`)
+- `aero/vv/mesh_sweep.py` — `MeshSweep` and `grid_convergence_index`, an
+  ASME V&V 20 / Celik (2008) Grid Convergence Index primitive
+- `aero/vv/tmr/` — the NASA TMR cases (turbulent flat plate, 2D bump, NACA
+  0012) and the `TMR_CASES` registry
+- `aero/vv/dashboard.py` — the HTML V&V status dashboard (`docs/vv-dashboard.html`)
+- `aero/adapters/openfoam/` — `tmr_specs.py`, `tmr_geometry.py`,
+  `tmr_case_writer.py` (flat-plate / 2D-bump cases), `fields.py` (Cf/Cp wall
+  extraction), `_foam_common.py` (shared FOAM helpers)
+- `aero vv list / run / report` CLI; `aero vv run --mesh-sweep` for a GCI study
+- `aero[vv]` extra (scipy); `data/references/tmr/` reference data
+- `vv-required.yml` — the stage-gated, required V&V CI check; `vv-smoke.yml`
+  promoted to the full NASA TMR suite with a PR-comment status post
+- ADR-005 — the V&V harness decisions
+
+### Changed — Stage 05
+
+- The airfoil mesh is rebuilt as an eight-block multi-block C-grid (rectangular
+  100-chord far field, explicit wake cut); the Stage-03 four-block O-grid is
+  retired — `checkMesh` skewness drops ~17 → ~2.8 (ADR-005 supersedes ADR-003's
+  O-grid decision)
+- Resolved-wall turbulence treatment (`nutLowReWallFunction`); the four-fold
+  MLflow run tag `stage` is now parametrised
+
+### Known issues — Stage 05
+
+- The three TMR case tests are `xfail`: NACA 0012 Cd is +21 % (trailing-edge
+  pressure-drag resolution), the flat-plate Cf is ~7–15 % off the White
+  correlation (the TMR CFD reference data could not be fetched — no network),
+  and the 2D bump solve stalls on high-aspect-ratio cells. See the Stage-05
+  handoff §6–§7. No tolerance was relaxed.
+
 ## [0.0.4] - 2026-05-19
 
 ### Added — Stage 04 (Provenance Backbone)
