@@ -234,7 +234,7 @@ def _real_run_except_dvc():
     real = subprocess.run
 
     def _run(cmd, *args, **kwargs):
-        if cmd[:1] == ["dvc"]:
+        if cmd and str(cmd[0]).rsplit("/", 1)[-1] == "dvc":
             return subprocess.CompletedProcess(cmd, 0, stdout="{}", stderr="")
         return real(cmd, *args, **kwargs)
 

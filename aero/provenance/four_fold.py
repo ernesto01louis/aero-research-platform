@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -90,6 +92,23 @@ def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
         raise ProvenanceError(f"`{cmd[0]}` not found — cannot compute provenance") from exc
 
 
+def _dvc_executable() -> str:
+    """Locate the `dvc` console script.
+
+    `dvc` ships with the `aero[provenance]` extra, installed into the same
+    environment as the running interpreter — so it sits next to
+    `sys.executable`. Resolving it there (rather than a bare `dvc`) makes
+    provenance work without the venv being on `PATH`.
+    """
+    candidate = Path(sys.executable).with_name("dvc")
+    if candidate.is_file():
+        return str(candidate)
+    found = shutil.which("dvc")
+    if found:
+        return found
+    raise ProvenanceError("`dvc` not found — install the aero[provenance] extra")
+
+
 def git_sha(repo_root: Path, *, allow_dirty: bool = False) -> str:
     """Resolve `git rev-parse HEAD`; fail loud on a dirty tree unless allowed.
 
@@ -122,7 +141,7 @@ def dvc_input_hash(repo_root: Path) -> str:
     sync with the remote — yields a stable constant, which is correct: it means
     the inputs are exactly the published versions. See ADR-004.
     """
-    proc = _run(["dvc", "status", "-c", "--json"], cwd=repo_root)
+    proc = _run([_dvc_executable(), "status", "-c", "--json"], cwd=repo_root)
     if proc.returncode != 0:
         raise ProvenanceError(
             f"`dvc status -c` failed (rc={proc.returncode}): {proc.stderr.strip()}"
