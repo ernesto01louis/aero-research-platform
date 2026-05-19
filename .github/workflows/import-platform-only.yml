@@ -1,0 +1,78 @@
+name: import-platform-only
+
+# Constitution Invariant 1 / 4 (PLATFORM-NOT-HUB, HEAVY-DEPS-IN-OPTIONAL-
+# EXTRAS-ONLY): the base `aero` install pulls stdlib + numpy + pydantic +
+# typer + loguru + dvc, and nothing solver- or ML-specific. This job is the
+# structural enforcement: a fresh venv with no extras must import `aero`
+# successfully and must NOT have any of the heavy solver/ML modules loaded.
+#
+# Stage 06 (ADR-006) promoted this to a required check — refactoring the
+# Solver protocol means the harness now imports `aero.adapters._base`, and
+# the only thing that prevents a future regression in `_base` is automated
+# verification that the import chain stays clean.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-platform-only-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  import-platform-only:
+    name: import aero with no extras
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ">=0.5"
+
+      - name: Install aero with NO extras
+        run: uv pip install --system -e .
+
+      - name: Import aero — no solver / ML / scientific modules may load
+        run: |
+          python - <<'PY'
+          import sys, importlib
+          # Importing the public surface that V&V and the CLI touch must stay
+          # within the platform-not-hub dependency set.
+          for mod in ("aero", "aero.adapters._base", "aero.vv", "aero.cli"):
+              importlib.import_module(mod)
+
+          banned = (
+              "xarray", "scipy", "mlflow", "pyfoam", "ofpp",
+              "torch", "jax", "physicsnemo", "openfoam",
+              "meshio", "mpi4py",
+          )
+          loaded = sorted(m for m in banned if m in sys.modules)
+          if loaded:
+              raise SystemExit(f"PLATFORM-NOT-HUB violation — banned modules loaded: {loaded}")
+          print("PLATFORM-NOT-HUB ok: no banned modules loaded by `import aero`.")
+          PY
+
+      - name: Independent-extras sanity — openfoam and su2 do not pull each other
+        run: |
+          # The two adapter extras must be installable independently; neither
+          # extra may transitively pull the other's heavy deps (guardrail 3).
+          python - <<'PY'
+          import tomllib, pathlib
+          data = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          extras = data["project"]["optional-dependencies"]
+          of = " ".join(extras["openfoam"]).lower()
+          su = " ".join(extras["su2"]).lower()
+          for needle, label in (("pyfoam", "pyfoam"), ("ofpp", "ofpp"), ("xarray", "xarray")):
+              assert needle not in su, f"aero[su2] must not pull {label}"
+          for needle, label in (("mpi4py", "mpi4py"), ("meshio", "meshio")):
+              assert needle not in of, f"aero[openfoam] must not pull {label}"
+          print("openfoam + su2 extras are independent.")
+          PY

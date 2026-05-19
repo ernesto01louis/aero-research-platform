@@ -277,15 +277,20 @@ def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
 
 @vv_app.command("list")
 def vv_list() -> None:
-    """List the registered V&V benchmark cases."""
+    """List the registered V&V benchmark cases (TMR + transonic)."""
     from aero.vv.tmr import TMR_CASES
+    from aero.vv.transonic import TRANSONIC_CASES
 
-    typer.echo("V&V benchmark cases (NASA TMR):\n")
-    for name, case in TMR_CASES.items():
-        typer.echo(f"  {name}")
-        typer.echo(f"      {case.description}")
-        metrics = ", ".join(f"{m.name} ({m.tolerance:.0%})" for m in case.metrics())
-        typer.echo(f"      metrics: {metrics}\n")
+    for header, cases in (
+        ("V&V benchmark cases (NASA TMR):", TMR_CASES),
+        ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
+    ):
+        typer.echo(header + "\n")
+        for name, case in cases.items():
+            typer.echo(f"  {name}")
+            typer.echo(f"      {case.description}")
+            metrics = ", ".join(f"{m.name} ({m.tolerance:.0%})" for m in case.metrics())
+            typer.echo(f"      metrics: {metrics}\n")
 
 
 @vv_app.command("run")
@@ -325,14 +330,16 @@ def vv_run(
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
     from aero.vv.tmr import TMR_CASES
+    from aero.vv.transonic import TRANSONIC_CASES
 
-    if case not in TMR_CASES:
-        known = ", ".join(TMR_CASES)
+    all_cases = {**TMR_CASES, **TRANSONIC_CASES}
+    if case not in all_cases:
+        known = ", ".join(all_cases)
         typer.echo(f"unknown V&V case '{case}' — known cases: {known}", err=True)
         raise typer.Exit(code=2)
 
     repo_root = _repo_root()
-    benchmark = TMR_CASES[case]
+    benchmark = all_cases[case]
     spec = benchmark.case_spec()
 
     from aero.provenance.db import resolve_dsn

@@ -1,0 +1,64 @@
+name: vv-transonic
+
+# V&V transonic — runs the Stage-06 compressible verification cases (the
+# transonic NACA 0012 and the ONERA M6 wing) through SU2 v8 on the self-hosted
+# `vv` runner. Nightly only — never on push/PR. These solves are slow
+# (transonic compressible RANS, multi-thousand iterations) and the cases are
+# Stage 06's *first cluster runs* of SU2 cases; their dashboard signal lives
+# alongside the TMR dashboard but does not gate PRs.
+#
+# A GitHub-hosted runner cannot reach the private aero cluster, the SU2 SIF,
+# the MLflow server, or the aero_provenance DB, so this job must run
+# self-hosted. The required, stage-gated check is `vv-required` (TMR only;
+# transonic is honestly slow + new). See ADR-006.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  vv-transonic:
+    name: V&V transonic — SU2 v8
+    runs-on: [self-hosted, vv]
+    timeout-minutes: 180
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install aero with the su2 + openfoam + provenance + vv extras
+        # OpenFOAM stays installed so a future cross-solver compare against
+        # `rhoCentralFoam` can run from this workflow without a re-provision.
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[openfoam,su2,provenance,vv,dev]"
+
+      - name: Fetch DVC-tracked transonic assets (ONERA M6 mesh + reference Cp)
+        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
+
+      - name: Run the transonic suite
+        # Tests are stage_06-marked + slow; they live under tests/vv/ alongside
+        # the TMR suite. The cases skip cleanly if the SU2 SIF / DSN / assets
+        # are unavailable.
+        run: |
+          .venv/bin/pytest -m "stage_06 and vv and slow" --run-slow -v \
+              tests/vv/test_transonic_naca0012.py \
+              tests/vv/test_transonic_onera_m6.py
+
+      - name: Regenerate the V&V dashboard
+        if: always()
+        run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
+
+      - name: Upload the V&V dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vv-dashboard-transonic
+          path: docs/vv-dashboard.html

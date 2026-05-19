@@ -38,12 +38,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install aero with the openfoam + provenance + vv extras
+      - name: Install aero with the openfoam + su2 + provenance + vv extras
+        # Stage 06 adds the SU2 path; the V&V suite runs the TMR cases through
+        # both solvers in one job. Tests skip cleanly if a SIF or the DSN is
+        # missing (the cluster fixtures gate per-solver readiness), so the
+        # combined install does not couple the two paths' availability.
         run: |
           uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,provenance,vv,dev]"
+          uv pip install -e ".[openfoam,su2,provenance,vv,dev]"
 
       - name: Run the V&V suite (single-grid on push/PR, + GCI sweep nightly)
+        # Stage 06: the test selector now picks up both stage_05 (OpenFOAM)
+        # and stage_06 (SU2) TMR paths via the `vv` + `slow` markers they
+        # share.
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             .venv/bin/pytest -m "vv and slow" --run-slow -v tests/vv
