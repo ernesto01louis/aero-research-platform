@@ -37,8 +37,12 @@ CREATE EXTENSION IF NOT EXISTS vector;
 GRANT CONNECT ON DATABASE aero_provenance TO aero_provenance_reader;
 GRANT USAGE ON SCHEMA public TO aero_provenance_reader;
 
--- The SELECT grants below are re-run AFTER `alembic upgrade head` has created
--- mlflow_artifact_provenance (an empty schema grants nothing). See ADR-004.
+-- alembic creates mlflow_artifact_provenance as aero_mlflow_user, so the
+-- default-privilege grant must target that role. This makes the reader's
+-- SELECT automatic for every table aero_mlflow_user creates from here on.
+ALTER DEFAULT PRIVILEGES FOR ROLE aero_mlflow_user IN SCHEMA public
+    GRANT SELECT ON TABLES TO aero_provenance_reader;
+
+-- For tables that already exist (none at provision time); harmless to re-run
+-- AFTER `alembic upgrade head` to cover mlflow_artifact_provenance directly.
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO aero_provenance_reader;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-    GRANT SELECT TO aero_provenance_reader;
