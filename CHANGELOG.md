@@ -7,39 +7,48 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
-### Stage 04 (Provenance Backbone) — in-repo work; deployment pending
+_(empty — work pending toward the next `v0.0.NN` stage tag)_
 
-In-repo backbone complete and committed; the live-infrastructure deployment
-(Vault, MLflow/MinIO, the Postgres LXC 202 databases) and the Zenodo DOI are
-an operator-run follow-up — see `docs/runbooks/stage-04-provenance-deploy.md`.
-The `v0.0.4` tag is deferred until the deployment closes the stage.
+## [0.0.4] - 2026-05-19
 
-#### Added
+### Added — Stage 04 (Provenance Backbone)
 
 - `aero/provenance/four_fold.py` — the four-fold provenance contract:
   `compute_provenance` → `ProvenanceTuple` (`git_sha`, `dvc_input_hash`,
   `container_sif_sha256`, `config_hash`), fail-loud `ProvenanceError`
 - `aero/provenance/mlflow.py` — `start_provenance_run`, logging the four-fold
-  tuple as tags to the remote tracking server (supersedes `mlflow_basic.py`)
-- `aero/provenance/db.py` — transactional Postgres mirror of the tuple
+  tuple as MLflow tags to the remote tracking server (supersedes
+  `mlflow_basic.py`)
+- `aero/provenance/db.py` — transactional Postgres mirror of the tuple into
+  `mlflow_artifact_provenance`
 - `conf/` — Hydra config tree; `aero run` composes a case and validates it
   through the strict `CaseSpec` boundary; `aero run --allow-dirty`
 - `aero[provenance]` extra — mlflow, dvc[s3], boto3, hydra-core, omegaconf,
-  psycopg2-binary, alembic
+  psycopg2-binary, alembic; `uv.lock` committed
 - `alembic` migration `004_provenance` — the `mlflow_artifact_provenance`
   mirror table; `db/provision/aero_databases.sql` (additive LXC 202 DDL)
 - DVC initialized; `data/references/naca0012/naca0012.csv` moved to DVC
-  tracking; `aero-minio` S3 remote configured
+  tracking; `aero-minio` S3 remote on the MinIO sidecar
 - Ansible roles `aero-vault` (LXC 217) and `aero-mlflow` (MinIO + MLflow +
   Vault Agent); `aero-vault` added to the inventory and the provisioner
-- `tests/stage_04/` hermetic suite; `.github/workflows/provenance-completeness.yml`
+- `tests/stage_04/` (48 hermetic + the slow `provenance-completeness` test);
+  `.github/workflows/provenance-completeness.yml`
 - `docs/adrs/ADR-004-four-fold-provenance-contract.md`,
   `docs/release/zenodo.md`, `docs/runbooks/stage-04-provenance-deploy.md`
 
-#### Changed
+### Deployed — Stage 04
+
+- New LXC 217 `aero-vault` running HashiCorp Vault 1.20.4 (raft, TLS)
+- MinIO + MLflow 3.12.0 + a Vault Agent on `aero-mlflow`, under systemd
+- `aero_mlflow` + `aero_provenance` databases on the shared Postgres LXC 202
+  (additive); the `004_provenance` migration applied
+- Verified end-to-end: `aero run naca0012` logs all four provenance tags and
+  the matching Postgres mirror row
+
+### Changed — Stage 04
 
 - `.pre-commit-config.yaml` — `check-added-large-files` exempts `uv.lock`
-- `uv.lock` is now committed
+- `aero/provenance/mlflow_basic.py` removed (superseded by `mlflow.py`)
 
 ## [0.0.3] - 2026-05-19
 

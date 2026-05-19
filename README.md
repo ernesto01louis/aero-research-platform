@@ -15,7 +15,7 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.4  ·  **Status:** partial  ·  **Completed:** 2026-05-19
+**Latest tag:** v0.0.4  ·  **Status:** complete  ·  **Completed:** 2026-05-19
 
 **Stage 04 — Provenance Backbone** — most recent stage.
 

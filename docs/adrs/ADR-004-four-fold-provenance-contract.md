@@ -66,9 +66,12 @@ remains the source of truth — kept for fast cross-run queries.
   instance: the cluster is application-agnostic, the additions (two DBs, two
   roles) are purely additive, and a memory-constrained host should not run a
   parallel Postgres. Executed only after operator `approved`.
-- **NFS-backed MinIO sidecar** inside `aero-mlflow` as the DVC + MLflow
-  artifact store, rather than a dedicated MinIO LXC: one fewer service to
-  maintain while TrueNAS handles durability.
+- **MinIO sidecar** inside `aero-mlflow` as the DVC + MLflow artifact store,
+  rather than a dedicated MinIO LXC: one fewer service to maintain. The plan
+  put MinIO's backend on the TrueNAS NFS dataset for durability; deployment
+  proved that unworkable — MinIO does not support network filesystems. MinIO
+  now stores data on the `aero-mlflow` LXC local disk; durability is the
+  nightly `vzdump` of the LXC. See "Deployment outcomes" below.
 - **Vault stands up now** (operator decision) on a new dedicated LXC 217
   `aero-vault`, extending the ADR-002 fleet. A dedicated node keeps the secret
   store off the app server. Single-node integrated raft storage; a Vault Agent
@@ -96,9 +99,37 @@ remains the source of truth — kept for fast cross-run queries.
 - **MinIO installed from the pinned release binary**, not a `.deb` — MinIO does
   not publish a versioned `.deb`; the SHA256-verified release binary plus an
   aero-authored systemd unit pins it exactly.
-- **TLS reverse proxy:** runs on `aero-mlflow` itself (in-LXC), not the Proxmox
-  host — avoids touching the host baseline (Hard Rule 11). On the VPN-only
-  private segment plain HTTP between aero LXCs is acceptable.
+- **TLS reverse proxy dropped.** The plan put a Caddy TLS proxy on the Proxmox
+  host; to avoid touching the host baseline (Hard Rule 11) it would move
+  in-LXC, but for Stage 04 the services run plain HTTP, reachable only from
+  the aero fleet's trusted CIDRs. An in-LXC TLS front is a follow-up.
+
+### Deployment outcomes (2026-05-19)
+
+The first real rollout of the Ansible roles surfaced infrastructure realities
+the plan did not anticipate:
+
+- **MinIO does not support NFS.** The plan stored MinIO's backend on the
+  TrueNAS NFS dataset. In practice the export squashes every client uid
+  (root included) to `nobody`, and MinIO's IAM layer hit prefix-consistency
+  errors — MinIO requires local, directly-attached storage. **MinIO data
+  moved to the `aero-mlflow` LXC local disk** (`/opt/aero/minio-data`);
+  durability is the nightly LXC `vzdump`. Revisit if artifact volume
+  outgrows the 50 GB LXC disk.
+- **The aero LXCs have no shared DNS.** Each LXC cannot resolve the others'
+  hostnames. Service-to-service config therefore uses **IP addresses**: the
+  MLflow `tracking_uri` (`conf/mlflow/default.yaml`), the DVC remote endpoint
+  (`.dvc/config`), and the Vault Agent address all point at IPs. A homelab
+  DNS entry for the `aero-*` names would let hostnames work — a follow-up.
+- **MinIO/MLflow firewall** opens to the fleet's trusted CIDRs (LAN +
+  private data plane + Tailscale), matching the `aero-base` SSH policy —
+  not the private segment alone, so the Proxmox host (Ansible/dev) can reach
+  them. Not internet-exposed.
+- **`dvc` is resolved next to `sys.executable`**, not via `PATH` — it ships
+  in the `aero[provenance]` extra, so it sits beside the venv's Python; this
+  makes `aero run` work without the venv activated.
+- **Vault Agent** runs the `vault` binary in template-only mode (no `cache`
+  stanza — that needs an API listener the Agent does not define).
 
 ### Pinned versions (Hard Rule 8)
 
@@ -120,7 +151,10 @@ remains the source of truth — kept for fast cross-run queries.
 - **Neutral / followup:** `dvc` remains a base dependency (a latent
   PLATFORM-NOT-HUB tension from Stage 01) — left as-is to avoid breaking
   Stage 03 installs; revisit if it bites. Vault auto-unseal (cloud KMS) is not
-  configured; unseal is manual.
+  configured; unseal is manual. MinIO on LXC-local disk loses the
+  TrueNAS-managed durability the plan wanted — the LXC `vzdump` covers it for
+  now. A homelab DNS record for the `aero-*` hosts would retire the
+  IP-addressed config.
 
 ## Pros and cons of considered options
 
