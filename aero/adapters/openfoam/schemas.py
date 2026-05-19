@@ -51,21 +51,19 @@ class CaseSpec(BaseModel):
     aoa_deg: float = Field(..., description="Angle of attack, degrees.")
     chord: float = Field(default=1.0, gt=0, description="Chord length.")
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
-    end_time: int = Field(default=3000, gt=0, description="Max SIMPLE iterations.")
+    end_time: int = Field(default=1500, gt=0, description="Max SIMPLE iterations.")
     turbulence_model: Literal["kOmegaSST"] = Field(
         default="kOmegaSST", description="RAS turbulence closure."
     )
 
     # --- mesh resolution (2D C-grid) ---
     farfield_radius_chords: float = Field(
-        default=20.0, gt=1.0, description="Outer C-boundary radius, in chords."
+        default=20.0, gt=1.0, description="Outer O-grid boundary radius, in chords."
     )
-    wake_length_chords: float = Field(
-        default=20.0, gt=1.0, description="Downstream extent past the TE, in chords."
+    n_surface: int = Field(
+        default=120, gt=3, description="Cells along each airfoil quarter (O-grid block)."
     )
-    n_surface: int = Field(default=120, gt=3, description="Cells along each airfoil side.")
     n_normal: int = Field(default=100, gt=3, description="Cells wall-normal to the far field.")
-    n_wake: int = Field(default=60, gt=3, description="Cells along the wake cut.")
     first_cell_height: float = Field(
         default=5.0e-6, gt=0, description="Wall-normal first-cell height, in chords."
     )

@@ -2,17 +2,17 @@
 
 Stage 03 writes the case as plain string templates — no Jinja, no Hydra (the
 Hydra/pydantic config boundary is Stage 04). The non-trivial part is the
-`blockMeshDict`: a 2D C-grid around the airfoil, built as three blocks —
+`blockMeshDict`: a 2D **O-grid** around the airfoil, built as four blocks,
+each wrapping one quarter of the section —
 
-    block A  lower wake   (wake cut TE->outlet, below)
-    block B  airfoil wrap (airfoil surface TE->LE->TE; wraps the front)
-    block C  upper wake   (wake cut TE->outlet, above)
+    A  trailing edge -> upper mid     C  leading edge  -> lower mid
+    B  upper mid     -> leading edge  D  lower mid      -> trailing edge
 
-The airfoil surface is a `polyLine` edge through the analytic NACA 0012
-points (`aero.adapters.openfoam.geometry`); the outer "C" is a `polyLine`
-through a sampled semicircle + straight tails. The trailing edge is two
-coincident vertices so block B is a well-formed hexahedron that wraps the
-section; blockMesh merges the coincident faces.
+The airfoil surface is a `polyLine` edge per quarter, through the analytic
+NACA 0012 points (`aero.adapters.openfoam.geometry`); the outer boundary is a
+circle at the far-field radius (`arc` edges). Every vertex is distinct and
+every block is a well-formed, positive-volume hexahedron — no doubled
+trailing-edge vertex, no `mergePatchPairs`.
 """
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from aero.adapters.openfoam.schemas import CaseSpec
 
 _U_INF = 1.0  # reference freestream speed; the solve is dimensionless (Re fixes nu)
 _RHO_INF = 1.0  # reference density (incompressible: forceCoeffs dimensionalising)
-_WAKE_X_EXPANSION = 50.0  # blockMesh ξ expansion along the wake cut (fine near the TE)
 
 
 # --- physical state -----------------------------------------------------------
@@ -71,25 +70,25 @@ def _eta_expansion(spec: CaseSpec) -> float:
     return ratio ** (spec.n_normal - 1)
 
 
-# --- geometry of the C-grid ---------------------------------------------------
-def _airfoil_contour(spec: CaseSpec) -> NDArray[np.float64]:
-    """Closed airfoil contour, trailing edge -> lower -> LE -> upper -> trailing edge."""
-    upper = naca0012_coordinates(spec.n_surface, chord=spec.chord)  # LE -> TE, +y
-    lower = upper[::-1].copy()  # TE -> LE
-    lower[:, 1] *= -1.0  # mirror to the lower surface
-    # TE..LE (lower) then LE..TE (upper); drop the duplicated LE row at the join.
-    return np.asarray(np.vstack([lower, upper[1:]]), dtype=np.float64)
+# --- airfoil geometry, split into four O-grid quarters ------------------------
+def _quarters(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
+    """The four airfoil-quarter point arrays, each ordered from block v0 to v1.
 
-
-def _outer_contour(spec: CaseSpec) -> NDArray[np.float64]:
-    """Outer C boundary from (1,-R) round the front semicircle to (1,+R)."""
-    r = spec.farfield_radius_chords * spec.chord
-    arc_n = max(spec.n_surface, 60)
-    phi = np.linspace(-0.5 * np.pi, -1.5 * np.pi, arc_n)  # (0,-R) -> (-R,0) -> (0,+R)
-    arc = np.column_stack([r * np.cos(phi), r * np.sin(phi)])
-    tail_lo = np.array([[spec.chord, -r]])  # straight tail, b_te -> (0,-R)
-    tail_hi = np.array([[spec.chord, r]])  # straight tail, (0,+R) -> t_te
-    return np.asarray(np.vstack([tail_lo, arc, tail_hi]), dtype=np.float64)
+    `naca0012_coordinates` returns the upper surface LE->TE with an odd point
+    count, so the middle index is the mid-chord split point.
+    """
+    n = spec.n_surface
+    upper = naca0012_coordinates(2 * n + 1, chord=spec.chord)  # LE -> TE, +y
+    lower = upper.copy()
+    lower[:, 1] *= -1.0
+    return {
+        # A: upper mid -> TE          B: LE -> upper mid
+        "A": np.asarray(upper[n:], dtype=np.float64),
+        "B": np.asarray(upper[: n + 1], dtype=np.float64),
+        # C: lower mid -> LE          D: TE -> lower mid
+        "C": np.asarray(lower[n::-1], dtype=np.float64),
+        "D": np.asarray(lower[: n - 1 : -1], dtype=np.float64),
+    }
 
 
 # --- OpenFOAM dictionary rendering -------------------------------------------
@@ -113,86 +112,80 @@ def _pt(x: float, y: float, z: float) -> str:
 
 
 def _blockmeshdict(spec: CaseSpec) -> str:
-    c, r = spec.chord, spec.farfield_radius_chords * spec.chord
-    x_out = c + spec.wake_length_chords * c
+    c = spec.chord
+    cx = 0.5 * c  # O-grid centre (mid-chord)
+    r = spec.farfield_radius_chords * c
     span = spec.span
     g = _eta_expansion(spec)
+    quarters = _quarters(spec)
 
-    # 8 distinct corner positions; te / outlet-inner are doubled (z=0 and z=span)
-    # so block B wraps cleanly. Indices 0-7 at z=0, +8 at z=span.
+    mid = quarters["B"][-1]  # upper mid-chord split point
+    um = (float(mid[0]), float(mid[1]))
+    lm = (float(mid[0]), -float(mid[1]))
+    # 0 te, 1 um, 2 le, 3 lm; 4 O_te, 5 O_um, 6 O_le, 7 O_lm. +8 at z=span.
     base = [
-        (x_out, -r),  # 0 o_bot
-        (c, -r),  # 1 b_te
-        (c, 0.0),  # 2 te_l
-        (x_out, 0.0),  # 3 o_in_l
-        (c, 0.0),  # 4 te_u   (coincident with te_l)
-        (x_out, 0.0),  # 5 o_in_u (coincident with o_in_l)
-        (c, r),  # 6 t_te
-        (x_out, r),  # 7 o_top
+        (c, 0.0),  # 0 trailing edge
+        um,  # 1 upper mid
+        (0.0, 0.0),  # 2 leading edge
+        lm,  # 3 lower mid
+        (cx + r, 0.0),  # 4 outer, aft
+        (cx, r),  # 5 outer, top
+        (cx - r, 0.0),  # 6 outer, fore
+        (cx, -r),  # 7 outer, bottom
     ]
     verts = [_pt(x, y, 0.0) for x, y in base] + [_pt(x, y, span) for x, y in base]
 
-    wx = _WAKE_X_EXPANSION
+    nq, nn = spec.n_surface, spec.n_normal
+    # Four O-grid blocks, each ξ along a quarter of the airfoil, η outward.
+    # Vertex orders are wound clockwise-in-xy so every block has positive volume.
     blocks = [
-        # A lower wake; B airfoil wrap; C upper wake. η-grading: A runs
-        # outer->inner so it uses 1/g; B and C run inner->outer so they use g.
-        f"    hex (1 0 3 2 9 8 11 10) ({spec.n_wake} {spec.n_normal} 1) "
-        f"simpleGrading ({wx} {1.0 / g:.6g} 1)",
-        f"    hex (2 4 6 1 10 12 14 9) ({2 * spec.n_surface} {spec.n_normal} 1) "
-        f"simpleGrading (1 {g:.6g} 1)",
-        f"    hex (4 5 7 6 12 13 15 14) ({spec.n_wake} {spec.n_normal} 1) "
-        f"simpleGrading ({wx} {g:.6g} 1)",
+        f"    hex (1 0 4 5 9 8 12 13) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
+        f"    hex (2 1 5 6 10 9 13 14) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
+        f"    hex (3 2 6 7 11 10 14 15) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
+        f"    hex (0 3 7 4 8 11 15 12) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
     ]
 
     def poly(v1: int, v2: int, pts: NDArray[np.float64], z: float) -> str:
         body = "\n".join(f"            {_pt(float(x), float(y), z)}" for x, y in pts)
         return f"    polyLine {v1} {v2}\n        (\n{body}\n        )"
 
-    airfoil = _airfoil_contour(spec)[1:-1]  # interior points (exclude the te vertices)
-    outer = _outer_contour(spec)[1:-1]
-    edges = [
-        poly(2, 4, airfoil, 0.0),
-        poly(10, 12, airfoil, span),
-        poly(1, 6, outer, 0.0),
-        poly(9, 14, outer, span),
-    ]
+    # Inner-edge polyLines: interior points only (the endpoints are vertices).
+    edges = []
+    for (v1, v2), key in (((1, 0), "A"), ((2, 1), "B"), ((3, 2), "C"), ((0, 3), "D")):
+        interior = quarters[key][1:-1]
+        edges.append(poly(v1, v2, interior, 0.0))
+        edges.append(poly(v1 + 8, v2 + 8, interior, span))
+
+    # Outer-boundary arcs: a circle of radius r about the O-grid centre — keeps
+    # the wall-normal grid lines near-orthogonal out to the far field.
+    def arc(v1: int, v2: int, deg: float, z: float) -> str:
+        mx = cx + r * math.cos(math.radians(deg))
+        my = r * math.sin(math.radians(deg))
+        return f"    arc {v1} {v2} {_pt(mx, my, z)}"
+
+    for v1, v2, deg in ((4, 5, 45.0), (5, 6, 135.0), (6, 7, 225.0), (7, 4, 315.0)):
+        edges.append(arc(v1, v2, deg, 0.0))
+        edges.append(arc(v1 + 8, v2 + 8, deg, span))
 
     boundary = """    airfoil
     {
         type wall;
-        faces ( (2 10 12 4) );
+        faces ( (1 0 8 9) (2 1 9 10) (3 2 10 11) (0 3 11 8) );
     }
     farfield
     {
         type patch;
-        faces
-        (
-            (0 8 9 1)
-            (3 0 8 11)
-            (1 9 14 6)
-            (5 13 15 7)
-            (6 14 15 7)
-        );
-    }
-    wake_lower
-    {
-        type patch;
-        faces ( (2 3 11 10) );
-    }
-    wake_upper
-    {
-        type patch;
-        faces ( (4 5 13 12) );
+        faces ( (5 4 12 13) (6 5 13 14) (7 6 14 15) (4 7 15 12) );
     }
     front
     {
         type empty;
-        faces ( (1 0 3 2) (2 4 6 1) (4 5 7 6) );
+        faces ( (1 0 4 5) (2 1 5 6) (3 2 6 7) (0 3 7 4) );
     }
     back
     {
         type empty;
-        faces ( (9 8 11 10) (10 12 14 9) (12 13 15 14) );
+        faces ( (9 8 12 13) (10 9 13 14) (11 10 14 15) (8 11 15 12) );
     }"""
 
     verts_block = "\n".join(f"    {v}" for v in verts)
@@ -205,10 +198,7 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         + f"blocks\n(\n{blocks_block}\n);\n\n"
         + f"edges\n(\n{edges_block}\n);\n\n"
         + f"boundary\n(\n{boundary}\n);\n\n"
-        # The C-grid wake cut: blocks A and C carry coincident patches there
-        # (the trailing edge is a doubled vertex), stitched into an internal
-        # face so the wake is continuous across y = 0.
-        + "mergePatchPairs ( (wake_lower wake_upper) );\n"
+        + "mergePatchPairs ( );\n"
     )
 
 
@@ -271,9 +261,9 @@ divSchemes
     div(phi,omega)  bounded Gauss upwind;
     div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
-laplacianSchemes  { default Gauss linear corrected; }
+laplacianSchemes  { default Gauss linear limited corrected 0.5; }
 interpolationSchemes { default linear; }
-snGradSchemes   { default corrected; }
+snGradSchemes   { default limited corrected 0.5; }
 wallDist        { method meshWave; }
 """
     )
@@ -304,7 +294,7 @@ solvers
 SIMPLE
 {
     consistent          yes;
-    nNonOrthogonalCorrectors 1;
+    nNonOrthogonalCorrectors 2;
     residualControl
     {
         p               1e-5;

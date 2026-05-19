@@ -28,6 +28,15 @@ _SOLVER_VERSION = "OpenFOAM-ESI v2412"
 _REFERENCE_CASE = "naca0012"
 
 
+@app.callback()
+def _cli() -> None:
+    """aero-research-platform command-line interface.
+
+    A no-op callback so typer always treats `run` as a named subcommand
+    (`aero run ...`) rather than collapsing it into the root command.
+    """
+
+
 def _repo_root() -> Path:
     """Repo root — the editable-installed package lives at ``<repo>/aero/``."""
     return Path(__file__).resolve().parents[1]
