@@ -143,6 +143,8 @@ class BenchmarkCase(Protocol):
 
     name: str
     description: str
+    sweep_metric: str
+    """The scalar metric a `MeshSweep` tracks for this case's GCI study."""
 
     def case_spec(self) -> Any:
         """The solver input spec (a `CaseSpec` or a `TMRCaseSpec`)."""
@@ -269,6 +271,30 @@ def load_series_csv(path: Path, *, x_col: str, y_col: str) -> Series:
     return Series(x=tuple(r[0] for r in rows), y=tuple(r[1] for r in rows))
 
 
+def load_scalar_csv(path: Path, *, key_col: str, key: float, value_col: str) -> float:
+    """Load one scalar from a header CSV — the `value_col` of the `key`-keyed row."""
+    if not path.is_file():
+        raise BenchmarkError(
+            f"reference data not found: {path} — is the DVC remote pulled (`dvc pull`)?"
+        )
+    with path.open(encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if key_col not in row or value_col not in row:
+                raise BenchmarkError(f"{path} has no columns {key_col!r}/{value_col!r}")
+            if float(row[key_col]) == key:
+                return float(row[value_col])
+    raise BenchmarkError(f"{path} has no row with {key_col}={key}")
+
+
+def scaled_count(n: int, ratio: float, *, minimum: int = 4) -> int:
+    """A mesh cell count scaled by `1 / ratio` — the coarsening a sweep applies.
+
+    `ratio >= 1` coarsens (fewer cells); `ratio == 1` is the base count. The
+    result is clamped to `minimum` so a coarse grid stays well-formed.
+    """
+    return max(minimum, round(n / ratio))
+
+
 class ScalarObservation(BaseModel):
     """One scalar measurement from a solve — the unit a mesh sweep collects."""
 
@@ -341,7 +367,7 @@ class BenchmarkRunner:
 
         mlflow_run_id: str | None = None
         if log_mlflow:
-            mlflow_run_id = self._log(case, provenance, metric_results, result, n_cells)
+            mlflow_run_id = self._log(case, provenance, metric_results, result, status)
 
         return BenchmarkResult(
             case_name=case.name,
@@ -392,7 +418,7 @@ class BenchmarkRunner:
         provenance: ProvenanceTuple,
         metric_results: tuple[MetricResult, ...],
         result: Any,
-        n_cells: int | None,
+        status: str,
     ) -> str:
         """Log the run to MLflow — four-fold tags, per-metric errors, artifacts."""
         from aero.provenance.mlflow import log_artifact, log_metrics, start_provenance_run
@@ -405,7 +431,11 @@ class BenchmarkRunner:
             case_name=case.name,
             db_dsn=self.db_dsn,
             stage=self.stage,
-            extra_tags={"validation_tag": case.name, "solver_version": self.solver_version},
+            extra_tags={
+                "validation_tag": case.name,
+                "solver_version": self.solver_version,
+                "vv_status": status,
+            },
         ) as run:
             log_metrics(metrics)
             for m in metric_results:

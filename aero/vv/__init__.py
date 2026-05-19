@@ -24,8 +24,11 @@ from aero.vv._base import (
     Series,
     SolverLike,
     compare,
+    load_scalar_csv,
     load_series_csv,
+    scaled_count,
 )
+from aero.vv.dashboard import DashboardEntry, render_dashboard
 from aero.vv.mesh_sweep import (
     GridPoint,
     MeshSweep,
@@ -38,6 +41,7 @@ __all__ = [
     "BenchmarkError",
     "BenchmarkResult",
     "BenchmarkRunner",
+    "DashboardEntry",
     "GridPoint",
     "MeshSweep",
     "MetricResult",
@@ -49,5 +53,8 @@ __all__ = [
     "SweepReport",
     "compare",
     "grid_convergence_index",
+    "load_scalar_csv",
     "load_series_csv",
+    "render_dashboard",
+    "scaled_count",
 ]

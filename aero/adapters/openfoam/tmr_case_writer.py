@@ -157,7 +157,8 @@ def _tmr_fields(
         ),
         "nut": per_field(
             f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-            "        type nutkWallFunction;\n        value uniform 0;",
+            # Wall-resolved (y+ < 1): low-Re wall treatment, not a log-law function.
+            "        type nutLowReWallFunction;\n        value uniform 0;",
             f"{nut:.8g}",
             "nut",
             "volScalarField",
@@ -198,9 +199,13 @@ def _flat_plate_blockmesh(spec: FlatPlateSpec) -> str:
     verts = [pt(x, y, 0.0) for x, y in base] + [pt(x, y, span) for x, y in base]
     g_eta = expansion(h, spec.n_normal, spec.first_cell_height)
     nrm, ni, nsw = spec.n_normal, spec.n_inlet, spec.n_streamwise
+    # Cluster the plate's streamwise cells toward the leading edge: Cf ~ x^-0.2
+    # is steepest there, and a uniform spacing under-resolves it (Cf ran ~16%
+    # high at x=0.05 with uniform cells). First cell ~ 1/8 of the uniform size.
+    g_le = expansion(pl, nsw, pl / nsw / 8.0)
     blocks = [
         f"    hex (0 1 4 3 6 7 10 9) ({ni} {nrm} 1) simpleGrading (1 {g_eta:.8g} 1)",
-        f"    hex (1 2 5 4 7 8 11 10) ({nsw} {nrm} 1) simpleGrading (1 {g_eta:.8g} 1)",
+        f"    hex (1 2 5 4 7 8 11 10) ({nsw} {nrm} 1) simpleGrading ({g_le:.8g} {g_eta:.8g} 1)",
     ]
 
     def face(a: int, b: int) -> str:

@@ -36,6 +36,8 @@ from aero.adapters.openfoam.schemas import (
     MeshHandle,
     ResultHandle,
 )
+from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
+from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
 from aero.orchestration._base import Executor
 
 if TYPE_CHECKING:
@@ -82,13 +84,20 @@ class OpenFOAMSolver:
         self.host_nfs_root = Path(host_nfs_root)
         self.remote_nfs_root = Path(remote_nfs_root)
 
-    def prepare(self, case: CaseSpec) -> CaseDir:
-        """Write the OpenFOAM case onto the shared NFS dataset."""
+    def prepare(self, case: CaseSpec | FlatPlateSpec | Bump2DSpec) -> CaseDir:
+        """Write the OpenFOAM case onto the shared NFS dataset.
+
+        Dispatches on the spec type: an airfoil `CaseSpec` is written by the
+        C-grid `write_case`; a TMR geometry spec by `write_tmr_case`.
+        """
         run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}"
         host_path = self.host_nfs_root / RUNS_SUBDIR / run_id
         remote_path = self.remote_nfs_root / RUNS_SUBDIR / run_id
         logger.info("preparing case {} at {}", run_id, host_path)
-        write_case(case, host_path)
+        if isinstance(case, CaseSpec):
+            write_case(case, host_path)
+        else:
+            write_tmr_case(case, host_path)
         return CaseDir(run_id=run_id, spec=case, host_path=host_path, remote_path=remote_path)
 
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle:

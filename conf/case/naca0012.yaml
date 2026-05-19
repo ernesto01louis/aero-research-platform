@@ -16,8 +16,10 @@ chord: 1.0
 span: 1.0
 end_time: 1500
 turbulence_model: kOmegaSST
-farfield_radius_chords: 20.0
+farfield_extent_chords: 100.0
 n_surface: 120
-n_normal: 100
-first_cell_height: 5.0e-6
+n_normal: 120
+n_front: 48
+n_wake: 72
+first_cell_height: 2.0e-6
 turbulence_intensity: 0.001

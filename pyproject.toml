@@ -227,6 +227,7 @@ addopts = [
 markers = [
     "slow: long-running test (skipped in default unit suite)",
     "vv: verification & validation test against reference data",
+    "mesh_sweep: multi-grid GCI study (nightly only; excluded from PR-gating)",
     "stage_03: tests gated to stage 03 deliverables",
     "stage_04: tests gated to stage 04 deliverables",
     "stage_05: tests gated to stage 05 deliverables",

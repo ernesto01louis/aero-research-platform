@@ -158,6 +158,17 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   Case configs are composed by Hydra from `conf/`; secrets come from Vault
   on `aero-vault` (LXC 217). `aero run` now requires the live cluster. See
   ADR-004.
+- **V&V harness** (Stage 05) — `aero/vv/` runs canonical NASA TMR cases
+  through any `SolverLike` solver, compares against reference data with tight
+  tolerances (Cd 3 %, Cf 5 %, Cp 3 %), and logs a `BenchmarkResult` with a
+  `validation_tag` MLflow tag. `aero vv list|run|report`; `aero vv run --case
+  X --mesh-sweep` runs an ASME V&V 20 GCI study. **Before any
+  `production`-tagged run, verify `aero vv report --latest` shows all green —
+  a red V&V dashboard means no `production` runs.** A tolerance is a contract:
+  a failing case is investigated, never relaxed to pass. The airfoil mesh is
+  now an eight-block C-grid (`farfield_extent_chords`, wake cut, y+ < 1 with
+  `nutLowReWallFunction`) — the Stage-03 O-grid is retired. `vv-required` is a
+  stage-gated required CI check. See ADR-005.
 
 ## Pointers (do not re-derive — read these)
 

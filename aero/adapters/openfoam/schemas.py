@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
+
 # --- platform paths -----------------------------------------------------------
 # The aero NFS dataset is mounted at different points on the CLI host and
 # inside the aero LXC; a case written on one side is read on the other.
@@ -91,7 +93,9 @@ class CaseDir(BaseModel):
     model_config = _STRICT
 
     run_id: str = Field(..., min_length=1, description="Unique run identifier.")
-    spec: CaseSpec = Field(..., description="The spec this case was built from.")
+    spec: CaseSpec | FlatPlateSpec | Bump2DSpec = Field(
+        ..., description="The spec this case was built from (airfoil or TMR geometry)."
+    )
     host_path: Path = Field(..., description="Case path as seen by the aero process.")
     remote_path: Path = Field(..., description="Case path as seen inside the LXC/SIF.")
 

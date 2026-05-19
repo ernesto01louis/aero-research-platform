@@ -215,5 +215,224 @@ def run(
     typer.echo(f"  MLflow run  {run_id}")
 
 
+# =============================================================================
+# `aero vv` — the V&V harness against NASA TMR reference cases (Stage 05)
+# =============================================================================
+vv_app = typer.Typer(
+    name="vv",
+    help="V&V harness — run NASA TMR verification cases and report their status.",
+    no_args_is_help=True,
+)
+app.add_typer(vv_app, name="vv")
+
+# Extra modules the `vv run` / `vv report` paths need on top of `_REQUIRED_MODULES`.
+_VV_MODULES = ("scipy",)
+
+
+def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
+    """`(tracking_uri, experiment, container_sif)` for V&V runs, from `conf/`.
+
+    The V&V cases are Python-defined (`aero.vv.tmr.TMR_CASES`), so only the
+    non-case Hydra layers are needed; composing the default config yields them.
+    """
+    cfg = _compose_config(repo_root, "naca0012")
+    return (
+        str(cfg.mlflow.tracking_uri),
+        str(cfg.mlflow.experiment),
+        str(cfg.provenance.container_sif),
+    )
+
+
+@vv_app.command("list")
+def vv_list() -> None:
+    """List the registered V&V benchmark cases."""
+    from aero.vv.tmr import TMR_CASES
+
+    typer.echo("V&V benchmark cases (NASA TMR):\n")
+    for name, case in TMR_CASES.items():
+        typer.echo(f"  {name}")
+        typer.echo(f"      {case.description}")
+        metrics = ", ".join(f"{m.name} ({m.tolerance:.0%})" for m in case.metrics())
+        typer.echo(f"      metrics: {metrics}\n")
+
+
+@vv_app.command("run")
+def vv_run(
+    case: str = typer.Option(..., "--case", help="TMR case name (see `aero vv list`)."),
+    executor: str = typer.Option("local-ssh", "--executor", help="Executor backend."),
+    host: str = typer.Option("aero-build", "--host", help="LXC the solve runs on."),
+    allow_dirty: bool = typer.Option(
+        False, "--allow-dirty", help="Allow a dirty tree (SHA tagged '-dirty')."
+    ),
+    mesh_sweep: bool = typer.Option(
+        False, "--mesh-sweep", help="Run a 3-grid GCI study instead of a single solve."
+    ),
+) -> None:
+    """Run one NASA TMR verification case and report its V&V status."""
+    logger.remove()
+    logger.add(sys.stderr, level="INFO", format="<level>{level: <7}</level> {message}")
+
+    if executor != "local-ssh":
+        typer.echo(f"unknown executor '{executor}' — only 'local-ssh' is supported", err=True)
+        raise typer.Exit(code=2)
+    for module in (*_REQUIRED_MODULES, *_VV_MODULES):
+        if importlib.util.find_spec(module) is None:
+            typer.echo(
+                f"missing dependency '{module}' — install the extras:\n"
+                "  pip install -e '.[openfoam,provenance,vv]'",
+                err=True,
+            )
+            raise typer.Exit(code=3)
+
+    from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
+    from aero.vv.tmr import TMR_CASES
+
+    if case not in TMR_CASES:
+        known = ", ".join(TMR_CASES)
+        typer.echo(f"unknown V&V case '{case}' — known cases: {known}", err=True)
+        raise typer.Exit(code=2)
+
+    repo_root = _repo_root()
+    benchmark = TMR_CASES[case]
+    spec = benchmark.case_spec()
+
+    from aero.provenance.db import resolve_dsn
+
+    tracking_uri, experiment, container_sif = _vv_settings(repo_root)
+    try:
+        db_dsn = resolve_dsn()
+        provenance = compute_provenance(
+            repo_root=repo_root,
+            container_sif=container_sif,
+            # The case spec IS the V&V run's config — hash it for config_hash.
+            resolved_config=spec.model_dump(mode="json"),
+            allow_dirty=allow_dirty,
+        )
+    except ProvenanceError as exc:
+        typer.echo(f"provenance error: {exc}", err=True)
+        raise typer.Exit(code=4) from exc
+
+    host_root, remote_root = _detect_nfs_roots()
+    solver = OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
+    ssh = LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
+    runner = BenchmarkRunner(
+        solver=solver,
+        executor=ssh,
+        tracking_uri=tracking_uri,
+        experiment=experiment,
+        db_dsn=db_dsn,
+        solver_version=_SOLVER_VERSION,
+        stage="05",
+    )
+
+    try:
+        if mesh_sweep:
+            report = MeshSweep(benchmark, metric=benchmark.sweep_metric).run(
+                runner, provenance=provenance, repo_root=repo_root
+            )
+            typer.echo("")
+            typer.echo(f"  GCI mesh sweep — {report.case_name}  (metric: {report.metric})")
+            for g in report.grids:
+                typer.echo(
+                    f"    ratio {g.refinement_ratio:>4}  "
+                    f"{g.n_cells:>8} cells  {report.metric} = {g.metric_value:.6g}"
+                )
+            typer.echo(f"  observed order p     {report.observed_order_p:.3f}")
+            typer.echo(f"  extrapolated value   {report.extrapolated_value:.6g}")
+            typer.echo(f"  GCI (fine grid)      {report.gci_fine_pct:.3f} %")
+            typer.echo(f"  monotonic            {report.monotonic}")
+            if not report.monotonic:
+                typer.echo("  WARNING: non-monotone convergence — GCI is not strictly valid")
+            return
+
+        result = runner.run(benchmark, provenance=provenance, repo_root=repo_root)
+    except BenchmarkError as exc:
+        typer.echo(f"benchmark error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("")
+    typer.echo(f"  case        {result.case_name}")
+    typer.echo(f"  status      {result.status.upper()}")
+    for m in result.metrics:
+        mark = "ok " if m.passed else "OVER"
+        typer.echo(f"  {m.name:<10}  {mark}  error {m.error:.4%}  (tolerance {m.tolerance:.1%})")
+    typer.echo(f"  MLflow run  {result.mlflow_run_id}")
+    if result.status != "pass":
+        raise typer.Exit(code=1)
+
+
+@vv_app.command("report")
+def vv_report(
+    latest: bool = typer.Option(False, "--latest", help="Show only the most recent run per case."),
+    json_out: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    html_path: str = typer.Option("", "--html", help="Also write the HTML dashboard here."),
+) -> None:
+    """Report recent V&V runs from MLflow — the production-gate green/red check."""
+    import json as _json
+
+    if importlib.util.find_spec("mlflow") is None:
+        typer.echo("missing dependency 'mlflow' — install '.[provenance]'", err=True)
+        raise typer.Exit(code=3)
+
+    from mlflow.tracking import MlflowClient
+
+    from aero.vv import DashboardEntry, render_dashboard
+
+    tracking_uri, experiment, _ = _vv_settings(_repo_root())
+    client = MlflowClient(tracking_uri=tracking_uri)
+    exp = client.get_experiment_by_name(experiment)
+    if exp is None:
+        typer.echo(f"no MLflow experiment '{experiment}'", err=True)
+        raise typer.Exit(code=1)
+
+    runs = client.search_runs([exp.experiment_id], order_by=["start_time DESC"], max_results=500)
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for run in runs:
+        tag = run.data.tags.get("validation_tag")
+        if not tag or tag.endswith("-sweep"):
+            continue
+        if latest and tag in seen:
+            continue
+        seen.add(tag)
+        errors = {k[:-6]: float(v) for k, v in run.data.metrics.items() if k.endswith("_error")}
+        rows.append(
+            {
+                "case": tag,
+                "status": run.data.tags.get("vv_status", "unknown"),
+                "run_id": run.info.run_id,
+                "git_sha": run.data.tags.get("git_sha", ""),
+                "metric_errors": errors,
+            }
+        )
+
+    if html_path:
+        render_dashboard(
+            [
+                DashboardEntry(
+                    case_name=r["case"],
+                    status=r["status"],
+                    git_sha=r["git_sha"],
+                    mlflow_run_id=r["run_id"],
+                    metric_errors=r["metric_errors"],
+                )
+                for r in rows
+            ],
+            Path(html_path),
+        )
+        typer.echo(f"dashboard written to {html_path}")
+
+    if json_out:
+        typer.echo(_json.dumps(rows, indent=2))
+        return
+    if not rows:
+        typer.echo("no V&V runs found in MLflow")
+        return
+    typer.echo("\n  V&V runs" + (" (latest per case)" if latest else "") + ":\n")
+    for r in rows:
+        mark = "GREEN" if r["status"] == "pass" else "RED  "
+        typer.echo(f"  [{mark}] {r['case']:<24} {r['status']:<8} {r['run_id']}")
+
+
 if __name__ == "__main__":
     app()

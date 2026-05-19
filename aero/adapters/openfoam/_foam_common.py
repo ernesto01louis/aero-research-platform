@@ -17,6 +17,14 @@ from __future__ import annotations
 U_INF = 1.0  # reference freestream speed; the solve is dimensionless (Re fixes nu)
 RHO_INF = 1.0  # reference density (incompressible: forceCoeffs dimensionalising)
 
+# Freestream eddy-viscosity ratio nut/nu. NASA TMR specifies a nearly-laminar
+# freestream for the k-omega SST verification cases (mu_t/mu_inf ~ 0.009): the
+# wall-bounded turbulence is self-sustaining via production, so a higher
+# freestream ratio only adds spurious eddy viscosity that convects into the
+# boundary layer and inflates skin friction (Stage 05 measured ~+20% on Cd
+# with the Stage-03 value of 0.1). See ADR-005.
+_FREESTREAM_NUT_RATIO = 0.009
+
 
 # --- physical state -----------------------------------------------------------
 def flow_state(
@@ -34,8 +42,7 @@ def flow_state(
     """
     nu = U_INF * ref_length / reynolds
     k = 1.5 * (turbulence_intensity * U_INF) ** 2
-    nut_ratio = 0.1
-    nut = nut_ratio * nu
+    nut = _FREESTREAM_NUT_RATIO * nu
     omega = k / nut
     return {"nu": nu, "k": k, "omega": omega, "nut": nut}
 

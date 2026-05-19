@@ -98,21 +98,42 @@ def _blockmeshdict(spec: CaseSpec) -> str:
 
     # --- 8 blocks: z=0 face wound CCW-from-above, +16 for the z=span face ---
     # (v0 v1 v2 v3) at z=0 then (v0 v1 v2 v3)+16; counts along (v0->v1, v1->v2, z).
-    def hexb(a: int, b: int, d: int, e: int, n1: int, n2: int, gx: float, gy: float) -> str:
-        face = (a, b, d, e)
-        top = tuple(v + 16 for v in face)
-        vs = " ".join(str(v) for v in face + top)
-        return f"    hex ({vs}) ({n1} {n2} 1) simpleGrading ({gx:.8g} {gy:.8g} 1)"
+    def _verts(a: int, b: int, d: int, e: int) -> str:
+        return " ".join(str(v) for v in (a, b, d, e, a + 16, b + 16, d + 16, e + 16))
 
+    def hexb(a: int, b: int, d: int, e: int, n1: int, n2: int, gx: float, gy: float) -> str:
+        """An airfoil-surface block — simpleGrading (both eta edges wall-clustered)."""
+        return f"    hex ({_verts(a, b, d, e)}) ({n1} {n2} 1) simpleGrading ({gx:.8g} {gy:.8g} 1)"
+
+    def edge_hexb(
+        a: int, b: int, d: int, e: int, n1: int, gx: float, x2: tuple[float, float, float, float]
+    ) -> str:
+        """A front/wake block — edgeGrading so the boundary-layer clustering
+        applies only on the airfoil-side eta edge, not on the inlet/outlet eta
+        edge (which would otherwise put a ~1e-6 cell 100 chords from any wall
+        and blow the cell aspect ratio up).
+
+        12 edges: 4 x1 (streamwise), 4 x2 (eta), 4 x3 (span). `x2` is the
+        eta 4-tuple in blockMesh edge order (v0->v3, v1->v2, v5->v6, v4->v7).
+        """
+        x1 = " ".join(f"{gx:.8g}" for _ in range(4))
+        x2s = " ".join(f"{g:.8g}" for g in x2)
+        return f"    hex ({_verts(a, b, d, e)}) ({n1} {nn} 1) edgeGrading ({x1} {x2s} 1 1 1 1)"
+
+    gi = 1.0 / g_eta  # lower-block eta runs far field -> wall
     blocks = [
-        hexb(0, 1, 7, 6, nf, nn, 1.0 / e_front, g_eta),  # UF
+        # UF: airfoil eta edge is v1->v2 (above the LE); inlet edge v0->v3.
+        edge_hexb(0, 1, 7, 6, nf, 1.0 / e_front, (1.0, g_eta, g_eta, 1.0)),
         hexb(1, 2, 8, 7, ns, nn, 1.0, g_eta),  # UA1
         hexb(2, 3, 9, 8, ns, nn, 1.0, g_eta),  # UA2
-        hexb(3, 5, 10, 9, nw, nn, e_wake, g_eta),  # UW
-        hexb(11, 12, 1, 0, nf, nn, 1.0 / e_front, 1.0 / g_eta),  # LF
-        hexb(12, 13, 4, 1, ns, nn, 1.0, 1.0 / g_eta),  # LA1
-        hexb(13, 14, 3, 4, ns, nn, 1.0, 1.0 / g_eta),  # LA2
-        hexb(14, 15, 5, 3, nw, nn, e_wake, 1.0 / g_eta),  # LW
+        # UW: airfoil eta edge is v0->v3 (above the TE); outlet edge v1->v2.
+        edge_hexb(3, 5, 10, 9, nw, e_wake, (g_eta, 1.0, 1.0, g_eta)),
+        # LF: airfoil eta edge is v1->v2 (below the LE); inlet edge v0->v3.
+        edge_hexb(11, 12, 1, 0, nf, 1.0 / e_front, (1.0, gi, gi, 1.0)),
+        hexb(12, 13, 4, 1, ns, nn, 1.0, gi),  # LA1
+        hexb(13, 14, 3, 4, ns, nn, 1.0, gi),  # LA2
+        # LW: airfoil eta edge is v0->v3 (below the TE); outlet edge v1->v2.
+        edge_hexb(14, 15, 5, 3, nw, e_wake, (gi, 1.0, 1.0, gi)),
     ]
 
     # --- polyLine edges along the airfoil surface (interior points only) ---
@@ -306,7 +327,9 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
             "[0 2 -1 0 0 0 0]",
             f"{nut:.8g}",
             f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-            "        type nutkWallFunction;\n        value uniform 0;",
+            # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
+            # wall function (using nutkWallFunction here biased Cd ~+20%).
+            "        type nutLowReWallFunction;\n        value uniform 0;",
         ),
         "k": _field(
             "k",

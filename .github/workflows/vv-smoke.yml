@@ -1,14 +1,18 @@
 name: vv-smoke
 
-# V&V smoke test — runs the Stage 03 NACA 0012 walking-skeleton case
-# (prepare -> Apptainer OpenFOAM-ESI simpleFoam -> reported Cd) on a
-# self-hosted runner labelled `vv`, registered on the aero-build LXC. A
-# GitHub-hosted runner cannot reach the private aero cluster or the OpenFOAM
-# SIF, so this job must run self-hosted. Stage 05 expands it to the full NASA
-# TMR V&V case set. See ADR-003.
+# V&V smoke — runs the NASA TMR verification suite (flat plate, 2D bump,
+# NACA 0012) through the V&V harness on a self-hosted runner labelled `vv`
+# (registered on aero-build). A GitHub-hosted runner cannot reach the private
+# aero cluster, the OpenFOAM SIF, the MLflow server, or the aero_provenance
+# Postgres DB, so this job must run self-hosted. See ADR-005.
 #
-# Note: not a required status check on `main` — a self-hosted runner that is
-# offline must not block PRs. Promote it once it has proven stable.
+# On push / PR it runs the single-grid V&V suite; the nightly schedule also
+# runs the GCI mesh sweeps (`mesh_sweep`-marked tests). After the suite it
+# regenerates docs/vv-dashboard.html and posts the latest V&V status as a PR
+# comment.
+#
+# Note: not a required status check — a self-hosted runner that is offline
+# must not block PRs. The required, stage-gated check is `vv-required`.
 
 on:
   push:
@@ -20,20 +24,69 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   vv-smoke:
-    name: V&V smoke — NACA 0012 walking skeleton
+    name: V&V smoke — NASA TMR suite
     runs-on: [self-hosted, vv]
-    timeout-minutes: 30
+    timeout-minutes: 90
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install aero with the openfoam extra
+      - name: Install aero with the openfoam + provenance + vv extras
         run: |
           uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,dev]"
+          uv pip install -e ".[openfoam,provenance,vv,dev]"
 
-      - name: Run the NACA 0012 walking-skeleton smoke test
+      - name: Run the V&V suite (single-grid on push/PR, + GCI sweep nightly)
         run: |
-          .venv/bin/pytest -m "stage_03 and slow" --run-slow -v tests/stage_03
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            .venv/bin/pytest -m "vv and slow" --run-slow -v tests/vv
+          else
+            .venv/bin/pytest -m "vv and slow and not mesh_sweep" --run-slow -v tests/vv
+          fi
+
+      - name: Regenerate the V&V dashboard
+        if: always()
+        run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
+
+      - name: Upload the V&V dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vv-dashboard
+          path: docs/vv-dashboard.html
+
+      - name: Capture the V&V status as JSON
+        if: always() && github.event_name == 'pull_request'
+        run: .venv/bin/aero vv report --latest --json > vv-status.json || echo "[]" > vv-status.json
+
+      - name: Post the V&V status as a PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let rows = [];
+            try { rows = JSON.parse(fs.readFileSync('vv-status.json', 'utf8')); } catch (e) {}
+            let body = '## V&V status — NASA TMR\n\n';
+            if (rows.length === 0) {
+              body += '_No V&V runs found in MLflow._';
+            } else {
+              body += '| Case | Status | Metric errors |\n|---|---|---|\n';
+              for (const r of rows) {
+                const mark = r.status === 'pass' ? '🟢' : '🔴';
+                const errs = Object.entries(r.metric_errors || {})
+                  .map(([k, v]) => `${k} ${(v * 100).toFixed(2)}%`).join(', ') || '—';
+                body += `| ${r.case} | ${mark} ${r.status} | ${errs} |\n`;
+              }
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, body,
+            });

@@ -1,0 +1,62 @@
+name: vv-required
+
+# vv-required — the stage-gated, *required* V&V status check on `main`.
+#
+# A red TMR dashboard means no `production` runs (ADR-005), and a PR that
+# changes a solver adapter or the V&V harness must not merge with broken
+# physics. But PRs that touch neither must not be blocked on the V&V cluster
+# (guardrail 4). GitHub required checks must always report a result, and a
+# skipped job never satisfies one — so this workflow always runs, and a
+# `changed-files` filter decides whether the real V&V suite executes:
+#
+#   * PR touches aero/adapters/** , aero/vv/** , conf/case/** , pyproject.toml
+#       -> run the single-grid V&V suite; the job's result gates the merge.
+#   * otherwise
+#       -> the suite steps are skipped; the job is trivially green.
+#
+# The GCI mesh sweep (`mesh_sweep`-marked) is excluded here — it runs nightly
+# in `vv-smoke`. Promote this to a required status check via branch protection.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  vv-required:
+    name: vv-required — stage-gated V&V
+    runs-on: [self-hosted, vv]
+    timeout-minutes: 60
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Decide whether V&V is relevant to this PR
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            relevant:
+              - 'aero/adapters/**'
+              - 'aero/vv/**'
+              - 'conf/case/**'
+              - 'pyproject.toml'
+
+      - name: Install aero
+        if: steps.filter.outputs.relevant == 'true'
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[openfoam,provenance,vv,dev]"
+
+      - name: Run the stage-gated V&V suite (single-grid)
+        if: steps.filter.outputs.relevant == 'true'
+        run: .venv/bin/pytest -m "vv and slow and not mesh_sweep" --run-slow -v tests/vv
+
+      - name: V&V not relevant — passing trivially
+        if: steps.filter.outputs.relevant != 'true'
+        run: echo "PR touches no adapter or V&V code — vv-required passes trivially."
