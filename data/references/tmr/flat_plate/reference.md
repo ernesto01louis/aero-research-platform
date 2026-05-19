@@ -1,35 +1,24 @@
 # TMR Turbulent Flat Plate — Reference Data
 
 **Case:** `flat_plate_te` — zero-pressure-gradient turbulent flat plate.
-**Conditions:** Re_L = 5e6 (Reynolds based on plate length L = 2.0), M = 0.2,
-fully turbulent from the leading edge, k-omega SST.
-**Geometry source:** NASA Turbulence Modeling Resource —
-<https://turbmodels.larc.nasa.gov/flatplate.html>
+**Conditions:** Re = 5e6 (per unit length; the plate is 2 units long, so
+Re_x runs 0 → 10e6), M = 0.2, fully turbulent, k-omega SST.
+**Source:** NASA Turbulence Modeling Resource —
+<https://tmbwg.github.io/turbmodels/flatplate_sst.html>
+(the TMR site moved from `turbmodels.larc.nasa.gov` to `tmbwg.github.io`).
 
 ## `cf.csv` — local skin-friction coefficient vs. x
 
-Columns: `x` (streamwise position, plate runs 0 -> 2.0), `cf` (local Cf).
+Columns: `x` (streamwise position; the plate runs 0 → 2), `cf` (local Cf).
 
-The reference Cf is the **White turbulent flat-plate correlation**
-
-    Cf(x) = 0.455 / [ ln( 0.06 * Re_x ) ]^2 ,   Re_x = Re_L * x / L
-
-(F. M. White, *Viscous Fluid Flow*, 3rd ed., McGraw-Hill 2006, Eq. 6-78).
-
-This is the canonical analytic verification target for a turbulent flat
-plate: the case exists precisely to confirm a turbulence model reproduces the
-known flat-plate skin-friction law. NASA TMR's own SA and SST results for this
-case agree with this correlation to within ~2-3%; the Stage-05 pointwise
-tolerance is 5% (ADR-005).
-
-> **Note (Stage 05):** the build host had no outbound network access, so the
-> exact TMR CFD verification files could not be mirrored. The White
-> correlation is used as a genuine, citable analytic reference. Replacing it
-> with the TMR-published CFL3D/FUN3D Cf distribution is a documented
-> open item — see the Stage-05 handoff.
+This is the **CFL3D SST** verification data on the finest (545×385) TMR grid,
+extracted from `FlatPlate/SST/cf_plate_sstv.dat` in the
+[`TMBWG/turbmodels`](https://github.com/TMBWG/turbmodels) repository (the
+first, "CFL3D", Tecplot zone; rows restricted to the plate, x ∈ [0.01, 2.0]).
+The Stage-05 V&V harness compares pointwise from x = 0.1 back (dropping the
+leading-edge Cf singularity) against the 5% tolerance (ADR-005).
 
 ## License
 
-The White correlation is a published textbook formula. The NASA TMR data
-itself is a US Government work and in the public domain (no NASA endorsement
-implied).
+NASA TMR data is a US Government work, in the public domain. No NASA
+endorsement implied.

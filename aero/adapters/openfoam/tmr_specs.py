@@ -79,9 +79,11 @@ class Bump2DSpec(BaseModel):
     ref_length: float = Field(default=1.0, gt=0, description="Reynolds-number length scale.")
 
     bump_height: float = Field(default=0.05, gt=0, description="Peak bump height.")
-    bump_length: float = Field(default=1.5, gt=0, description="Streamwise bump length.")
-    inlet_length: float = Field(default=25.0, gt=0, description="Channel run upstream of bump.")
-    outlet_length: float = Field(default=25.0, gt=0, description="Channel run downstream of bump.")
+    bump_length: float = Field(
+        default=1.5, gt=0, description="Streamwise length of the bump wall section."
+    )
+    inlet_length: float = Field(default=10.0, gt=0, description="Channel run upstream of bump.")
+    outlet_length: float = Field(default=10.0, gt=0, description="Channel run downstream of bump.")
     domain_height: float = Field(default=5.0, gt=0, description="Channel height.")
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
     end_time: int = Field(default=3000, gt=0, description="Max SIMPLE iterations.")

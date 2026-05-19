@@ -32,6 +32,35 @@ next_stage_name: "Stage 06 — SU2 Adapter"
 > passing is the headline Stage-06+ open item (§7). The harness caught real
 > CFD-setup problems — which is exactly what it is for.
 
+## 0. Post-stage fix pass (2026-05-19, after the handoff was first written)
+
+A fix pass followed the initial handoff once outbound network was available:
+
+- **Genuine TMR reference data fetched.** The TMR site moved
+  `turbmodels.larc.nasa.gov` → `tmbwg.github.io/turbmodels` (GitHub repo
+  [`TMBWG/turbmodels`](https://github.com/TMBWG/turbmodels)); the CFL3D SST
+  verification files were pulled via `gh` and parsed (Tecplot → CSV) into
+  `data/references/tmr/{flat_plate/cf,bump_2d/cf,bump_2d/cp}.csv`. The
+  flat-plate White-correlation stand-in is **replaced** with real TMR data.
+- **Bump geometry bug fixed.** The fetch revealed the bump wall was wrong —
+  the real TMR bump is `y = 0.05·sin⁴(π(x−0.3)/0.9)` on `0.3 ≤ x ≤ 1.2`, not
+  the formula first implemented. `tmr_geometry.py` corrected.
+- **Bump solver fixed.** The bump now uses a PCG/DIC pressure solver
+  (`fvsolution(pressure_solver="PCG")`) — GAMG stalled on the long-channel
+  high-AR cells. The bump now **solves end-to-end** (rc 0) instead of
+  stalling; its domain was also shortened (inlet/outlet 25 → 10).
+
+Updated case results against the **genuine TMR data**: NACA 0012 Cd +20.9 %
+(pressure drag, unchanged); flat plate Cf **12.6 %** pointwise vs the real
+CFL3D SST data; bump Cp **~24 %** / Cf **~64 %** off, and the bump solve
+reaches only a ~3e-4 residual at 3000 iterations. All three remain `xfail`
+with reasons updated to match.
+
+**§3 and §7 below predate this fix pass — this §0 is the current state.**
+The "no reference-data fetch" deviation in §3 no longer applies; the open
+items in §7 still stand, minus the now-completed data fetch and bump-solver
+items.
+
 ## 1. Deliverables status
 
 | # | Deliverable (from the stage prompt) | Status | Note |

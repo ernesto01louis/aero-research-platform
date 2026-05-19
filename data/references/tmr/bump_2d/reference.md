@@ -1,36 +1,33 @@
 # TMR 2D Bump-in-Channel — Reference Data
 
 **Case:** `bump_2d` — 2D bump-in-channel.
-**Conditions:** Re = 3e6 (unit reference length), M = 0.2, k-omega SST.
+**Conditions:** Re = 3e6 (per unit length), M = 0.2, k-omega SST.
 **Source:** NASA Turbulence Modeling Resource —
-<https://turbmodels.larc.nasa.gov/bump.html>
+<https://tmbwg.github.io/turbmodels/bump_sst.html>
+(the TMR site moved from `turbmodels.larc.nasa.gov` to `tmbwg.github.io`).
 
 ## Geometry
 
 The lower-wall bump is the analytic surface
 
-    y(x) = 0.05 * sin^4( pi * x / 1.5 ) ,   0 <= x <= 1.5
+    y(x) = 0.05 * sin^4( pi * (x - 0.3) / 0.9 ) ,   0.3 <= x <= 1.2
 
-(zero and tangent to the flat wall at both ends, peak height 0.05 at
-x = 0.75). Implemented in `aero.adapters.openfoam.tmr_geometry`.
+(equivalently `0.05 * sin^4(pi*x/0.9 - pi/3)`) — zero and tangent to the flat
+wall at x = 0.3 and x = 1.2, peak height 0.05 at x = 0.75; flat elsewhere.
+Implemented in `aero.adapters.openfoam.tmr_geometry`.
 
-## Reference data status (Stage 05)
+## `cp.csv`, `cf.csv` — surface pressure and skin friction vs. x
 
-The 2D bump is delivered with **two distinct kinds of check**:
+Columns: `x`, `cp` / `cf`. Both are the **CFL3D SST** verification data,
+extracted from `Bump/SST/{cp,cf}_bump_sst.dat` in the
+[`TMBWG/turbmodels`](https://github.com/TMBWG/turbmodels) repository (the
+first, "CFL3D", Tecplot zone; x ∈ [0, 1.5]).
 
-* **Verification (GCI)** — `aero vv run --case bump_2d --mesh-sweep` runs a
-  three-grid Grid Convergence Index study. A GCI compares the solution against
-  itself at three resolutions, so it needs **no external reference data** and
-  is fully exercised in Stage 05.
-* **Validation (Cp / Cf vs. TMR)** — comparing the pointwise pressure and
-  skin-friction distributions against the TMR-published CFL3D / FUN3D data
-  requires those data files. The Stage-05 build host had no outbound network
-  access, so `cp.csv` / `cf.csv` could not be mirrored. Fetching them from the
-  URL above and dropping them here is a documented open item — see the
-  Stage-05 handoff. Until then the bump *validation* test is skipped (the
-  *verification* mesh sweep is not).
+The harness compares Cp pointwise (3%, `normalized`) and Cf pointwise (5%);
+the GCI mesh sweep (`--mesh-sweep`) is a verification study and needs no
+reference data.
 
 ## License
 
-NASA TMR data is a US Government work, public domain. No NASA endorsement
-implied.
+NASA TMR data is a US Government work, in the public domain. No NASA
+endorsement implied.

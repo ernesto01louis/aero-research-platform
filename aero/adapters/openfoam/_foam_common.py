@@ -123,20 +123,38 @@ wallDist        { method meshWave; }
     )
 
 
-def fvsolution() -> str:
-    """SIMPLE solver controls — GAMG pressure, smoothSolver for the rest."""
-    return (
-        header("dictionary", "fvSolution")
-        + """
-solvers
-{
-    p
+def fvsolution(*, pressure_solver: str = "GAMG") -> str:
+    """SIMPLE solver controls — pressure solver + smoothSolver for the rest.
+
+    `pressure_solver` is `GAMG` (the default; fast on well-conditioned meshes)
+    or `PCG`. PCG with a DIC preconditioner is far more robust on meshes with
+    extreme cell aspect ratios, where GAMG's coarsening stalls — the TMR
+    long-channel cases use it.
+    """
+    if pressure_solver == "PCG":
+        p_block = """    p
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0.01;
+    }"""
+    else:
+        p_block = """    p
     {
         solver          GAMG;
         smoother        GaussSeidel;
         tolerance       1e-8;
         relTol          0.05;
-    }
+    }"""
+    return (
+        header("dictionary", "fvSolution")
+        + """
+solvers
+{
+"""
+        + p_block
+        + """
     "(U|k|omega)"
     {
         solver          smoothSolver;

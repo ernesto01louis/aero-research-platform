@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from aero.vv._base import BenchmarkCase, BenchmarkError
+from aero.vv._base import BenchmarkCase
 from aero.vv.tmr import TMR_CASES
 
 pytestmark = pytest.mark.stage_05
@@ -47,7 +47,7 @@ def test_naca0012_reference_is_a_scalar_cd() -> None:
     assert ref.scalars["cd"] == pytest.approx(0.00812, abs=1e-4)
 
 
-def test_bump_reference_fails_loud_until_data_is_mirrored() -> None:
-    # The TMR Cp/Cf files are a documented open item; reference() must say so.
-    with pytest.raises(BenchmarkError, match="reference data"):
-        TMR_CASES["bump_2d"].reference(_REPO_ROOT)
+def test_bump_reference_loads_cp_and_cf() -> None:
+    ref = TMR_CASES["bump_2d"].reference(_REPO_ROOT)
+    assert {"cp", "cf"} <= set(ref.series)
+    assert len(ref.series["cp"].x) >= 100

@@ -3,13 +3,12 @@
 Runs the flat plate through the harness and asserts the skin-friction
 distribution matches the reference within the 5% pointwise tolerance.
 
-KNOWN FAILURE (Stage 05, xfail) — the measured Cf sits ~7-15% off the White
-flat-plate correlation. The build host had no network, so the reference is the
-analytic White correlation rather than the TMR-published CFL3D/FUN3D Cf data
-(turbulent flat-plate Cf correlations themselves span ~10%, so 5% against a
-correlation is tighter than the correlation's own spread). The tolerance is
-NOT relaxed; the test is xfail until the TMR CFD reference data is mirrored.
-See data/references/tmr/flat_plate/reference.md and the Stage-05 handoff.
+KNOWN FAILURE (Stage 05, xfail) — against the genuine TMR CFL3D SST data the
+measured Cf is ~12.6% off pointwise: the boundary-layer streamwise development
+is wrong-shaped (Cf ~10% low near the LE, ~10% high near the TE end). This is
+a flat-plate setup discrepancy needing dedicated CFD tuning, not a harness
+bug. The tolerance is NOT relaxed; the test is xfail with the real error
+reported. See data/references/tmr/flat_plate/reference.md and the handoff.
 """
 
 from __future__ import annotations
@@ -24,8 +23,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
 
 
 @pytest.mark.xfail(
-    reason="Cf ~7-15% off the White correlation; needs the TMR CFD reference "
-    "data (no network at Stage 05) — see reference.md.",
+    reason="measured Cf ~12.6% off the TMR CFL3D SST data — a flat-plate "
+    "boundary-layer-development discrepancy; Stage-05 open item.",
     strict=False,
 )
 def test_flat_plate_cf_within_tolerance(

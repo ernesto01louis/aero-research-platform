@@ -67,11 +67,12 @@ def test_bump_three_blocks_and_curved_wall(tmp_path: Path) -> None:
 
 
 def test_bump_geometry_is_tangent_and_peaks_at_height() -> None:
-    # The TMR bump: zero (tangent) at the ends, peak `height` at mid-length.
-    assert bump_height_at([0.0])[0] == pytest.approx(0.0)
-    assert bump_height_at([1.5])[0] == pytest.approx(0.0)
-    assert bump_height_at([0.75])[0] == pytest.approx(0.05)
-    assert bump_height_at([-1.0])[0] == 0.0  # flat outside the bump
+    # TMR bump: y = 0.05 sin^4(pi(x-0.3)/0.9) on [0.3, 1.2]; flat elsewhere.
+    assert bump_height_at([0.3])[0] == pytest.approx(0.0)  # leading tangent
+    assert bump_height_at([1.2])[0] == pytest.approx(0.0)  # trailing tangent
+    assert bump_height_at([0.75])[0] == pytest.approx(0.05)  # peak at mid-bump
+    assert bump_height_at([0.0])[0] == 0.0  # flat ahead of the bump
+    assert bump_height_at([1.5])[0] == 0.0  # flat behind the bump
 
 
 def test_tmr_specs_are_strict_and_frozen() -> None:

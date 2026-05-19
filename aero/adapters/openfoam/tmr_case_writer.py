@@ -279,7 +279,6 @@ def _bump_blockmesh(spec: Bump2DSpec) -> str:
         x_start=0.0,
         x_end=bl,
         height=spec.bump_height,
-        bump_length=spec.bump_length,
     )
 
     def poly(v1: int, v2: int, pts: NDArray[np.float64], z: float) -> str:
@@ -346,6 +345,7 @@ def write_tmr_case(spec: TMRCaseSpec, dest: Path) -> None:
     if spec.geometry == "flat_plate":
         blockmesh = _flat_plate_blockmesh(spec)
         ref_length = spec.plate_length
+        pressure_solver = "GAMG"
         fields = _tmr_fields(
             reynolds=spec.reynolds,
             ref_length=ref_length,
@@ -357,6 +357,9 @@ def write_tmr_case(spec: TMRCaseSpec, dest: Path) -> None:
     elif spec.geometry == "bump_2d":
         blockmesh = _bump_blockmesh(spec)
         ref_length = spec.ref_length
+        # The long bump channel has extreme-aspect-ratio inlet cells that stall
+        # GAMG; PCG/DIC is robust there (ADR-005 / Stage-05 handoff).
+        pressure_solver = "PCG"
         fields = _tmr_fields(
             reynolds=spec.reynolds,
             ref_length=ref_length,
@@ -376,7 +379,9 @@ def write_tmr_case(spec: TMRCaseSpec, dest: Path) -> None:
     (system / "blockMeshDict").write_text(blockmesh, encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec.end_time), encoding="utf-8")
     (system / "fvSchemes").write_text(fvschemes(), encoding="utf-8")
-    (system / "fvSolution").write_text(fvsolution(), encoding="utf-8")
+    (system / "fvSolution").write_text(
+        fvsolution(pressure_solver=pressure_solver), encoding="utf-8"
+    )
     (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(
         turbulence_properties(spec.turbulence_model), encoding="utf-8"
