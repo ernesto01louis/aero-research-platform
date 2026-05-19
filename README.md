@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/ernesto01louis/aero-research-platform/actions/workflows/test.yml/badge.svg)](https://github.com/ernesto01louis/aero-research-platform/actions/workflows/test.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/1241412451.svg)](https://doi.org/10.5281/zenodo.20292712)
 
 A fully open-source, peer-review-grade, hardware-agnostic research platform for
 computational aerodynamics. Spans classical CFD (OpenFOAM-ESI, SU2, PyFR, NekRS),
