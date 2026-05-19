@@ -32,3 +32,26 @@
   roles:
     - role: aero-nfs-client
       tags: [nfs]
+
+# --- Stage 04 — provenance backbone ------------------------------------------
+# aero-vault must be deployed AND `vault operator init`-ed (operator step),
+# then seeded with the AppRole + secrets, BEFORE aero-mlflow runs: the Vault
+# Agent on aero-mlflow needs Vault up, unsealed, and the secrets in place.
+# See ADR-004 and the Stage 04 handoff.
+#
+#       ansible-playbook site.yml --tags vault    # aero-vault only
+#       ansible-playbook site.yml --tags mlflow   # aero-mlflow only
+
+- name: Vault secrets store (aero-vault)
+  hosts: aero_vault
+  gather_facts: true
+  roles:
+    - role: aero-vault
+      tags: [vault]
+
+- name: MLflow tracking server + MinIO sidecar (aero-mlflow)
+  hosts: aero_provenance_services
+  gather_facts: true
+  roles:
+    - role: aero-mlflow
+      tags: [mlflow]

@@ -1,0 +1,197 @@
+---
+# aero-mlflow — MinIO + MLflow tracking server on the aero-mlflow LXC.
+#
+# Prerequisite: Vault is initialized/unsealed and the AppRole role-id /
+# secret-id files are present under {{ vault_agent_dir }} (operator step,
+# see ADR-004). The Vault Agent renders the secret env files; MinIO and
+# MLflow consume them via systemd EnvironmentFile.
+
+# --- MinIO + mc binaries -----------------------------------------------------
+- name: Create the minio service user
+  ansible.builtin.user:
+    name: "{{ minio_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: /var/lib/minio
+    create_home: false
+
+- name: Install the pinned MinIO server binary
+  ansible.builtin.get_url:
+    url: "{{ minio_url }}"
+    dest: "{{ minio_bin }}"
+    checksum: "sha256:{{ minio_sha256 }}"
+    mode: "0755"
+    owner: root
+    group: root
+  notify: Restart minio
+
+- name: Install the pinned MinIO client (mc)
+  ansible.builtin.get_url:
+    url: "{{ mc_url }}"
+    dest: "{{ mc_bin }}"
+    checksum: "sha256:{{ mc_sha256 }}"
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Ensure the MinIO data directory exists on the NFS dataset
+  ansible.builtin.file:
+    path: "{{ minio_data_dir }}"
+    state: directory
+    owner: "{{ minio_user }}"
+    group: "{{ minio_user }}"
+    mode: "0750"
+
+# --- MLflow venv -------------------------------------------------------------
+- name: Create the mlflow service user
+  ansible.builtin.user:
+    name: "{{ mlflow_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ mlflow_venv }}"
+    create_home: false
+
+- name: Create the MLflow virtualenv
+  ansible.builtin.command:
+    cmd: "python3 -m venv {{ mlflow_venv }}"
+    creates: "{{ mlflow_venv }}/bin/python"
+
+- name: Install the pinned MLflow stack into the venv
+  ansible.builtin.pip:
+    name:
+      - "mlflow=={{ mlflow_version }}"
+      - "psycopg2-binary>=2.9"
+      - "boto3>=1.35"
+    virtualenv: "{{ mlflow_venv }}"
+    state: present
+  notify: Restart mlflow
+
+- name: Own the MLflow venv to the mlflow user
+  ansible.builtin.file:
+    path: "{{ mlflow_venv }}"
+    state: directory
+    owner: "{{ mlflow_user }}"
+    group: "{{ mlflow_user }}"
+    recurse: true
+
+# --- secret env files (Vault Agent) ------------------------------------------
+- name: Create the aero env and Vault Agent directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ aero_env_dir }}"
+    - "{{ vault_agent_dir }}"
+
+- name: Assert the Vault AppRole credentials are present
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: aero_approle_stat
+  failed_when: not aero_approle_stat.stat.exists
+  loop:
+    - "{{ vault_approle_role_id_file }}"
+    - "{{ vault_approle_secret_id_file }}"
+
+- name: Write the Vault Agent configuration
+  ansible.builtin.template:
+    src: vault-agent.hcl.j2
+    dest: "{{ vault_agent_dir }}/agent.hcl"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart vault-agent
+
+# The .ctmpl files carry consul-template `{{ }}` directives the Vault Agent
+# interpolates — copied verbatim (not Jinja2-templated) so those braces reach
+# the Agent intact.
+- name: Install the env-file consul-templates the Vault Agent renders
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ vault_agent_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop:
+    - minio.env.ctmpl
+    - mlflow.env.ctmpl
+  notify: Restart vault-agent
+
+# --- systemd units -----------------------------------------------------------
+- name: Install the systemd units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - vault-agent.service
+    - minio.service
+    - mlflow.service
+  notify:
+    - Reload systemd
+    - Restart vault-agent
+    - Restart minio
+    - Restart mlflow
+
+- name: Enable and start the Vault Agent (renders the secret env files)
+  ansible.builtin.systemd:
+    name: vault-agent
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for the rendered MinIO env file
+  ansible.builtin.wait_for:
+    path: "{{ minio_env_file }}"
+    timeout: 60
+
+- name: Enable and start MinIO
+  ansible.builtin.systemd:
+    name: minio
+    enabled: true
+    state: started
+
+- name: Enable and start the MLflow tracking server
+  ansible.builtin.systemd:
+    name: mlflow
+    enabled: true
+    state: started
+
+# --- bucket creation ---------------------------------------------------------
+- name: Register the local MinIO alias for mc
+  ansible.builtin.shell:
+    cmd: >-
+      set -a; . {{ minio_env_file }}; set +a;
+      {{ mc_bin }} alias set localminio http://127.0.0.1:{{ minio_api_port }}
+      "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+  changed_when: false
+  no_log: true
+
+- name: Create the MinIO buckets
+  ansible.builtin.command:
+    cmd: "{{ mc_bin }} mb --ignore-existing localminio/{{ item }}"
+  register: aero_mc_mb
+  changed_when: "'created' in aero_mc_mb.stdout"
+  loop: "{{ minio_buckets }}"
+
+# --- firewall ----------------------------------------------------------------
+- name: Allow MinIO and MLflow from the private aero segment only
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    src: "{{ aero_private_cidr }}"
+  loop:
+    - "{{ minio_api_port }}"
+    - "{{ minio_console_port }}"
+    - "{{ mlflow_port }}"
+
+- name: Report aero-mlflow status
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: MinIO {{ minio_version }} +
+      MLflow {{ mlflow_version }} running; buckets {{ minio_buckets | join(', ') }}.

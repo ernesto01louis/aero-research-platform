@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+# Vault server config — single-node integrated raft storage, TLS, VPN-only.
+
+ui = true
+
+storage "raft" {
+  path    = "{{ vault_data_dir }}"
+  node_id = "aero-vault"
+}
+
+listener "tcp" {
+  address       = "{{ vault_listen_addr }}"
+  tls_cert_file = "{{ vault_tls_dir }}/vault.crt"
+  tls_key_file  = "{{ vault_tls_dir }}/vault.key"
+}
+
+api_addr     = "{{ vault_api_addr }}"
+cluster_addr = "{{ vault_cluster_addr }}"
+
+# Unprivileged LXCs cannot mlock; raft on the LXC rootfs is the durability
+# story (plus the interim vzdump schedule). See ADR-004.
+disable_mlock = true

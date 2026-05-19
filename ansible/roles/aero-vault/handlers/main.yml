@@ -1,0 +1,7 @@
+---
+# aero-vault handlers.
+
+- name: Restart vault
+  ansible.builtin.systemd:
+    name: vault
+    state: restarted

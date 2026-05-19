@@ -1,0 +1,49 @@
+---
+# aero-mlflow role defaults.
+#
+# MinIO (S3-protocol artifact + DVC store) and the MLflow tracking server,
+# both as systemd services on the aero-mlflow LXC. Secrets are rendered from
+# Vault by a Vault Agent — none are baked into these files (Hard Rule 7).
+# Versions pinned per Hard Rule 8; recorded in ADR-004.
+
+# --- MinIO (pinned release binary, SHA256-verified) --------------------------
+minio_version: "RELEASE.2025-09-07T16-13-09Z"
+minio_url: "https://dl.min.io/server/minio/release/linux-amd64/minio.{{ minio_version }}"
+minio_sha256: "7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+mc_version: "RELEASE.2025-08-13T08-35-41Z"
+mc_url: "https://dl.min.io/client/mc/release/linux-amd64/mc.{{ mc_version }}"
+mc_sha256: "01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891"
+
+minio_user: minio
+minio_bin: /usr/local/bin/minio
+mc_bin: /usr/local/bin/mc
+# Artifact data lives on the TrueNAS NFS dataset (bind-mounted at /mnt/aero).
+minio_data_dir: /mnt/aero/mlflow-artifacts
+minio_api_port: 9000
+minio_console_port: 9001
+minio_buckets:
+  - aero-mlflow   # MLflow run artifacts
+  - aero-dvc      # DVC content store
+
+# --- MLflow (pip, dedicated venv) --------------------------------------------
+mlflow_version: "3.12.0"
+mlflow_user: mlflow
+mlflow_venv: /opt/aero/mlflow-venv
+mlflow_port: 5000
+mlflow_artifact_root: "s3://aero-mlflow/"
+
+# --- secrets / config --------------------------------------------------------
+aero_env_dir: /etc/aero
+minio_env_file: "{{ aero_env_dir }}/minio.env"
+mlflow_env_file: "{{ aero_env_dir }}/mlflow.env"
+
+# --- Vault Agent -------------------------------------------------------------
+# The Agent authenticates with an AppRole whose role-id / secret-id the
+# operator places on the host before this role runs (see ADR-004).
+vault_addr: "https://aero-vault:8200"
+vault_agent_dir: /etc/vault-agent
+vault_approle_role_id_file: "{{ vault_agent_dir }}/role-id"
+vault_approle_secret_id_file: "{{ vault_agent_dir }}/secret-id"
+
+# UFW: MinIO + MLflow reachable only from the private aero segment.
+aero_private_cidr: "10.10.10.0/24"

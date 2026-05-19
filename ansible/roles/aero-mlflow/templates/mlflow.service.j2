@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MLflow tracking server (aero provenance backbone)
+After=network-online.target minio.service
+Wants=network-online.target
+Requires=minio.service
+
+[Service]
+Type=simple
+User={{ mlflow_user }}
+Group={{ mlflow_user }}
+# MLFLOW_BACKEND_STORE_URI + AWS_* + MLFLOW_S3_ENDPOINT_URL come from Vault.
+EnvironmentFile={{ mlflow_env_file }}
+ExecStart={{ mlflow_venv }}/bin/mlflow server \
+    --host 0.0.0.0 --port {{ mlflow_port }} \
+    --backend-store-uri ${MLFLOW_BACKEND_STORE_URI} \
+    --artifacts-destination {{ mlflow_artifact_root }} \
+    --serve-artifacts
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

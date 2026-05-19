@@ -1,0 +1,90 @@
+---
+# aero-vault — install and configure a single-node HashiCorp Vault.
+#
+# This role provisions the SERVICE only. Initialization and unsealing
+# (`vault operator init`) are deliberately NOT automated: the unseal keys and
+# root token are secrets the operator must capture and hold. See ADR-004 and
+# docs/handoffs for the post-deploy `vault operator init` procedure.
+
+- name: Add the HashiCorp apt signing key
+  ansible.builtin.get_url:
+    url: "{{ vault_apt_key_url }}"
+    dest: /tmp/hashicorp.gpg
+    mode: "0644"
+
+- name: Install the HashiCorp apt key into a keyring
+  ansible.builtin.command:
+    cmd: gpg --dearmor --batch --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.gpg
+    creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+- name: Add the HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "{{ vault_apt_repo }}"
+    filename: hashicorp
+    state: present
+
+- name: Install the pinned Vault package
+  ansible.builtin.apt:
+    name: "vault={{ vault_version }}-1"
+    state: present
+    update_cache: true
+    allow_downgrade: true
+
+- name: Create the Vault data and TLS directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: vault
+    group: vault
+    mode: "0750"
+  loop:
+    - "{{ vault_data_dir }}"
+    - "{{ vault_tls_dir }}"
+
+- name: Generate a self-signed TLS certificate for the Vault listener
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -newkey rsa:4096 -nodes
+      -keyout {{ vault_tls_dir }}/vault.key
+      -out {{ vault_tls_dir }}/vault.crt
+      -days 3650 -subj "/CN=aero-vault"
+      -addext "subjectAltName=DNS:aero-vault,IP:{{ aero_priv_ip }}"
+    creates: "{{ vault_tls_dir }}/vault.crt"
+
+- name: Lock down the Vault TLS key and cert
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: vault
+    group: vault
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ vault_tls_dir }}/vault.key", mode: "0600"}
+    - {path: "{{ vault_tls_dir }}/vault.crt", mode: "0644"}
+
+- name: Write the Vault server configuration
+  ansible.builtin.template:
+    src: vault.hcl.j2
+    dest: "{{ vault_config_file }}"
+    owner: vault
+    group: vault
+    mode: "0640"
+  notify: Restart vault
+
+- name: Allow the Vault API from the private aero segment only
+  community.general.ufw:
+    rule: allow
+    port: "8200"
+    proto: tcp
+    src: "{{ vault_allowed_cidr }}"
+
+- name: Enable and start the Vault service
+  ansible.builtin.systemd:
+    name: vault
+    enabled: true
+    state: started
+
+- name: Report Vault status
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: vault {{ vault_version }} running —
+      run `vault operator init` next (operator captures the unseal keys).

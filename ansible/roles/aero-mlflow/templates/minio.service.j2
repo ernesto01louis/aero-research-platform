@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+[Unit]
+Description=MinIO object storage (aero artifact + DVC store)
+After=network-online.target vault-agent.service
+Wants=network-online.target
+Requires=vault-agent.service
+
+[Service]
+Type=simple
+User={{ minio_user }}
+Group={{ minio_user }}
+EnvironmentFile={{ minio_env_file }}
+ExecStart={{ minio_bin }} server {{ minio_data_dir }} \
+    --address ":{{ minio_api_port }}" \
+    --console-address ":{{ minio_console_port }}"
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

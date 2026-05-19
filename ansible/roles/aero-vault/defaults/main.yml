@@ -1,0 +1,25 @@
+---
+# aero-vault role defaults.
+#
+# HashiCorp Vault, installed from the official HashiCorp apt repository and
+# version-pinned (Hard Rule 8 — pin recorded in ADR-004). Single-node
+# integrated raft storage; TLS with a self-signed cert; VPN-only.
+
+vault_version: "1.20.4"
+vault_apt_key_url: "https://apt.releases.hashicorp.com/gpg"
+vault_apt_repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+
+# Data + config + TLS live on the LXC rootfs (small, durable; backed by the
+# interim vzdump schedule until the operator's NAS lands).
+vault_home: /opt/vault
+vault_data_dir: "{{ vault_home }}/data"
+vault_tls_dir: "{{ vault_home }}/tls"
+vault_config_file: /etc/vault.d/vault.hcl
+
+# The Vault API/cluster listener. Bound to the private aero data plane.
+vault_listen_addr: "0.0.0.0:8200"
+vault_api_addr: "https://aero-vault:8200"
+vault_cluster_addr: "https://aero-vault:8201"
+
+# UFW: allow the Vault API only from the private 10.10.10.0/24 aero segment.
+vault_allowed_cidr: "10.10.10.0/24"
