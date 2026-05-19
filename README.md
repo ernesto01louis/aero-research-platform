@@ -15,11 +15,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.3  ·  **Status:** complete  ·  **Completed:** 2026-05-19
+**Latest tag:** v0.0.4  ·  **Status:** partial  ·  **Completed:** 2026-05-19
 
-**Stage 03 — OpenFOAM Walking Skeleton** — most recent stage.
+**Stage 04 — Provenance Backbone** — most recent stage.
 
-**Next:** Stage 04 — Provenance Backbone.
+**Next:** Stage 05 — V&V Harness.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
