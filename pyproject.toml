@@ -117,6 +117,11 @@ provenance = [
     "alembic>=1.13",
 ]
 
+# Stage 05 — V&V harness (pointwise reference-data comparison; pin in ADR-005)
+vv = [
+    "scipy>=1.14",
+]
+
 # Stage 12 — UQ via UQpy + Dakota
 uq = [
     # populated in stage-12: UQpy, chaospy, salib, pyDOE3
