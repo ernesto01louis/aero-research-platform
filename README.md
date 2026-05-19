@@ -15,7 +15,7 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.2  ·  **Status:** partial  ·  **Completed:** 2026-05-17
+**Latest tag:** v0.0.2  ·  **Status:** complete  ·  **Completed:** 2026-05-19
 
 **Stage 02 — Proxmox Topology & Container Build Pipeline** — most recent stage.
 
