@@ -4,7 +4,7 @@ cff-version: 1.2.0
 title: aero-research-platform
 message: |
   If you use this software in academic work, please cite the Zenodo deposit
-  (DOI to be reserved in Stage 04) AND the four-tuple provenance fields of
+  (concept DOI below) AND the four-tuple provenance fields of
   the specific run you reference: (git_sha, dvc_input_hash,
   container_sif_sha256, config_hash). The four-tuple is what makes the
   citation point to a *specific result*, not just to the platform.
@@ -48,7 +48,8 @@ keywords:
   - provenance
   - reproducibility
 license: GPL-3.0
-version: 0.0.1
-date-released: "2026-05-17"
-# TODO(stage-04): reserve Zenodo concept DOI, fill below
-# doi: 10.5281/zenodo.XXXXXXX
+version: 0.0.4
+date-released: "2026-05-19"
+# Zenodo concept DOI — resolves to the latest release (currently v0.0.4).
+# Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
+doi: 10.5281/zenodo.20292712
