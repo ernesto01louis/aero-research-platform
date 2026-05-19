@@ -105,6 +105,29 @@ convention enforced by review discipline, not CI.
 Code sessions needs uniform commit semantics so changelogs, release notes,
 and post-stage handoffs assemble cleanly.
 
+## Invariant 7 — TYPED-CONVERGENCE-HISTORY
+
+Every solver adapter's `Solver.load()` returns a typed `SolveResult` carrying
+a `ConvergenceHistory` — the monitored residual as a validated equal-length
+`(iteration, residual)` series — never a solver-native container
+(`xarray.Dataset`, raw dict, CSV path). Converged scalars (`cd`, `cl`,
+`iterations_to_convergence`, `final_residual`) are typed fields on
+`SolveResult`, not `.attrs`-style untyped metadata.
+
+**Enforcement:** the V&V harness types `solver.load(result)` as
+`SolveResult` against the `aero.adapters._base.SolverProtocol`. A
+per-adapter test asserts `isinstance(result, SolveResult)`; mypy `--strict`
+on `aero/adapters/_base.py` pins the schema. The `import-platform-only` CI
+job verifies the typed result types are usable without any solver extra
+installed.
+
+**Why:** Convergence history is the primary evidence a CFD result is
+trustworthy. If it is trapped in a solver-native format, the V&V dashboard,
+the UQ layer (Stage 12), and any cross-solver comparison must each learn N
+formats. A typed series is the citation-grade contract. Added in Stage 06
+when SU2 forced the multi-solver abstraction (ADR-006); the OpenFOAM adapter
+was migrated off `xr.Dataset.attrs[...]` to the typed schema in the same PR.
+
 ## Amendment process
 
 To amend a Constitution invariant:

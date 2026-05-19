@@ -16,11 +16,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.5  ·  **Status:** partial  ·  **Completed:** 2026-05-19
+**Latest tag:** v0.0.6  ·  **Status:** partial  ·  **Completed:** 2026-05-19
 
-**Stage 05 — V&V Harness Against NASA TMR** — most recent stage.
+**Stage 06 — SU2 Adapter — Forcing the Abstraction** — most recent stage.
 
-**Next:** Stage 06 — SU2 Adapter.
+**Next:** Stage 07 — PyFR + NekRS GPU Solvers.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

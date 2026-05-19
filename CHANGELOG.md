@@ -9,6 +9,75 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.6] - 2026-05-19
+
+### Added — Stage 06 (SU2 Adapter — Forcing the Abstraction)
+
+- `aero/adapters/_base.py` — the generalised `Solver` ABC (template-method
+  `prepare`, abstract `mesh`/`run`/`load`/`wall_distribution` seams) and the
+  structural `SolverProtocol` the V&V harness types against; shared
+  lifecycle handles `CaseDir` / `MeshHandle` / `ResultHandle`
+  (`post_processing_host_path` → `output_host_path`); solver-neutral
+  `SolveResult` + `ConvergenceHistory` + `WallDistribution`;
+  `build_apptainer_exec` promoted from the OpenFOAM adapter.
+- `aero/adapters/su2/` — the SU2 v8 adapter: `SU2CaseSpec` discriminated
+  union (`SU2AirfoilSpec` + `SU2MeshFileSpec`), a native `.su2` structured
+  quad mesh writer with geometric wall-normal clustering (airfoil O-grid,
+  TMR flat plate, TMR bump), a compressible RANS `.cfg` writer (Roe for
+  transonic / JST for subsonic), and `SU2Solver(Solver)`. The adapter
+  consumes both the OpenFOAM TMR specs and the SU2-native specs so the
+  Stage-05 TMR cases run through either solver unchanged.
+- `aero[su2]` extra (`mpi4py>=4.0`, `meshio>=5.3`) — independent of
+  `aero[openfoam]` (Stage-06 guardrail 3).
+- `containers/su2-v8.{Dockerfile,def}` + `scripts/build_su2_sif.sh` —
+  two-step OCI-then-SIF build (rootless buildah on `aero-build` source-
+  compiles SU2 v8 with autodiff / Mutation++ / pysu2 / OpenBLAS; the SIF
+  bootstraps from the OCI archive `%post`-filesystem-only).
+- `aero/vv/transonic/` — the platform's first compressible V&V cases:
+  `NACA0012Transonic` (M=0.7, AoA=1.49 deg, Cd vs AGARD-AR-138 /
+  Schmitt-Charpin, 5% tolerance) and `OneraM6` (M=0.84, AoA=3.06 deg, Cp at
+  η=0.44 vs Schmitt-Charpin / ONERA TR-1).
+- `aero/vv/cross_solver_compare.py` — `compare_solvers` runs the same
+  `BenchmarkCase` through both adapters; emits a `CrossSolverReport` (JSON
+  + markdown) suitable for an MLflow artefact and the V&V dashboard.
+- `aero run --solver {openfoam,su2}` and `aero vv run --solver ...`; per-
+  solver required-modules check and `solver_version` MLflow tag.
+- `tests/stage_06/` — protocol-satisfaction asserts for both adapters;
+  mesh-writer, cfg-writer, SU2 CSV-parser unit tests; cross-solver compare
+  shape tests. `tests/vv/test_tmr_*_su2.py` + `test_transonic_*.py` (cluster-
+  bound).
+- `.github/workflows/import-platform-only.yml` — Constitution
+  Invariants 1/4 are now structurally enforced in CI.
+- `.github/workflows/vv-transonic.yml` — nightly-only transonic suite.
+- ADR-006 — the Solver-protocol-generalisation + SU2-adapter decisions.
+
+### Changed — Stage 06
+
+- **CONSTITUTION Invariant 7 — TYPED-CONVERGENCE-HISTORY** added (every
+  solver's `load()` returns a typed `SolveResult` with a typed
+  `ConvergenceHistory`; never a solver-native container or `.attrs` dict).
+- `OpenFOAMSolver` refactored onto `Solver`; `load()` now returns
+  `SolveResult` (was `xr.Dataset`). Numbers are bit-unchanged from Stage 05
+  (no behaviour regression — Stage-06 guardrail 2).
+- `vv-smoke.yml` installs `aero[openfoam,su2,provenance,vv,dev]` and runs
+  the TMR suite through both solvers (per-solver readiness gated by the
+  cluster fixtures).
+- `aero/vv/_base.SolverLike` is now an alias of
+  `aero.adapters._base.SolverProtocol` — one source of truth.
+- `aero/vv/tmr/{flat_plate,bump_2d}.py` call `solver.wall_distribution(...)`
+  instead of importing `extract_wall_distributions` directly (closes a
+  PLATFORM-NOT-HUB leak).
+
+### Status — Stage 06 (partial)
+
+- The structural deliverables ship (protocol, adapter, container defs,
+  V&V cases, cross-solver compare, CI).
+- SU2 cluster validation against the TMR cases is the cluster follow-up
+  (xfail-strict-false until the first cluster run lands); the SU2 SIF
+  SHA256 lands in `containers/SHA256SUMS` after `build_su2_sif.sh` runs.
+- ONERA M6 host-side 3D wing-slice extraction is flagged for a follow-up
+  stage; the case fails loud until it lands.
+
 ## [0.0.5] - 2026-05-19
 
 ### Added — Stage 05 (V&V Harness Against NASA TMR)
