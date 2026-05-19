@@ -59,8 +59,8 @@ class NACA0012Verification:
         return (MetricSpec(name="cd", kind="scalar", tolerance=0.03, comparison="relative"),)
 
     def evaluate(self, solver: SolverLike, result: Any) -> dict[str, float | Series]:
-        dataset = solver.load(result)
-        return {"cd": float(dataset.attrs["cd"])}
+        solve = solver.load(result)
+        return {"cd": solve.cd}
 
     def refined(self, ratio: float) -> NACA0012Verification:
         s = self._spec

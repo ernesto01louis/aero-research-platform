@@ -16,7 +16,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec
 from aero.vv._base import (
     BenchmarkError,
@@ -68,7 +67,7 @@ class Bump2D:
         )
 
     def evaluate(self, solver: SolverLike, result: Any) -> dict[str, float | Series]:
-        wd = extract_wall_distributions(result.post_processing_host_path, patch="wall")
+        wd = solver.wall_distribution(result, patch="wall")
         # Restrict to the bump itself: 0 <= x <= bump_length.
         pts = [
             (x, cp, cf)

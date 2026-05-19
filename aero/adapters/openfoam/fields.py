@@ -27,27 +27,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+
+# `WallDistribution` is solver-neutral — promoted to `aero.adapters._base` in
+# Stage 06 (ADR-006) and re-exported here so existing imports keep working.
+# `extract_wall_distributions` below is the OpenFOAM-specific parser that
+# produces one.
+from aero.adapters._base import WallDistribution
 
 # Streamwise wall-shear sign: OpenFOAM's wallShearStress x-component is
 # negative for attached +x flow; flip it to the positive Cf convention.
 _CF_SIGN = -1.0
 _U_INF = 1.0
 
-
-class WallDistribution(BaseModel):
-    """Cf and Cp sampled along a wall patch, ordered by streamwise coordinate."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
-
-    patch: str = Field(..., min_length=1, description="The sampled wall patch.")
-    x: list[float] = Field(..., description="Streamwise coordinate, ascending.")
-    cp: list[float] = Field(..., description="Pressure coefficient, paired with `x`.")
-    cf: list[float] = Field(..., description="Skin-friction coefficient, paired with `x`.")
-
-    def as_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """`(x, cp, cf)` as numpy arrays."""
-        return np.asarray(self.x), np.asarray(self.cp), np.asarray(self.cf)
+__all__ = ["FieldExtractionError", "WallDistribution", "extract_wall_distributions"]
 
 
 class FieldExtractionError(RuntimeError):

@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.tmr_specs import FlatPlateSpec
 from aero.vv._base import (
     BenchmarkError,
@@ -57,7 +56,7 @@ class FlatPlateTE:
     _LE_WINDOW = 0.1
 
     def evaluate(self, solver: SolverLike, result: Any) -> dict[str, float | Series]:
-        wd = extract_wall_distributions(result.post_processing_host_path, patch="wall")
+        wd = solver.wall_distribution(result, patch="wall")
         # Keep the developed plate, dropping the leading-edge singularity.
         pts = [
             (x, cf)

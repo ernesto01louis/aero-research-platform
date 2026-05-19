@@ -1,32 +1,39 @@
-"""Typed contracts for the OpenFOAM walking-skeleton adapter.
+"""Typed contracts for the OpenFOAM adapter.
+
+`CaseSpec` is the OpenFOAM-specific airfoil case spec — intentionally
+mesh-coupled (its C-grid fields are meaningless for another solver). The
+lifecycle handle models (`CaseDir`, `MeshHandle`, `ResultHandle`) and the
+shared NFS-path constants were promoted to `aero.adapters._base` in Stage 06
+when SU2 forced the multi-solver abstraction (ADR-006); they are re-exported
+here so existing `aero.adapters.openfoam.schemas` imports keep working.
 
 Every model is strict (`extra='forbid'`, frozen) per `.claude/rules/
 fail-loud-pydantic.md` — unknown keys are drift and must fail at validation
 time, not silently corrupt a provenance record.
-
-These types are intentionally OpenFOAM-specific. The multi-solver abstraction
-is Stage 06's job, when SU2 forces it (ADR-003).
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
+# Lifecycle handles + platform paths now live in the solver-agnostic base.
+from aero.adapters._base import (
+    CASE_BIND_TARGET,
+    DEFAULT_HOST_NFS_ROOT,
+    DEFAULT_REMOTE_NFS_ROOT,
+    RUNS_SUBDIR,
+    CaseDir,
+    MeshHandle,
+    ResultHandle,
+)
 
-# --- platform paths -----------------------------------------------------------
-# The aero NFS dataset is mounted at different points on the CLI host and
-# inside the aero LXC; a case written on one side is read on the other.
-DEFAULT_HOST_NFS_ROOT = Path("/mnt/aero-nfs")
-DEFAULT_REMOTE_NFS_ROOT = Path("/mnt/aero")
-RUNS_SUBDIR = "runs"
+# --- OpenFOAM SIF path --------------------------------------------------------
+# The shared NFS-path constants come from `_base`; the SIF path is per-solver.
 DEFAULT_SIF_PATH = "/opt/aero/containers/openfoam-esi.sif"
-CASE_BIND_TARGET = "/case"  # where the case dir is bind-mounted inside the SIF
 
-# Shared strict config — see fail-loud-pydantic.md.
+# Shared strict config — see .claude/rules/fail-loud-pydantic.md.
 _STRICT = ConfigDict(
     extra="forbid",
     frozen=True,
@@ -34,6 +41,18 @@ _STRICT = ConfigDict(
     validate_assignment=True,
     validate_default=True,
 )
+
+__all__ = [
+    "CASE_BIND_TARGET",
+    "DEFAULT_HOST_NFS_ROOT",
+    "DEFAULT_REMOTE_NFS_ROOT",
+    "DEFAULT_SIF_PATH",
+    "RUNS_SUBDIR",
+    "CaseDir",
+    "CaseSpec",
+    "MeshHandle",
+    "ResultHandle",
+]
 
 
 class CaseSpec(BaseModel):
@@ -81,43 +100,3 @@ class CaseSpec(BaseModel):
     turbulence_intensity: float = Field(
         default=0.001, gt=0, description="Freestream turbulence intensity (fraction)."
     )
-
-
-class CaseDir(BaseModel):
-    """A prepared OpenFOAM case directory on the shared NFS dataset.
-
-    The same bytes are visible at `host_path` (where the aero process wrote
-    them) and at `remote_path` (where the SIF reads them inside the LXC).
-    """
-
-    model_config = _STRICT
-
-    run_id: str = Field(..., min_length=1, description="Unique run identifier.")
-    spec: CaseSpec | FlatPlateSpec | Bump2DSpec = Field(
-        ..., description="The spec this case was built from (airfoil or TMR geometry)."
-    )
-    host_path: Path = Field(..., description="Case path as seen by the aero process.")
-    remote_path: Path = Field(..., description="Case path as seen inside the LXC/SIF.")
-
-
-class MeshHandle(BaseModel):
-    """Outcome of the `blockMesh` step."""
-
-    model_config = _STRICT
-
-    case_dir: CaseDir = Field(..., description="The meshed case.")
-    ok: bool = Field(..., description="True iff blockMesh succeeded and polyMesh exists.")
-    n_cells: int | None = Field(default=None, description="Cell count, if reported.")
-
-
-class ResultHandle(BaseModel):
-    """Outcome of the `simpleFoam` solve."""
-
-    model_config = _STRICT
-
-    case_dir: CaseDir = Field(..., description="The solved case.")
-    returncode: int = Field(..., description="simpleFoam exit code; 0 is success.")
-    post_processing_host_path: Path = Field(
-        ..., description="postProcessing/ directory, host-side."
-    )
-    solver_log: str = Field(default="", description="Captured simpleFoam output.")

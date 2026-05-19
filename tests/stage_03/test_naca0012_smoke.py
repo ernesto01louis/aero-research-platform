@@ -62,7 +62,7 @@ def test_naca0012_smoke(
     result = solver.run(case_dir, executor)
     assert result.returncode == 0, f"simpleFoam failed (rc={result.returncode})"
 
-    dataset = solver.load(result)
-    cd = float(dataset.attrs["cd"])
+    solve = solver.load(result)
+    cd = solve.cd
     low, high = REFERENCE_CD * (1 - TOLERANCE), REFERENCE_CD * (1 + TOLERANCE)
     assert low <= cd <= high, f"Cd {cd:.5f} outside walking-skeleton band [{low:.5f}, {high:.5f}]"

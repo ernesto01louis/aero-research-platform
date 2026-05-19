@@ -180,11 +180,11 @@ def run(
         typer.echo(f"simpleFoam failed (rc={result.returncode})", err=True)
         raise typer.Exit(code=1)
 
-    dataset = solver.load(result)
-    cd = float(dataset.attrs["cd"])
-    cl = float(dataset.attrs["cl"])
-    iterations = int(dataset.attrs["iterations_to_convergence"])
-    final_residual = float(dataset.attrs["final_residual"])
+    solve = solver.load(result)
+    cd = solve.cd
+    cl = solve.cl
+    iterations = solve.iterations_to_convergence
+    final_residual = solve.final_residual
 
     # --- log: four-fold tuple as MLflow tags + the Postgres mirror -----------
     with start_provenance_run(
@@ -203,7 +203,7 @@ def run(
                 "final_residual": final_residual,
             }
         )
-        log_artifact(result.post_processing_host_path)
+        log_artifact(result.output_host_path)
         run_id = str(mlflow_run.info.run_id)
 
     typer.echo("")

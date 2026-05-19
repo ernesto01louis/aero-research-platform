@@ -21,8 +21,15 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aero.adapters._base import SolverProtocol
 from aero.orchestration._base import Executor
 from aero.provenance.four_fold import ProvenanceTuple
+
+# `SolverLike` is the structural solver contract — defined next to the `Solver`
+# ABC in `aero.adapters._base` (ADR-006) and aliased here so the V&V cases and
+# `aero.vv.__init__` import one stable name. Importing `aero.adapters._base`
+# pulls no solver library, keeping `import aero.vv` PLATFORM-NOT-HUB clean.
+SolverLike = SolverProtocol
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -123,20 +130,6 @@ class BenchmarkResult(BaseModel):
 
 
 # --- protocols ----------------------------------------------------------------
-@runtime_checkable
-class SolverLike(Protocol):
-    """The structural contract a solver must satisfy to drive a benchmark.
-
-    The OpenFOAM adapter satisfies this; Stage 06's SU2 adapter will too. The
-    harness never names a concrete solver class.
-    """
-
-    def prepare(self, case: Any) -> Any: ...
-    def mesh(self, case_dir: Any, executor: Executor) -> Any: ...
-    def run(self, case_dir: Any, executor: Executor) -> Any: ...
-    def load(self, result: Any) -> Any: ...
-
-
 @runtime_checkable
 class BenchmarkCase(Protocol):
     """A canonical V&V case: a solver spec, reference data, and metrics."""
@@ -441,7 +434,7 @@ class BenchmarkRunner:
             for m in metric_results:
                 if m.measured is not None:
                     log_metrics({m.name: m.measured})
-            pp = getattr(result, "post_processing_host_path", None)
+            pp = getattr(result, "output_host_path", None)
             if pp is not None and Path(pp).exists():
                 log_artifact(pp)
             return str(run.info.run_id)

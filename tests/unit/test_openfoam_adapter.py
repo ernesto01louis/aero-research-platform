@@ -27,7 +27,7 @@ def test_build_apptainer_exec_exact_command() -> None:
     cmd = build_apptainer_exec(
         sif_path="/opt/aero/containers/openfoam-esi.sif",
         case_bind_source="/mnt/aero/runs/r1",
-        openfoam_command="blockMesh",
+        command="blockMesh",
     )
     assert cmd == (
         "apptainer exec --bind /mnt/aero/runs/r1:/case "
@@ -39,7 +39,7 @@ def test_build_apptainer_exec_quotes_paths_with_spaces() -> None:
     cmd = build_apptainer_exec(
         sif_path="/opt/aero/containers/openfoam-esi.sif",
         case_bind_source="/mnt/aero/runs/r 1",
-        openfoam_command="simpleFoam",
+        command="simpleFoam",
     )
     assert "'/mnt/aero/runs/r 1':/case" in cmd
     assert cmd.endswith("'cd /case && simpleFoam'")

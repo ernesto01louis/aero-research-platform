@@ -1,77 +1,64 @@
-"""`OpenFOAMSolver` — the Stage 03 walking-skeleton CFD adapter.
+"""`OpenFOAMSolver` — the OpenFOAM-ESI CFD adapter.
 
 The pipeline is `prepare -> mesh -> run -> load`:
 
-* `prepare` writes an OpenFOAM case onto the shared NFS dataset (a filesystem
-  operation on the aero process's host);
+* `prepare` (inherited from `Solver`) writes an OpenFOAM case onto the shared
+  NFS dataset, delegating the case-file writing to `_write_case`;
 * `mesh` and `run` execute `blockMesh` / `simpleFoam` inside the OpenFOAM SIF
   on a remote LXC, through an `Executor`;
-* `load` parses the force-coefficient output into an `xarray.Dataset`.
+* `load` parses the force-coefficient output into a typed `SolveResult`;
+* `wall_distribution` parses the sampled-surface output into a
+  `WallDistribution` (Cf/Cp along a wall patch).
 
-This adapter is deliberately OpenFOAM-only and concrete — there is no
-`Solver` base class. The multi-solver abstraction is Stage 06's job, when SU2
-provides the second data point that reveals the right shape (ADR-003).
+Stage 06 refactored this adapter onto the `aero.adapters._base.Solver` ABC when
+SU2 became the second solver and forced the shared abstraction (ADR-006). The
+OpenFOAM-specific code — the `blockMesh`/`simpleFoam` commands, the polyMesh
+check, the `coefficient.dat`/`raw` parsers — stays here; the lifecycle skeleton
+and the shared handle/result types live in `_base`.
 """
 
 from __future__ import annotations
 
 import re
-import shlex
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 from loguru import logger
 
-from aero.adapters.openfoam.case_writer import write_case
-from aero.adapters.openfoam.schemas import (
-    CASE_BIND_TARGET,
+from aero.adapters._base import (
     DEFAULT_HOST_NFS_ROOT,
     DEFAULT_REMOTE_NFS_ROOT,
-    DEFAULT_SIF_PATH,
-    RUNS_SUBDIR,
-    CaseDir,
-    CaseSpec,
+    ConvergenceHistory,
     MeshHandle,
     ResultHandle,
+    Solver,
+    SolveResult,
+    SpecLike,
+    WallDistribution,
+    build_apptainer_exec,
 )
+from aero.adapters._base import (
+    CaseDir as CaseDir,  # re-exported for backward-compatible imports
+)
+from aero.adapters.openfoam.case_writer import write_case
+from aero.adapters.openfoam.fields import extract_wall_distributions
+from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
 from aero.orchestration._base import Executor
 
-if TYPE_CHECKING:
-    import xarray as xr
+# `build_apptainer_exec` moved to `_base` in Stage 06 (it is solver-neutral);
+# it is re-exported here so the Stage-03 adapter unit tests keep importing it
+# from `aero.adapters.openfoam.solver`.
+__all__ = ["OpenFOAMSolver", "build_apptainer_exec"]
 
 _CELL_COUNT_RE = re.compile(r"nCells:\s*(\d+)")
 _P_RESIDUAL_RE = re.compile(r"Solving for p,\s*Initial residual\s*=\s*([0-9.eE+-]+)")
 
 
-def build_apptainer_exec(
-    *,
-    sif_path: str,
-    case_bind_source: str,
-    openfoam_command: str,
-    case_bind_target: str = CASE_BIND_TARGET,
-) -> str:
-    """Compose the `apptainer exec` command line that runs one OpenFOAM command.
-
-    The case directory is bind-mounted to `case_bind_target` inside the SIF;
-    the command runs there via a *login* shell (`bash -lc`) because the
-    upstream image activates OpenFOAM through `/etc/profile.d` (see
-    `containers/openfoam-esi.def`). Pure and deterministic — this is the seam
-    the adapter unit test pins.
-    """
-    inner = f"cd {shlex.quote(case_bind_target)} && {openfoam_command}"
-    return (
-        f"apptainer exec --bind "
-        f"{shlex.quote(case_bind_source)}:{shlex.quote(case_bind_target)} "
-        f"{shlex.quote(sif_path)} bash -lc {shlex.quote(inner)}"
-    )
-
-
-class OpenFOAMSolver:
-    """Runs the NACA-class walking-skeleton case through OpenFOAM-ESI."""
+class OpenFOAMSolver(Solver):
+    """Runs an OpenFOAM-ESI case through the `prepare -> mesh -> run -> load`
+    lifecycle. Concrete implementation of the `Solver` ABC (ADR-006)."""
 
     def __init__(
         self,
@@ -80,38 +67,38 @@ class OpenFOAMSolver:
         host_nfs_root: Path = DEFAULT_HOST_NFS_ROOT,
         remote_nfs_root: Path = DEFAULT_REMOTE_NFS_ROOT,
     ) -> None:
-        self.sif_path = sif_path
-        self.host_nfs_root = Path(host_nfs_root)
-        self.remote_nfs_root = Path(remote_nfs_root)
+        super().__init__(
+            sif_path=sif_path, host_nfs_root=host_nfs_root, remote_nfs_root=remote_nfs_root
+        )
 
-    def prepare(self, case: CaseSpec | FlatPlateSpec | Bump2DSpec) -> CaseDir:
-        """Write the OpenFOAM case onto the shared NFS dataset.
+    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+        """Write the OpenFOAM case files under `host_path`.
 
         Dispatches on the spec type: an airfoil `CaseSpec` is written by the
-        C-grid `write_case`; a TMR geometry spec by `write_tmr_case`.
+        C-grid `write_case`; a TMR geometry spec by `write_tmr_case`. An
+        unrecognised spec fails loud — the OpenFOAM adapter does not run SU2
+        (or any other) case specs.
         """
-        run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}"
-        host_path = self.host_nfs_root / RUNS_SUBDIR / run_id
-        remote_path = self.remote_nfs_root / RUNS_SUBDIR / run_id
-        logger.info("preparing case {} at {}", run_id, host_path)
         if isinstance(case, CaseSpec):
             write_case(case, host_path)
-        else:
+        elif isinstance(case, FlatPlateSpec | Bump2DSpec):
             write_tmr_case(case, host_path)
-        return CaseDir(run_id=run_id, spec=case, host_path=host_path, remote_path=remote_path)
+        else:
+            raise TypeError(
+                f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
+            )
 
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle:
         """Run `blockMesh` inside the SIF, then confirm a polyMesh was written.
 
-        `mesh` takes the `Executor` as an argument (like `run`); the Stage 03
-        prompt's `mesh(case_dir)` signature omitted it, but meshing executes
-        inside the SIF on a remote host exactly as the solve does — the
-        symmetry is recorded in ADR-003.
+        `mesh` takes the `Executor` as an argument (like `run`); meshing
+        executes inside the SIF on a remote host exactly as the solve does —
+        the symmetry is recorded in ADR-003.
         """
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            openfoam_command="blockMesh",
+            command="blockMesh",
         )
         result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
@@ -130,7 +117,7 @@ class OpenFOAMSolver:
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            openfoam_command="simpleFoam",
+            command="simpleFoam",
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
         if not result.ok:
@@ -138,40 +125,54 @@ class OpenFOAMSolver:
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,
-            post_processing_host_path=case_dir.host_path / "postProcessing",
+            output_host_path=case_dir.host_path / "postProcessing",
             solver_log=result.stdout,
         )
 
-    def load(self, result: ResultHandle) -> xr.Dataset:
-        """Parse the `forceCoeffs` output into a typed `xarray.Dataset`.
+    def load(self, result: ResultHandle) -> SolveResult:
+        """Parse the `forceCoeffs` output into a typed `SolveResult`.
 
         The `forceCoeffs` function object writes a columnar `coefficient.dat`
-        (not a field file), so this parses with `numpy.loadtxt` — Ofpp is for
-        mesh/field files and is unused here (ADR-003). `xarray` is imported
-        lazily so importing this module does not require `aero[openfoam]`.
+        (not a field file), so this parses with `numpy.loadtxt`. The
+        monitored-residual `ConvergenceHistory` is the per-iteration sequence of
+        `simpleFoam` pressure-equation initial residuals (Invariant 7).
         """
-        import xarray as xr
-
-        coeff_file = _coefficient_file(result.post_processing_host_path)
+        coeff_file = _coefficient_file(result.output_host_path)
         columns, data = _read_coefficient_dat(coeff_file)
         if data.ndim == 1:
             data = data.reshape(1, -1)
         iteration = data[:, columns.index("Time")].astype(int)
         cd = data[:, columns.index("Cd")]
         cl = data[:, columns.index("Cl")]
-        return xr.Dataset(
-            {"cd": ("iteration", cd), "cl": ("iteration", cl)},
-            coords={"iteration": iteration},
-            attrs={
-                "run_id": result.case_dir.run_id,
-                "case_name": result.case_dir.spec.name,
-                "cd": float(cd[-1]),
-                "cl": float(cl[-1]),
-                "iterations_to_convergence": int(iteration[-1]),
-                "final_residual": _final_residual(result.solver_log),
-                "source": str(coeff_file),
-            },
+
+        residuals = _p_residuals(result.solver_log)
+        if not residuals:
+            raise ValueError(
+                f"no pressure-equation residuals in the simpleFoam log for "
+                f"{result.case_dir.run_id} — did the solve run?"
+            )
+        history = ConvergenceHistory(
+            iteration=tuple(range(1, len(residuals) + 1)),
+            residual=tuple(residuals),
         )
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=result.case_dir.spec.name,
+            cd=float(cd[-1]),
+            cl=float(cl[-1]),
+            iterations_to_convergence=int(iteration[-1]),
+            final_residual=residuals[-1],
+            history=history,
+            source=str(coeff_file),
+        )
+
+    def wall_distribution(self, result: ResultHandle, *, patch: str = "wall") -> WallDistribution:
+        """Extract the Cf/Cp distribution along wall `patch` from a finished solve.
+
+        Delegates to the OpenFOAM-specific `extract_wall_distributions` parser,
+        which reads the `surfaces` function-object `raw` output.
+        """
+        return extract_wall_distributions(result.output_host_path, patch=patch)
 
 
 def _coefficient_file(post_processing: Path) -> Path:
@@ -201,7 +202,6 @@ def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
     return header, np.asarray(data, dtype=np.float64)
 
 
-def _final_residual(solver_log: str) -> float:
-    """The last pressure-equation initial residual reported by simpleFoam."""
-    matches = _P_RESIDUAL_RE.findall(solver_log)
-    return float(matches[-1]) if matches else float("nan")
+def _p_residuals(solver_log: str) -> list[float]:
+    """The per-iteration pressure-equation initial residuals from a solve log."""
+    return [float(m) for m in _P_RESIDUAL_RE.findall(solver_log)]
