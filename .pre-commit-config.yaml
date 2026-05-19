@@ -14,6 +14,10 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ["--maxkb=500"]
+        # uv.lock is a generated lockfile — its size tracks the dependency
+        # tree, not hand-authored content. Exempt it; the 500 KB guard still
+        # applies to every other file (Stage 04 — uv.lock is now committed).
+        exclude: '^uv\.lock$'
       - id: check-yaml
         args: ["--allow-multiple-documents"]
       - id: check-toml

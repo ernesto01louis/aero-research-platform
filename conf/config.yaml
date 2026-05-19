@@ -1,0 +1,12 @@
+# Hydra primary config for `aero run`.
+#
+# The defaults list composes the layered config; `aero run <case>` passes the
+# override `case=<case>` to select a different `conf/case/<case>.yaml`. The
+# fully-resolved config is hashed into the four-fold tuple's `config_hash`
+# (ADR-004), so every layer that affects a run is captured.
+
+defaults:
+  - case: naca0012
+  - mlflow: default
+  - provenance: default
+  - _self_

@@ -1,0 +1,6 @@
+# MLflow remote tracking server on the aero-mlflow LXC (VPN-only, TLS via the
+# host Caddy reverse proxy). The Stage 03 local `file://mlruns/` store is
+# retired — every run is logged to the shared server from Stage 04 on.
+
+tracking_uri: http://aero-mlflow:5000
+experiment: aero-provenance

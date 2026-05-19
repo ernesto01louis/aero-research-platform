@@ -1,0 +1,23 @@
+# NACA 0012 reference case — Re=6e6, M=0.15, AoA 0 deg.
+#
+# Every `aero.adapters.openfoam.schemas.CaseSpec` field is listed explicitly
+# (not left to a pydantic default) so the resolved config — and therefore the
+# `config_hash` — covers the complete input set. A pydantic-default change
+# would otherwise alter the physics without altering the hash. See ADR-004.
+#
+# Float exponents carry an explicit sign (`6.0e+6`, not `6.0e6`) so the YAML
+# loader parses them as floats rather than strings.
+
+name: naca0012
+reynolds: 6.0e+6
+mach: 0.15
+aoa_deg: 0.0
+chord: 1.0
+span: 1.0
+end_time: 1500
+turbulence_model: kOmegaSST
+farfield_radius_chords: 20.0
+n_surface: 120
+n_normal: 100
+first_cell_height: 5.0e-6
+turbulence_intensity: 0.001
