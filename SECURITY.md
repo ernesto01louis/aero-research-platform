@@ -18,7 +18,7 @@ and pre-existing release schedule.
    container layer history.** Anything that ends up in `git log`, MLflow's
    tag store, Apptainer SIF metadata, or a CI log is permanent.
 3. **Vault for everything that isn't local-dev.** A HashiCorp Vault instance
-   on the Proxmox host (placeholder: `<vault-host-tbd-in-stage-02>`) holds
+   (deferred — provisioned in Stage 04+, not yet stood up) will hold
    cloud-GPU API keys (RunPod, Lambda Labs, Vast.ai), database credentials
    (Postgres LXC 202, MinIO service accounts, MLflow tracking), MCP-server
    tokens (GitHub PAT, future Postgres), the agentic-layer LLM API key, the
@@ -28,6 +28,13 @@ and pre-existing release schedule.
 5. **No reuse across tiers.** RunPod keys for `production` runs are
    separate from `experiment`-tier keys; MinIO root credentials are
    separate from the scoped DVC and MLflow service accounts.
+6. **Apptainer signing key (Stage 02 interim).** The container-image signing
+   keypair lives in the `aero-build` LXC keyring (`/root/.apptainer/keys/`),
+   passphrase-protected; the passphrase is in `/root/.config/aero/signing.env`
+   (mode 0600) on `aero-build`. An encrypted-at-rest copy of the keyring is
+   escrowed to the TrueNAS `aero/` NFS dataset (`/mnt/aero/.keyring-escrow/`).
+   The public fingerprint is committed at `containers/SIGNING_KEY_FINGERPRINT.txt`.
+   This interim arrangement is superseded by Vault when it lands (Stage 04+).
 
 ## Threat model
 

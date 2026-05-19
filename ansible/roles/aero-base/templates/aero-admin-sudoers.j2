@@ -1,0 +1,6 @@
+# /etc/sudoers.d/aero-admin — MANAGED BY ANSIBLE (aero-base role). Do not edit.
+#
+# Scoped NOPASSWD privileges for the aero-research-platform automation user.
+# Stage 02 keeps this deliberately tight; later stages extend the command set
+# through this same template, never by hand.
+{{ aero_admin_user }} ALL=(root) NOPASSWD: /usr/bin/apt, /usr/bin/apt-get, /usr/bin/systemctl, /usr/bin/mount, /usr/bin/umount, /usr/bin/apptainer

@@ -1,0 +1,54 @@
+---
+# aero-apptainer — install pinned Apptainer and enable unprivileged builds.
+# Applied to aero-build and aero-dev only.
+
+- name: Query the installed Apptainer version
+  ansible.builtin.command: apptainer --version
+  register: aero_apptainer_installed
+  changed_when: false
+  failed_when: false
+
+- name: Download the pinned Apptainer .deb
+  ansible.builtin.get_url:
+    url: "{{ apptainer_deb_url }}"
+    dest: "/tmp/apptainer_{{ apptainer_version }}_amd64.deb"
+    checksum: "sha256:{{ apptainer_deb_sha256 }}"
+    mode: "0644"
+  when: apptainer_version not in aero_apptainer_installed.stdout
+
+- name: Install Apptainer from the verified .deb
+  ansible.builtin.apt:
+    deb: "/tmp/apptainer_{{ apptainer_version }}_amd64.deb"
+    state: present
+  when: apptainer_version not in aero_apptainer_installed.stdout
+
+- name: Map subuid ranges for --fakeroot users
+  ansible.builtin.lineinfile:
+    path: /etc/subuid
+    regexp: "^{{ item.user }}:"
+    line: "{{ item.user }}:{{ item.subid_start }}:{{ apptainer_subid_count }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ apptainer_fakeroot_users }}"
+
+- name: Map subgid ranges for --fakeroot users
+  ansible.builtin.lineinfile:
+    path: /etc/subgid
+    regexp: "^{{ item.user }}:"
+    line: "{{ item.user }}:{{ item.subid_start }}:{{ apptainer_subid_count }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ apptainer_fakeroot_users }}"
+
+- name: Confirm Apptainer is operational
+  ansible.builtin.command: apptainer --version
+  register: aero_apptainer_final
+  changed_when: false
+
+- name: Report the installed Apptainer version
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ aero_apptainer_final.stdout }}"

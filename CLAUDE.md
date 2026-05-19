@@ -117,11 +117,20 @@ Then begin work.
 
 Subsequent stages append topic-specific guidance here. As of Stage 01:
 
-- **SSH alias convention** — TBD in Stage 02. Aero LXCs will use
+- **SSH alias convention** (Stage 02) — the seven aero LXCs are reached as
   `aero-build`, `aero-dev`, `aero-mlflow`, `aero-vv`, `aero-prefect`,
-  `aero-agent`, `aero-lit`.
-- **Long-running-job pattern** — TBD in Stage 02 via
-  `scripts/run_long.sh` (tmux-based; submit-poll-fetch).
+  `aero-agent`, `aero-lit` (defined in `~/.ssh/config.d/aero` on the Proxmox
+  host; default user `aero-admin`, `ssh root@aero-<name>` for break-glass).
+  Full scheme: `docs/architecture/ssh-conventions.md`.
+- **Long-running-job pattern** (Stage 02) — never hold an SSH connection
+  open for a CFD/training run. Submit with `scripts/run_long.sh <alias>
+  <session> <command>` (detached `tmux`, returns immediately), then poll via
+  `run_long.sh status|wait|logs`. Sentinels: `.done` / `.failed`.
+- **aero LXC fleet** (Stage 02) — LXCs 210-216 are the aero platform's own.
+  **Do not touch any other LXC/VM**: the non-aero guests (101-114, 200-207,
+  VMs 100/104/111/112) are off-limits beyond the explicitly-shared services
+  (Postgres 202, Grafana 205, Tempo 204, Redis 203, TrueNAS 104).
+  Topology: `docs/architecture/proxmox-topology.md`.
 - **Production-tag UQ requirement** — TBD in Stage 12; any
   `tag=production` MLflow run will require a `--uq` envelope.
 - **Surrogate certificate-of-validity check** — TBD in Stage 08; agent

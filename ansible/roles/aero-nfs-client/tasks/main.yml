@@ -1,0 +1,36 @@
+---
+# aero-nfs-client — wire the /opt/aero/* convenience symlinks.
+#
+# /mnt/aero is provided by a Proxmox `mp` bind mount of the host's NFS mount
+# of the TrueNAS aero/ export (NFS cannot be mounted inside an unprivileged
+# LXC — see ADR-002). This role does not mount NFS itself; it only wires the
+# /opt/aero/* convenience symlinks into that mount.
+
+- name: Verify /mnt/aero is present (Proxmox bind mount of the TrueNAS export)
+  ansible.builtin.stat:
+    path: /mnt/aero
+  register: aero_mnt
+
+- name: Fail clearly if /mnt/aero is missing
+  ansible.builtin.fail:
+    msg: >-
+      /mnt/aero is not present on {{ inventory_hostname }}. Configure the
+      Proxmox `mp` bind mount (pct set <id> -mp0 /mnt/aero-nfs,mp=/mnt/aero)
+      and ensure the host has the TrueNAS export mounted at /mnt/aero-nfs.
+      See ADR-002.
+  when: not aero_mnt.stat.exists
+
+- name: Create /opt/aero
+  ansible.builtin.file:
+    path: /opt/aero
+    state: directory
+    mode: "0755"
+
+- name: Symlink /opt/aero/* into the aero mount
+  ansible.builtin.file:
+    src: "{{ item.target }}"
+    dest: "{{ item.link }}"
+    state: link
+    force: true
+    follow: false
+  loop: "{{ aero_opt_symlinks }}"

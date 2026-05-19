@@ -9,6 +9,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.2] - 2026-05-19
+
+### Added — Stage 02 (Proxmox Topology & Container Build Pipeline)
+
+- `docs/architecture/proxmox-inventory-2026-05-16.md` — committed host inventory
+- Seven `aero-*` LXCs provisioned (IDs 210-216, unprivileged Ubuntu 24.04,
+  dual-NIC: LAN + private `10.10.10.0/24`) via `scripts/provision_aero_lxc.sh`
+- `ansible/` — inventory, `site.yml`, three roles: `aero-base` (users, scoped
+  sudo, ufw, baseline packages, node-exporter), `aero-apptainer` (pinned
+  Apptainer 1.5.0), `aero-nfs-client` (NFS bind-mount symlinks)
+- TrueNAS `aero/` NFS dataset — host-mounted at `/mnt/aero-nfs`, bind-mounted
+  into build/dev/vv/mlflow at `/mnt/aero` (NFS subdirs: dvc-remote,
+  mlflow-artifacts, datasets, containers)
+- Apptainer SIF pipeline — `containers/_base.def`, `hello-world.def`,
+  `scripts/build_base_sifs.sh`; `_base.sif` + `hello-world.sif` built, PGP-
+  signed (key `682F6145…`), recorded in `containers/SHA256SUMS`
+- `scripts/run_long.sh` — tmux-based long-running-job submit/poll helper
+- `scripts/verify_stage_02.sh` — Stage 02 verification gate (30 checks)
+- Interim `vzdump` backup job (aero LXCs only, daily 03:00, keep-7)
+- `docs/adrs/ADR-002-proxmox-topology.md`; `docs/architecture/`
+  `proxmox-topology.md`, `ssh-conventions.md`, `backup-interim.md`
+- Hardened `.claude/hooks/block-dangerous-bash.sh` (pct/qm guard, protected
+  host paths, shared-host SSH guard)
+
 ## [0.0.1] - 2026-05-17
 
 ### Added — Stage 01 (Scaffolding & Conventions)
@@ -45,5 +69,6 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
   CODEOWNERS 1-approval; `enforce_admins: false` for solo-admin self-merge
 - Post-stage handoff: `docs/handoffs/STAGE-01-scaffolding-and-conventions-DONE-2026-05-17.md`
 
-[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.2
 [0.0.1]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.1

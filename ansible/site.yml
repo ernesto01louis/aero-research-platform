@@ -1,0 +1,34 @@
+---
+# aero-research-platform — Stage 02 site playbook.
+#
+# Orchestrates the three roles across the aero LXC fleet. No play targets
+# `shared_services` — that group is a read-only reference (Hard Rule 11).
+#
+# Run:  ansible-playbook site.yml                 # whole fleet
+#       ansible-playbook site.yml --tags base     # aero-base only
+#       ansible-playbook site.yml --tags apptainer
+#       ansible-playbook site.yml --tags nfs
+#
+# Stage 02 connects as root (key injected at provision time); the aero-base
+# role creates `aero-admin`, the scoped-sudo identity used from Stage 03 on.
+
+- name: Baseline configuration for the whole aero LXC fleet
+  hosts: aero_lxc
+  gather_facts: true
+  roles:
+    - role: aero-base
+      tags: [base]
+
+- name: Apptainer container tooling (build + dev nodes)
+  hosts: aero_apptainer
+  gather_facts: true
+  roles:
+    - role: aero-apptainer
+      tags: [apptainer]
+
+- name: TrueNAS NFS client (build + dev + vv + mlflow)
+  hosts: aero_nfs_client
+  gather_facts: true
+  roles:
+    - role: aero-nfs-client
+      tags: [nfs]

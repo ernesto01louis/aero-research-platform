@@ -1,0 +1,11 @@
+---
+# Fleet-wide variables for every aero LXC.
+
+# The scoped-sudo automation user created by the aero-base role; it becomes
+# the management identity from Stage 03 onward.
+aero_admin_user: aero-admin
+
+# The aero fleet SSH public key — authorized for aero-admin by aero-base.
+# Resolved on the Ansible controller (the Proxmox host) from the keypair
+# generated in Stage 02 by scripts/provision_aero_lxc.sh's prerequisite.
+aero_admin_pubkey: "{{ lookup('file', lookup('env', 'HOME') ~ '/.ssh/aero_ed25519.pub') }}"

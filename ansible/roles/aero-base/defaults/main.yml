@@ -1,0 +1,25 @@
+---
+# aero-base role defaults.
+
+# Baseline apt packages installed on every aero LXC.
+aero_base_packages:
+  - git
+  - python3.12
+  - python3-pip
+  - python3-venv
+  - tmux
+  - nfs-common
+  - curl
+  - ca-certificates
+  - rsync
+  - jq
+  - prometheus-node-exporter
+
+# ufw: SSH and node-exporter are reachable only from these CIDRs.
+aero_trusted_cidrs:
+  - 192.168.2.0/24      # LAN
+  - 10.10.10.0/24       # private aero data plane
+  - 100.64.0.0/10       # Tailscale CGNAT
+
+node_exporter_port: 9100
+uv_install_dir: /usr/local/bin

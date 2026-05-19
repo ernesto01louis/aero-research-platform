@@ -1,0 +1,12 @@
+---
+# aero-nfs-client role defaults.
+#
+# The TrueNAS aero/ export is mounted on the Proxmox HOST (/mnt/aero-nfs) and
+# bind-mounted into this LXC at /mnt/aero via a Proxmox `mp` entry — NFS
+# cannot be mounted inside an unprivileged LXC (kernel restriction; see
+# ADR-002). This role only wires the /opt/aero/* convenience symlinks.
+aero_opt_symlinks:
+  - {link: /opt/aero/containers, target: /mnt/aero/containers}
+  - {link: /opt/aero/datasets, target: /mnt/aero/datasets}
+  - {link: /opt/aero/dvc-remote, target: /mnt/aero/dvc-remote}
+  - {link: /opt/aero/mlflow-artifacts, target: /mnt/aero/mlflow-artifacts}

@@ -1,0 +1,68 @@
+---
+# aero-research-platform — Stage 02 Ansible inventory.
+#
+# The aero-* LXC fleet, plus a READ-ONLY reference group for the shared
+# infrastructure services. Nothing in site.yml targets `shared_services`;
+# it exists only so verification and later stages can resolve those IPs
+# (Hard Rule 11 — do not touch pre-existing non-aero infrastructure).
+all:
+  children:
+    aero_lxc:
+      vars:
+        ansible_user: root
+        ansible_ssh_private_key_file: ~/.ssh/aero_ed25519
+        ansible_python_interpreter: /usr/bin/python3
+      children:
+        aero_full:
+          # Full service nodes — base plus apptainer and/or NFS client.
+          hosts:
+            aero-build:
+              ansible_host: 192.168.2.232
+              aero_priv_ip: 10.10.10.20
+            aero-dev:
+              ansible_host: 192.168.2.233
+              aero_priv_ip: 10.10.10.21
+            aero-mlflow:
+              ansible_host: 192.168.2.234
+              aero_priv_ip: 10.10.10.22
+            aero-vv:
+              ansible_host: 192.168.2.235
+              aero_priv_ip: 10.10.10.23
+        aero_stub:
+          # Stage 02 stubs — base configuration only; services land later.
+          hosts:
+            aero-prefect:
+              ansible_host: 192.168.2.236
+              aero_priv_ip: 10.10.10.24
+            aero-agent:
+              ansible_host: 192.168.2.237
+              aero_priv_ip: 10.10.10.25
+            aero-lit:
+              ansible_host: 192.168.2.238
+              aero_priv_ip: 10.10.10.26
+    aero_apptainer:
+      # Apptainer SIF build/run tooling.
+      hosts:
+        aero-build:
+        aero-dev:
+    aero_nfs_client:
+      # Mount the TrueNAS aero/ NFS export.
+      hosts:
+        aero-build:
+        aero-dev:
+        aero-mlflow:
+        aero-vv:
+    shared_services:
+      # READ-ONLY reference — never a play target. Pre-existing non-aero
+      # infrastructure the aero stack reaches additively.
+      vars:
+        aero_readonly: true
+      hosts:
+        postgres-server:
+          ansible_host: 192.168.2.184
+          service_port: 5432
+        grafana-server:
+          ansible_host: 192.168.2.188
+          service_port: 3000
+        truenas:
+          ansible_host: 192.168.2.100

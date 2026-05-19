@@ -18,3 +18,6 @@
 # Stage 04+: the `container_sif_sha256` MLflow provenance tag is sourced
 # from this file. Any run logging a SHA not present here fails the
 # `provenance-completeness` CI check.
+
+ec16d56201fc8a1be5d5cbef3a91d7922781d9615520747a8c963300157479bf  _base.sif
+7c901bea8941914b8d1ff23b06bfc338264a63a9f8d18e5df7d19ee82f3f15d4  hello-world.sif
