@@ -1,26 +1,39 @@
 name: vv-smoke
 
+# V&V smoke test — runs the Stage 03 NACA 0012 walking-skeleton case
+# (prepare -> Apptainer OpenFOAM-ESI simpleFoam -> reported Cd) on a
+# self-hosted runner labelled `vv`, registered on the aero-build LXC. A
+# GitHub-hosted runner cannot reach the private aero cluster or the OpenFOAM
+# SIF, so this job must run self-hosted. Stage 05 expands it to the full NASA
+# TMR V&V case set. See ADR-003.
+#
+# Note: not a required status check on `main` — a self-hosted runner that is
+# offline must not block PRs. Promote it once it has proven stable.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   schedule:
-    # nightly placeholder — will run real V&V cases from Stage 05 onward
     - cron: "0 5 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  placeholder:
-    name: V&V smoke (placeholder — wired real in Stage 05)
-    runs-on: ubuntu-latest
+  vv-smoke:
+    name: V&V smoke — NACA 0012 walking skeleton
+    runs-on: [self-hosted, vv]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
-      - name: Placeholder
+
+      - name: Install aero with the openfoam extra
         run: |
-          echo "::notice::V&V smoke not yet wired. Stage 05 replaces this with"
-          echo "::notice::a real TMR-case run against the OpenFOAM adapter on a"
-          echo "::notice::self-hosted runner labeled 'vv'. See ADR-005 (forthcoming)."
-          echo "Stage 01 placeholder — exiting 0."
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[openfoam,dev]"
+
+      - name: Run the NACA 0012 walking-skeleton smoke test
+        run: |
+          .venv/bin/pytest -m "stage_03 and slow" --run-slow -v tests/stage_03
