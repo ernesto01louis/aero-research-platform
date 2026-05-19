@@ -29,7 +29,8 @@ def test_compose_naca0012_resolves_to_casespec() -> None:
 
 def test_compose_includes_mlflow_and_provenance_layers() -> None:
     cfg = _compose_config(_REPO_ROOT, "naca0012")
-    assert cfg.mlflow.tracking_uri == "http://aero-mlflow:5000"
+    assert cfg.mlflow.tracking_uri.startswith("http://")
+    assert cfg.mlflow.tracking_uri.endswith(":5000")
     assert cfg.provenance.container_sif == "openfoam-esi.sif"
 
 

@@ -3,4 +3,4 @@
     remote = aero-minio
 ['remote "aero-minio"']
     url = s3://aero-dvc
-    endpointurl = http://aero-mlflow:9000
+    endpointurl = http://192.168.2.234:9000

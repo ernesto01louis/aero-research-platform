@@ -19,10 +19,6 @@ auto_auth {
   }
 }
 
-cache {
-  use_auto_auth_token = true
-}
-
 template {
   source      = "{{ vault_agent_dir }}/minio.env.ctmpl"
   destination = "{{ minio_env_file }}"

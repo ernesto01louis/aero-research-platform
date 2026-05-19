@@ -7,14 +7,9 @@
 # MLflow consume them via systemd EnvironmentFile.
 
 # --- MinIO + mc binaries -----------------------------------------------------
-- name: Create the minio service user
-  ansible.builtin.user:
-    name: "{{ minio_user }}"
-    system: true
-    shell: /usr/sbin/nologin
-    home: /var/lib/minio
-    create_home: false
-
+# MinIO runs as the LXC root (the LXC is unprivileged, so this root is
+# namespaced) with its data dir on the LXC local disk — see defaults/main.yml
+# for why MinIO is not placed on the NFS dataset. ADR-004.
 - name: Install the pinned MinIO server binary
   ansible.builtin.get_url:
     url: "{{ minio_url }}"
@@ -34,12 +29,12 @@
     owner: root
     group: root
 
-- name: Ensure the MinIO data directory exists on the NFS dataset
+- name: Ensure the MinIO data directory exists (LXC local disk)
   ansible.builtin.file:
     path: "{{ minio_data_dir }}"
     state: directory
-    owner: "{{ minio_user }}"
-    group: "{{ minio_user }}"
+    owner: root
+    group: root
     mode: "0750"
 
 # --- MLflow venv -------------------------------------------------------------
@@ -73,6 +68,33 @@
     owner: "{{ mlflow_user }}"
     group: "{{ mlflow_user }}"
     recurse: true
+
+# --- Vault Agent binary ------------------------------------------------------
+# The Vault Agent is the `vault` binary (`vault agent ...`); install it from
+# the HashiCorp apt repo, same pin as the aero-vault role.
+- name: Add the HashiCorp apt signing key
+  ansible.builtin.get_url:
+    url: "{{ vault_apt_key_url }}"
+    dest: /tmp/hashicorp.gpg
+    mode: "0644"
+
+- name: Install the HashiCorp apt key into a keyring
+  ansible.builtin.command:
+    cmd: gpg --dearmor --batch --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg /tmp/hashicorp.gpg
+    creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+- name: Add the HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "{{ vault_apt_repo }}"
+    filename: hashicorp
+    state: present
+
+- name: Install the pinned Vault package (provides the Vault Agent)
+  ansible.builtin.apt:
+    name: "vault={{ vault_version }}-1"
+    state: present
+    update_cache: true
+    allow_downgrade: true
 
 # --- secret env files (Vault Agent) ------------------------------------------
 - name: Create the aero env and Vault Agent directories
@@ -179,16 +201,15 @@
   loop: "{{ minio_buckets }}"
 
 # --- firewall ----------------------------------------------------------------
-- name: Allow MinIO and MLflow from the private aero segment only
+- name: Allow MinIO and MLflow from the trusted aero CIDRs
   community.general.ufw:
     rule: allow
-    port: "{{ item }}"
+    port: "{{ item.0 }}"
     proto: tcp
-    src: "{{ aero_private_cidr }}"
-  loop:
-    - "{{ minio_api_port }}"
-    - "{{ minio_console_port }}"
-    - "{{ mlflow_port }}"
+    src: "{{ item.1 }}"
+  loop: >-
+    {{ [minio_api_port, minio_console_port, mlflow_port]
+       | product(aero_trusted_cidrs) | list }}
 
 - name: Report aero-mlflow status
   ansible.builtin.debug:

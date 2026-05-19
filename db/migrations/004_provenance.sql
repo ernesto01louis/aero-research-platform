@@ -1,4 +1,4 @@
--- Stage 04 — Provenance Backbone
+-- Stage 04 - Provenance Backbone
 --
 -- The `mlflow_artifact_provenance` table mirrors the four-fold provenance
 -- tuple of every MLflow run into the `aero_provenance` database, indexed for

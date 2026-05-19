@@ -14,11 +14,13 @@ mc_version: "RELEASE.2025-08-13T08-35-41Z"
 mc_url: "https://dl.min.io/client/mc/release/linux-amd64/mc.{{ mc_version }}"
 mc_sha256: "01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891"
 
-minio_user: minio
 minio_bin: /usr/local/bin/minio
 mc_bin: /usr/local/bin/mc
-# Artifact data lives on the TrueNAS NFS dataset (bind-mounted at /mnt/aero).
-minio_data_dir: /mnt/aero/mlflow-artifacts
+# MinIO's backend is on the LXC local disk, NOT the NFS dataset: MinIO does
+# not support network filesystems (it relies on atomic renames NFS cannot
+# guarantee) — confirmed by uid-squash + IAM-consistency failures on NFS.
+# Durability is the LXC vzdump backup. See ADR-004.
+minio_data_dir: /opt/aero/minio-data
 minio_api_port: 9000
 minio_console_port: 9001
 minio_buckets:
@@ -40,10 +42,22 @@ mlflow_env_file: "{{ aero_env_dir }}/mlflow.env"
 # --- Vault Agent -------------------------------------------------------------
 # The Agent authenticates with an AppRole whose role-id / secret-id the
 # operator places on the host before this role runs (see ADR-004).
-vault_addr: "https://aero-vault:8200"
+#
+# The Agent IS the `vault` binary — installed here from the HashiCorp apt
+# repo, same pin as the aero-vault role. aero-* LXCs do not resolve each
+# other's hostnames, so the Agent reaches Vault by its private-plane IP.
+vault_version: "1.20.4"
+vault_apt_key_url: "https://apt.releases.hashicorp.com/gpg"
+vault_apt_repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+vault_addr: "https://10.10.10.27:8200"
 vault_agent_dir: /etc/vault-agent
 vault_approle_role_id_file: "{{ vault_agent_dir }}/role-id"
 vault_approle_secret_id_file: "{{ vault_agent_dir }}/secret-id"
 
-# UFW: MinIO + MLflow reachable only from the private aero segment.
-aero_private_cidr: "10.10.10.0/24"
+# UFW: MinIO + MLflow reachable from the aero fleet's trusted CIDRs — the
+# same set the aero-base role trusts for SSH (LAN, private data plane,
+# Tailscale). Not internet-exposed. See ADR-004.
+aero_trusted_cidrs:
+  - "192.168.2.0/24"
+  - "10.10.10.0/24"
+  - "100.64.0.0/10"
