@@ -40,6 +40,12 @@ all:
             aero-lit:
               ansible_host: 192.168.2.238
               aero_priv_ip: 10.10.10.26
+        aero_secrets:
+          # Stage 04 — Vault secrets store (LXC 217).
+          hosts:
+            aero-vault:
+              ansible_host: 192.168.2.239
+              aero_priv_ip: 10.10.10.27
     aero_apptainer:
       # Apptainer SIF build/run tooling.
       hosts:
@@ -52,6 +58,14 @@ all:
         aero-dev:
         aero-mlflow:
         aero-vv:
+    aero_vault:
+      # Stage 04 — the Vault secrets-store node.
+      hosts:
+        aero-vault:
+    aero_provenance_services:
+      # Stage 04 — MLflow tracking server + MinIO sidecar.
+      hosts:
+        aero-mlflow:
     shared_services:
       # READ-ONLY reference — never a play target. Pre-existing non-aero
       # infrastructure the aero stack reaches additively.

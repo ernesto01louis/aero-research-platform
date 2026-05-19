@@ -1,0 +1,32 @@
+# {{ ansible_managed }}
+# Vault Agent — AppRole auth, renders the MinIO and MLflow secret env files.
+
+pid_file = "/run/vault-agent/pid"
+
+vault {
+  address = "{{ vault_addr }}"
+  # Vault uses a self-signed cert on the private aero segment (ADR-004).
+  tls_skip_verify = true
+}
+
+auto_auth {
+  method "approle" {
+    config = {
+      role_id_file_path                   = "{{ vault_approle_role_id_file }}"
+      secret_id_file_path                 = "{{ vault_approle_secret_id_file }}"
+      remove_secret_id_file_after_reading = false
+    }
+  }
+}
+
+template {
+  source      = "{{ vault_agent_dir }}/minio.env.ctmpl"
+  destination = "{{ minio_env_file }}"
+  perms       = "0640"
+}
+
+template {
+  source      = "{{ vault_agent_dir }}/mlflow.env.ctmpl"
+  destination = "{{ mlflow_env_file }}"
+  perms       = "0640"
+}

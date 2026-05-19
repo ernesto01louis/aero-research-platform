@@ -1,0 +1,8 @@
+# Non-secret provenance settings.
+#
+# The Postgres DSN for the `aero_provenance` mirror carries a password and is
+# deliberately NOT here — it is sourced from the AERO_PROVENANCE_DSN env var,
+# rendered from Vault on aero-mlflow (Hard Rule 7 — no secrets in the repo).
+
+container_sif: openfoam-esi.sif
+dvc_remote: aero-minio

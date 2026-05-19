@@ -1,0 +1,6 @@
+[core]
+    analytics = false
+    remote = aero-minio
+['remote "aero-minio"']
+    url = s3://aero-dvc
+    endpointurl = http://192.168.2.234:9000

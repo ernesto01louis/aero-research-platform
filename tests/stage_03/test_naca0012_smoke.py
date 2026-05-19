@@ -1,13 +1,17 @@
 """Stage 03 — NACA 0012 walking-skeleton smoke test.
 
-Drives the full pipeline (prepare -> mesh -> solve -> load) against the OpenFOAM
-SIF on aero-build and asserts the drag coefficient lands within +/-25% of the
-Ladson reference (Cd ~= 0.0079), then asserts the MLflow run was logged.
+Drives the full solver pipeline (prepare -> mesh -> solve -> load) against the
+OpenFOAM SIF on aero-build and asserts the drag coefficient lands within
++/-25% of the Ladson reference (Cd ~= 0.0079).
 
 Marked `slow` + `stage_03`: skipped unless `--run-slow` / `AERO_RUN_SLOW`, and
 skipped cleanly when the cluster, SIF, or `aero[openfoam]` extra is absent.
 The +/-25% band is a deliberately loose walking-skeleton tolerance; Stage 05
 tightens it against NASA TMR data.
+
+This test covers the *solver* contract only. The four-fold provenance logging
+that Stage 04 added to `aero run` is exercised end-to-end by
+`tests/stage_04/test_provenance_completeness.py`.
 """
 
 from __future__ import annotations
@@ -33,7 +37,6 @@ def test_naca0012_smoke(
     aero_build_reachable: bool,
     openfoam_sif_present: bool,
     openfoam_extra_installed: bool,
-    tmp_path: Path,
 ) -> None:
     if not aero_build_reachable:
         pytest.skip("aero-build not reachable over SSH")
@@ -42,11 +45,9 @@ def test_naca0012_smoke(
     if not openfoam_extra_installed:
         pytest.skip("aero[openfoam] extra not installed")
 
-    import mlflow
     from aero.adapters.openfoam import OpenFOAMSolver
     from aero.adapters.openfoam.schemas import CaseSpec
     from aero.orchestration import LocalSSHExecutor
-    from aero.provenance import log_skeleton_run
 
     repo_root = Path(__file__).resolve().parents[2]
     host_root, remote_root = _nfs_roots()
@@ -65,24 +66,3 @@ def test_naca0012_smoke(
     cd = float(dataset.attrs["cd"])
     low, high = REFERENCE_CD * (1 - TOLERANCE), REFERENCE_CD * (1 + TOLERANCE)
     assert low <= cd <= high, f"Cd {cd:.5f} outside walking-skeleton band [{low:.5f}, {high:.5f}]"
-
-    mlruns = tmp_path / "mlruns"
-    run_id = log_skeleton_run(
-        case_name=spec.name,
-        git_sha="smoke-test",
-        container_sif_sha256="smoke-test",
-        solver_version="OpenFOAM-ESI v2412",
-        cd=cd,
-        cl=float(dataset.attrs["cl"]),
-        iterations_to_convergence=int(dataset.attrs["iterations_to_convergence"]),
-        final_residual=float(dataset.attrs["final_residual"]),
-        mlruns_dir=mlruns,
-    )
-    assert run_id
-
-    mlflow.set_tracking_uri(f"file://{mlruns.resolve()}")
-    run = mlflow.get_run(run_id)
-    assert run.data.tags["git_sha"] == "smoke-test"
-    assert run.data.tags["container_sif_sha256"] == "smoke-test"
-    assert "cd" in run.data.metrics
-    assert "cl" in run.data.metrics

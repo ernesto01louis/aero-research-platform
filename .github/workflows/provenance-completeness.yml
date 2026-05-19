@@ -1,0 +1,51 @@
+name: provenance-completeness
+
+# Provenance-completeness check — runs the NACA 0012 case through the full
+# Stage 04 pipeline and asserts the four-fold contract held: the MLflow run
+# carries all four tags (git_sha, dvc_input_hash, container_sif_sha256,
+# config_hash) and the `mlflow_artifact_provenance` Postgres row exists with
+# matching values. See ADR-004.
+#
+# Runs self-hosted (label `vv`, on aero-build): it needs the private
+# aero-mlflow tracking server and the aero_provenance Postgres DB, neither of
+# which a GitHub-hosted runner can reach. Not a required status check until
+# the operator promotes it — a self-hosted runner that is offline must not
+# block PRs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 5 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  provenance-completeness:
+    name: Provenance completeness — four-fold contract
+    runs-on: [self-hosted, vv]
+    timeout-minutes: 40
+    env:
+      # libpq DSN for the aero_provenance DB on Postgres LXC 202. Stored as a
+      # repo secret (masked in logs) — never committed (Hard Rule 7).
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      # MinIO dvc-sa credentials — `aero run` does `dvc status -c` against the
+      # aero-minio remote; the DVC creds live in the gitignored
+      # .dvc/config.local, absent on a fresh checkout, so supply them via the
+      # boto3 env-var credential chain.
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install aero with the openfoam + provenance extras
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[openfoam,provenance,dev]"
+
+      - name: Run the provenance-completeness end-to-end check
+        run: |
+          .venv/bin/pytest -m "stage_04 and slow" --run-slow -v tests/stage_04

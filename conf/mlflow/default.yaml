@@ -1,0 +1,7 @@
+# MLflow remote tracking server on the aero-mlflow LXC. The Stage 03 local
+# `file://mlruns/` store is retired — every run is logged to the shared
+# server from Stage 04 on. Addressed by IP: the aero LXCs have no shared DNS
+# (a DNS follow-up would let the `aero-mlflow` hostname work). See ADR-004.
+
+tracking_uri: http://192.168.2.234:5000
+experiment: aero-provenance

@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Vault Agent — renders aero secret env files
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/mkdir -p /run/vault-agent
+ExecStart=/usr/bin/vault agent -config={{ vault_agent_dir }}/agent.hcl
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

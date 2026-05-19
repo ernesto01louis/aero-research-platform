@@ -1,0 +1,5 @@
+outs:
+- md5: 3388bd31ded2a60359777097567a18b5
+  size: 3124
+  hash: md5
+  path: naca0012.csv
