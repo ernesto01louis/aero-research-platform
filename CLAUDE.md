@@ -137,8 +137,16 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   layer (Stage 14) refuses to call an uncertified surrogate.
 - **Cost cap** — TBD in Stage 07 (initial $50/month for CI) and Stage 13
   (full multi-cloud cost router).
-- **Self-hosted CI runner** — TBD in Stage 03+; labeled `vv` on
-  `aero-build` or `aero-vv` LXC.
+- **Self-hosted CI runner** (Stage 03) — `vv-smoke` runs the NACA 0012
+  walking-skeleton smoke test on a self-hosted runner labeled `vv`,
+  registered on `aero-build`. Not a required status check.
+- **OpenFOAM walking skeleton** (Stage 03) — `aero run naca0012 --executor
+  local-ssh` drives the end-to-end slice. The OpenFOAM-ESI v2412 SIF is at
+  `/opt/aero/containers/openfoam-esi.sif`; solver SIFs run **as the LXC
+  root** (`ssh root@aero-build` — non-root `apptainer exec` fails in the
+  unprivileged LXC). Cases are written to the shared NFS dataset
+  (`/mnt/aero-nfs/runs/` host-side, `/mnt/aero/runs/` inside the LXC).
+  Adapter: `aero.adapters.openfoam`; see ADR-003.
 
 ## Pointers (do not re-derive — read these)
 

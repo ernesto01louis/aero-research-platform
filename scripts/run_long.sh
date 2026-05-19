@@ -13,6 +13,9 @@
 # Logs:    run_long.sh logs   <aero-alias> <session-name>
 # List:    run_long.sh list   <aero-alias>
 #
+# <aero-alias> accepts an optional SSH user prefix (e.g. root@aero-build) to
+# run the job as that user — Stage 03 onward, solver SIFs run as the LXC root.
+#
 # Remote job state lives in ~/.aero-jobs/<session-name>/ on the target LXC:
 #   cmd.sh      — the submitted command
 #   output.log  — combined stdout + stderr
@@ -31,8 +34,12 @@ JOBROOT=".aero-jobs"   # relative to the remote user's home directory
 die() { echo "run_long: $*" >&2; exit 64; }
 
 is_alias() {
-  local a
-  for a in "${AERO_ALIASES[@]}"; do [[ "$a" == "$1" ]] && return 0; done
+  # Accept a bare alias or a [user@]alias target (e.g. root@aero-build) and
+  # validate the alias part, ignoring any user@ prefix. Added Stage 03: solver
+  # SIFs must run as the LXC root (non-root apptainer exec fails in the
+  # unprivileged LXC), so jobs are submitted to root@aero-build.
+  local a bare="${1##*@}"
+  for a in "${AERO_ALIASES[@]}"; do [[ "$a" == "$bare" ]] && return 0; done
   return 1
 }
 

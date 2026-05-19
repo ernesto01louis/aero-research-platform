@@ -15,11 +15,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.2  ·  **Status:** complete  ·  **Completed:** 2026-05-19
+**Latest tag:** v0.0.3  ·  **Status:** complete  ·  **Completed:** 2026-05-19
 
-**Stage 02 — Proxmox Topology & Container Build Pipeline** — most recent stage.
+**Stage 03 — OpenFOAM Walking Skeleton** — most recent stage.
 
-**Next:** Stage 03 — OpenFOAM Walking Skeleton.
+**Next:** Stage 04 — Provenance Backbone.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
@@ -33,6 +33,19 @@ pip install aero  # platform core only — stdlib + numpy + pydantic
 
 Optional extras are gated per solver / ML framework. See
 [`pyproject.toml`](pyproject.toml) for the full list.
+
+### Run the OpenFOAM walking skeleton
+
+The Stage 03 walking skeleton runs a NACA 0012 case end-to-end — Apptainer
+OpenFOAM-ESI `simpleFoam` on an aero LXC — and reports the drag coefficient:
+
+```sh
+pip install -e ".[openfoam]"
+aero run naca0012 --executor local-ssh
+```
+
+This needs the aero Proxmox cluster (Stage 02) with the OpenFOAM SIF published
+on `aero-build`. Expected: Cd ≈ 0.0079 (±25% walking-skeleton band).
 
 ## Documentation
 

@@ -9,6 +9,35 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.3] - 2026-05-19
+
+### Added — Stage 03 (OpenFOAM Walking Skeleton)
+
+- `containers/openfoam-esi.def` + `scripts/build_openfoam_sif.sh` — OpenFOAM-ESI
+  v2412 solver SIF, bootstrapped from the digest-pinned
+  `opencfd/openfoam-default:2412`, built/signed/recorded in `SHA256SUMS`
+- `aero/orchestration/` — `Executor` Protocol + `ExecResult`; `LocalSSHExecutor`
+  (short commands over SSH, long solves via `run_long.sh`)
+- `aero/adapters/openfoam/` — analytic NACA 0012 geometry, strict pydantic
+  schemas, a four-block O-grid `blockMesh` case writer, and `OpenFOAMSolver`
+  (`prepare`/`mesh`/`run`/`load`)
+- `aero/provenance/mlflow_basic.py` — interim MLflow logger (`git_sha`,
+  `container_sif_sha256` tags; local `mlruns/`)
+- `aero/cli.py` — `aero run naca0012 --executor local-ssh`, end-to-end
+  (verified Cd ≈ 0.00875, within the ±25% walking-skeleton band of 0.0079)
+- `aero[openfoam]` extra — pyfoam, ofpp, xarray, mlflow
+- `data/references/naca0012/` — analytic geometry CSV + reference notes
+- `tests/unit/test_openfoam_adapter.py`, `tests/stage_03/test_naca0012_smoke.py`,
+  `tests/conftest.py` (the `--run-slow` gate)
+- `docs/adrs/ADR-003-openfoam-walking-skeleton.md`
+
+### Changed — Stage 03
+
+- `scripts/run_long.sh` — accepts an optional `[user@]alias` target so jobs
+  run as the LXC root (solver SIFs require it)
+- `.github/workflows/vv-smoke.yml` — real NACA 0012 smoke test on a
+  self-hosted `vv` runner (was a Stage 01 placeholder)
+
 ## [0.0.2] - 2026-05-19
 
 ### Added — Stage 02 (Proxmox Topology & Container Build Pipeline)
@@ -69,6 +98,7 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
   CODEOWNERS 1-approval; `enforce_admins: false` for solo-admin self-merge
 - Post-stage handoff: `docs/handoffs/STAGE-01-scaffolding-and-conventions-DONE-2026-05-17.md`
 
-[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.3
 [0.0.2]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.2
 [0.0.1]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.1

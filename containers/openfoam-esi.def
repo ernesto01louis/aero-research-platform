@@ -1,0 +1,56 @@
+# containers/openfoam-esi.def — aero-research-platform OpenFOAM-ESI solver image.
+#
+# Stage 03 walking skeleton — the first CFD solver image. Wraps the upstream
+# OpenFOAM-ESI v2412 release so blockMesh / simpleFoam run inside a signed,
+# SHA256-pinned Apptainer SIF (Constitution: "solvers are containers").
+#
+# Base image pinned by digest (Hard Rule 8 — pin heavy deps exactly):
+#   opencfd/openfoam-default:2412
+#     -> sha256:1ba02114b1c025c370f2e269a07677c16c9bea8d990fcd75ac8378aff9d41b50
+#   (Docker Hub OCI image index, resolved 2026-05-19 via `skopeo inspect`)
+#
+# NOTE: %post does NO network operations. The Apptainer build sandbox inside
+# the unprivileged aero-build LXC cannot open sockets (Stage 02 handoff §6),
+# so apt/pip cannot run during a build. Every solver dependency is pre-baked
+# in the upstream image; %post only creates bind-mount targets.
+#
+# OpenFOAM activation: the upstream image puts OpenFOAM on PATH via
+# /etc/profile.d/openfoam-99run.sh — i.e. it resolves in a *login* shell only
+# (verified against the image 2026-05-19; the image carries no OpenFOAM
+# Docker ENV vars). The aero adapter therefore invokes solvers with `bash
+# -lc`, so no %environment solver wiring is needed.
+#
+# Result parsing (pyfoam / Ofpp / xarray) runs host-side in the aero process,
+# not in this SIF — see ADR-003.
+#
+# Built, signed, and SHA256-recorded by scripts/build_openfoam_sif.sh.
+
+Bootstrap: docker
+From: opencfd/openfoam-default@sha256:1ba02114b1c025c370f2e269a07677c16c9bea8d990fcd75ac8378aff9d41b50
+
+%labels
+    org.aero.component   openfoam-esi
+    org.aero.stage       03
+    org.aero.base-image  opencfd/openfoam-default:2412
+    org.aero.solver      OpenFOAM-ESI v2412
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only setup (no network — see the header note): bind-mount
+    # targets for the aero case directory and the container library.
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%test
+    # OpenFOAM is activated by the image's /etc/profile.d script, so probe it
+    # through a login shell — the same way the aero adapter invokes solvers.
+    bash -lc 'command -v blockMesh && command -v simpleFoam' \
+        || { echo "OpenFOAM solvers not on PATH" >&2; exit 1; }
+    echo "aero OpenFOAM-ESI v2412 image — solvers OK"
+
+%runscript
+    echo "aero-research-platform OpenFOAM-ESI v2412 image (Stage 03)"
+    exec "$@"
