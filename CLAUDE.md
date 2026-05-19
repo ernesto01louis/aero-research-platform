@@ -126,9 +126,10 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   open for a CFD/training run. Submit with `scripts/run_long.sh <alias>
   <session> <command>` (detached `tmux`, returns immediately), then poll via
   `run_long.sh status|wait|logs`. Sentinels: `.done` / `.failed`.
-- **aero LXC fleet** (Stage 02) — LXCs 210-216 are the aero platform's own.
-  **Do not touch any other LXC/VM**: the non-aero guests (101-114, 200-207,
-  VMs 100/104/111/112) are off-limits beyond the explicitly-shared services
+- **aero LXC fleet** (Stage 02, +Stage 04) — LXCs 210-217 are the aero
+  platform's own (217 `aero-vault` added in Stage 04). **Do not touch any
+  other LXC/VM**: the non-aero guests (101-114, 200-207, VMs
+  100/104/111/112) are off-limits beyond the explicitly-shared services
   (Postgres 202, Grafana 205, Tempo 204, Redis 203, TrueNAS 104).
   Topology: `docs/architecture/proxmox-topology.md`.
 - **Production-tag UQ requirement** — TBD in Stage 12; any
@@ -147,6 +148,16 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   unprivileged LXC). Cases are written to the shared NFS dataset
   (`/mnt/aero-nfs/runs/` host-side, `/mnt/aero/runs/` inside the LXC).
   Adapter: `aero.adapters.openfoam`; see ADR-003.
+- **Four-fold provenance** (Stage 04) — every run logs four MLflow tags
+  (`git_sha`, `dvc_input_hash`, `container_sif_sha256`, `config_hash`); the
+  CLI fails loud if any cannot be computed (no run is logged with fewer than
+  four). The MLflow tracking server is on `aero-mlflow:5000`, backed by
+  Postgres LXC 202 (`aero_mlflow` DB) plus a MinIO sidecar. **The Postgres
+  `mlflow_artifact_provenance` mirror lives in the shared LXC 202
+  (`aero_provenance` DB) — read/writes go through MLflow, never direct.**
+  Case configs are composed by Hydra from `conf/`; secrets come from Vault
+  on `aero-vault` (LXC 217). `aero run` now requires the live cluster. See
+  ADR-004.
 
 ## Pointers (do not re-derive — read these)
 
