@@ -61,3 +61,16 @@ def openfoam_sif_present(aero_build_reachable: bool) -> bool:
 def openfoam_extra_installed() -> bool:
     """True iff the `aero[openfoam]` runtime dependencies are importable."""
     return all(importlib.util.find_spec(m) is not None for m in ("xarray", "mlflow"))
+
+
+@pytest.fixture(scope="session")
+def su2_sif_present(aero_build_reachable: bool) -> bool:
+    """True iff the SU2 SIF is published on aero-build (Stage 06)."""
+    return aero_build_reachable and _ssh_ok("test", "-f", "/opt/aero/containers/su2-v8.sif")
+
+
+@pytest.fixture(scope="session")
+def su2_extra_installed() -> bool:
+    """True iff the `aero[su2]` host-side dependencies are importable (Stage 06)."""
+    # `aero[su2]` is intentionally light host-side; mlflow comes from `provenance`.
+    return importlib.util.find_spec("mlflow") is not None

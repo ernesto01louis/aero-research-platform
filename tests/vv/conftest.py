@@ -37,34 +37,73 @@ def vv_cluster_ready(
     return bool(os.environ.get("AERO_PROVENANCE_DSN"))
 
 
-@pytest.fixture
-def vv_runner(repo_root: Path):  # type: ignore[no-untyped-def]
-    """A `BenchmarkRunner` wired to the aero cluster, plus the provenance tuple."""
+@pytest.fixture(scope="session")
+def vv_cluster_ready_su2(
+    aero_build_reachable: bool,
+    su2_sif_present: bool,
+    su2_extra_installed: bool,
+) -> bool:
+    """True iff a full SU2 V&V run can execute (Stage 06)."""
+    if not (aero_build_reachable and su2_sif_present and su2_extra_installed):
+        return False
+    if importlib.util.find_spec("scipy") is None:
+        return False
+    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+
+
+def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-def]
+    """Construct a `BenchmarkRunner` + provenance-builder for `solver_name`."""
     from aero.adapters.openfoam.solver import OpenFOAMSolver
+    from aero.adapters.su2.solver import SU2Solver
     from aero.orchestration import LocalSSHExecutor
     from aero.provenance import compute_provenance
     from aero.provenance.db import resolve_dsn
     from aero.vv import BenchmarkRunner
 
     nfs = Path("/mnt/aero-nfs") if os.path.ismount("/mnt/aero-nfs") else Path("/mnt/aero")
-    solver = OpenFOAMSolver(host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"))
+    solver: object
+    if solver_name == "openfoam":
+        solver = OpenFOAMSolver(host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"))
+        version = "OpenFOAM-ESI v2412"
+        sif_name = "openfoam-esi.sif"
+    elif solver_name == "su2":
+        solver = SU2Solver(
+            host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"), repo_root=repo_root
+        )
+        version = "SU2 v8"
+        sif_name = "su2-v8.sif"
+    else:
+        raise ValueError(f"unknown solver {solver_name!r}")
+
     executor = LocalSSHExecutor(host="aero-build", ssh_user="root", repo_root=repo_root)
     runner = BenchmarkRunner(
-        solver=solver,
+        solver=solver,  # type: ignore[arg-type]
         executor=executor,
         tracking_uri="http://192.168.2.234:5000",
         experiment="aero-provenance",
         db_dsn=resolve_dsn(),
-        solver_version="OpenFOAM-ESI v2412",
-        stage="05",
+        solver_version=version,
+        stage="06" if solver_name == "su2" else "05",
     )
 
     def _provenance(spec: object) -> object:
         return compute_provenance(
             repo_root=repo_root,
-            container_sif="openfoam-esi.sif",
+            container_sif=sif_name,
             resolved_config=spec.model_dump(mode="json"),  # type: ignore[attr-defined]
             allow_dirty=True,
         )
 
     return runner, _provenance
+
+
+@pytest.fixture
+def vv_runner(repo_root: Path):  # type: ignore[no-untyped-def]
+    """OpenFOAM `BenchmarkRunner` (Stage 05 default)."""
+    return _runner(repo_root, solver_name="openfoam")
+
+
+@pytest.fixture
+def vv_runner_su2(repo_root: Path):  # type: ignore[no-untyped-def]
+    """SU2 `BenchmarkRunner` (Stage 06)."""
+    return _runner(repo_root, solver_name="su2")
