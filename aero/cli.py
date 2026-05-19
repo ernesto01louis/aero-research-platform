@@ -22,8 +22,10 @@ import typer
 from loguru import logger
 from pydantic import ValidationError
 
+from aero.adapters._base import Solver
 from aero.adapters.openfoam import OpenFOAMSolver
 from aero.adapters.openfoam.schemas import CaseSpec
+from aero.adapters.su2 import SU2Solver
 from aero.orchestration import LocalSSHExecutor
 from aero.provenance import ProvenanceError, compute_provenance
 
@@ -32,11 +34,32 @@ if TYPE_CHECKING:
 
 app = typer.Typer(name="aero", help="aero-research-platform CLI.", no_args_is_help=True)
 
-_SOLVER_VERSION = "OpenFOAM-ESI v2412"
+# One platform version-string per solver, logged as the MLflow `solver_version`
+# tag (Invariant 3) — the concrete SIF SHA256 also enters the four-fold tuple.
+_SOLVER_VERSIONS: dict[str, str] = {
+    "openfoam": "OpenFOAM-ESI v2412",
+    "su2": "SU2 v8",
+}
 
-# Runtime dependencies behind the openfoam + provenance extras. Checked up
-# front so the CLI fails fast rather than mid-solve.
-_REQUIRED_MODULES = ("xarray", "mlflow", "hydra", "omegaconf", "psycopg2", "boto3")
+# Per-solver runtime imports, checked up front so the CLI fails fast rather
+# than mid-solve. `provenance` extras (mlflow/hydra/omegaconf/psycopg2/boto3)
+# are common to both paths; the openfoam path keeps xarray for downstream
+# field post-processing; the su2 path needs only numpy (base) and the
+# `mpi4py`/`meshio` host-side deps in `aero[su2]`.
+_PROVENANCE_MODULES = ("mlflow", "hydra", "omegaconf", "psycopg2", "boto3")
+_REQUIRED_MODULES_BY_SOLVER: dict[str, tuple[str, ...]] = {
+    "openfoam": ("xarray", *_PROVENANCE_MODULES),
+    "su2": _PROVENANCE_MODULES,
+}
+
+
+def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: Path) -> Solver:
+    """Construct the named solver adapter — `openfoam` or `su2`."""
+    if name == "openfoam":
+        return OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
+    if name == "su2":
+        return SU2Solver(host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root)
+    raise typer.BadParameter(f"unknown solver {name!r} — choose 'openfoam' or 'su2'")
 
 
 @app.callback()
@@ -108,6 +131,9 @@ def run(
     executor: str = typer.Option(
         "local-ssh", "--executor", help="Executor backend (Stage 04: 'local-ssh')."
     ),
+    solver_name: str = typer.Option(
+        "openfoam", "--solver", help="Solver adapter — 'openfoam' or 'su2' (Stage 06)."
+    ),
     host: str = typer.Option("aero-build", "--host", help="LXC the solve runs on."),
     allow_dirty: bool = typer.Option(
         False,
@@ -122,11 +148,15 @@ def run(
     if executor != "local-ssh":
         typer.echo(f"unknown executor '{executor}' — Stage 04 ships only 'local-ssh'", err=True)
         raise typer.Exit(code=2)
-    for module in _REQUIRED_MODULES:
+    if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
+        typer.echo(f"unknown solver '{solver_name}' — choose 'openfoam' or 'su2'", err=True)
+        raise typer.Exit(code=2)
+    extras_hint = "openfoam,provenance" if solver_name == "openfoam" else "su2,provenance"
+    for module in _REQUIRED_MODULES_BY_SOLVER[solver_name]:
         if importlib.util.find_spec(module) is None:
             typer.echo(
                 f"missing dependency '{module}' — install the extras:\n"
-                "  pip install -e '.[openfoam,provenance]'",
+                f"  pip install -e '.[{extras_hint}]'",
                 err=True,
             )
             raise typer.Exit(code=3)
@@ -163,7 +193,9 @@ def run(
 
     # --- solve ---------------------------------------------------------------
     host_root, remote_root = _detect_nfs_roots()
-    solver = OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
+    solver = _build_solver(
+        solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
+    )
     ssh = LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
 
     case_dir = solver.prepare(spec)
@@ -171,13 +203,13 @@ def run(
 
     mesh = solver.mesh(case_dir, ssh)
     if not mesh.ok:
-        typer.echo("blockMesh failed — case did not mesh", err=True)
+        typer.echo(f"{solver_name} meshing failed — case did not mesh", err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"meshed ({mesh.n_cells} cells); running simpleFoam on {host} ...")
+    typer.echo(f"meshed ({mesh.n_cells} cells); running {solver_name} on {host} ...")
 
     result = solver.run(case_dir, ssh)
     if result.returncode != 0:
-        typer.echo(f"simpleFoam failed (rc={result.returncode})", err=True)
+        typer.echo(f"{solver_name} solver failed (rc={result.returncode})", err=True)
         raise typer.Exit(code=1)
 
     solve = solver.load(result)
@@ -193,7 +225,7 @@ def run(
         provenance=provenance,
         case_name=spec.name,
         db_dsn=db_dsn,
-        extra_tags={"solver_version": _SOLVER_VERSION},
+        extra_tags={"solver_version": _SOLVER_VERSIONS[solver_name]},
     ) as mlflow_run:
         log_metrics(
             {
@@ -260,6 +292,9 @@ def vv_list() -> None:
 def vv_run(
     case: str = typer.Option(..., "--case", help="TMR case name (see `aero vv list`)."),
     executor: str = typer.Option("local-ssh", "--executor", help="Executor backend."),
+    solver_name: str = typer.Option(
+        "openfoam", "--solver", help="Solver adapter — 'openfoam' or 'su2' (Stage 06)."
+    ),
     host: str = typer.Option("aero-build", "--host", help="LXC the solve runs on."),
     allow_dirty: bool = typer.Option(
         False, "--allow-dirty", help="Allow a dirty tree (SHA tagged '-dirty')."
@@ -275,11 +310,15 @@ def vv_run(
     if executor != "local-ssh":
         typer.echo(f"unknown executor '{executor}' — only 'local-ssh' is supported", err=True)
         raise typer.Exit(code=2)
-    for module in (*_REQUIRED_MODULES, *_VV_MODULES):
+    if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
+        typer.echo(f"unknown solver '{solver_name}' — choose 'openfoam' or 'su2'", err=True)
+        raise typer.Exit(code=2)
+    extras_hint = "openfoam,provenance,vv" if solver_name == "openfoam" else "su2,provenance,vv"
+    for module in (*_REQUIRED_MODULES_BY_SOLVER[solver_name], *_VV_MODULES):
         if importlib.util.find_spec(module) is None:
             typer.echo(
                 f"missing dependency '{module}' — install the extras:\n"
-                "  pip install -e '.[openfoam,provenance,vv]'",
+                f"  pip install -e '.[{extras_hint}]'",
                 err=True,
             )
             raise typer.Exit(code=3)
@@ -298,7 +337,12 @@ def vv_run(
 
     from aero.provenance.db import resolve_dsn
 
-    tracking_uri, experiment, container_sif = _vv_settings(repo_root)
+    tracking_uri, experiment, default_sif = _vv_settings(repo_root)
+    # The Hydra config's `container_sif` points at the OpenFOAM SIF; per-solver
+    # selection overrides that with the SIF the solver actually runs in. The
+    # config_hash is the case spec (mesh-agnostic), so cross-solver runs share
+    # a config_hash, distinguished only by `solver_version` and the SIF SHA.
+    container_sif = "su2-v8.sif" if solver_name == "su2" else Path(default_sif).name
     try:
         db_dsn = resolve_dsn()
         provenance = compute_provenance(
@@ -313,7 +357,9 @@ def vv_run(
         raise typer.Exit(code=4) from exc
 
     host_root, remote_root = _detect_nfs_roots()
-    solver = OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
+    solver = _build_solver(
+        solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
+    )
     ssh = LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
     runner = BenchmarkRunner(
         solver=solver,
@@ -321,8 +367,8 @@ def vv_run(
         tracking_uri=tracking_uri,
         experiment=experiment,
         db_dsn=db_dsn,
-        solver_version=_SOLVER_VERSION,
-        stage="05",
+        solver_version=_SOLVER_VERSIONS[solver_name],
+        stage="06",
     )
 
     try:
