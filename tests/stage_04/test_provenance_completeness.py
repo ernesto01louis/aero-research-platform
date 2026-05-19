@@ -46,10 +46,10 @@ def completed_run(aero_mlflow_reachable: bool, aero_provenance_reachable: bool) 
     return match.group(1)
 
 
-def test_mlflow_run_has_all_four_tags(completed_run: str) -> None:
+def test_mlflow_run_has_all_four_tags(completed_run: str, mlflow_tracking_uri: str) -> None:
     import mlflow
 
-    mlflow.set_tracking_uri("http://aero-mlflow:5000")
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
     run = mlflow.get_run(completed_run)
     tags = run.data.tags
     for key in _FOUR:
@@ -59,11 +59,11 @@ def test_mlflow_run_has_all_four_tags(completed_run: str) -> None:
         assert _HASH_RE.match(tags[key]), f"malformed {key}: {tags[key]}"
 
 
-def test_postgres_mirror_row_matches(completed_run: str) -> None:
+def test_postgres_mirror_row_matches(completed_run: str, mlflow_tracking_uri: str) -> None:
     import mlflow
     import psycopg2
 
-    mlflow.set_tracking_uri("http://aero-mlflow:5000")
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
     tags = mlflow.get_run(completed_run).data.tags
 
     conn = psycopg2.connect(os.environ["AERO_PROVENANCE_DSN"])
