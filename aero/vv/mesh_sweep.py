@@ -134,25 +134,29 @@ class MeshSweep:
     def run(
         self, runner: BenchmarkRunner, *, provenance: ProvenanceTuple, repo_root: Any
     ) -> SweepReport:
-        """Solve the base case at each refinement ratio and build the GCI report."""
+        """Solve the base case at each refinement ratio and build the GCI report.
+
+        A GCI is a *verification* study — it compares a solution against itself
+        at three resolutions — so each grid is measured via `measure_scalar`,
+        which needs no (validation) reference data.
+        """
         points: list[GridPoint] = []
         for ratio in self.refinement_ratios:
             case = self.base_case.refined(ratio)
-            result = runner.run(case, provenance=provenance, repo_root=repo_root)
-            mr = result.metric(self.metric)
-            if mr.kind != "scalar" or mr.measured is None:
-                raise BenchmarkError(f"mesh sweep needs a scalar metric; {self.metric!r} is not")
-            if result.n_cells is None or result.n_cells <= 0:
+            obs = runner.measure_scalar(
+                case, self.metric, provenance=provenance, repo_root=repo_root
+            )
+            if obs.n_cells is None or obs.n_cells <= 0:
                 raise BenchmarkError("mesh sweep needs a reported cell count from each grid")
             points.append(
                 GridPoint(
                     refinement_ratio=ratio,
-                    n_cells=result.n_cells,
+                    n_cells=obs.n_cells,
                     # 2D representative size: h ~ (1/N)^(1/2); the constant
                     # area factor cancels in every ratio that GCI uses.
-                    representative_h=(1.0 / result.n_cells) ** 0.5,
-                    metric_value=mr.measured,
-                    mlflow_run_id=result.mlflow_run_id,
+                    representative_h=(1.0 / obs.n_cells) ** 0.5,
+                    metric_value=obs.value,
+                    mlflow_run_id=obs.mlflow_run_id,
                 )
             )
 

@@ -269,6 +269,17 @@ def load_series_csv(path: Path, *, x_col: str, y_col: str) -> Series:
     return Series(x=tuple(r[0] for r in rows), y=tuple(r[1] for r in rows))
 
 
+class ScalarObservation(BaseModel):
+    """One scalar measurement from a solve — the unit a mesh sweep collects."""
+
+    model_config = _STRICT
+
+    metric: str = Field(..., min_length=1)
+    value: float = Field(...)
+    n_cells: int | None = Field(default=None)
+    mlflow_run_id: str | None = Field(default=None)
+
+
 # --- runner -------------------------------------------------------------------
 class BenchmarkRunner:
     """Drives a `BenchmarkCase` through a `SolverLike` and records the result."""
@@ -292,6 +303,19 @@ class BenchmarkRunner:
         self.solver_version = solver_version
         self.stage = stage
 
+    def _drive(self, case: BenchmarkCase) -> tuple[dict[str, float | Series], Any, Any]:
+        """prepare -> mesh -> solve -> evaluate; fail-loud on a mesh/solve failure."""
+        spec = case.case_spec()
+        case_dir = self.solver.prepare(spec)
+        mesh = self.solver.mesh(case_dir, self.executor)
+        if not getattr(mesh, "ok", False):
+            raise BenchmarkError(f"{case.name}: blockMesh failed — case did not mesh")
+        result = self.solver.run(case_dir, self.executor)
+        if getattr(result, "returncode", 1) != 0:
+            raise BenchmarkError(f"{case.name}: solver failed (rc={result.returncode})")
+        measured = case.evaluate(self.solver, result)
+        return measured, mesh, result
+
     def run(
         self,
         case: BenchmarkCase,
@@ -305,19 +329,9 @@ class BenchmarkRunner:
         prepare -> mesh -> solve -> evaluate -> compare. A mesh or solve
         failure raises `BenchmarkError` (fail-loud). When `log_mlflow` is set,
         the four-fold tuple and per-metric errors are logged to MLflow with a
-        `validation_tag` tag; the mesh sweep disables per-grid logging and
-        logs the sweep report instead.
+        `validation_tag` tag.
         """
-        spec = case.case_spec()
-        case_dir = self.solver.prepare(spec)
-        mesh = self.solver.mesh(case_dir, self.executor)
-        if not getattr(mesh, "ok", False):
-            raise BenchmarkError(f"{case.name}: blockMesh failed — case did not mesh")
-        result = self.solver.run(case_dir, self.executor)
-        if getattr(result, "returncode", 1) != 0:
-            raise BenchmarkError(f"{case.name}: solver failed (rc={result.returncode})")
-
-        measured = case.evaluate(self.solver, result)
+        measured, mesh, result = self._drive(case)
         reference = case.reference(repo_root)
         metric_results = tuple(compare(m, measured[m.name], reference) for m in case.metrics())
         status: Literal["pass", "fail"] = (
@@ -338,6 +352,38 @@ class BenchmarkRunner:
             validation_tag=case.name,
             mlflow_run_id=mlflow_run_id,
             n_cells=n_cells,
+        )
+
+    def measure_scalar(
+        self,
+        case: BenchmarkCase,
+        metric: str,
+        *,
+        provenance: ProvenanceTuple,
+        repo_root: Path,
+        log_mlflow: bool = True,
+    ) -> ScalarObservation:
+        """Solve `case` and return one scalar measurement — no reference needed.
+
+        This is the verification path the mesh sweep uses: a Grid Convergence
+        Index compares a solution against itself at three resolutions, so it
+        needs the measured scalar but not the (validation) reference data.
+        """
+        measured, mesh, result = self._drive(case)
+        if metric not in measured:
+            raise BenchmarkError(f"{case.name}: evaluate() produced no metric {metric!r}")
+        value = measured[metric]
+        if not isinstance(value, int | float):
+            raise BenchmarkError(f"{case.name}: metric {metric!r} is not a scalar")
+        n_cells = getattr(mesh, "n_cells", None)
+        mlflow_run_id: str | None = None
+        if log_mlflow:
+            mlflow_run_id = self._log_scalar(case, provenance, metric, float(value), result)
+        return ScalarObservation(
+            metric=metric,
+            value=float(value),
+            n_cells=n_cells,
+            mlflow_run_id=mlflow_run_id,
         )
 
     def _log(
@@ -368,4 +414,30 @@ class BenchmarkRunner:
             pp = getattr(result, "post_processing_host_path", None)
             if pp is not None and Path(pp).exists():
                 log_artifact(pp)
+            return str(run.info.run_id)
+
+    def _log_scalar(
+        self,
+        case: BenchmarkCase,
+        provenance: ProvenanceTuple,
+        metric: str,
+        value: float,
+        result: Any,
+    ) -> str:
+        """Log one mesh-sweep grid point to MLflow — the four-fold tuple + value."""
+        from aero.provenance.mlflow import log_metrics, start_provenance_run
+
+        with start_provenance_run(
+            tracking_uri=self.tracking_uri,
+            experiment=self.experiment,
+            provenance=provenance,
+            case_name=case.name,
+            db_dsn=self.db_dsn,
+            stage=self.stage,
+            extra_tags={
+                "validation_tag": f"{case.name}-sweep",
+                "solver_version": self.solver_version,
+            },
+        ) as run:
+            log_metrics({metric: value})
             return str(run.info.run_id)
