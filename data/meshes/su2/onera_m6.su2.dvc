@@ -1,0 +1,5 @@
+outs:
+- md5: 4000194f1d7673017f6f8e11757618af
+  size: 5959428
+  hash: md5
+  path: onera_m6.su2
