@@ -33,7 +33,10 @@ def test_onera_m6_cp_at_eta_044(
     case = OneraM6()
     try:
         result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
-    except BenchmarkError as exc:
+    except (BenchmarkError, FileNotFoundError) as exc:
+        # FileNotFoundError covers the DVC-tracked mesh missing from a fresh
+        # checkout (no `dvc pull` configured); BenchmarkError covers the Cp
+        # reference data missing. Both surface as "skip" rather than fail.
         pytest.skip(f"ONERA M6 not yet runnable: {exc}")
     cp = result.metric("cp")
     assert result.status == "pass", (

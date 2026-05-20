@@ -47,6 +47,13 @@ jobs:
           uv venv --python 3.12 --clear
           uv pip install -e ".[openfoam,su2,provenance,vv,dev]"
 
+      - name: Fetch DVC-tracked V&V assets (ONERA M6 mesh, future Cp data)
+        # The SU2-driven transonic ONERA M6 case `prepare`-time-copies the
+        # DVC-tracked mesh asset; without `dvc pull`, the test would fail with
+        # FileNotFoundError instead of skipping cleanly. `|| echo` keeps the
+        # job alive on a remote that's down — individual tests then skip.
+        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
+
       - name: Run the V&V suite (single-grid on push/PR, + GCI sweep nightly)
         # Stage 06: the test selector now picks up both stage_05 (OpenFOAM)
         # and stage_06 (SU2) TMR paths via the `vv` + `slow` markers they
