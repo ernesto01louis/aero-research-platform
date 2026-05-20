@@ -94,9 +94,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/opt/su2/lib
 
 # Minimal runtime deps: OpenMPI, OpenBLAS, Python + numpy + mpi4py.
+# `libpython3.12` (not pulled by python3 alone) is needed at runtime because
+# SU2 v8's _pysu2.so links libpython3.12.so.1.0 directly — without it the
+# `import pysu2` smoke check fails with a missing-shared-object ImportError.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libopenblas0 \
         libopenmpi3 \
+        libpython3.12 \
         openmpi-bin \
         python3 \
         python3-mpi4py \
@@ -105,6 +109,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=build /opt/su2 /opt/su2
 COPY --from=build /src/.su2-commit /opt/su2/.su2-commit
+# Mutationpp's libmutation__.so is built as a meson subproject *for linking*
+# but never `install`-ed by SU2 v8 — it only exists under /src/su2/build/.
+# Stage 1's pysu2 shared object links it; without it on the runtime image
+# `import pysu2` fails with `libmutation__.so: cannot open shared object file`.
+# Copy it explicitly into /opt/su2/lib so the ld.so.conf.d entry below resolves.
+COPY --from=build /src/su2/build/subprojects/Mutationpp/libmutation__.so /opt/su2/lib/libmutation__.so
 
 # Bind-mount targets baked in (filesystem-only, identical to the OpenFOAM SIF).
 # Register /opt/su2/lib with the dynamic loader so pysu2's transitive link to
@@ -114,13 +124,14 @@ COPY --from=build /src/.su2-commit /opt/su2/.su2-commit
 # from the ENV reliably across Apptainer's environment shim).
 RUN mkdir -p /case /work /opt/aero \
     && echo "/opt/su2/lib" >/etc/ld.so.conf.d/aero-su2.conf \
-    && ldconfig
+    && /sbin/ldconfig
 
 # Smoke check — `SU2_CFD` resolves and pysu2 imports. Print the libmutation
 # location to the build log so any future relocation surfaces immediately.
+# `ldconfig` lives in /sbin which isn't on the minimal-image $PATH.
 RUN command -v SU2_CFD \
     && find /opt/su2 -name 'libmutation*' -print \
-    && ldconfig -p | grep -i mutation \
+    && /sbin/ldconfig -p | grep -i mutation \
     && python3 -c "import pysu2" \
     && cat /opt/su2/.su2-commit
 
