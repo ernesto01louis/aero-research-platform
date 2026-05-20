@@ -288,11 +288,28 @@ class SU2Solver(Solver):
 
     # --- run seam -------------------------------------------------------------
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
-        """Run `SU2_CFD` inside the SU2 SIF (long-running, via the executor)."""
+        """Run `SU2_CFD` inside the SU2 SIF (long-running, via the executor).
+
+        SU2 v8 is built with `--with-mpi=enabled`, so `MPI_Init` always runs
+        even on a single rank. In the unprivileged-LXC nested user namespace,
+        OpenMPI's default TCP-BTL + OOB-TCP startup hits the same socket EPERM
+        that blocked buildah's image pull (handoff §1a), surfacing as
+        `opal_ifinit: socket() failed with errno=13` and crashing the solver
+        with `rc=53`. The env-var overrides force OpenMPI onto the self +
+        shared-memory transports and off the TCP out-of-band channel — all
+        single-node, no kernel socket use. `--writable-tmpfs` gives OpenMPI a
+        session-dir under `/tmp`.
+        """
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
             command=f"SU2_CFD {_CFG_FILENAME}",
+            writable_tmpfs=True,
+            env={
+                "OMPI_MCA_btl": "self,sm",
+                "OMPI_MCA_oob": "^tcp",
+                "OMPI_MCA_btl_base_warn_component_unused": "0",
+            },
         )
         result = executor.run(command, long_running=True, session=f"su2-{case_dir.run_id}")
         if not result.ok:
