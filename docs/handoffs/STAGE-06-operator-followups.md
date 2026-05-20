@@ -106,7 +106,119 @@ two-step (ADR-006): rootless `buildah` source-compiles SU2 into an OCI image
 where network is available (`slirp4netns`), then `apptainer` builds the SIF
 from the OCI archive `%post`-filesystem-only.
 
-`buildah` is **not yet installed** on `aero-build` — install it once.
+`buildah` is now installed on `aero-build` (apt 1.33.7); `podman` 4.9.3 is also
+present as a fallback.
+
+### §1a — In-LXC container engines are blocked (FAILED)
+
+**ADR-006 assumed rootless buildah/podman would Just Work in the unprivileged
+`aero-build` LXC. They install but every pull fails:**
+
+```
+Error: pinging container registry registry-1.docker.io: ...
+  dial udp 192.168.2.1:53: socket: permission denied
+```
+
+and once DNS is pinned via `/etc/hosts`, the next layer surfaces:
+
+```
+  dial tcp <IP>:443: socket: permission denied
+```
+
+This is **not** a network reachability problem (`nslookup`/`apt-get` resolve
+fine as root). It is the Proxmox unprivileged-LXC AppArmor/seccomp profile
+denying *any* outbound socket creation from nested user namespaces — exactly
+where buildah/podman's Go runtime makes its HTTPS request to Docker Hub.
+`/etc/hosts` pin, `BUILDAH_ISOLATION=chroot`, `_CONTAINERS_USERNS_CONFIGURED=1`,
+rootless-as-`aero-admin`, and `GODEBUG=netdns=cgo+1` were each tried; none
+clear the EPERM. Apptainer's `Bootstrap: docker` succeeded for the Stage-03
+OpenFOAM SIF because Apptainer pulls via libcurl using libc's nsswitch path —
+which *is* permitted in this LXC. Buildah/podman do not have an equivalent
+escape.
+
+### §1b — Use the Proxmox host instead (THE WORKING APPROACH)
+
+The Proxmox host (`Homelab1`, Debian 13, full namespace privileges) is where
+the OCI build actually works. The NFS dataset is already mounted there at
+`/mnt/aero-nfs/`, which is the same bytes aero-build sees as `/mnt/aero/`, so
+the SIF can be apptainer-built/signed on aero-build from an OCI archive the
+host drops into `/mnt/aero-nfs/tmp/`. Single reversible `apt install buildah`
+on the host; no Proxmox config touched.
+
+This is what Stage-06's actual build did. Recipe:
+
+```bash
+# --- on the Proxmox host (root) ---
+apt-get install -y --no-install-recommends buildah runc crun
+
+cd /root/projects/aero-research-platform
+mkdir -p /var/log/aero /mnt/aero-nfs/tmp
+nohup bash -c '
+  set -euxo pipefail
+  buildah bud --layers=true --pull-always \
+      --build-arg "SU2_VERSION=v8.1.0" \
+      -f containers/su2-v8.Dockerfile \
+      -t localhost/aero/su2-v8:v8.1.0 \
+      containers/
+  buildah push localhost/aero/su2-v8:v8.1.0 oci-archive:/mnt/aero-nfs/tmp/su2-v8-oci.tar
+  echo "===DONE==="
+' >/var/log/aero/su2-build.log 2>&1 &
+# tail -f /var/log/aero/su2-build.log
+# Total ~30–50 min on a 16C/32T Ryzen 9 with --layers=true.
+
+# --- then on aero-build (root) ---
+ssh root@aero-build
+source /root/.config/aero/signing.env
+cd /tmp/aero-su2-build && rm -rf * && cd /tmp/aero-su2-build
+apptainer build --force su2-v8.sif oci-archive:/mnt/aero/tmp/su2-v8-oci.tar
+echo "$AERO_SIGNING_PASSPHRASE" | apptainer sign su2-v8.sif
+apptainer verify su2-v8.sif
+cp su2-v8.sif /mnt/aero/containers/
+sha256sum /mnt/aero/containers/su2-v8.sif    # record this line in containers/SHA256SUMS
+```
+
+The four iterations on the Dockerfile during this session (all landed in
+commit `95fff6a`):
+* `ENV LD_LIBRARY_PATH=/opt/su2/lib`
+* `/etc/ld.so.conf.d/aero-su2.conf` + `/sbin/ldconfig` (absolute path —
+  `ldconfig` isn't on the minimal-image `$PATH`).
+* Explicit `COPY --from=build /src/su2/build/subprojects/Mutationpp/libmutation__.so`
+  — SU2 v8's meson recipe builds Mutationpp for linking but never installs it.
+* Added `libpython3.12` to runtime apt list — `_pysu2.so` links it directly
+  and the `python3` package alone doesn't pull it.
+
+### §1c — Other workarounds (untried; documented for completeness)
+
+If you ever need to bypass the host: install `dnsmasq` on aero-build listening
+on `127.0.0.1:53` and make `/etc/resolv.conf` point there — loopback DNS is
+reachable from nested namespaces, but the deeper "no outbound TCP at all"
+restriction may still bite. Or make `aero-build` a privileged LXC (Proxmox
+config change, security tradeoff; explicit `approved` required).
+
+### §1d — Known SU2-on-LXC runtime gotcha
+
+Once the SIF lands, running SU2 cases against the cluster surfaces a second
+constraint: cases with non-trivial MPI initialisation crash with `rc=53`
+(MPI socket creation fails in the same nested-namespace context).
+Stage-06 cluster runs:
+
+* **Flat plate Cf (SU2)** — completes a full ~5-minute solve cleanly; the
+  test xfails on tolerance, not on crashing.
+* **NACA 0012 TMR Cd (SU2)** — runs and produces Cd; xfail on tolerance.
+* **Bump 2D Cp/Cf (SU2)** — `rc=53` early in startup; SKIP (the test catches
+  `BenchmarkError`).
+* **Transonic NACA 0012 Cd (SU2)** — `rc=53` early; xfailed under
+  strict=False.
+* **ONERA M6 Cp** — `rc=53` early; SKIP. Independently still needs the Cp
+  reference data (§2) and the 3D wing-slice extraction host-side.
+
+Fix path for the next iteration (not blocking Stage-06 ship): pass
+`apptainer exec --writable-tmpfs --bind /tmp` or invoke SU2_CFD with the
+single-rank MPI bypass for the 2D bump and 3D mesh-file cases. Track as a
+Stage-07 prerequisite — PyFR/NekRS are GPU+MPI, so the LXC MPI path needs
+sorting regardless.
+
+### §1e — Then proceed with the build script
 
 ```bash
 # All commands below run on aero-build as root, unless noted.
