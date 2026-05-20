@@ -246,8 +246,16 @@ def test_run_builds_the_su2_cfd_command(tmp_path: Path) -> None:
     fake = _FakeExecutor()
     result = solver.run(case_dir, fake)
     assert len(fake.commands) == 1
-    assert fake.commands[0].startswith("apptainer exec --bind ")
-    assert "SU2_CFD case.cfg" in fake.commands[0]
+    cmd = fake.commands[0]
+    # The SU2 run path adds --writable-tmpfs (so OpenMPI's session dir lands
+    # in a writable /tmp inside the SIF) and prepends OpenMPI BTL/OOB
+    # overrides that force the solver onto self+shared-memory transports —
+    # the only single-node config that survives the unprivileged-LXC nested
+    # user-namespace socket restriction (handoff §1d).
+    assert cmd.startswith("apptainer exec --writable-tmpfs --bind ")
+    assert "OMPI_MCA_btl=self,sm" in cmd
+    assert "OMPI_MCA_oob=" in cmd  # value is shlex-quoted, so just check the key
+    assert "SU2_CFD case.cfg" in cmd
     assert result.returncode == 0
     assert result.output_host_path == tmp_path
 

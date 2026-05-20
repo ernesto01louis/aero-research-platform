@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import abc
 import shlex
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -54,6 +55,8 @@ def build_apptainer_exec(
     case_bind_source: str,
     command: str,
     case_bind_target: str = CASE_BIND_TARGET,
+    writable_tmpfs: bool = False,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     """Compose the `apptainer exec` command line that runs one solver command.
 
@@ -63,10 +66,19 @@ def build_apptainer_exec(
     deterministic — this is the seam the adapter unit tests pin. Shared by every
     `Solver`: OpenFOAM (`blockMesh`/`simpleFoam`) and SU2 (`SU2_CFD`) each run
     exactly one bind-mounted, login-shell command in a signed SIF.
+
+    `writable_tmpfs=True` adds `--writable-tmpfs` so the container gets a
+    writable `/tmp` — OpenMPI's session-dir setup (the SU2 path) needs this,
+    OpenFOAM doesn't. `env` is a mapping of environment-variable name → value
+    prepended to the inner shell command so they affect that one solver
+    invocation without touching apptainer's own env passthrough. Defaults
+    preserve the Stage-03 command-string exactly.
     """
-    inner = f"cd {shlex.quote(case_bind_target)} && {command}"
+    env_prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in (env or {}).items())
+    inner = f"cd {shlex.quote(case_bind_target)} && {env_prefix}{command}"
+    flags = "--writable-tmpfs " if writable_tmpfs else ""
     return (
-        f"apptainer exec --bind "
+        f"apptainer exec {flags}--bind "
         f"{shlex.quote(case_bind_source)}:{shlex.quote(case_bind_target)} "
         f"{shlex.quote(sif_path)} bash -lc {shlex.quote(inner)}"
     )
