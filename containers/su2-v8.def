@@ -1,0 +1,57 @@
+# containers/su2-v8.def — aero-research-platform SU2 v8 solver image.
+#
+# Stage 06 — the platform's second concrete CFD solver (ADR-006).
+# Wraps a locally-built OCI image (from containers/su2-v8.Dockerfile) so
+# `SU2_CFD` runs inside a signed, SHA256-pinned Apptainer SIF (Constitution:
+# "solvers are containers").
+#
+# Two-step build pattern (ADR-006):
+#   1. `buildah bud -f containers/su2-v8.Dockerfile -t localhost/aero/su2-v8:<ver>`
+#      ... `buildah push ... oci-archive:/tmp/su2-v8-oci.tar`
+#   2. this `.def` bootstraps from that OCI archive (filesystem-only).
+# The OpenFOAM SIF uses the same pattern; SU2 needs source-build flags
+# (autodiff, Mutation++, pysu2) the upstream `su2code/su2` image lacks, so the
+# OCI image is ours, not upstream's — but the SIF build still does NO network
+# work in `%post`.
+#
+# NOTE: `%post` is filesystem-only — the Apptainer build sandbox inside the
+# unprivileged `aero-build` LXC cannot open sockets (Stage 02 §6).
+#
+# SU2 environment (`SU2_RUN`, `PATH`, `PYTHONPATH`) is baked into the OCI image's
+# ENV; bootstrap-docker carries it over, so the adapter's `bash -lc` invocation
+# (build_apptainer_exec) resolves `SU2_CFD` and `pysu2` directly.
+#
+# Built, signed, and SHA256-recorded by scripts/build_su2_sif.sh.
+
+Bootstrap: oci-archive
+From: /tmp/su2-v8-oci.tar
+
+%labels
+    org.aero.component   su2
+    org.aero.stage       06
+    org.aero.solver      SU2 v8
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only setup; the OCI image already has /case /work /opt/aero,
+    # but recreate so a fresh bootstrap path lands the targets too.
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export SU2_HOME=/opt/su2
+    export SU2_RUN=/opt/su2/bin
+    export PATH=/opt/su2/bin:$PATH
+    export PYTHONPATH=/opt/su2/bin:${PYTHONPATH:-}
+
+%test
+    # Smoke-test the two interfaces the aero SU2 adapter actually uses:
+    # the SU2_CFD binary and the pysu2 Python wrapper.
+    command -v SU2_CFD || { echo "SU2_CFD not on PATH" >&2; exit 1; }
+    python3 -c "import pysu2" || { echo "pysu2 import failed" >&2; exit 1; }
+    echo "aero SU2 v8 image — SU2_CFD + pysu2 OK"
+
+%runscript
+    echo "aero-research-platform SU2 v8 image (Stage 06)"
+    exec "$@"

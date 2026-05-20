@@ -1,18 +1,27 @@
-"""Render an OpenFOAM case directory from a `CaseSpec`.
+"""Render an OpenFOAM case directory from an airfoil `CaseSpec`.
 
-Stage 03 writes the case as plain string templates — no Jinja, no Hydra (the
-Hydra/pydantic config boundary is Stage 04). The non-trivial part is the
-`blockMeshDict`: a 2D **O-grid** around the airfoil, built as four blocks,
-each wrapping one quarter of the section —
+The case is written as plain string templates — no Jinja. The non-trivial part
+is the `blockMeshDict`: a 2D **multi-block C-grid** around the airfoil.
 
-    A  trailing edge -> upper mid     C  leading edge  -> lower mid
-    B  upper mid     -> leading edge  D  lower mid      -> trailing edge
+Stage 05 replaced the Stage-03 four-block O-grid (a closed ring at a 20-chord
+circular far field, whose sharp trailing edge was badly skewed and which biased
+Cd ~+11 %). The C-grid is eight blocks with a rectangular far field at
+`farfield_extent_chords` and an explicit **wake cut** running downstream from
+the trailing edge — the wake cut gives the sharp TE a well-defined discrete
+continuation instead of forcing the grid to wrap a singular point. See ADR-005.
 
-The airfoil surface is a `polyLine` edge per quarter, through the analytic
-NACA 0012 points (`aero.adapters.openfoam.geometry`); the outer boundary is a
-circle at the far-field radius (`arc` edges). Every vertex is distinct and
-every block is a well-formed, positive-volume hexahedron — no doubled
-trailing-edge vertex, no `mergePatchPairs`.
+Block layout (upper half; the lower half mirrors it about the chord line):
+
+    UF  inlet  -> LE    (front block, no wall)
+    UA1 LE     -> mid   (upper surface, wall)
+    UA2 mid    -> TE    (upper surface, wall)
+    UW  TE     -> outlet (wake-cut block, no wall)
+
+The airfoil surface is split at mid-chord so the upper- and lower-surface
+`polyLine` edges never share an edge key (a single edge `(LE, TE)` cannot carry
+two different curves). The front line (inlet->LE) and the wake cut (TE->outlet)
+are internal faces shared by the upper and lower blocks — every vertex is
+distinct, every block is a positive-volume hexahedron, no `mergePatchPairs`.
 """
 
 from __future__ import annotations
@@ -23,180 +32,195 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
+from aero.adapters.openfoam._foam_common import (
+    RHO_INF,
+    U_INF,
+    expansion,
+    flow_state,
+    fvschemes,
+    fvsolution,
+    header,
+    pt,
+    transport_properties,
+    turbulence_properties,
+)
 from aero.adapters.openfoam.geometry import naca0012_coordinates
 from aero.adapters.openfoam.schemas import CaseSpec
 
-_U_INF = 1.0  # reference freestream speed; the solve is dimensionless (Re fixes nu)
-_RHO_INF = 1.0  # reference density (incompressible: forceCoeffs dimensionalising)
 
-
-# --- physical state -----------------------------------------------------------
-def _flow_state(spec: CaseSpec) -> dict[str, float]:
-    """Derive the dimensionless flow state and turbulence inlet values."""
-    nu = _U_INF * spec.chord / spec.reynolds
-    # Freestream turbulence: k from intensity, omega from a low viscosity ratio
-    # (external aerodynamics — keep the freestream nearly laminar).
-    k = 1.5 * (spec.turbulence_intensity * _U_INF) ** 2
-    nut_ratio = 0.1
-    nut = nut_ratio * nu
-    omega = k / nut
-    return {"nu": nu, "k": k, "omega": omega, "nut": nut}
-
-
-# --- grading ------------------------------------------------------------------
-def _cell_ratio(length: float, n: int, first: float) -> float:
-    """Geometric cell-to-cell ratio so the first of `n` cells has size `first`.
-
-    Solves ``first * (r**n - 1) / (r - 1) == length`` for ``r >= 1`` by
-    bisection. Returns 1.0 (uniform) when `first` already over-fills `length`.
-    """
-    if first * n >= length:
-        return 1.0
-    lo, hi = 1.0 + 1.0e-9, 4.0
-    for _ in range(200):
-        mid = 0.5 * (lo + hi)
-        total = first * (mid**n - 1.0) / (mid - 1.0)
-        if total < length:
-            lo = mid
-        else:
-            hi = mid
-    return 0.5 * (lo + hi)
-
-
-def _eta_expansion(spec: CaseSpec) -> float:
-    """blockMesh simpleGrading expansion (last/first cell) for the wall-normal η."""
-    length = spec.farfield_radius_chords * spec.chord
-    ratio = _cell_ratio(length, spec.n_normal, spec.first_cell_height * spec.chord)
-    return ratio ** (spec.n_normal - 1)
-
-
-# --- airfoil geometry, split into four O-grid quarters ------------------------
-def _quarters(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
-    """The four airfoil-quarter point arrays, each ordered from block v0 to v1.
-
-    `naca0012_coordinates` returns the upper surface LE->TE with an odd point
-    count, so the middle index is the mid-chord split point.
-    """
+# --- airfoil surface, split at mid-chord --------------------------------------
+def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
+    """Upper and lower surface point arrays, each LE -> TE, with `2*n_surface+1`
+    points so index `n_surface` is the exact mid-chord split point."""
     n = spec.n_surface
     upper = naca0012_coordinates(2 * n + 1, chord=spec.chord)  # LE -> TE, +y
     lower = upper.copy()
     lower[:, 1] *= -1.0
-    return {
-        # A: upper mid -> TE          B: LE -> upper mid
-        "A": np.asarray(upper[n:], dtype=np.float64),
-        "B": np.asarray(upper[: n + 1], dtype=np.float64),
-        # C: lower mid -> LE          D: TE -> lower mid
-        "C": np.asarray(lower[n::-1], dtype=np.float64),
-        "D": np.asarray(lower[: n - 1 : -1], dtype=np.float64),
-    }
+    return {"upper": np.asarray(upper, np.float64), "lower": np.asarray(lower, np.float64)}
 
 
 # --- OpenFOAM dictionary rendering -------------------------------------------
-def _header(cls: str, obj: str) -> str:
-    return (
-        "/*--------------------------------*- C++ -*----------------------------------*\\\n"
-        "| aero-research-platform — generated OpenFOAM case (Stage 03 walking skeleton) |\n"
-        "\\*---------------------------------------------------------------------------*/\n"
-        "FoamFile\n{\n"
-        "    version     2.0;\n"
-        "    format      ascii;\n"
-        f"    class       {cls};\n"
-        f"    object      {obj};\n"
-        "}\n"
-        "// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\n"
-    )
-
-
-def _pt(x: float, y: float, z: float) -> str:
-    return f"({x:.8f} {y:.8f} {z:.8f})"
-
-
 def _blockmeshdict(spec: CaseSpec) -> str:
     c = spec.chord
-    cx = 0.5 * c  # O-grid centre (mid-chord)
-    r = spec.farfield_radius_chords * c
+    ext = spec.farfield_extent_chords * c  # rectangular far-field half-extent
     span = spec.span
-    g = _eta_expansion(spec)
-    quarters = _quarters(spec)
+    surf = _surfaces(spec)
+    n = spec.n_surface
+    umid = surf["upper"][n]
+    xm, ym = float(umid[0]), float(umid[1])
 
-    mid = quarters["B"][-1]  # upper mid-chord split point
-    um = (float(mid[0]), float(mid[1]))
-    lm = (float(mid[0]), -float(mid[1]))
-    # 0 te, 1 um, 2 le, 3 lm; 4 O_te, 5 O_um, 6 O_le, 7 O_lm. +8 at z=span.
+    # --- 16 base vertices at z=0 (duplicated at z=span as +16) ---
     base = [
-        (c, 0.0),  # 0 trailing edge
-        um,  # 1 upper mid
-        (0.0, 0.0),  # 2 leading edge
-        lm,  # 3 lower mid
-        (cx + r, 0.0),  # 4 outer, aft
-        (cx, r),  # 5 outer, top
-        (cx - r, 0.0),  # 6 outer, fore
-        (cx, -r),  # 7 outer, bottom
+        (-ext, 0.0),  # 0  inlet point
+        (0.0, 0.0),  # 1  leading edge
+        (xm, ym),  # 2  upper mid-chord
+        (c, 0.0),  # 3  trailing edge
+        (xm, -ym),  # 4  lower mid-chord
+        (ext, 0.0),  # 5  outlet point
+        (-ext, ext),  # 6  far field, above inlet
+        (0.0, ext),  # 7  far field, above LE
+        (xm, ext),  # 8  far field, above mid
+        (c, ext),  # 9  far field, above TE
+        (ext, ext),  # 10 far field, above outlet
+        (-ext, -ext),  # 11 far field, below inlet
+        (0.0, -ext),  # 12 far field, below LE
+        (xm, -ext),  # 13 far field, below mid
+        (c, -ext),  # 14 far field, below TE
+        (ext, -ext),  # 15 far field, below outlet
     ]
-    verts = [_pt(x, y, 0.0) for x, y in base] + [_pt(x, y, span) for x, y in base]
+    verts = [pt(x, y, 0.0) for x, y in base] + [pt(x, y, span) for x, y in base]
 
-    nq, nn = spec.n_surface, spec.n_normal
-    # Four O-grid blocks, each ξ along a quarter of the airfoil, η outward.
-    # Vertex orders are wound clockwise-in-xy so every block has positive volume.
+    # --- grading ---
+    g_eta = expansion(ext, spec.n_normal, spec.first_cell_height * c)
+    e_front = expansion(ext, spec.n_front, 0.01 * c)
+    e_wake = expansion(ext, spec.n_wake, 0.01 * c)
+    ns, nn, nf, nw = spec.n_surface, spec.n_normal, spec.n_front, spec.n_wake
+
+    # --- 8 blocks: z=0 face wound CCW-from-above, +16 for the z=span face ---
+    # (v0 v1 v2 v3) at z=0 then (v0 v1 v2 v3)+16; counts along (v0->v1, v1->v2, z).
+    def _verts(a: int, b: int, d: int, e: int) -> str:
+        return " ".join(str(v) for v in (a, b, d, e, a + 16, b + 16, d + 16, e + 16))
+
+    def hexb(a: int, b: int, d: int, e: int, n1: int, n2: int, gx: float, gy: float) -> str:
+        """An airfoil-surface block — simpleGrading (both eta edges wall-clustered)."""
+        return f"    hex ({_verts(a, b, d, e)}) ({n1} {n2} 1) simpleGrading ({gx:.8g} {gy:.8g} 1)"
+
+    def edge_hexb(
+        a: int, b: int, d: int, e: int, n1: int, gx: float, x2: tuple[float, float, float, float]
+    ) -> str:
+        """A front/wake block — edgeGrading so the boundary-layer clustering
+        applies only on the airfoil-side eta edge, not on the inlet/outlet eta
+        edge (which would otherwise put a ~1e-6 cell 100 chords from any wall
+        and blow the cell aspect ratio up).
+
+        12 edges: 4 x1 (streamwise), 4 x2 (eta), 4 x3 (span). `x2` is the
+        eta 4-tuple in blockMesh edge order (v0->v3, v1->v2, v5->v6, v4->v7).
+        """
+        x1 = " ".join(f"{gx:.8g}" for _ in range(4))
+        x2s = " ".join(f"{g:.8g}" for g in x2)
+        return f"    hex ({_verts(a, b, d, e)}) ({n1} {nn} 1) edgeGrading ({x1} {x2s} 1 1 1 1)"
+
+    gi = 1.0 / g_eta  # lower-block eta runs far field -> wall
     blocks = [
-        f"    hex (1 0 4 5 9 8 12 13) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
-        f"    hex (2 1 5 6 10 9 13 14) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
-        f"    hex (3 2 6 7 11 10 14 15) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
-        f"    hex (0 3 7 4 8 11 15 12) ({nq} {nn} 1) simpleGrading (1 {g:.6g} 1)",
+        # UF: airfoil eta edge is v1->v2 (above the LE); inlet edge v0->v3.
+        edge_hexb(0, 1, 7, 6, nf, 1.0 / e_front, (1.0, g_eta, g_eta, 1.0)),
+        hexb(1, 2, 8, 7, ns, nn, 1.0, g_eta),  # UA1
+        hexb(2, 3, 9, 8, ns, nn, 1.0, g_eta),  # UA2
+        # UW: airfoil eta edge is v0->v3 (above the TE); outlet edge v1->v2.
+        edge_hexb(3, 5, 10, 9, nw, e_wake, (g_eta, 1.0, 1.0, g_eta)),
+        # LF: airfoil eta edge is v1->v2 (below the LE); inlet edge v0->v3.
+        edge_hexb(11, 12, 1, 0, nf, 1.0 / e_front, (1.0, gi, gi, 1.0)),
+        hexb(12, 13, 4, 1, ns, nn, 1.0, gi),  # LA1
+        hexb(13, 14, 3, 4, ns, nn, 1.0, gi),  # LA2
+        # LW: airfoil eta edge is v0->v3 (below the TE); outlet edge v1->v2.
+        edge_hexb(14, 15, 5, 3, nw, e_wake, (gi, 1.0, 1.0, gi)),
     ]
 
+    # --- polyLine edges along the airfoil surface (interior points only) ---
     def poly(v1: int, v2: int, pts: NDArray[np.float64], z: float) -> str:
-        body = "\n".join(f"            {_pt(float(x), float(y), z)}" for x, y in pts)
+        body = "\n".join(f"            {pt(float(x), float(y), z)}" for x, y in pts)
         return f"    polyLine {v1} {v2}\n        (\n{body}\n        )"
 
-    # Inner-edge polyLines: interior points only (the endpoints are vertices).
     edges = []
-    for (v1, v2), key in (((1, 0), "A"), ((2, 1), "B"), ((3, 2), "C"), ((0, 3), "D")):
-        interior = quarters[key][1:-1]
+    # (v1, v2, interior point slice) — LE->mid and mid->TE, upper then lower.
+    specs = [
+        (1, 2, surf["upper"][1:n]),
+        (2, 3, surf["upper"][n + 1 : 2 * n]),
+        (1, 4, surf["lower"][1:n]),
+        (4, 3, surf["lower"][n + 1 : 2 * n]),
+    ]
+    for v1, v2, interior in specs:
         edges.append(poly(v1, v2, interior, 0.0))
-        edges.append(poly(v1 + 8, v2 + 8, interior, span))
+        edges.append(poly(v1 + 16, v2 + 16, interior, span))
 
-    # Outer-boundary arcs: a circle of radius r about the O-grid centre — keeps
-    # the wall-normal grid lines near-orthogonal out to the far field.
-    def arc(v1: int, v2: int, deg: float, z: float) -> str:
-        mx = cx + r * math.cos(math.radians(deg))
-        my = r * math.sin(math.radians(deg))
-        return f"    arc {v1} {v2} {_pt(mx, my, z)}"
+    # --- boundary patches ---
+    def face(a: int, b: int) -> str:
+        return f"({a} {b} {b + 16} {a + 16})"
 
-    for v1, v2, deg in ((4, 5, 45.0), (5, 6, 135.0), (6, 7, 225.0), (7, 4, 315.0)):
-        edges.append(arc(v1, v2, deg, 0.0))
-        edges.append(arc(v1 + 8, v2 + 8, deg, span))
+    # airfoil wall: the inner edge of each surface block.
+    wall = " ".join(face(a, b) for a, b in ((1, 2), (2, 3), (1, 4), (4, 3)))
+    # far field: every outer / inlet / outlet face (freestream BC handles in/out).
+    outer = [
+        (0, 6),
+        (0, 11),
+        (5, 10),
+        (15, 5),  # inlet (left), outlet (right)
+        (6, 7),
+        (7, 8),
+        (8, 9),
+        (9, 10),  # top
+        (11, 12),
+        (12, 13),
+        (13, 14),
+        (14, 15),  # bottom
+    ]
+    farfield = " ".join(face(a, b) for a, b in outer)
+    # 2D: every block's z=0 face is `front`, its z=span face is `back`.
+    z_faces = [
+        (0, 1, 7, 6),
+        (1, 2, 8, 7),
+        (2, 3, 9, 8),
+        (3, 5, 10, 9),
+        (11, 12, 1, 0),
+        (12, 13, 4, 1),
+        (13, 14, 3, 4),
+        (14, 15, 5, 3),
+    ]
+    front = " ".join(f"({a} {b} {d} {e})" for a, b, d, e in z_faces)
+    back = " ".join(f"({a + 16} {b + 16} {d + 16} {e + 16})" for a, b, d, e in z_faces)
 
-    boundary = """    airfoil
-    {
+    boundary = f"""    airfoil
+    {{
         type wall;
-        faces ( (1 0 8 9) (2 1 9 10) (3 2 10 11) (0 3 11 8) );
-    }
+        faces ( {wall} );
+    }}
     farfield
-    {
+    {{
         type patch;
-        faces ( (5 4 12 13) (6 5 13 14) (7 6 14 15) (4 7 15 12) );
-    }
+        faces ( {farfield} );
+    }}
     front
-    {
+    {{
         type empty;
-        faces ( (1 0 4 5) (2 1 5 6) (3 2 6 7) (0 3 7 4) );
-    }
+        faces ( {front} );
+    }}
     back
-    {
+    {{
         type empty;
-        faces ( (9 8 12 13) (10 9 13 14) (11 10 14 15) (8 11 15 12) );
-    }"""
+        faces ( {back} );
+    }}"""
 
     verts_block = "\n".join(f"    {v}" for v in verts)
-    blocks_block = "\n".join(blocks)
-    edges_block = "\n".join(edges)
     return (
-        _header("dictionary", "blockMeshDict")
+        header("dictionary", "blockMeshDict")
         + "\nscale 1;\n\n"
         + f"vertices\n(\n{verts_block}\n);\n\n"
-        + f"blocks\n(\n{blocks_block}\n);\n\n"
-        + f"edges\n(\n{edges_block}\n);\n\n"
+        + "blocks\n(\n"
+        + "\n".join(blocks)
+        + "\n);\n\n"
+        + "edges\n(\n"
+        + "\n".join(edges)
+        + "\n);\n\n"
         + f"boundary\n(\n{boundary}\n);\n\n"
         + "mergePatchPairs ( );\n"
     )
@@ -208,7 +232,7 @@ def _controldict(spec: CaseSpec) -> str:
     lift_dir = f"({-math.sin(aoa):.8f} {math.cos(aoa):.8f} 0)"
     a_ref = spec.chord * spec.span
     return (
-        _header("dictionary", "controlDict")
+        header("dictionary", "controlDict")
         + f"""
 application     simpleFoam;
 startFrom       startTime;
@@ -233,8 +257,8 @@ functions
         writeInterval   1;
         patches         (airfoil);
         rho             rhoInf;
-        rhoInf          {_RHO_INF};
-        magUInf         {_U_INF};
+        rhoInf          {RHO_INF};
+        magUInf         {U_INF};
         lRef            {spec.chord};
         Aref            {a_ref};
         dragDir         {drag_dir};
@@ -247,103 +271,9 @@ functions
     )
 
 
-def _fvschemes() -> str:
-    return (
-        _header("dictionary", "fvSchemes")
-        + """
-ddtSchemes      { default steadyState; }
-gradSchemes     { default Gauss linear; }
-divSchemes
-{
-    default         none;
-    div(phi,U)      bounded Gauss linearUpwind grad(U);
-    div(phi,k)      bounded Gauss upwind;
-    div(phi,omega)  bounded Gauss upwind;
-    div((nuEff*dev2(T(grad(U))))) Gauss linear;
-}
-laplacianSchemes  { default Gauss linear limited corrected 0.5; }
-interpolationSchemes { default linear; }
-snGradSchemes   { default limited corrected 0.5; }
-wallDist        { method meshWave; }
-"""
-    )
-
-
-def _fvsolution(spec: CaseSpec) -> str:
-    return (
-        _header("dictionary", "fvSolution")
-        + """
-solvers
-{
-    p
-    {
-        solver          GAMG;
-        smoother        GaussSeidel;
-        tolerance       1e-8;
-        relTol          0.05;
-    }
-    "(U|k|omega)"
-    {
-        solver          smoothSolver;
-        smoother        symGaussSeidel;
-        tolerance       1e-9;
-        relTol          0.1;
-    }
-}
-
-SIMPLE
-{
-    consistent          yes;
-    nNonOrthogonalCorrectors 2;
-    residualControl
-    {
-        p               1e-5;
-        U               1e-5;
-        "(k|omega)"     1e-5;
-    }
-}
-
-relaxationFactors
-{
-    equations
-    {
-        U               0.9;
-        "(k|omega)"     0.7;
-    }
-}
-"""
-    )
-
-
-def _transportproperties(spec: CaseSpec) -> str:
-    nu = _flow_state(spec)["nu"]
-    return (
-        _header("dictionary", "transportProperties")
-        + f"""
-transportModel  Newtonian;
-nu              {nu:.10g};
-"""
-    )
-
-
-def _turbulenceproperties(spec: CaseSpec) -> str:
-    return (
-        _header("dictionary", "turbulenceProperties")
-        + f"""
-simulationType  RAS;
-RAS
-{{
-    RASModel        {spec.turbulence_model};
-    turbulence      on;
-    printCoeffs     on;
-}}
-"""
-    )
-
-
 def _field(obj: str, cls: str, dims: str, internal: str, farfield: str, airfoil: str) -> str:
     return (
-        _header(cls, obj)
+        header(cls, obj)
         + f"""
 dimensions      {dims};
 internalField   uniform {internal};
@@ -366,9 +296,13 @@ boundaryField
 
 
 def _fields(spec: CaseSpec) -> dict[str, str]:
-    st = _flow_state(spec)
+    st = flow_state(
+        reynolds=spec.reynolds,
+        ref_length=spec.chord,
+        turbulence_intensity=spec.turbulence_intensity,
+    )
     aoa = math.radians(spec.aoa_deg)
-    u_vec = f"({_U_INF * math.cos(aoa):.8f} {_U_INF * math.sin(aoa):.8f} 0)"
+    u_vec = f"({U_INF * math.cos(aoa):.8f} {U_INF * math.sin(aoa):.8f} 0)"
     k, omega, nut = st["k"], st["omega"], st["nut"]
     return {
         "U": _field(
@@ -393,7 +327,9 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
             "[0 2 -1 0 0 0 0]",
             f"{nut:.8g}",
             f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-            "        type nutkWallFunction;\n        value uniform 0;",
+            # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
+            # wall function (using nutkWallFunction here biased Cd ~+20%).
+            "        type nutLowReWallFunction;\n        value uniform 0;",
         ),
         "k": _field(
             "k",
@@ -424,11 +360,18 @@ def write_case(spec: CaseSpec, dest: Path) -> None:
     for d in (system, constant, zero):
         d.mkdir(parents=True, exist_ok=True)
 
+    nu = flow_state(
+        reynolds=spec.reynolds,
+        ref_length=spec.chord,
+        turbulence_intensity=spec.turbulence_intensity,
+    )["nu"]
     (system / "blockMeshDict").write_text(_blockmeshdict(spec), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
-    (system / "fvSchemes").write_text(_fvschemes(), encoding="utf-8")
-    (system / "fvSolution").write_text(_fvsolution(spec), encoding="utf-8")
-    (constant / "transportProperties").write_text(_transportproperties(spec), encoding="utf-8")
-    (constant / "turbulenceProperties").write_text(_turbulenceproperties(spec), encoding="utf-8")
+    (system / "fvSchemes").write_text(fvschemes(), encoding="utf-8")
+    (system / "fvSolution").write_text(fvsolution(), encoding="utf-8")
+    (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
+    (constant / "turbulenceProperties").write_text(
+        turbulence_properties(spec.turbulence_model), encoding="utf-8"
+    )
     for name, text in _fields(spec).items():
         (zero / name).write_text(text, encoding="utf-8")

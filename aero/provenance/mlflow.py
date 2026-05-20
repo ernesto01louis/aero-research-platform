@@ -33,6 +33,7 @@ def start_provenance_run(
     provenance: ProvenanceTuple,
     case_name: str,
     db_dsn: str,
+    stage: str = "04",
     extra_tags: Mapping[str, str] | None = None,
 ) -> Iterator[Any]:
     """Open an MLflow run with the four-fold tuple tagged and mirrored.
@@ -45,7 +46,8 @@ def start_provenance_run(
     On entry the four tags (plus `case_name`, `stage`, and any `extra_tags`)
     are set, then the tuple is mirrored into Postgres in one transaction. A
     mirror failure raises and aborts the run — the four-fold contract is not
-    satisfied without the mirror row.
+    satisfied without the mirror row. `stage` tags the run with the stage that
+    produced it (V&V harness runs in Stage 05 pass `stage="05"`).
     """
     import mlflow
 
@@ -53,7 +55,7 @@ def start_provenance_run(
 
     tags = dict(provenance.as_mlflow_tags())
     tags["case_name"] = case_name
-    tags["stage"] = "04"
+    tags["stage"] = stage
     if extra_tags:
         tags.update(extra_tags)
 

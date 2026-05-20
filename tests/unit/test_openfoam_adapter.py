@@ -27,7 +27,7 @@ def test_build_apptainer_exec_exact_command() -> None:
     cmd = build_apptainer_exec(
         sif_path="/opt/aero/containers/openfoam-esi.sif",
         case_bind_source="/mnt/aero/runs/r1",
-        openfoam_command="blockMesh",
+        command="blockMesh",
     )
     assert cmd == (
         "apptainer exec --bind /mnt/aero/runs/r1:/case "
@@ -39,7 +39,7 @@ def test_build_apptainer_exec_quotes_paths_with_spaces() -> None:
     cmd = build_apptainer_exec(
         sif_path="/opt/aero/containers/openfoam-esi.sif",
         case_bind_source="/mnt/aero/runs/r 1",
-        openfoam_command="simpleFoam",
+        command="simpleFoam",
     )
     assert "'/mnt/aero/runs/r 1':/case" in cmd
     assert cmd.endswith("'cd /case && simpleFoam'")
@@ -88,13 +88,25 @@ def test_write_case_produces_full_openfoam_tree(tmp_path: Path) -> None:
         assert (tmp_path / rel).is_file(), f"missing {rel}"
 
 
-def test_blockmeshdict_is_a_four_block_ogrid(tmp_path: Path) -> None:
+def test_blockmeshdict_is_an_eight_block_cgrid(tmp_path: Path) -> None:
     write_case(_spec(), tmp_path)
     text = (tmp_path / "system" / "blockMeshDict").read_text(encoding="utf-8")
-    assert text.count("hex (") == 4
-    assert "polyLine" in text and "arc " in text
+    # Stage-05 C-grid: 8 blocks (UF/UA1/UA2/UW + lower mirror), 32 vertices,
+    # 8 polyLine surface edges (4 at z=0, 4 at z=span), no `arc` (rectangular
+    # far field, not a circle), no mergePatchPairs.
+    assert text.count("hex (") == 8
+    assert text.count("polyLine") == 8
+    assert "arc " not in text
+    assert "mergePatchPairs ( );" in text
     for patch in ("airfoil", "farfield", "front", "back"):
         assert patch in text
+
+
+def test_blockmeshdict_far_field_scales_with_extent(tmp_path: Path) -> None:
+    write_case(_spec(farfield_extent_chords=100.0), tmp_path)
+    text = (tmp_path / "system" / "blockMeshDict").read_text(encoding="utf-8")
+    # The rectangular far field sits at +/- the extent (chord 1.0 here).
+    assert "100.00000000" in text
 
 
 def test_controldict_requests_forcecoeffs(tmp_path: Path) -> None:

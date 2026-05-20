@@ -158,6 +158,35 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   Case configs are composed by Hydra from `conf/`; secrets come from Vault
   on `aero-vault` (LXC 217). `aero run` now requires the live cluster. See
   ADR-004.
+- **Solver protocol + SU2 v8 adapter** (Stage 06) — `aero/adapters/_base.py`
+  holds the generalised `Solver` ABC (template-method `prepare`, abstract
+  `mesh`/`run`/`load`/`wall_distribution` seams) and the structural
+  `SolverProtocol` the V&V harness types against. **Every solver's
+  `load()` returns a typed `SolveResult` with a typed `ConvergenceHistory`
+  — never `xr.Dataset.attrs[...]` (Constitution Invariant 7).**
+  `aero/adapters/su2/` is the second concrete solver; `SU2Solver(Solver)`
+  consumes both the OpenFOAM TMR specs (so the TMR cases run through
+  either solver) and SU2-native specs (`SU2AirfoilSpec`, `SU2MeshFileSpec`).
+  `aero[su2]` carries `mpi4py`/`meshio` — independent of `aero[openfoam]`.
+  The SU2 SIF is built two-step (rootless-buildah OCI image →
+  apptainer-from-oci-archive; the unprivileged-LXC %post sandbox blocks
+  sockets, but rootless buildah/podman on the same LXC have slirp4netns
+  network access). `containers/su2-v8.{Dockerfile,def}` +
+  `scripts/build_su2_sif.sh`. CLI: `aero run --solver {openfoam,su2}` and
+  `aero vv run --solver ...`. New CI: `import-platform-only.yml` (the
+  PLATFORM-NOT-HUB invariant is now structurally enforced) and
+  `vv-transonic.yml` (nightly only, not PR-gating). See ADR-006.
+- **V&V harness** (Stage 05) — `aero/vv/` runs canonical NASA TMR cases
+  through any `SolverLike` solver, compares against reference data with tight
+  tolerances (Cd 3 %, Cf 5 %, Cp 3 %), and logs a `BenchmarkResult` with a
+  `validation_tag` MLflow tag. `aero vv list|run|report`; `aero vv run --case
+  X --mesh-sweep` runs an ASME V&V 20 GCI study. **Before any
+  `production`-tagged run, verify `aero vv report --latest` shows all green —
+  a red V&V dashboard means no `production` runs.** A tolerance is a contract:
+  a failing case is investigated, never relaxed to pass. The airfoil mesh is
+  now an eight-block C-grid (`farfield_extent_chords`, wake cut, y+ < 1 with
+  `nutLowReWallFunction`) — the Stage-03 O-grid is retired. `vv-required` is a
+  stage-gated required CI check. See ADR-005.
 
 ## Pointers (do not re-derive — read these)
 

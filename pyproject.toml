@@ -76,9 +76,15 @@ openfoam = [
     "mlflow>=2.20",
 ]
 
-# Stage 06 — SU2 v8 adapter
+# Stage 06 — SU2 v8 adapter (versions pinned in ADR-006).
+# The SU2 Python wrapper (pysu2) is built into the su2-v8 SIF, not pip-installed
+# — `SU2_CFD` runs inside the container. Host-side, the adapter needs only
+# numpy (base dep); `meshio` converts any non-native mesh asset to `.su2`,
+# `mpi4py` is the launch-side binding for multi-rank SU2 runs. Independent of
+# the `openfoam` extra — neither pulls the other (Stage-06 guardrail 3).
 su2 = [
-    # populated in stage-06: SU2 Python wrapper, mpi4py, meshio
+    "meshio>=5.3",
+    "mpi4py>=4.0",
 ]
 
 # Stage 07 — PyFR (flux reconstruction GPU)
@@ -115,6 +121,11 @@ provenance = [
     "omegaconf>=2.3",
     "psycopg2-binary>=2.9",
     "alembic>=1.13",
+]
+
+# Stage 05 — V&V harness (pointwise reference-data comparison; pin in ADR-005)
+vv = [
+    "scipy>=1.14",
 ]
 
 # Stage 12 — UQ via UQpy + Dakota
@@ -222,6 +233,7 @@ addopts = [
 markers = [
     "slow: long-running test (skipped in default unit suite)",
     "vv: verification & validation test against reference data",
+    "mesh_sweep: multi-grid GCI study (nightly only; excluded from PR-gating)",
     "stage_03: tests gated to stage 03 deliverables",
     "stage_04: tests gated to stage 04 deliverables",
     "stage_05: tests gated to stage 05 deliverables",
