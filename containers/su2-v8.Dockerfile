@@ -90,7 +90,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     SU2_HOME=/opt/su2 \
     SU2_RUN=/opt/su2/bin \
     PATH=/opt/su2/bin:/usr/local/bin:/usr/bin:/bin \
-    PYTHONPATH=/opt/su2/bin
+    PYTHONPATH=/opt/su2/bin \
+    LD_LIBRARY_PATH=/opt/su2/lib
 
 # Minimal runtime deps: OpenMPI, OpenBLAS, Python + numpy + mpi4py.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -106,10 +107,22 @@ COPY --from=build /opt/su2 /opt/su2
 COPY --from=build /src/.su2-commit /opt/su2/.su2-commit
 
 # Bind-mount targets baked in (filesystem-only, identical to the OpenFOAM SIF).
-RUN mkdir -p /case /work /opt/aero
+# Register /opt/su2/lib with the dynamic loader so pysu2's transitive link to
+# libmutation__.so resolves at import time without needing LD_LIBRARY_PATH set
+# by the caller. The ENV LD_LIBRARY_PATH above is the belt; ldconfig is the
+# braces (some shells reset LD_LIBRARY_PATH, e.g. `bash -lc` may not inherit
+# from the ENV reliably across Apptainer's environment shim).
+RUN mkdir -p /case /work /opt/aero \
+    && echo "/opt/su2/lib" >/etc/ld.so.conf.d/aero-su2.conf \
+    && ldconfig
 
-# Smoke check — `SU2_CFD` resolves and pysu2 imports.
-RUN command -v SU2_CFD && python3 -c "import pysu2" && cat /opt/su2/.su2-commit
+# Smoke check — `SU2_CFD` resolves and pysu2 imports. Print the libmutation
+# location to the build log so any future relocation surfaces immediately.
+RUN command -v SU2_CFD \
+    && find /opt/su2 -name 'libmutation*' -print \
+    && ldconfig -p | grep -i mutation \
+    && python3 -c "import pysu2" \
+    && cat /opt/su2/.su2-commit
 
 ENTRYPOINT []
 CMD ["/bin/bash"]
