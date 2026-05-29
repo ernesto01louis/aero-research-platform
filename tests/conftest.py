@@ -74,3 +74,27 @@ def su2_extra_installed() -> bool:
     """True iff the `aero[su2]` host-side dependencies are importable (Stage 06)."""
     # `aero[su2]` is intentionally light host-side; mlflow comes from `provenance`.
     return importlib.util.find_spec("mlflow") is not None
+
+
+@pytest.fixture(scope="session")
+def pyfr_sif_present(aero_build_reachable: bool) -> bool:
+    """True iff the PyFR SIF is published on aero-build (Stage 07)."""
+    return aero_build_reachable and _ssh_ok("test", "-f", "/opt/aero/containers/pyfr.sif")
+
+
+@pytest.fixture(scope="session")
+def pyfr_extra_installed() -> bool:
+    """True iff `aero[pyfr]` host-side deps + provenance MLflow are importable (Stage 07)."""
+    return all(importlib.util.find_spec(m) is not None for m in ("h5py", "mako", "mlflow"))
+
+
+@pytest.fixture(scope="session")
+def nekrs_sif_present(aero_build_reachable: bool) -> bool:
+    """True iff the NekRS SIF is published on aero-build (Stage 07)."""
+    return aero_build_reachable and _ssh_ok("test", "-f", "/opt/aero/containers/nekrs.sif")
+
+
+@pytest.fixture(scope="session")
+def nekrs_extra_installed() -> bool:
+    """True iff `aero[nekrs]` host-side deps + provenance MLflow are importable (Stage 07)."""
+    return all(importlib.util.find_spec(m) is not None for m in ("meshio", "mlflow"))

@@ -23,10 +23,13 @@ from loguru import logger
 from pydantic import ValidationError
 
 from aero.adapters._base import Solver
+from aero.adapters.nekrs import NekRSSolver
 from aero.adapters.openfoam import OpenFOAMSolver
 from aero.adapters.openfoam.schemas import CaseSpec
+from aero.adapters.pyfr import PyFRSolver
 from aero.adapters.su2 import SU2Solver
 from aero.orchestration import LocalSSHExecutor
+from aero.orchestration._base import Executor
 from aero.provenance import ProvenanceError, compute_provenance
 
 if TYPE_CHECKING:
@@ -39,27 +42,99 @@ app = typer.Typer(name="aero", help="aero-research-platform CLI.", no_args_is_he
 _SOLVER_VERSIONS: dict[str, str] = {
     "openfoam": "OpenFOAM-ESI v2412",
     "su2": "SU2 v8",
+    "pyfr": "PyFR 1.15.0",
+    "nekrs": "NekRS v23.0",
+}
+
+# Per-solver SIF basenames — looked up in containers/SHA256SUMS during
+# compute_provenance to populate the four-fold tuple's container_sif_sha256.
+_SOLVER_SIF: dict[str, str] = {
+    "openfoam": "openfoam-esi.sif",
+    "su2": "su2-v8.sif",
+    "pyfr": "pyfr.sif",
+    "nekrs": "nekrs.sif",
 }
 
 # Per-solver runtime imports, checked up front so the CLI fails fast rather
 # than mid-solve. `provenance` extras (mlflow/hydra/omegaconf/psycopg2/boto3)
-# are common to both paths; the openfoam path keeps xarray for downstream
-# field post-processing; the su2 path needs only numpy (base) and the
-# `mpi4py`/`meshio` host-side deps in `aero[su2]`.
+# are common to every path; the openfoam path keeps xarray for downstream
+# field post-processing; pyfr/nekrs host-side need only h5py + numpy + the
+# provenance core (the solver binaries live inside the SIFs).
 _PROVENANCE_MODULES = ("mlflow", "hydra", "omegaconf", "psycopg2", "boto3")
 _REQUIRED_MODULES_BY_SOLVER: dict[str, tuple[str, ...]] = {
     "openfoam": ("xarray", *_PROVENANCE_MODULES),
     "su2": _PROVENANCE_MODULES,
+    "pyfr": ("h5py", "mako", *_PROVENANCE_MODULES),
+    "nekrs": _PROVENANCE_MODULES,
+}
+
+# Per-solver `aero[<extras>]` hint shown when a required module is missing.
+_SOLVER_EXTRAS_HINT: dict[str, str] = {
+    "openfoam": "openfoam,provenance",
+    "su2": "su2,provenance",
+    "pyfr": "pyfr,provenance",
+    "nekrs": "nekrs,provenance",
 }
 
 
 def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: Path) -> Solver:
-    """Construct the named solver adapter — `openfoam` or `su2`."""
+    """Construct the named solver adapter — openfoam/su2/pyfr/nekrs."""
     if name == "openfoam":
         return OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
     if name == "su2":
         return SU2Solver(host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root)
-    raise typer.BadParameter(f"unknown solver {name!r} — choose 'openfoam' or 'su2'")
+    if name == "pyfr":
+        return PyFRSolver(host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root)
+    if name == "nekrs":
+        return NekRSSolver(
+            host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root
+        )
+    raise typer.BadParameter(
+        f"unknown solver {name!r} — choose 'openfoam', 'su2', 'pyfr', or 'nekrs'"
+    )
+
+
+def _build_executor(
+    name: str,
+    *,
+    host: str,
+    repo_root: Path,
+    pod_type: str,
+    container_image: str | None,
+    projected_hours: float,
+) -> Executor:
+    """Construct the named executor — `local-ssh` or `runpod`.
+
+    `runpod` requires `RUNPOD_API_KEY` in the environment (Vault-rendered;
+    see operator-followups §3 of Stage-07). The cost-cap ledger path
+    defaults to `/etc/aero/runpod-ledger.json` (CONSTITUTION Invariant 8).
+    """
+    if name == "local-ssh":
+        return LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
+    if name == "runpod":
+        api_key = os.environ.get("RUNPOD_API_KEY")
+        if not api_key:
+            raise typer.BadParameter(
+                "RUNPOD_API_KEY env var not set — provision it via Vault "
+                "(operator-followups §3) before launching a paid GPU run."
+            )
+        if container_image is None:
+            raise typer.BadParameter(
+                "--container-image is required for --executor runpod "
+                "(e.g. ghcr.io/ernesto01louis/aero-pyfr:v1.15.0)."
+            )
+        from aero.orchestration.cost_cap import CostCap
+        from aero.orchestration.runpod import RunPodExecutor
+
+        return RunPodExecutor(
+            api_key=api_key,
+            pod_type=pod_type,
+            container_image=container_image,
+            cost_cap=CostCap(),
+            repo_root=repo_root,
+            projected_hours=projected_hours,
+        )
+    raise typer.BadParameter(f"unknown executor {name!r} — choose 'local-ssh' or 'runpod'")
 
 
 @app.callback()
@@ -127,14 +202,33 @@ def _case_spec_from_cfg(cfg: DictConfig) -> CaseSpec:
 
 @app.command()
 def run(
-    case: str = typer.Argument(..., help="Reference case name (Stage 04: 'naca0012')."),
+    case: str = typer.Argument(..., help="Reference case name (e.g. 'naca0012')."),
     executor: str = typer.Option(
-        "local-ssh", "--executor", help="Executor backend (Stage 04: 'local-ssh')."
+        "local-ssh", "--executor", help="Executor backend — 'local-ssh' or 'runpod' (Stage 07)."
     ),
     solver_name: str = typer.Option(
-        "openfoam", "--solver", help="Solver adapter — 'openfoam' or 'su2' (Stage 06)."
+        "openfoam",
+        "--solver",
+        help="Solver adapter — 'openfoam', 'su2', 'pyfr' (Stage 07), or 'nekrs' (Stage 07).",
     ),
-    host: str = typer.Option("aero-build", "--host", help="LXC the solve runs on."),
+    host: str = typer.Option(
+        "aero-build", "--host", help="LXC the solve runs on (local-ssh only)."
+    ),
+    pod_type: str = typer.Option(
+        "NVIDIA H100 PCIe",
+        "--pod-type",
+        help="RunPod pod-type (runpod executor only) — see POD_TYPE_HOURLY_USD.",
+    ),
+    container_image: str | None = typer.Option(
+        None,
+        "--container-image",
+        help="OCI image (GHCR tag) for the RunPod pod (runpod executor only).",
+    ),
+    projected_hours: float = typer.Option(
+        0.5,
+        "--projected-hours",
+        help="Projected pod uptime in hours; used for the cost-cap check.",
+    ),
     allow_dirty: bool = typer.Option(
         False,
         "--allow-dirty",
@@ -145,13 +239,17 @@ def run(
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="<level>{level: <7}</level> {message}")
 
-    if executor != "local-ssh":
-        typer.echo(f"unknown executor '{executor}' — Stage 04 ships only 'local-ssh'", err=True)
+    if executor not in {"local-ssh", "runpod"}:
+        typer.echo(
+            f"unknown executor '{executor}' — choose 'local-ssh' or 'runpod' (Stage 07)",
+            err=True,
+        )
         raise typer.Exit(code=2)
     if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
-        typer.echo(f"unknown solver '{solver_name}' — choose 'openfoam' or 'su2'", err=True)
+        known = ", ".join(_REQUIRED_MODULES_BY_SOLVER)
+        typer.echo(f"unknown solver '{solver_name}' — choose one of: {known}", err=True)
         raise typer.Exit(code=2)
-    extras_hint = "openfoam,provenance" if solver_name == "openfoam" else "su2,provenance"
+    extras_hint = _SOLVER_EXTRAS_HINT[solver_name]
     for module in _REQUIRED_MODULES_BY_SOLVER[solver_name]:
         if importlib.util.find_spec(module) is None:
             typer.echo(
@@ -196,7 +294,14 @@ def run(
     solver = _build_solver(
         solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
     )
-    ssh = LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
+    ssh = _build_executor(
+        executor,
+        host=host,
+        repo_root=repo_root,
+        pod_type=pod_type,
+        container_image=container_image,
+        projected_hours=projected_hours,
+    )
 
     case_dir = solver.prepare(spec)
     typer.echo(f"prepared case {case_dir.run_id} at {case_dir.host_path}")
@@ -205,7 +310,7 @@ def run(
     if not mesh.ok:
         typer.echo(f"{solver_name} meshing failed — case did not mesh", err=True)
         raise typer.Exit(code=1)
-    typer.echo(f"meshed ({mesh.n_cells} cells); running {solver_name} on {host} ...")
+    typer.echo(f"meshed ({mesh.n_elements} elements); running {solver_name} on {host} ...")
 
     result = solver.run(case_dir, ssh)
     if result.returncode != 0:
@@ -213,12 +318,19 @@ def run(
         raise typer.Exit(code=1)
 
     solve = solver.load(result)
-    cd = solve.cd
-    cl = solve.cl
     iterations = solve.iterations_to_convergence
     final_residual = solve.final_residual
 
     # --- log: four-fold tuple as MLflow tags + the Postgres mirror -----------
+    metrics: dict[str, float] = {
+        "iterations_to_convergence": float(iterations),
+        "final_residual": final_residual,
+    }
+    if solve.cd is not None:
+        metrics["cd"] = solve.cd
+    if solve.cl is not None:
+        metrics["cl"] = solve.cl
+    metrics.update(solve.scalars)
     with start_provenance_run(
         tracking_uri=str(cfg.mlflow.tracking_uri),
         experiment=str(cfg.mlflow.experiment),
@@ -227,21 +339,23 @@ def run(
         db_dsn=db_dsn,
         extra_tags={"solver_version": _SOLVER_VERSIONS[solver_name]},
     ) as mlflow_run:
-        log_metrics(
-            {
-                "cd": cd,
-                "cl": cl,
-                "iterations_to_convergence": float(iterations),
-                "final_residual": final_residual,
-            }
-        )
+        log_metrics(metrics)
         log_artifact(result.output_host_path)
         run_id = str(mlflow_run.info.run_id)
 
     typer.echo("")
-    typer.echo(f"  case        {spec.name}  (Re={spec.reynolds:.2g}, AoA={spec.aoa_deg} deg)")
-    typer.echo(f"  Cd          {cd:.6f}")
-    typer.echo(f"  Cl          {cl:.6f}")
+    re_str = (
+        f"  case        {spec.name}  (Re={spec.reynolds:.2g}, AoA={spec.aoa_deg} deg)"
+        if hasattr(spec, "reynolds") and hasattr(spec, "aoa_deg")
+        else f"  case        {spec.name}"
+    )
+    typer.echo(re_str)
+    if solve.cd is not None:
+        typer.echo(f"  Cd          {solve.cd:.6f}")
+    if solve.cl is not None:
+        typer.echo(f"  Cl          {solve.cl:.6f}")
+    for k, v in solve.scalars.items():
+        typer.echo(f"  {k:<11} {v:.6g}")
     typer.echo(f"  iterations  {iterations}")
     typer.echo(f"  config_hash {provenance.config_hash}")
     typer.echo(f"  MLflow run  {run_id}")
@@ -277,13 +391,15 @@ def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
 
 @vv_app.command("list")
 def vv_list() -> None:
-    """List the registered V&V benchmark cases (TMR + transonic)."""
+    """List the registered V&V benchmark cases (TMR + transonic + scale-resolving)."""
+    from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
     from aero.vv.transonic import TRANSONIC_CASES
 
     for header, cases in (
         ("V&V benchmark cases (NASA TMR):", TMR_CASES),
         ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
+        ("V&V benchmark cases (scale-resolving — Stage 07):", SCALE_RESOLVING_CASES),
     ):
         typer.echo(header + "\n")
         for name, case in cases.items():
@@ -295,12 +411,33 @@ def vv_list() -> None:
 
 @vv_app.command("run")
 def vv_run(
-    case: str = typer.Option(..., "--case", help="TMR case name (see `aero vv list`)."),
-    executor: str = typer.Option("local-ssh", "--executor", help="Executor backend."),
-    solver_name: str = typer.Option(
-        "openfoam", "--solver", help="Solver adapter — 'openfoam' or 'su2' (Stage 06)."
+    case: str = typer.Option(..., "--case", help="V&V case name (see `aero vv list`)."),
+    executor: str = typer.Option(
+        "local-ssh",
+        "--executor",
+        help="Executor backend — 'local-ssh' or 'runpod' (Stage 07).",
     ),
-    host: str = typer.Option("aero-build", "--host", help="LXC the solve runs on."),
+    solver_name: str = typer.Option(
+        "openfoam",
+        "--solver",
+        help="Solver adapter — 'openfoam', 'su2', 'pyfr', or 'nekrs' (Stage 07).",
+    ),
+    host: str = typer.Option(
+        "aero-build", "--host", help="LXC the solve runs on (local-ssh only)."
+    ),
+    pod_type: str = typer.Option(
+        "NVIDIA H100 PCIe",
+        "--pod-type",
+        help="RunPod pod-type (runpod executor only).",
+    ),
+    container_image: str | None = typer.Option(
+        None,
+        "--container-image",
+        help="OCI image for the RunPod pod (runpod executor only).",
+    ),
+    projected_hours: float = typer.Option(
+        0.5, "--projected-hours", help="Projected pod uptime in hours; gates the cost cap."
+    ),
     allow_dirty: bool = typer.Option(
         False, "--allow-dirty", help="Allow a dirty tree (SHA tagged '-dirty')."
     ),
@@ -308,17 +445,18 @@ def vv_run(
         False, "--mesh-sweep", help="Run a 3-grid GCI study instead of a single solve."
     ),
 ) -> None:
-    """Run one NASA TMR verification case and report its V&V status."""
+    """Run one V&V case (TMR / transonic / scale-resolving) and report its status."""
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="<level>{level: <7}</level> {message}")
 
-    if executor != "local-ssh":
-        typer.echo(f"unknown executor '{executor}' — only 'local-ssh' is supported", err=True)
+    if executor not in {"local-ssh", "runpod"}:
+        typer.echo(f"unknown executor '{executor}' — choose 'local-ssh' or 'runpod'", err=True)
         raise typer.Exit(code=2)
     if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
-        typer.echo(f"unknown solver '{solver_name}' — choose 'openfoam' or 'su2'", err=True)
+        known = ", ".join(_REQUIRED_MODULES_BY_SOLVER)
+        typer.echo(f"unknown solver '{solver_name}' — choose one of: {known}", err=True)
         raise typer.Exit(code=2)
-    extras_hint = "openfoam,provenance,vv" if solver_name == "openfoam" else "su2,provenance,vv"
+    extras_hint = f"{_SOLVER_EXTRAS_HINT[solver_name]},vv"
     for module in (*_REQUIRED_MODULES_BY_SOLVER[solver_name], *_VV_MODULES):
         if importlib.util.find_spec(module) is None:
             typer.echo(
@@ -329,10 +467,11 @@ def vv_run(
             raise typer.Exit(code=3)
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
+    from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
     from aero.vv.transonic import TRANSONIC_CASES
 
-    all_cases = {**TMR_CASES, **TRANSONIC_CASES}
+    all_cases = {**TMR_CASES, **TRANSONIC_CASES, **SCALE_RESOLVING_CASES}
     if case not in all_cases:
         known = ", ".join(all_cases)
         typer.echo(f"unknown V&V case '{case}' — known cases: {known}", err=True)
@@ -349,7 +488,7 @@ def vv_run(
     # selection overrides that with the SIF the solver actually runs in. The
     # config_hash is the case spec (mesh-agnostic), so cross-solver runs share
     # a config_hash, distinguished only by `solver_version` and the SIF SHA.
-    container_sif = "su2-v8.sif" if solver_name == "su2" else Path(default_sif).name
+    container_sif = _SOLVER_SIF.get(solver_name, Path(default_sif).name)
     try:
         db_dsn = resolve_dsn()
         provenance = compute_provenance(
@@ -367,7 +506,17 @@ def vv_run(
     solver = _build_solver(
         solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
     )
-    ssh = LocalSSHExecutor(host=host, ssh_user="root", repo_root=repo_root)
+    ssh = _build_executor(
+        executor,
+        host=host,
+        repo_root=repo_root,
+        pod_type=pod_type,
+        container_image=container_image,
+        projected_hours=projected_hours,
+    )
+    # Stage is informational on the MLflow side; Stage 07 introduces the PyFR/
+    # NekRS adapters so flag their runs with stage="07".
+    stage_str = "07" if solver_name in {"pyfr", "nekrs"} else "06"
     runner = BenchmarkRunner(
         solver=solver,
         executor=ssh,
@@ -375,7 +524,7 @@ def vv_run(
         experiment=experiment,
         db_dsn=db_dsn,
         solver_version=_SOLVER_VERSIONS[solver_name],
-        stage="06",
+        stage=stage_str,
     )
 
     try:
@@ -485,6 +634,83 @@ def vv_report(
     for r in rows:
         mark = "GREEN" if r["status"] == "pass" else "RED  "
         typer.echo(f"  [{mark}] {r['case']:<24} {r['status']:<8} {r['run_id']}")
+
+
+# =============================================================================
+# `aero cost` — cost-cap ledger inspection (Stage 07)
+# =============================================================================
+cost_app = typer.Typer(
+    name="cost",
+    help="RunPod cost-cap ledger inspection — see CONSTITUTION Invariant 8.",
+    no_args_is_help=True,
+)
+app.add_typer(cost_app, name="cost")
+
+
+@cost_app.command("show")
+def cost_show(
+    n: int = typer.Option(10, "--last", help="Show the last N ledger entries (default 10)."),
+) -> None:
+    """Show the current cost-cap ledger — MTD spend, cap, recent entries.
+
+    Reads `/etc/aero/runpod-ledger.json` (or whatever `CostCap.ledger_path`
+    points at). Useful as a pre-launch dry-run before `aero run --executor
+    runpod` and as the post-mortem after a paid GPU session.
+    """
+    from aero.orchestration.cost_cap import CostCap
+
+    cap = CostCap()
+    ledger = cap.ensure_ledger()
+    mtd = ledger.month_to_date_usd()
+    typer.echo("")
+    typer.echo(f"  cap                ${cap.cap_usd:.2f}")
+    typer.echo(f"  month-to-date      ${mtd:.2f}")
+    typer.echo(f"  remaining          ${cap.cap_usd - mtd:.2f}")
+    typer.echo(f"  ledger entries     {len(ledger.entries)}")
+    if ledger.has_orphaned():
+        typer.echo("  WARNING: orphaned entries present — launches will be REFUSED")
+    typer.echo("")
+    if not ledger.entries:
+        typer.echo("  (no entries)")
+        return
+    typer.echo(f"  last {min(n, len(ledger.entries))} entries:")
+    for e in ledger.entries[-n:]:
+        tag = e.tag.upper()
+        billed = e.billed_cost_usd
+        actual = f"{e.actual_hours:.3f}h" if e.actual_hours is not None else "running"
+        typer.echo(f"    [{tag:<8}] {e.run_id:<32} {e.pod_type:<24} {actual:<12} ${billed:.2f}")
+
+
+@cost_app.command("clear-orphan")
+def cost_clear_orphan(
+    run_id: str = typer.Argument(..., help="run_id of the orphan entry to retag."),
+    new_tag: str = typer.Option(
+        "errored",
+        "--tag",
+        help="Replacement tag: 'ok' or 'errored' (cannot be 'running' or 'orphaned').",
+    ),
+) -> None:
+    """Manually re-tag an orphaned ledger entry so further launches are permitted.
+
+    Use after verifying out-of-band (via the RunPod console) that the pod
+    is actually terminated. CONSTITUTION Invariant 8 — operator action,
+    not automatic.
+    """
+    if new_tag not in {"ok", "errored"}:
+        typer.echo(f"--tag must be 'ok' or 'errored', got {new_tag!r}", err=True)
+        raise typer.Exit(code=2)
+    from aero.orchestration.cost_cap import CostCap
+
+    cap = CostCap()
+    ledger = cap.ensure_ledger()
+    for i, e in enumerate(ledger.entries):
+        if e.run_id == run_id and e.tag == "orphaned":
+            ledger.entries[i] = e.model_copy(update={"tag": new_tag})
+            cap._write_ledger(ledger)
+            typer.echo(f"cleared orphan {run_id!r} -> tag={new_tag}")
+            return
+    typer.echo(f"no orphaned entry with run_id={run_id!r}", err=True)
+    raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":

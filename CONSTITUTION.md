@@ -105,28 +105,62 @@ convention enforced by review discipline, not CI.
 Code sessions needs uniform commit semantics so changelogs, release notes,
 and post-stage handoffs assemble cleanly.
 
-## Invariant 7 — TYPED-CONVERGENCE-HISTORY
+## Invariant 7 — TYPED-SOLVE-HISTORY
 
-Every solver adapter's `Solver.load()` returns a typed `SolveResult` carrying
-a `ConvergenceHistory` — the monitored residual as a validated equal-length
-`(iteration, residual)` series — never a solver-native container
-(`xarray.Dataset`, raw dict, CSV path). Converged scalars (`cd`, `cl`,
-`iterations_to_convergence`, `final_residual`) are typed fields on
-`SolveResult`, not `.attrs`-style untyped metadata.
+Every solver adapter's `Solver.load()` returns a typed `SolveResult` carrying a
+discriminated union `ConvergenceHistory | TimeHistory` — either a steady-state
+monitored-residual series `(iteration, residual)` or a time-accurate monitor
+series `(t, monitor, monitor_name)`, each as a validated equal-length pair —
+never a solver-native container (`xarray.Dataset`, raw dict, CSV path).
+Steady-state scalars (`cd`, `cl`) and case-specific scalars (Taylor-Green peak
+dissipation, periodic-hill re-attachment length, ...) ride in typed fields
+(`SolveResult.cd: float | None`, `.cl: float | None`,
+`.scalars: dict[str, float]`), never `.attrs`-style untyped metadata.
 
-**Enforcement:** the V&V harness types `solver.load(result)` as
-`SolveResult` against the `aero.adapters._base.SolverProtocol`. A
-per-adapter test asserts `isinstance(result, SolveResult)`; mypy `--strict`
-on `aero/adapters/_base.py` pins the schema. The `import-platform-only` CI
+**Enforcement:** the V&V harness types `solver.load(result)` as `SolveResult`
+against the `aero.adapters._base.SolverProtocol`. A per-adapter test asserts
+`isinstance(result, SolveResult)` and discriminator-correct round-trip of the
+history; mypy `--strict` on `aero/adapters/_base.py` pins the schema. Airfoil
+V&V cases that read `result.cd`/`.cl` `assert ... is not None` at the top of
+their `evaluate()` — fail-loud per Invariant 2. The `import-platform-only` CI
 job verifies the typed result types are usable without any solver extra
 installed.
 
-**Why:** Convergence history is the primary evidence a CFD result is
-trustworthy. If it is trapped in a solver-native format, the V&V dashboard,
-the UQ layer (Stage 12), and any cross-solver comparison must each learn N
-formats. A typed series is the citation-grade contract. Added in Stage 06
-when SU2 forced the multi-solver abstraction (ADR-006); the OpenFOAM adapter
-was migrated off `xr.Dataset.attrs[...]` to the typed schema in the same PR.
+**Why:** A solve's history is the primary evidence the result is trustworthy.
+If it is trapped in a solver-native format, the V&V dashboard, the UQ layer
+(Stage 12), and any cross-solver comparison must each learn N formats. A typed
+discriminated union is the citation-grade contract that survives both
+steady-state RANS (OpenFOAM, SU2) and time-accurate scale-resolving runs (PyFR,
+NekRS, JAX-Fluids). First codified in Stage 06 as TYPED-CONVERGENCE-HISTORY
+when SU2 forced the multi-solver abstraction (ADR-006); promoted in Stage 07
+to cover the time-accurate branch and the optional/case-specific scalars that
+PyFR + NekRS revealed (ADR-007).
+
+## Invariant 8 — COST-CAP-ENFORCED-CLOUD-EXECUTION
+
+Every rented-GPU launch — RunPod, Lambda Labs, Vast.ai, future Slurm cluster
+allocations — passes through a budget check *before* any spend is committed.
+The check sums the month-to-date estimated cost from a local append-only ledger
+(`/etc/aero/runpod-ledger.json` by default) plus the projected cost of the new
+launch and fails loud with a `CostCapExceeded` exception if the result exceeds
+the configured ceiling (`AERO_RUNPOD_MONTHLY_CAP_USD`, default `50.0`). Every
+launch records a ledger entry pre-execution and is amended with the actual
+hours and cost on termination (or marked `tag="ORPHANED"` if termination polling
+fails — further launches are then refused until the operator clears the entry
+manually).
+
+**Enforcement:** the `aero.orchestration.cost_cap.CostCap.check_budget(...)`
+call is the only legal pre-launch gate for any cloud executor; `RunPodExecutor`
+(Stage 07) and the future Lambda/Vast executors construct one in `__init__` and
+must call it inside `run()` before any pod-spin. A unit test in
+`tests/stage_07/test_cost_cap.py` proves the budget overrun raises and the
+ledger persists across runs.
+
+**Why:** A peer-review-grade platform with a multi-cloud GPU back end cannot
+allow silent cost overruns. The exact failure mode the cap prevents is well-
+attested in the field: a runaway `for` loop that launches 30 H100 pods at
+~$3/hr, or a terminate-API that returns 200 but leaves billing running. Added
+in Stage 07 with the first paid cloud GPU run (ADR-007).
 
 ## Amendment process
 

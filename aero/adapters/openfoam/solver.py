@@ -109,7 +109,7 @@ class OpenFOAMSolver(Solver):
         return MeshHandle(
             case_dir=case_dir,
             ok=ok,
-            n_cells=int(cells.group(1)) if cells else None,
+            n_elements=int(cells.group(1)) if cells else None,
         )
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:

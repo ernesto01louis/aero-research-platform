@@ -9,6 +9,105 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.7] - 2026-05-20
+
+### Added — Stage 07 (PyFR + NekRS GPU Adapters; First Cloud GPU Run)
+
+- `aero/adapters/pyfr/` — the platform's third concrete solver: `PyFRSolver`
+  with `PyFRTaylorGreenSpec` + `PyFRMeshFileSpec`, a host-side gmsh-MSH2 mesh
+  emitter for the triply-periodic Taylor-Green cube, and a `solver.ini`
+  writer that bakes in the Brachet 1983 analytic IC + the `[soln-plugin-
+  integrate]` monitor that powers the dissipation-rate `TimeHistory`.
+- `aero/adapters/nekrs/` — the platform's fourth concrete solver:
+  `NekRSSolver` with `NekRSTaylorGreenSpec` + `NekRSCaseDirSpec`, host-side
+  emitters for the Nek5000 `.box` / `.par` / `.udf` triplet, and a log-grep
+  loader that parses `gradKE:` lines (rank-0-only) into the same typed
+  `TimeHistory(monitor_name="dissipation_rate")` PyFR produces.
+- `aero/adapters/_meshing/` — solver-agnostic host-side mesh emitters:
+  `write_taylor_green_msh2` (numpy hex-cube, six periodic face physical
+  groups, no gmsh host dep) and `write_taylor_green_box` (Nek5000 `.box`,
+  all-periodic BCs).
+- `aero/orchestration/cost_cap.py` — `CostCap` / `Ledger` / `LedgerEntry`
+  with append-only persistence at `/etc/aero/runpod-ledger.json`,
+  `check_budget(estimated_usd)` pre-launch gate, `record_launch` /
+  `record_termination` with explicit `orphaned` state when terminate
+  polling fails. Default cap: `$50/month` (env var
+  `AERO_RUNPOD_MONTHLY_CAP_USD`).
+- `aero/orchestration/runpod/` — `RunPodExecutor` satisfying the existing
+  `Executor` protocol. Lifecycle: estimate cost → `cost_cap.check_budget`
+  → `cost_cap.record_launch` → GraphQL `podFindAndDeployOnDemand` → SSH
+  poll → `_ssh_exec` → `podTerminate` (in `finally:`) → poll for
+  `desiredStatus=TERMINATED` → `cost_cap.record_termination`. GraphQL via
+  `requests` (no vendor SDK); container image is a GHCR-mirror of the
+  SIF.
+- `aero/vv/scale_resolving/` — `TaylorGreenVortex` (Brachet 1983 Re=1600
+  dissipation-rate reference, 10 % tolerance, peak_dissipation as the
+  GCI metric) and `PeriodicHillLES` (Breuer 2009 re-attachment-length
+  scalar; full pointwise profile compare deferred to Stage 12 with a
+  fail-loud stub).
+- `containers/pyfr.{Dockerfile,def}` + `scripts/build_pyfr_sif.sh` —
+  two-step OCI-then-SIF build on `nvidia/cuda:12.4.1-devel-ubuntu22.04`,
+  PyFR 1.15.0 from PyPI with `setuptools<70` (pkg_resources requirement).
+- `containers/nekrs.{Dockerfile,def}` + `scripts/build_nekrs_sif.sh` —
+  source build of NekRS v23.0 with OCCA + libParanumal kernels for
+  CUDA sm_80/sm_89/sm_90; Make + serial-HYPRE-fallback handles the
+  HYPRE ExternalProject ordering.
+- `data/references/scale_resolving/{taylor_green,periodic_hill}/reference.md`
+  — citation + digitisation runbook for the two reference datasets.
+- `aero[pyfr]` extra (`h5py>=3.10`, `mako>=1.3`); `aero[nekrs]` extra
+  (`meshio>=5.3`); new `aero[gpu-rental]` extra (`requests>=2.32`).
+- `aero/cli.py`: `aero run/vv run --executor {local-ssh,runpod}` +
+  `--solver {openfoam,su2,pyfr,nekrs}` + `--pod-type` + `--container-image`
+  + `--projected-hours`; new `aero cost {show,clear-orphan}` subcommand.
+- `tests/stage_07/` — 58 unit tests covering the protocol refactor, the
+  cost-cap module (mocked tmpdir ledger), the RunPod executor lifecycle
+  (mocked GraphQL), both new adapters' host-side surface, and the
+  meshing helpers.
+- `.github/workflows/vv-scale-resolving.yml` — new nightly workflow,
+  gated on a `[self-hosted, gpu]` runner (Stage-13-provisioned; skips
+  with a message until then).
+- `docs/adrs/ADR-007-gpu-solver-adapters-and-cost-cap.md` — the four
+  decisions: protocol refactor, PyFR + NekRS as third + fourth, minimal
+  RunPod executor, local-ledger cost cap.
+
+### Changed
+
+- **Breaking:** `MeshHandle.n_cells` → **`n_elements`** (rename); new
+  sibling `n_dof: int | None` for FR/SEM solvers. Catch-up edits in
+  `aero/adapters/openfoam/solver.py`, `aero/adapters/su2/solver.py`,
+  `aero/vv/_base.py` (the `BenchmarkResult` field is also renamed), and
+  every test that asserts on the field. `aero/vv/mesh_sweep.py`'s
+  `GridPoint.n_cells` keeps its GCI-domain naming and reads from
+  `obs.n_elements`.
+- **Breaking:** `SolveResult.cd` / `.cl` are now `float | None` (previously
+  required). Airfoil V&V cases now `assert result.cd is not None` at the
+  top of `evaluate()` — FAIL-LOUD per Invariant 2. Non-airfoil cases
+  (Taylor-Green, periodic hill, future internal-flow / heat-transfer
+  cases) leave them `None` and write their measurements to
+  `SolveResult.scalars: dict[str, float]` (new field).
+- **Breaking:** `SolveResult.history` is now a Pydantic discriminated union
+  `ConvergenceHistory | TimeHistory` keyed on `kind`. Existing
+  `ConvergenceHistory(iteration=..., residual=...)` constructors keep
+  working (Pydantic defaults `kind="convergence"`). The new `TimeHistory`
+  branch carries `(t, monitor, monitor_name)` for time-accurate solvers.
+- `build_apptainer_exec` gains `gpu: bool = False` (appends `--nv` for
+  GPU pass-through) and `mpi_n: int | None = None` (wraps the inner
+  command in `mpirun -n N`). Defaults preserve every existing
+  OpenFOAM/SU2 command string byte-for-byte.
+- `aero/cli.py:aero run` no longer requires `cd`/`cl` to be present;
+  it logs whichever scalar metrics are non-None plus everything in
+  `solve.scalars`.
+
+### CONSTITUTION
+
+- **Invariant 7 amended** — TYPED-CONVERGENCE-HISTORY → **TYPED-SOLVE-HISTORY**.
+  The discriminated union now covers both branches; case-specific scalars
+  ride on `SolveResult.scalars`, not on `.attrs`.
+- **Invariant 8 added** — **COST-CAP-ENFORCED-CLOUD-EXECUTION**. Every
+  rented-GPU launch passes through `CostCap.check_budget()` *before* any
+  spend; orphaned-termination ledger entries refuse further launches until
+  an operator clears them via `aero cost clear-orphan`.
+
 ## [0.0.6] - 2026-05-19
 
 ### Added — Stage 06 (SU2 Adapter — Forcing the Abstraction)

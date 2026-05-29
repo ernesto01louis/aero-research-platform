@@ -146,15 +146,19 @@ class MeshSweep:
             obs = runner.measure_scalar(
                 case, self.metric, provenance=provenance, repo_root=repo_root
             )
-            if obs.n_cells is None or obs.n_cells <= 0:
-                raise BenchmarkError("mesh sweep needs a reported cell count from each grid")
+            if obs.n_elements is None or obs.n_elements <= 0:
+                raise BenchmarkError("mesh sweep needs a reported element count from each grid")
             points.append(
                 GridPoint(
                     refinement_ratio=ratio,
-                    n_cells=obs.n_cells,
+                    # `GridPoint.n_cells` keeps the GCI-domain naming convention
+                    # (ASME V&V 20 §"cell count") even though it is sourced from
+                    # the Stage-07 renamed `obs.n_elements` (FV cells for
+                    # OpenFOAM/SU2, FR/SEM elements for PyFR/NekRS).
+                    n_cells=obs.n_elements,
                     # 2D representative size: h ~ (1/N)^(1/2); the constant
                     # area factor cancels in every ratio that GCI uses.
-                    representative_h=(1.0 / obs.n_cells) ** 0.5,
+                    representative_h=(1.0 / obs.n_elements) ** 0.5,
                     metric_value=obs.value,
                     mlflow_run_id=obs.mlflow_run_id,
                 )

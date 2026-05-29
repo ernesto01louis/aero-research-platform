@@ -60,6 +60,11 @@ class NACA0012Verification:
 
     def evaluate(self, solver: SolverLike, result: Any) -> dict[str, float | Series]:
         solve = solver.load(result)
+        if solve.cd is None:
+            raise ValueError(
+                f"{self.name}: SolveResult.cd is None; an airfoil verification case "
+                "requires a converged drag coefficient (Invariant 2 — FAIL-LOUD)."
+            )
         return {"cd": solve.cd}
 
     def refined(self, ratio: float) -> NACA0012Verification:

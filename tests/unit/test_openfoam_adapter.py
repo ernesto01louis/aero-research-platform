@@ -164,7 +164,7 @@ def test_solver_mesh_builds_blockmesh_command(tmp_path: Path) -> None:
     assert command.startswith("apptainer exec --bind ")
     assert "blockMesh" in command
     assert str(case_dir.remote_path) in command
-    assert mesh.n_cells == 4242
+    assert mesh.n_elements == 4242
 
 
 def test_solver_prepare_writes_case_under_runs(tmp_path: Path) -> None:

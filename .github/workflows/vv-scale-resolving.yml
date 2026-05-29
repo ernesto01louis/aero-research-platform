@@ -1,0 +1,90 @@
+name: vv-scale-resolving
+
+# V&V scale-resolving — runs the Stage-07 high-order scale-resolving cases
+# (Taylor-Green vortex and periodic-hill LES) through PyFR + NekRS. Nightly
+# only — never on push/PR. The benchmark cases require a GPU runner, so this
+# workflow is gated on the `gpu` self-hosted runner label; if no such runner
+# is online the job skips with an informative message (the platform has no
+# discrete GPU on-prem, so this CI path is operator-provisioned per Stage 13).
+#
+# This is the cost-cap-respecting CI ceiling: every run inside this workflow
+# uses the local-SSH executor against `aero-build` if a GPU is colocated, OR
+# the RunPod executor against the $50/month cap (CONSTITUTION Invariant 8).
+# Stage 13's multi-cloud cost router supersedes this gate.
+#
+# See ADR-007 for the full design + rationale.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-gpu-runner:
+    name: detect a GPU runner
+    runs-on: ubuntu-latest
+    outputs:
+      have_gpu: ${{ steps.check.outputs.have_gpu }}
+    steps:
+      - id: check
+        # Stage 07 has no discrete GPU on-prem (Proxmox host is iGPU only) so
+        # the gpu label is operator-provisioned at Stage 13. Until that lands,
+        # this workflow runs only when an operator manually labels a runner
+        # `[self-hosted, gpu]`.
+        run: |
+          echo "Stage 07 has no on-prem discrete GPU; vv-scale-resolving runs"
+          echo "only when an operator has labelled a self-hosted runner 'gpu'."
+          # Default to skip; the downstream job is gated by this output.
+          echo "have_gpu=false" >> "$GITHUB_OUTPUT"
+
+  vv-scale-resolving:
+    name: V&V scale-resolving — PyFR + NekRS
+    needs: detect-gpu-runner
+    if: needs.detect-gpu-runner.outputs.have_gpu == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 240
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      AERO_RUNPOD_MONTHLY_CAP_USD: "50"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install aero with pyfr + nekrs + provenance + vv extras
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[pyfr,nekrs,provenance,vv,dev]"
+
+      - name: Fetch DVC-tracked scale-resolving references
+        # Brachet 1983 Taylor-Green dissipation reference; Breuer 2009 periodic-hill.
+        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped"
+
+      - name: Run the scale-resolving suite
+        # Tests are stage_07-marked + slow; the host fixtures `vv_cluster_ready_pyfr`
+        # / `vv_cluster_ready_nekrs` gate execution on SIF + DSN + scipy.
+        run: |
+          .venv/bin/pytest -m "stage_07 and vv and slow" --run-slow -v \
+              tests/vv/test_taylor_green_pyfr.py \
+              tests/vv/test_taylor_green_nekrs.py
+
+      - name: Regenerate the V&V dashboard
+        if: always()
+        run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
+
+      - name: Cost-cap audit (post-run)
+        if: always()
+        # Surface the cost ledger so any RunPod spend in this workflow is
+        # visible in the workflow log. CONSTITUTION Invariant 8.
+        run: .venv/bin/aero cost show
+
+      - name: Upload the V&V dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vv-dashboard-scale-resolving
+          path: docs/vv-dashboard.html

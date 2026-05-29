@@ -136,8 +136,9 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `tag=production` MLflow run will require a `--uq` envelope.
 - **Surrogate certificate-of-validity check** — TBD in Stage 08; agent
   layer (Stage 14) refuses to call an uncertified surrogate.
-- **Cost cap** — TBD in Stage 07 (initial $50/month for CI) and Stage 13
-  (full multi-cloud cost router).
+- **Cost cap** — Stage 07 ships the initial $50/month ledger at
+  `/etc/aero/runpod-ledger.json`; Stage 13 promotes to the full multi-cloud
+  cost router.
 - **Self-hosted CI runner** (Stage 03) — `vv-smoke` runs the NACA 0012
   walking-skeleton smoke test on a self-hosted runner labeled `vv`,
   registered on `aero-build`. Not a required status check.
@@ -176,6 +177,43 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `aero vv run --solver ...`. New CI: `import-platform-only.yml` (the
   PLATFORM-NOT-HUB invariant is now structurally enforced) and
   `vv-transonic.yml` (nightly only, not PR-gating). See ADR-006.
+- **GPU solver adapters + cloud cost cap** (Stage 07) — `aero/adapters/pyfr/`
+  (`PyFRSolver`, BSD-3, PyFR 1.15.0 in `containers/pyfr.sif`) and
+  `aero/adapters/nekrs/` (`NekRSSolver`, BSD-3, NekRS v23.0 in
+  `containers/nekrs.sif`) are the platform's third and fourth concrete
+  solvers — both GPU-resident, both time-accurate. Their landing forces a
+  protocol promotion (ADR-007): **`MeshHandle.n_cells` → `.n_elements`** with
+  a sibling `n_dof` for FR/SEM; **`SolveResult.cd`/`.cl` are now
+  `float | None`** with a new `scalars: dict[str, float]` for case-specific
+  outputs; **`SolveResult.history` is now `ConvergenceHistory | TimeHistory`**
+  (Pydantic-discriminated union — Invariant 7 amended to TYPED-SOLVE-HISTORY);
+  **`build_apptainer_exec(gpu=True, mpi_n=N)`** appends `--nv` / wraps in
+  `mpirun -n N`. Airfoil V&V evaluators `assert result.cd is not None`
+  (FAIL-LOUD). `aero[pyfr]` carries `h5py`/`mako`, `aero[nekrs]` carries
+  `meshio` — both kept light because the solver binaries live inside the
+  SIFs. New `aero[gpu-rental]` extra carries `requests` for the RunPod
+  GraphQL transport.
+
+  The minimal **`RunPodExecutor`** (`aero/orchestration/runpod/`) satisfies
+  the existing `Executor` protocol: one pod per call, no pool, no router
+  (Stage 13 promotes). Every `run()` passes through
+  `aero/orchestration/cost_cap.py:CostCap.check_budget()` BEFORE any spend
+  — the new **CONSTITUTION Invariant 8 — COST-CAP-ENFORCED-CLOUD-EXECUTION**.
+  The ledger is at `/etc/aero/runpod-ledger.json` (mode 0640); default cap
+  `$50/month` via `AERO_RUNPOD_MONTHLY_CAP_USD`. Pods terminate in a
+  `finally:` block; if termination polling fails the entry is tagged
+  `"orphaned"` and all subsequent launches refuse until the operator runs
+  `aero cost clear-orphan <run_id> --tag ok|errored`.
+
+  RunPod's container image is the GHCR-mirror of the SIF
+  (`ghcr.io/ernesto01louis/aero-{pyfr,nekrs}:<ver>`); the container digest
+  also enters `containers/SHA256SUMS` so the four-fold provenance tuple
+  resolves whether the run used the local SIF or the pulled image. New CLI:
+  `aero run/vv run --executor {local-ssh,runpod} --solver {openfoam,su2,pyfr,
+  nekrs}` plus `aero cost {show,clear-orphan}` for ledger inspection. New
+  CI workflow `vv-scale-resolving.yml` (nightly, gated on a `[self-hosted,
+  gpu]` runner — operator-provisioned). See ADR-007.
+
 - **V&V harness** (Stage 05) — `aero/vv/` runs canonical NASA TMR cases
   through any `SolverLike` solver, compares against reference data with tight
   tolerances (Cd 3 %, Cf 5 %, Cp 3 %), and logs a `BenchmarkResult` with a
