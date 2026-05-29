@@ -28,10 +28,19 @@ from aero.adapters._base import (  # re-exported solver-neutral handles
     CaseDir as CaseDir,
 )
 from aero.adapters._base import (
+    ConvergenceHistory as ConvergenceHistory,
+)
+from aero.adapters._base import (
     MeshHandle as MeshHandle,
 )
 from aero.adapters._base import (
     ResultHandle as ResultHandle,
+)
+from aero.adapters._base import (
+    SolveResult as SolveResult,
+)
+from aero.adapters._base import (
+    TimeHistory as TimeHistory,
 )
 
 # --- SU2 SIF path -------------------------------------------------------------
@@ -128,10 +137,13 @@ SU2CaseSpec = Annotated[SU2AirfoilSpec | SU2MeshFileSpec, Field(discriminator="k
 __all__ = [
     "DEFAULT_SU2_SIF_PATH",
     "CaseDir",
+    "ConvergenceHistory",
     "MeshHandle",
     "ResultHandle",
     "SU2AirfoilSpec",
     "SU2CaseSpec",
     "SU2MeshFileSpec",
     "SU2TurbulenceModel",
+    "SolveResult",
+    "TimeHistory",
 ]

@@ -1,0 +1,20 @@
+{
+  "case_name": "taylor_green_vortex_pyfr_h100",
+  "hardware": "NVIDIA H100 80GB HBM3",
+  "compute_capability": "9.0",
+  "solver_version": "PyFR 1.15.0",
+  "backend": "cuda",
+  "polynomial_order": 3,
+  "reynolds": 1600,
+  "t_start": 0.0,
+  "t_end": 19.9020133106071,
+  "samples": 75,
+  "initial_ke": 0.12499999998239913,
+  "final_ke": 0.01821283558073226,
+  "peak_dissipation_from_dKE": 0.012167952082296929,
+  "peak_dissipation_t": 8.871964194035248,
+  "peak_dissipation_from_enstrophy": 0.020725912704769416,
+  "peak_dissipation_enst_t": 8.871964194035248,
+  "brachet_reference_peak": 0.013,
+  "ratio_vs_brachet": 0.9359963140228408
+}

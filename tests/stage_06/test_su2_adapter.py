@@ -237,7 +237,7 @@ def test_mesh_validates_the_generated_su2_file(tmp_path: Path) -> None:
     case_dir = _case_dir(tmp_path)
     mesh = solver.mesh(case_dir, _FakeExecutor())
     assert mesh.ok
-    assert mesh.n_cells == 40 * 20
+    assert mesh.n_elements == 40 * 20
 
 
 def test_run_builds_the_su2_cfd_command(tmp_path: Path) -> None:

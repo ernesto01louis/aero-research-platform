@@ -1,0 +1,53 @@
+# containers/pyfr.def — aero-research-platform PyFR solver image.
+#
+# Stage 07 — the platform's third concrete CFD solver (ADR-007).
+# Wraps a locally-built OCI image (from containers/pyfr.Dockerfile) so
+# `pyfr run -b cuda` runs inside a signed, SHA256-pinned Apptainer SIF
+# (Constitution: "solvers are containers"). GPU passthrough is via
+# `apptainer exec --nv` at runtime — see `build_apptainer_exec(gpu=True)`
+# in `aero/adapters/_base.py` (the Stage-07 protocol extension).
+#
+# Two-step build pattern (inherited from ADR-006):
+#   1. `buildah bud -f containers/pyfr.Dockerfile -t localhost/aero/pyfr:<ver>`
+#      ... `buildah push ... oci-archive:/tmp/pyfr-oci.tar`
+#   2. this `.def` bootstraps from that OCI archive (filesystem-only).
+#
+# NOTE: `%post` is filesystem-only — the Apptainer build sandbox inside the
+# unprivileged `aero-build` LXC cannot open sockets (Stage 02 §6).
+#
+# Built, signed, and SHA256-recorded by scripts/build_pyfr_sif.sh.
+
+Bootstrap: oci-archive
+From: /mnt/aero/tmp/pyfr-oci.tar
+
+%labels
+    org.aero.component   pyfr
+    org.aero.stage       07
+    org.aero.solver      PyFR
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only setup; the OCI image already has /case /work /opt/aero,
+    # but recreate so a fresh bootstrap path lands the targets too.
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/pyfr-venv/bin:/usr/local/cuda/bin:$PATH
+    export PYTHONPATH=/opt/pyfr-venv/lib/python3.10/site-packages:${PYTHONPATH:-}
+    export CUDA_HOME=/usr/local/cuda
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/pyfr-venv/lib:${LD_LIBRARY_PATH:-}
+
+%test
+    # Smoke-test the interfaces the aero PyFR adapter uses: the `pyfr` CLI
+    # and the Python module. The CUDA backend cannot be exercised without
+    # --nv at exec time, so we only smoke the toolkit-resolution side here.
+    command -v pyfr || { echo "pyfr not on PATH" >&2; exit 1; }
+    python3 -c "import pyfr, mpi4py, h5py, mako" || { echo "pyfr deps import failed" >&2; exit 1; }
+    pyfr --version
+    echo "aero PyFR image — pyfr CLI + deps import OK"
+
+%runscript
+    echo "aero-research-platform PyFR image (Stage 07)"
+    exec "$@"

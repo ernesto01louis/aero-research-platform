@@ -25,8 +25,11 @@ from aero.adapters._base import (
     DEFAULT_REMOTE_NFS_ROOT,
     RUNS_SUBDIR,
     CaseDir,
+    ConvergenceHistory,
     MeshHandle,
     ResultHandle,
+    SolveResult,
+    TimeHistory,
 )
 
 # --- OpenFOAM SIF path --------------------------------------------------------
@@ -50,8 +53,11 @@ __all__ = [
     "RUNS_SUBDIR",
     "CaseDir",
     "CaseSpec",
+    "ConvergenceHistory",
     "MeshHandle",
     "ResultHandle",
+    "SolveResult",
+    "TimeHistory",
 ]
 
 

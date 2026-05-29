@@ -87,14 +87,24 @@ su2 = [
     "mpi4py>=4.0",
 ]
 
-# Stage 07 — PyFR (flux reconstruction GPU)
+# Stage 07 — PyFR (flux reconstruction, GPU-resident). The `pyfr` package itself
+# is built into the pyfr.sif SIF (`pyfr run` runs inside the container); host-
+# side the adapter only needs numpy (base) + the case-writer deps. h5py / mako
+# / mpi4py are listed so the platform's V&V dashboard tooling can decode PyFR's
+# HDF5 outputs (.pyfrm, .pyfrs) when needed. `gmsh` is NOT a host dep — the
+# host-side mesh emitter is pure numpy (see aero/adapters/_meshing/), and the
+# SIF carries `gmsh` for any DVC-tracked `.msh` import path.
 pyfr = [
-    # populated in stage-07: pyfr (gmsh, h5py, mako)
+    "h5py>=3.10",
+    "mako>=1.3",
 ]
 
-# Stage 07 — NekRS (spectral element GPU)
+# Stage 07 — NekRS (spectral element, GPU-resident). The `nekrs` binary is in
+# the nekrs.sif; host-side we only need `meshio` to read any tooling-emitted
+# Nek5000-format meshes (.re2 / .ma2 are binary; meshio's nek5000 reader is
+# the host-side bridge for V&V dashboard introspection).
 nekrs = [
-    # populated in stage-07: nekrs Python bindings if available
+    "meshio>=5.3",
 ]
 
 # Stage 08 — JAX-Fluids 2.0 (differentiable CFD)
@@ -144,9 +154,14 @@ literature = [
     # sentence-transformers, pgvector
 ]
 
-# Stage 13 — multi-cloud GPU orchestration
+# Stage 07 / 13 — cloud GPU rental orchestration. Stage 07 ships a *minimal*
+# RunPod executor that calls the RunPod GraphQL API via `requests` — no
+# vendor SDK dependency (`runpod`/`lambdalabs`/`vast-python` are deliberately
+# avoided; their schemas churn faster than the platform's audit cadence
+# tolerates). Stage 13 promotes this into the full multi-cloud cost router
+# and may add the vendor SDKs then.
 gpu-rental = [
-    # populated in stage-13: runpod, lambdalabs, vast-python
+    "requests>=2.32",
 ]
 orchestration = [
     # populated in stage-13: prefect>=3.0, covalent

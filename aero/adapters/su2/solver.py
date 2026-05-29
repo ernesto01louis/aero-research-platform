@@ -278,13 +278,13 @@ class SU2Solver(Solver):
         mesh_file = case_dir.host_path / _MESH_FILENAME
         if not mesh_file.is_file():
             logger.error("SU2 mesh not found: {}", mesh_file)
-            return MeshHandle(case_dir=case_dir, ok=False, n_cells=None)
+            return MeshHandle(case_dir=case_dir, ok=False, n_elements=None)
         match = _NELEM_RE.search(mesh_file.read_text(encoding="utf-8"))
-        n_cells = int(match.group(1)) if match else None
-        ok = n_cells is not None and n_cells > 0
+        n_elements = int(match.group(1)) if match else None
+        ok = n_elements is not None and n_elements > 0
         if not ok:
             logger.error("SU2 mesh {} has no NELEM count", mesh_file)
-        return MeshHandle(case_dir=case_dir, ok=ok, n_cells=n_cells)
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements)
 
     # --- run seam -------------------------------------------------------------
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:

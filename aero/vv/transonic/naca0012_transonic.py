@@ -69,6 +69,11 @@ class NACA0012Transonic:
 
     def evaluate(self, solver: SolverLike, result: Any) -> dict[str, float | Series]:
         solve = solver.load(result)
+        if solve.cd is None:
+            raise ValueError(
+                f"{self.name}: SolveResult.cd is None; a transonic airfoil case "
+                "requires a converged drag coefficient (Invariant 2 — FAIL-LOUD)."
+            )
         return {"cd": solve.cd}
 
     def refined(self, ratio: float) -> NACA0012Transonic:

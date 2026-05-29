@@ -51,9 +51,45 @@ def vv_cluster_ready_su2(
     return bool(os.environ.get("AERO_PROVENANCE_DSN"))
 
 
+@pytest.fixture(scope="session")
+def vv_cluster_ready_pyfr(
+    aero_build_reachable: bool,
+    pyfr_sif_present: bool,
+    pyfr_extra_installed: bool,
+) -> bool:
+    """True iff a full PyFR V&V run can execute (Stage 07).
+
+    Note: this fixture only checks the LOCAL SSH path (PyFR over aero-build).
+    The Stage-07 first paid GPU run goes through the RunPod executor and
+    needs `RUNPOD_API_KEY` + `/etc/aero/runpod-ledger.json` instead; that
+    integration test is gated by env var, not by this fixture.
+    """
+    if not (aero_build_reachable and pyfr_sif_present and pyfr_extra_installed):
+        return False
+    if importlib.util.find_spec("scipy") is None:
+        return False
+    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+
+
+@pytest.fixture(scope="session")
+def vv_cluster_ready_nekrs(
+    aero_build_reachable: bool,
+    nekrs_sif_present: bool,
+    nekrs_extra_installed: bool,
+) -> bool:
+    """True iff a full NekRS V&V run can execute (Stage 07)."""
+    if not (aero_build_reachable and nekrs_sif_present and nekrs_extra_installed):
+        return False
+    if importlib.util.find_spec("scipy") is None:
+        return False
+    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+
+
 def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-def]
     """Construct a `BenchmarkRunner` + provenance-builder for `solver_name`."""
+    from aero.adapters.nekrs.solver import NekRSSolver
     from aero.adapters.openfoam.solver import OpenFOAMSolver
+    from aero.adapters.pyfr.solver import PyFRSolver
     from aero.adapters.su2.solver import SU2Solver
     from aero.orchestration import LocalSSHExecutor
     from aero.provenance import compute_provenance
@@ -62,6 +98,7 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
 
     nfs = Path("/mnt/aero-nfs") if os.path.ismount("/mnt/aero-nfs") else Path("/mnt/aero")
     solver: object
+    stage = "05"
     if solver_name == "openfoam":
         solver = OpenFOAMSolver(host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"))
         version = "OpenFOAM-ESI v2412"
@@ -72,6 +109,21 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
         )
         version = "SU2 v8"
         sif_name = "su2-v8.sif"
+        stage = "06"
+    elif solver_name == "pyfr":
+        solver = PyFRSolver(
+            host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"), repo_root=repo_root
+        )
+        version = "PyFR 1.15.0"
+        sif_name = "pyfr.sif"
+        stage = "07"
+    elif solver_name == "nekrs":
+        solver = NekRSSolver(
+            host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"), repo_root=repo_root
+        )
+        version = "NekRS v23.0"
+        sif_name = "nekrs.sif"
+        stage = "07"
     else:
         raise ValueError(f"unknown solver {solver_name!r}")
 
@@ -83,7 +135,7 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
         experiment="aero-provenance",
         db_dsn=resolve_dsn(),
         solver_version=version,
-        stage="06" if solver_name == "su2" else "05",
+        stage=stage,
     )
 
     def _provenance(spec: object) -> object:
@@ -107,3 +159,15 @@ def vv_runner(repo_root: Path):  # type: ignore[no-untyped-def]
 def vv_runner_su2(repo_root: Path):  # type: ignore[no-untyped-def]
     """SU2 `BenchmarkRunner` (Stage 06)."""
     return _runner(repo_root, solver_name="su2")
+
+
+@pytest.fixture
+def vv_runner_pyfr(repo_root: Path):  # type: ignore[no-untyped-def]
+    """PyFR `BenchmarkRunner` (Stage 07)."""
+    return _runner(repo_root, solver_name="pyfr")
+
+
+@pytest.fixture
+def vv_runner_nekrs(repo_root: Path):  # type: ignore[no-untyped-def]
+    """NekRS `BenchmarkRunner` (Stage 07)."""
+    return _runner(repo_root, solver_name="nekrs")

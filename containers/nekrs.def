@@ -1,0 +1,52 @@
+# containers/nekrs.def — aero-research-platform NekRS solver image.
+#
+# Stage 07 — the platform's fourth concrete CFD solver (ADR-007).
+# Wraps a locally-built OCI image (from containers/nekrs.Dockerfile) so
+# `nekrs --setup <case> --backend CUDA` runs inside a signed, SHA256-pinned
+# Apptainer SIF (Constitution: "solvers are containers"). GPU passthrough
+# is via `apptainer exec --nv` at runtime — see
+# `build_apptainer_exec(gpu=True, mpi_n=N)` in `aero/adapters/_base.py`.
+#
+# Two-step build pattern (inherited from ADR-006):
+#   1. `buildah bud --layers=true -f containers/nekrs.Dockerfile \
+#                   -t localhost/aero/nekrs:<ver>`
+#      ... `buildah push ... oci-archive:/tmp/nekrs-oci.tar`
+#   2. this `.def` bootstraps from that OCI archive (filesystem-only).
+#
+# NOTE: `%post` is filesystem-only — the Apptainer build sandbox inside the
+# unprivileged `aero-build` LXC cannot open sockets (Stage 02 §6).
+#
+# Built, signed, and SHA256-recorded by scripts/build_nekrs_sif.sh.
+
+Bootstrap: oci-archive
+From: /mnt/aero/tmp/nekrs-oci.tar
+
+%labels
+    org.aero.component   nekrs
+    org.aero.stage       07
+    org.aero.solver      NekRS
+    org.aero.maintainer  aero-research-platform
+
+%post
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export NEKRS_HOME=/opt/nekrs
+    export OCCA_DIR=/opt/nekrs/occa
+    export CUDA_HOME=/usr/local/cuda
+    export PATH=/opt/nekrs/bin:/usr/local/cuda/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/nekrs/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}
+
+%test
+    # Smoke-test the interface the aero NekRS adapter uses: the `nekrs`
+    # binary. Backend init requires a real GPU + --nv at exec time.
+    command -v nekrs || { echo "nekrs not on PATH" >&2; exit 1; }
+    /opt/nekrs/bin/nekrs --help 2>&1 | head -3 || { echo "nekrs --help failed" >&2; exit 1; }
+    cat /opt/nekrs/.nekrs-version
+    echo "aero NekRS image — nekrs binary OK"
+
+%runscript
+    echo "aero-research-platform NekRS image (Stage 07)"
+    exec "$@"

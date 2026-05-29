@@ -115,7 +115,14 @@ class BenchmarkResult(BaseModel):
     solver_version: str = Field(..., min_length=1)
     validation_tag: str = Field(..., min_length=1, description="MLflow `validation_tag` value.")
     mlflow_run_id: str | None = Field(default=None)
-    n_cells: int | None = Field(default=None, description="Mesh cell count, if reported.")
+    n_elements: int | None = Field(
+        default=None,
+        description=(
+            "Solver-native element count, if reported "
+            "(Stage-07 rename of `n_cells`; FV cells for OpenFOAM/SU2, FR/SEM "
+            "elements for PyFR/NekRS)."
+        ),
+    )
 
     def metric(self, name: str) -> MetricResult:
         """The `MetricResult` named `name` — raises if the case has no such metric."""
@@ -295,7 +302,10 @@ class ScalarObservation(BaseModel):
 
     metric: str = Field(..., min_length=1)
     value: float = Field(...)
-    n_cells: int | None = Field(default=None)
+    n_elements: int | None = Field(
+        default=None,
+        description="Solver-native element count (Stage-07 rename of `n_cells`).",
+    )
     mlflow_run_id: str | None = Field(default=None)
 
 
@@ -356,7 +366,7 @@ class BenchmarkRunner:
         status: Literal["pass", "fail"] = (
             "pass" if all(m.passed for m in metric_results) else "fail"
         )
-        n_cells = getattr(mesh, "n_cells", None)
+        n_elements = getattr(mesh, "n_elements", None)
 
         mlflow_run_id: str | None = None
         if log_mlflow:
@@ -370,7 +380,7 @@ class BenchmarkRunner:
             solver_version=self.solver_version,
             validation_tag=case.name,
             mlflow_run_id=mlflow_run_id,
-            n_cells=n_cells,
+            n_elements=n_elements,
         )
 
     def measure_scalar(
@@ -394,14 +404,14 @@ class BenchmarkRunner:
         value = measured[metric]
         if not isinstance(value, int | float):
             raise BenchmarkError(f"{case.name}: metric {metric!r} is not a scalar")
-        n_cells = getattr(mesh, "n_cells", None)
+        n_elements = getattr(mesh, "n_elements", None)
         mlflow_run_id: str | None = None
         if log_mlflow:
             mlflow_run_id = self._log_scalar(case, provenance, metric, float(value), result)
         return ScalarObservation(
             metric=metric,
             value=float(value),
-            n_cells=n_cells,
+            n_elements=n_elements,
             mlflow_run_id=mlflow_run_id,
         )
 

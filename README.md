@@ -16,11 +16,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.6  ·  **Status:** partial  ·  **Completed:** 2026-05-19
+**Latest tag:** v0.0.7  ·  **Status:** partial  ·  **Completed:** 2026-05-20
 
-**Stage 06 — SU2 Adapter — Forcing the Abstraction** — most recent stage.
+**Stage 07 — PyFR + NekRS GPU Adapters; First Cloud GPU Run** — most recent stage.
 
-**Next:** Stage 07 — PyFR + NekRS GPU Solvers.
+**Next:** Stage 08 — JAX-Fluids 2.0 Differentiable Solver.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
