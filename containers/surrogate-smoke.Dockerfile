@@ -12,7 +12,7 @@
 #
 # GPU drivers are NOT in this image — `apptainer exec --nv` at runtime.
 
-ARG CUDA_VERSION=12.4.1
+ARG CUDA_VERSION=12.8.2
 ARG TORCH_VERSION=2.5.1
 ARG PYG_VERSION=2.6.1
 

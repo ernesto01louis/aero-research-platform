@@ -19,7 +19,7 @@
 # >= 3.11; staying on the same Python the rest of the platform uses keeps
 # wheel resolution boring.
 
-ARG CUDA_VERSION=12.4.1
+ARG CUDA_VERSION=12.8.2
 ARG JAXFLUIDS_TAG=JAX-Fluids-v0.2.1
 
 FROM docker.io/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
