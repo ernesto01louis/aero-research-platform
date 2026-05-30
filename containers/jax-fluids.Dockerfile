@@ -20,7 +20,12 @@
 # wheel resolution boring.
 
 ARG CUDA_VERSION=12.8.2
-ARG JAXFLUIDS_TAG=JAX-Fluids-v0.2.1
+# JAX-Fluids reference: must include the post-v0.2.1 "missing inits" bug-fix
+# commit (ac7c090f27cffa1e05dc986d9bfe4163c31f1c94, 2026-05-18). The tagged
+# `JAX-Fluids-v0.2.1` release ships without `jaxfluids.levelset.geometry/
+# __init__.py` and fails at `import jaxfluids`. We pin to the bug-fix
+# commit directly until v0.2.2 ships. ADR-008 §D1 updated accordingly.
+ARG JAXFLUIDS_TAG=ac7c090f27cffa1e05dc986d9bfe4163c31f1c94
 
 FROM docker.io/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu24.04 AS build
 ARG JAXFLUIDS_TAG
@@ -91,7 +96,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/jaxfluids-venv/bin:/usr/local/cuda/bin:/usr/bin:/bin \
     PYTHONPATH=/opt/jaxfluids-venv/lib/python3.12/site-packages \
     CUDA_HOME=/usr/local/cuda \
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/jaxfluids-venv/lib
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/jaxfluids-venv/lib \
+    # JAX-Fluids pulls in gitpython for its version check; without an actual
+    # git binary at runtime the import would raise. Suppress the check;
+    # `jaxfluids.__version__` still resolves from the wheel metadata.
+    GIT_PYTHON_REFRESH=quiet
 
 # Minimal runtime deps for the venv.
 RUN apt-get update && apt-get install -y --no-install-recommends \

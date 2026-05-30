@@ -41,6 +41,8 @@ From: /mnt/aero/tmp/jax-fluids-oci.tar
     export PYTHONPATH=/opt/jaxfluids-venv/lib/python3.12/site-packages:${PYTHONPATH:-}
     export CUDA_HOME=/usr/local/cuda
     export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/jaxfluids-venv/lib:${LD_LIBRARY_PATH:-}
+    # gitpython version-check fallback (no git binary at runtime)
+    export GIT_PYTHON_REFRESH=quiet
 
 %test
     # Smoke-test the interfaces the aero JAX-Fluids adapter uses. The CUDA

@@ -1,8 +1,16 @@
 """WindsorML loader (CC-BY-SA-4.0).
 
-WindsorML is a CFD benchmark over the Windsor body, ~250 variations spanning
-yaw angle, ride height, and rear-end geometry. Same shape as AhmedML: small
-descriptor vector + integrated Cd.
+WindsorML is a CFD benchmark over the Windsor body, ~355 variations spanning
+geometric ratios (length-back-fast, height-nose-windshield, height-fast-back),
+a side taper, clearance, bottom-taper-angle and a frontal area metric. The
+joined manifest mirrors upstream's root-level CSVs:
+
+* ``geo_parameters_all.csv`` —
+  ``run, ratio_length_back_fast, ratio_height_nose_windshield,
+  ratio_height_fast_back, side_taper, clearance, bottom_taper_angle,
+  frontal_area``
+* ``force_mom_all.csv`` —
+  ``run, cd, cs, cl, cmy``  (cs = lateral, cmy = yaw moment)
 """
 
 from __future__ import annotations
@@ -23,13 +31,22 @@ DVC_PATH: Final[Path] = Path("data/datasets/windsorml")
 
 
 class WindsorMLCase(BaseModel):
+    """One row of the joined ``manifest.json`` — WindsorML's upstream schema."""
+
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     case_id: str = Field(..., min_length=1)
-    yaw_deg: float = Field(..., ge=-15.0, le=15.0)
-    ride_height_m: float = Field(..., gt=0.0)
-    rear_end_type: str = Field(..., min_length=1)
-    cd: float = Field(..., ge=0.0)
+    ratio_length_back_fast: float
+    ratio_height_nose_windshield: float
+    ratio_height_fast_back: float
+    side_taper: float
+    clearance: float
+    bottom_taper_angle: float
+    frontal_area: float
+    cd: float
+    cs: float = Field(..., description="Side (lateral) force coefficient")
+    cl: float
+    cmy: float = Field(..., description="Yaw moment coefficient")
 
 
 class WindsorMLDataset:
@@ -46,28 +63,23 @@ class WindsorMLDataset:
             )
         raw = json.loads(manifest_path.read_text(encoding="utf-8"))
         self._cases: list[WindsorMLCase] = [WindsorMLCase.model_validate(row) for row in raw]
-        # Categorical encoding for `rear_end_type` — stable across all known values
-        # in the published dataset; fail loud on an unknown value.
-        self._rear_end_codes: dict[str, float] = {
-            "notchback": 0.0,
-            "fastback": 1.0,
-            "estateback": 2.0,
-        }
 
     def __len__(self) -> int:
         return len(self._cases)
 
     def __getitem__(self, index: int, /) -> Sample:
         c = self._cases[index]
-        try:
-            rear_code = self._rear_end_codes[c.rear_end_type]
-        except KeyError as exc:
-            raise DatasetLoaderError(
-                f"unknown WindsorML rear_end_type '{c.rear_end_type}' in case {c.case_id}"
-            ) from exc
         return Sample(
-            features=(c.yaw_deg, c.ride_height_m, rear_code),
-            targets=(c.cd,),
+            features=(
+                c.ratio_length_back_fast,
+                c.ratio_height_nose_windshield,
+                c.ratio_height_fast_back,
+                c.side_taper,
+                c.clearance,
+                c.bottom_taper_angle,
+                c.frontal_area,
+            ),
+            targets=(c.cd, c.cl, c.cs, c.cmy),
             case_id=c.case_id,
             dataset_id=DATASET_ID,
         )

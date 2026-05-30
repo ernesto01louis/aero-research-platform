@@ -122,7 +122,10 @@ jax-fluids = [
     "h5py>=3.10",
     "jax[cuda12]==0.4.34",
     "jaxlib==0.4.34",
-    "jaxfluids @ git+https://github.com/tumaer/JAXFLUIDS.git@JAX-Fluids-v0.2.1",
+    # ac7c090f27cffa1e05dc986d9bfe4163c31f1c94 is the post-v0.2.1 bug-fix
+    # commit ("adding missing inits", 2026-05-18). v0.2.1 ships without
+    # jaxfluids.levelset.geometry/__init__.py and fails at import. ADR-008 §D1.
+    "jaxfluids @ git+https://github.com/tumaer/JAXFLUIDS.git@ac7c090f27cffa1e05dc986d9bfe4163c31f1c94",
 ]
 
 # Stage 08 — surrogate baselines (Torch + PyG). PyG is the platform-wide GNN

@@ -1,14 +1,14 @@
 """AhmedML loader (CC-BY-SA-4.0).
 
 AhmedML is a CFD benchmark over the canonical Ahmed body with 500 geometric
-variations (slant angle, length scaling, ground clearance). Each case ships
-a surface mesh + steady-state pressure / wall-shear fields + integrated Cd.
+variations. Each case ships an STL surface mesh + a high-fidelity OpenFOAM
+solution; the integrated coefficients and per-run geometric parameters live
+in two root-level CSVs (``force_mom_all.csv`` and ``geo_parameters_all.csv``)
+that ``scripts/build_dataset_manifest.py`` joins on ``run`` to produce the
+``manifest.json`` the loader parses.
 
-Stage 08 consumes the per-case ``manifest.json`` produced by the upstream
-mirror script. The loader is intentionally light: features are the small
-geometric descriptor vector (slant angle, length ratio, clearance ratio,
-front-pillar radius), targets are the integrated Cd. Stage 09's DoMINO
-surrogate will consume the surface fields directly.
+Stage-08 baselines train on the 8-dim geometric descriptor vector → Cd map.
+Stage-09 DoMINO will consume the STL surface fields directly.
 """
 
 from __future__ import annotations
@@ -29,16 +29,27 @@ DVC_PATH: Final[Path] = Path("data/datasets/ahmedml")
 
 
 class AhmedMLCase(BaseModel):
-    """One row of the ``manifest.json`` produced by the mirror script."""
+    """One row of the joined ``manifest.json`` — matches AhmedML's upstream schema.
+
+    Field names mirror the columns of ``geo_parameters_all.csv`` and
+    ``force_mom_all.csv`` (lowercased and underscored). Units are
+    millimetres (the upstream CSV ships mm, no SI normalisation) except
+    for ``slant_angle_degrees`` and the dimensionless coefficients.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
     case_id: str = Field(..., min_length=1)
-    slant_angle_deg: float = Field(..., ge=0.0, le=45.0)
-    length_ratio: float = Field(..., gt=0.0)
-    clearance_ratio: float = Field(..., gt=0.0)
-    front_pillar_radius_m: float = Field(..., ge=0.0)
-    cd: float = Field(..., ge=0.0)
+    body_length: float = Field(..., gt=0.0, description="Ahmed body length [mm]")
+    body_height: float = Field(..., gt=0.0, description="Ahmed body height [mm]")
+    body_width: float = Field(..., gt=0.0, description="Ahmed body width [mm]")
+    front_arc_diameter: float = Field(..., gt=0.0, description="Front-pillar arc diameter [mm]")
+    slant_angle_length: float = Field(..., description="Slant-region length [mm]")
+    slant_angle_height: float = Field(..., description="Slant-region height [mm]")
+    slant_surface_length: float = Field(..., description="Slant-surface length [mm]")
+    slant_angle_degrees: float = Field(..., description="Slant angle [deg]")
+    cd: float = Field(..., description="Drag coefficient")
+    cl: float = Field(..., description="Lift coefficient")
 
 
 class AhmedMLDataset:
@@ -65,12 +76,16 @@ class AhmedMLDataset:
         c = self._cases[index]
         return Sample(
             features=(
-                c.slant_angle_deg,
-                c.length_ratio,
-                c.clearance_ratio,
-                c.front_pillar_radius_m,
+                c.body_length,
+                c.body_height,
+                c.body_width,
+                c.front_arc_diameter,
+                c.slant_angle_length,
+                c.slant_angle_height,
+                c.slant_surface_length,
+                c.slant_angle_degrees,
             ),
-            targets=(c.cd,),
+            targets=(c.cd, c.cl),
             case_id=c.case_id,
             dataset_id=DATASET_ID,
         )
