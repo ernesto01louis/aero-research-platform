@@ -23,6 +23,7 @@ from loguru import logger
 from pydantic import ValidationError
 
 from aero.adapters._base import Solver
+from aero.adapters.jax_fluids import JaxFluidsSolver
 from aero.adapters.nekrs import NekRSSolver
 from aero.adapters.openfoam import OpenFOAMSolver
 from aero.adapters.openfoam.schemas import CaseSpec
@@ -44,6 +45,7 @@ _SOLVER_VERSIONS: dict[str, str] = {
     "su2": "SU2 v8",
     "pyfr": "PyFR 1.15.0",
     "nekrs": "NekRS v23.0",
+    "jax-fluids": "JAX-Fluids v0.2.1",
 }
 
 # Per-solver SIF basenames — looked up in containers/SHA256SUMS during
@@ -53,6 +55,7 @@ _SOLVER_SIF: dict[str, str] = {
     "su2": "su2-v8.sif",
     "pyfr": "pyfr.sif",
     "nekrs": "nekrs.sif",
+    "jax-fluids": "jax-fluids.sif",
 }
 
 # Per-solver runtime imports, checked up front so the CLI fails fast rather
@@ -66,6 +69,11 @@ _REQUIRED_MODULES_BY_SOLVER: dict[str, tuple[str, ...]] = {
     "su2": _PROVENANCE_MODULES,
     "pyfr": ("h5py", "mako", *_PROVENANCE_MODULES),
     "nekrs": _PROVENANCE_MODULES,
+    # Stage 08 — host-side only needs h5py to load JAX-Fluids HDF5 outputs in
+    # the adapter's load() step. jax / jaxlib / jaxfluids run inside the SIF
+    # (or in-process on aero-dev for differentiable_run); not required for
+    # the standard `aero run` CLI path.
+    "jax-fluids": ("h5py", *_PROVENANCE_MODULES),
 }
 
 # Per-solver `aero[<extras>]` hint shown when a required module is missing.
@@ -74,11 +82,12 @@ _SOLVER_EXTRAS_HINT: dict[str, str] = {
     "su2": "su2,provenance",
     "pyfr": "pyfr,provenance",
     "nekrs": "nekrs,provenance",
+    "jax-fluids": "jax-fluids,provenance",
 }
 
 
 def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: Path) -> Solver:
-    """Construct the named solver adapter — openfoam/su2/pyfr/nekrs."""
+    """Construct the named solver adapter — openfoam/su2/pyfr/nekrs/jax-fluids."""
     if name == "openfoam":
         return OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
     if name == "su2":
@@ -89,8 +98,12 @@ def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: P
         return NekRSSolver(
             host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root
         )
+    if name == "jax-fluids":
+        return JaxFluidsSolver(
+            host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root
+        )
     raise typer.BadParameter(
-        f"unknown solver {name!r} — choose 'openfoam', 'su2', 'pyfr', or 'nekrs'"
+        f"unknown solver {name!r} — choose one of 'openfoam', 'su2', 'pyfr', 'nekrs', 'jax-fluids'"
     )
 
 
@@ -209,7 +222,8 @@ def run(
     solver_name: str = typer.Option(
         "openfoam",
         "--solver",
-        help="Solver adapter — 'openfoam', 'su2', 'pyfr' (Stage 07), or 'nekrs' (Stage 07).",
+        help="Solver adapter — 'openfoam', 'su2', 'pyfr', 'nekrs' (Stage 07), or "
+        "'jax-fluids' (Stage 08).",
     ),
     host: str = typer.Option(
         "aero-build", "--host", help="LXC the solve runs on (local-ssh only)."
@@ -514,9 +528,14 @@ def vv_run(
         container_image=container_image,
         projected_hours=projected_hours,
     )
-    # Stage is informational on the MLflow side; Stage 07 introduces the PyFR/
-    # NekRS adapters so flag their runs with stage="07".
-    stage_str = "07" if solver_name in {"pyfr", "nekrs"} else "06"
+    # Stage is informational on the MLflow side; each adapter is tagged with
+    # the stage that introduced it.
+    if solver_name == "jax-fluids":
+        stage_str = "08"
+    elif solver_name in {"pyfr", "nekrs"}:
+        stage_str = "07"
+    else:
+        stage_str = "06"
     runner = BenchmarkRunner(
         solver=solver,
         executor=ssh,
@@ -711,6 +730,233 @@ def cost_clear_orphan(
             return
     typer.echo(f"no orphaned entry with run_id={run_id!r}", err=True)
     raise typer.Exit(code=1)
+
+
+# =============================================================================
+# `aero surrogate` — train surrogate baselines, log the eight provenance tags,
+# attach the CertificateOfValidity as a JSON artifact (Stage 08, ADR-008)
+# =============================================================================
+surrogate_app = typer.Typer(
+    name="surrogate",
+    help="Train surrogate baselines (MLP / FNO / MGN); enforce CertificateOfValidity.",
+    no_args_is_help=True,
+)
+app.add_typer(surrogate_app, name="surrogate")
+
+
+@surrogate_app.command("train")
+def surrogate_train(
+    baseline: str = typer.Option(
+        ...,
+        "--baseline",
+        help="Baseline name: 'mlp_baseline' | 'fno_smoke' | 'mgn_smoke'.",
+    ),
+    config_path: str = typer.Option(
+        None,
+        "--config",
+        help="Hydra-style YAML config. Default: conf/surrogate/baselines/<baseline>.yaml.",
+    ),
+    executor: str = typer.Option(
+        "local-ssh",
+        "--executor",
+        help="'local-ssh' (in-process on aero-dev) or 'runpod' (Stage 09 follow-up).",
+    ),
+    pod_type: str = typer.Option(
+        "NVIDIA H100 PCIe",
+        "--pod-type",
+        help="RunPod pod-type (runpod executor only).",
+    ),
+    container_image: str | None = typer.Option(
+        None,
+        "--container-image",
+        help="OCI image for the RunPod pod (runpod executor only).",
+    ),
+    projected_hours: float = typer.Option(
+        0.1,
+        "--projected-hours",
+        help="Pre-launch cost estimate (cost-cap gate; runpod only).",
+    ),
+    allow_dirty: bool = typer.Option(
+        False,
+        "--allow-dirty",
+        help="Log a `-dirty` SHA instead of refusing — exploration runs only.",
+    ),
+) -> None:
+    """Train a surrogate baseline and log the eight Stage-08 provenance tags.
+
+    The flow (Stage 08, ADR-008):
+
+    1. Resolve the four-fold provenance tuple
+       (``ProvenanceTuple(git_sha, dvc_input_hash, container_sif_sha256,
+       config_hash)``); refuses to start if any component cannot be
+       computed.
+    2. Load the dataset via the discriminated loader (CC-BY-SA path or
+       CC-BY-NC quarantined path).
+    3. Construct the baseline + applicability envelope from the resolved
+       config.
+    4. ``fit()`` — runs in-process for ``local-ssh`` (Stage 08 default; the
+       three smoke baselines all complete in seconds-to-minutes on CPU).
+       The ``runpod`` path is plumbed but defers to Stage 09's production
+       training entrypoint for the on-pod training script.
+    5. ``set_certificate()`` — builds the cert, propagating the
+       ``non_commercial`` taint flag.
+    6. ``SurrogateProvenanceTags.from_certificate(...)`` composes the
+       four-fold tuple + four surrogate tags; ``log_to_mlflow(...)``
+       writes all eight to the active run.
+    7. The cert JSON lands as the MLflow artifact
+       ``certificates/<baseline>.json``.
+    """
+    import json
+    from datetime import UTC, datetime
+
+    if baseline not in {"mlp_baseline", "fno_smoke", "mgn_smoke"}:
+        typer.echo(
+            f"unknown baseline {baseline!r} — choose 'mlp_baseline', 'fno_smoke', or 'mgn_smoke'",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if executor not in {"local-ssh", "runpod"}:
+        typer.echo(f"unknown executor {executor!r}", err=True)
+        raise typer.Exit(code=2)
+    if executor == "runpod":
+        typer.echo(
+            "the runpod surrogate-training executor is a Stage 09 follow-up "
+            "(needs an on-pod training script + GHCR mirror of surrogate-smoke.sif); "
+            "use --executor local-ssh for the Stage-08 smoke validation.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    # Validate the host-side modules the smoke training needs are present.
+    for module in ("torch", "mlflow"):
+        if importlib.util.find_spec(module) is None:
+            typer.echo(
+                f"module {module!r} is not installed — install "
+                "`aero[surrogate-smoke,provenance]` before running this command.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+
+    repo_root = Path.cwd()
+
+    cfg_path = (
+        Path(config_path)
+        if config_path
+        else repo_root / "conf" / "surrogate" / "baselines" / f"{baseline}.yaml"
+    )
+    if not cfg_path.is_file():
+        typer.echo(f"config not found: {cfg_path}", err=True)
+        raise typer.Exit(code=2)
+
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.load(cfg_path)
+    resolved = OmegaConf.to_container(cfg, resolve=True)
+    assert isinstance(resolved, dict)
+    assert isinstance(resolved.get("dataset"), dict)
+    assert isinstance(resolved.get("train"), dict)
+    assert isinstance(resolved.get("envelope"), dict)
+
+    # --- four-fold provenance up front ----------------------------------------
+    from aero.provenance.four_fold import (
+        compute_provenance,
+    )
+    from aero.surrogates._common._dataset_pick import build_loader  # local helper below
+    from aero.surrogates._common.certificate import ApplicabilityEnvelope
+    from aero.surrogates._common.loaders import dataset_hash
+    from aero.surrogates._common.provenance import SurrogateProvenanceTags, hparam_hash
+
+    container_sif_basename = "surrogate-smoke.sif"
+    # `resolved` is the OmegaConf -> plain dict result and is always keyed on
+    # str; the cast is purely to give mypy strict the precise Mapping[str, Any]
+    # the four-fold provenance contract requires.
+    resolved_str_keys = cast(dict[str, Any], resolved)
+    try:
+        provenance = compute_provenance(
+            repo_root=repo_root,
+            container_sif=container_sif_basename,
+            resolved_config=resolved_str_keys,
+            allow_dirty=allow_dirty,
+        )
+    except Exception as exc:
+        typer.echo(f"provenance computation failed: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+    # --- dataset --------------------------------------------------------------
+    loader = build_loader(
+        dataset_id=resolved["dataset"]["id"],
+        repo_root=repo_root,
+        acknowledge_noncommercial=bool(resolved["dataset"].get("acknowledge_noncommercial", False)),
+    )
+    train_dvc_hash = dataset_hash(repo_root, loader.dvc_path)
+
+    # --- baseline construction ------------------------------------------------
+    envelope = ApplicabilityEnvelope(
+        re_range=tuple(resolved["envelope"]["re_range"]),
+        mach_range=tuple(resolved["envelope"]["mach_range"]),
+        aoa_range_deg=tuple(resolved["envelope"]["aoa_range_deg"]),
+        geometry_class=str(resolved["envelope"]["geometry_class"]),
+    )
+    from aero.surrogates._common.base import Surrogate
+    from aero.surrogates.baselines import FNOSmoke, MGNSmoke, MLPBaseline
+
+    # Explicit if/elif dispatch (not a class-table dict) because the latter
+    # makes mypy strict treat the value type as `type[Surrogate]`, which is
+    # abstract and rejects the concrete subclasses' kwargs.
+    surrogate: Surrogate
+    if baseline == "mlp_baseline":
+        surrogate = MLPBaseline(
+            training_dataset_dvc_hash=train_dvc_hash,
+            dataset_id=loader.dataset_id,
+            applicability_envelope=envelope,
+        )
+    elif baseline == "fno_smoke":
+        surrogate = FNOSmoke(
+            training_dataset_dvc_hash=train_dvc_hash,
+            dataset_id=loader.dataset_id,
+            applicability_envelope=envelope,
+        )
+    elif baseline == "mgn_smoke":
+        surrogate = MGNSmoke(
+            training_dataset_dvc_hash=train_dvc_hash,
+            dataset_id=loader.dataset_id,
+            applicability_envelope=envelope,
+        )
+    else:  # pragma: no cover — guarded by the up-front baseline-validity check
+        raise typer.BadParameter(f"unknown baseline {baseline!r}")
+
+    typer.echo(f"training {baseline} on {loader.dataset_id} ({len(loader)} samples) ...")
+    surrogate.fit(iter(loader), **resolved["train"])
+    cert = surrogate.set_certificate()
+    typer.echo(f"  cert_status={cert.cert_status} non_commercial={cert.non_commercial}")
+
+    # --- MLflow run + eight tags + cert artifact ------------------------------
+    import mlflow
+
+    mlflow.set_experiment("aero-surrogates")
+    with mlflow.start_run(run_name=f"{baseline}-{loader.dataset_id}") as run:
+        tags = SurrogateProvenanceTags.from_certificate(
+            provenance=provenance,
+            cert=cert,
+            hparam_hash=hparam_hash(resolved["train"]),
+        )
+        for k, v in tags.as_mlflow_tags().items():
+            mlflow.set_tag(k, v)
+        # Cert JSON as an artifact under certificates/
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(cert.model_dump(mode="json"), f, indent=2, default=str)
+            cert_tmp = Path(f.name)
+        mlflow.log_artifact(str(cert_tmp), artifact_path="certificates")
+        cert_tmp.unlink(missing_ok=True)
+        typer.echo(f"  logged 8 tags + certificate JSON to MLflow run {run.info.run_id}")
+        typer.echo(
+            f"  fingerprint: git={provenance.git_sha[:12]} "
+            f"dvc-inputs={provenance.dvc_input_hash[:12]} "
+            f"cfg={provenance.config_hash[:12]} "
+            f"train-data={train_dvc_hash[:12]} (issued {datetime.now(UTC).isoformat()})"
+        )
 
 
 if __name__ == "__main__":

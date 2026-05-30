@@ -1,0 +1,32 @@
+# Stage 08 — MeshGraphNet smoke baseline Hydra config.
+#
+# Default dataset is `ahmedml` (CC-BY-SA). To exercise the CC-BY-NC
+# DrivAerNet++ taint flow in dev mode only, override `dataset.id` to
+# `drivaernet_plus_plus` AND `dataset.acknowledge_noncommercial=true`;
+# the issued certificate then carries `non_commercial=true`.
+
+surrogate:
+  name: mgn_smoke
+  architecture: mgn_smoke
+
+dataset:
+  id: ahmedml
+  dvc_path: data/datasets/ahmedml
+  acknowledge_noncommercial: false
+
+train:
+  hidden: 16
+  lr: 0.001
+  epochs: 200
+  seed: 0
+
+envelope:
+  re_range: [100000.0, 5000000.0]
+  mach_range: [0.0, 0.3]
+  aoa_range_deg: [-5.0, 15.0]
+  geometry_class: ahmed-body
+
+runpod:
+  pod_type: "NVIDIA H100 PCIe"
+  projected_hours: 0.5
+  container_image: ghcr.io/ernesto01louis/aero-surrogate-smoke:latest

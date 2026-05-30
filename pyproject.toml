@@ -107,9 +107,36 @@ nekrs = [
     "meshio>=5.3",
 ]
 
-# Stage 08 — JAX-Fluids 2.0 (differentiable CFD)
+# Stage 08 — JAX-Fluids 2.x (differentiable CFD). The upstream calls its
+# second-generation rewrite "2.0" but the GitHub tag scheme is `JAX-Fluids-
+# v0.2.x`; v0.2.1 is the resolved pin (ADR-008 §D1). MIT-licensed (the
+# stage prompt's GPL-3 assumption was incorrect — corrected in ADR-008 §D2).
+# JAX-Fluids is NOT on PyPI; the install is via git+url.
+#
+# Host-side, only `h5py` is needed to read the solver's HDF5 outputs in the
+# adapter's `load()` step. JAX + jaxlib + jaxfluids live in the SIF; if a
+# Stage-13 in-process differentiable_run wants gradients on the host (i.e.
+# not via the SIF), the operator opts in by installing this extra in a
+# Python 3.12 venv against a CUDA 12.4-compatible host driver.
 jax-fluids = [
-    # populated in stage-08: jax-fluids, jaxlib (CUDA version pinned)
+    "h5py>=3.10",
+    "jax[cuda12]==0.4.34",
+    "jaxlib==0.4.34",
+    "jaxfluids @ git+https://github.com/tumaer/JAXFLUIDS.git@JAX-Fluids-v0.2.1",
+]
+
+# Stage 08 — surrogate baselines (Torch + PyG). PyG is the platform-wide GNN
+# library choice (ADR-008 §D6), aligned with PhysicsNeMo's migration. The
+# three Stage-08 baselines (MLP, FNO, MeshGraphNet) all live inside the
+# `surrogate-smoke.sif`; this extra exists for host-side test / lint passes
+# (CPU subsets, certificate fixtures) and for Stage-09's production training
+# entrypoint which reuses the same wheels.
+surrogate-smoke = [
+    "torch>=2.5",
+    "torch-geometric>=2.6",
+    "einops>=0.8",
+    "mlflow>=2.20",
+    "numpy>=1.26",
 ]
 
 # Stage 09 — NVIDIA PhysicsNeMo (CUDA 12)
@@ -236,6 +263,15 @@ warn_return_any = true
 # Tests are lenient by convention; assertions carry the contract.
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+# Stage-08 surrogate baselines subclass torch.nn.Module / torch_geometric
+# .nn.MessagePassing — both come back as `Any` under `ignore_missing_imports
+# =true`, which mypy strict refuses to subclass. Relax that one rule for the
+# baselines; the loader / cert / provenance contracts they conform to are
+# still strict-typed in `aero.surrogates._common.*`. ADR-008 §D6.
+module = "aero.surrogates.baselines.*"
+disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 minversion = "8.0"

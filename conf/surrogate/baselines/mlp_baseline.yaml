@@ -1,0 +1,31 @@
+# Stage 08 — MLP smoke baseline Hydra config.
+#
+# Picked up by `aero surrogate train --baseline mlp_baseline ...`. The
+# resolved dict is canonical-JSON-hashed for the surrogate provenance tag
+# `hparam_hash` (mirrors aero.provenance.four_fold.config_hash for runs).
+
+surrogate:
+  name: mlp_baseline
+  architecture: mlp_baseline
+
+dataset:
+  id: ahmedml
+  dvc_path: data/datasets/ahmedml
+
+train:
+  hidden_dim: 32
+  lr: 0.001
+  epochs: 200
+  val_fraction: 0.2
+  seed: 0
+
+envelope:
+  re_range: [100000.0, 5000000.0]
+  mach_range: [0.0, 0.3]
+  aoa_range_deg: [-5.0, 15.0]
+  geometry_class: ahmed-body
+
+runpod:
+  pod_type: "NVIDIA H100 PCIe"
+  projected_hours: 0.1
+  container_image: ghcr.io/ernesto01louis/aero-surrogate-smoke:latest

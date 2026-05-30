@@ -134,8 +134,18 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   Topology: `docs/architecture/proxmox-topology.md`.
 - **Production-tag UQ requirement** — TBD in Stage 12; any
   `tag=production` MLflow run will require a `--uq` envelope.
-- **Surrogate certificate-of-validity check** — TBD in Stage 08; agent
-  layer (Stage 14) refuses to call an uncertified surrogate.
+- **Surrogate certificate-of-validity check** (Stage 08, ADR-008; CONSTITUTION
+  Invariant 9) — every surrogate is a subclass of
+  `aero.surrogates._common.base:Surrogate` that ships with a typed
+  `aero.surrogates._common.certificate:CertificateOfValidity`. Two gates,
+  enforced by `CertificateOfValidity.assert_current(current_dataset_hash, now)`:
+  (i) **time gate** `now < expires_at` (default lifetime 180 days, ADR-008
+  §D5); (ii) **data gate** `current_dataset_hash == training_dataset_dvc_hash`
+  (catches dataset drift between expiries). Stage 14's agent layer wraps
+  `validate()` in a `try/except CertExpired`; on failure it refuses to
+  invoke the model and falls back to a validated solver. The certificate is
+  attached to every training run as the MLflow artifact
+  `certificates/<surrogate>.json`.
 - **Cost cap** — Stage 07 ships the initial $50/month ledger at
   `/etc/aero/runpod-ledger.json`; Stage 13 promotes to the full multi-cloud
   cost router.
@@ -213,6 +223,64 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   nekrs}` plus `aero cost {show,clear-orphan}` for ledger inspection. New
   CI workflow `vv-scale-resolving.yml` (nightly, gated on a `[self-hosted,
   gpu]` runner — operator-provisioned). See ADR-007.
+
+- **JAX-Fluids + Surrogate plumbing** (Stage 08, ADR-008) — `aero/adapters/
+  jax_fluids/` (`JaxFluidsSolver`, MIT — the stage prompt's GPL-3 assumption
+  was incorrect; corrected in ADR-008 §D2) is the platform's **fifth** concrete
+  solver and the **first differentiable** one. It uses the standard SIF
+  executor lifecycle exactly like every other adapter (same four-fold
+  provenance, same cost-cap path); on top, the additive method
+  `JaxFluidsSolver.differentiable_run(case, jax_grad_target)` runs in-process
+  against `jaxfluids` and bypasses the executor + cost-cap BY DESIGN to
+  expose JAX gradients. The Solver ABC is NOT amended (ADR-008 §D3) — a
+  second differentiable adapter in Stage 10 or 13 will trigger the
+  promotion. The JAX-Fluids version pin is **`JAX-Fluids-v0.2.1`** (latest
+  2.x-generation tag at session start; upstream tags the second-generation
+  rewrite `v0.2.x` despite the literature calling it "2.0"). Install path is
+  git+url — JAX-Fluids is not on PyPI. New extras: `aero[jax-fluids]`
+  (h5py + jax + jaxlib + jaxfluids from git+url) and `aero[surrogate-smoke]`
+  (torch + torch-geometric + einops + mlflow). Two new SIFs:
+  `jax-fluids.sif` (JAX-only) and `surrogate-smoke.sif` (Torch + PyG, no
+  JAX) — torch and jax are NEVER in the same SIF (ADR-008 guardrail).
+
+  The surrogate plumbing lands the **`Surrogate` protocol** + the typed
+  **`CertificateOfValidity`** framework + the dataset loaders. The protocol
+  lives at `aero.surrogates._common.base:Surrogate` (ABC + structural
+  `SurrogateProtocol`); the cert at
+  `aero.surrogates._common.certificate:CertificateOfValidity` with the
+  ApplicabilityEnvelope / MetricQuantiles sub-models and the 180-day default
+  expiry policy (ADR-008 §D5). The `Sample` / `TaintedSample` Pydantic
+  discriminated union propagates the CC-BY-NC taint from loaders into any
+  cert the surrogate issues. Three Stage-08 smoke baselines —
+  `MLPBaseline`, `FNOSmoke`, `MGNSmoke` — exercise the protocol end-to-end
+  on RunPod via the existing `RunPodExecutor` + `CostCap` plumbing
+  (CONSTITUTION Invariant 8 still applies). All three ship with
+  `cert_status="smoke"` and are explicitly NOT for publication.
+
+  The global GNN library choice is **PyG / torch-geometric** (ADR-008 §D6;
+  aligns with PhysicsNeMo's PyG migration and propagates to Stages 09 + 10).
+  The DrivAerNet++ CC-BY-NC quarantine is three layers (ADR-008 §D4):
+  (i) **structural separator** at
+  `aero/surrogates/_common/loaders/non_commercial/`, enforced by the
+  `non-commercial-fence.yml` CI workflow that asserts every import of that
+  subpackage either produces `non_commercial=True` or carries the
+  `# non-commercial: justified` pragma; (ii) **constructor guard**
+  (`LicenseAcknowledgmentRequired` raises without
+  `acknowledge_noncommercial=True`); (iii) **tainted-sample union**
+  propagating into the issued cert. All four public datasets (AhmedML,
+  WindsorML, DrivAerML CC-BY-SA + DrivAerNet++ CC-BY-NC) are landed via
+  DVC; per-dataset `reference.md` carries citation + mirror procedure +
+  capacity guidance; `dvc.yaml` stages drive `ingest-{ahmedml,windsorml,
+  drivaerml,drivaernet-plus-plus}`. New CLI: `aero surrogate train
+  --baseline {mlp_baseline,fno_smoke,mgn_smoke} --executor {local-ssh,runpod}`
+  computes the four-fold tuple, calls `fit()`, calls `set_certificate()`,
+  composes `SurrogateProvenanceTags` (the four-tuple + five
+  surrogate-specific tags), logs all eight to MLflow, and writes the cert
+  JSON as the `certificates/<baseline>.json` MLflow artifact. The runpod
+  surrogate-training path is plumbed but defers the on-pod training script
+  to Stage 09. **CONSTITUTION Invariant 9 added** — no agent invocation may
+  bypass `Surrogate.certificate().assert_current()` before `predict()`. See
+  ADR-008.
 
 - **V&V harness** (Stage 05) — `aero/vv/` runs canonical NASA TMR cases
   through any `SolverLike` solver, compares against reference data with tight

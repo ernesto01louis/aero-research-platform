@@ -1,15 +1,48 @@
 # dvc.yaml — DVC pipeline stages.
 #
-# Empty as of Stage 01. Populated by Stage 04 (provenance backbone) with
-# the data-versioning pipeline anchored on the four-fold provenance tuple
-# (git_sha, dvc_input_hash, container_sif_sha256, config_hash).
+# Stage 04 (provenance backbone) left this empty; Stage 08 (ML-CFD datasets
+# + surrogate plumbing) populates it with the four public-dataset ingests.
+# Each stage runs once on aero-build, materialises the dataset under DVC,
+# and pushes to the aero-minio remote.
 #
 # Subsequent stages add per-domain pipelines:
-#   Stage 05  — TMR reference data ingest
-#   Stage 08  — AhmedML / WindsorML / DrivAerML loaders
 #   Stage 09  — DoMINO training pipeline
 #   Stage 10  — Transolver / FIGConvNet / X-MGN / MoE pipelines
 #   Stage 12  — DPW-7 / HLPW-5 / ERCOFTAC reference data ingest
 #   Stage 15  — literature corpus ingest
 
-stages: {}
+stages:
+  ingest-ahmedml:
+    cmd: scripts/download_ahmedml.sh
+    deps:
+      - scripts/download_ahmedml.sh
+    outs:
+      - data/datasets/ahmedml/manifest.json
+      - data/datasets/ahmedml/cases
+
+  ingest-windsorml:
+    cmd: scripts/download_windsorml.sh
+    deps:
+      - scripts/download_windsorml.sh
+    outs:
+      - data/datasets/windsorml/manifest.json
+      - data/datasets/windsorml/cases
+
+  ingest-drivaerml:
+    cmd: scripts/download_drivaerml.sh
+    deps:
+      - scripts/download_drivaerml.sh
+    outs:
+      - data/datasets/drivaerml/manifest.json
+      - data/datasets/drivaerml/cases
+
+  # QUARANTINED — CC-BY-NC-4.0. Requires `AERO_ACKNOWLEDGE_NONCOMMERCIAL=1`
+  # in the executing environment, gated on the non-commercial-fence CI
+  # workflow + the Stage-08 quarantine tests. See ADR-008 §D4.
+  ingest-drivaernet-plus-plus:
+    cmd: scripts/download_drivaernet_plus_plus.sh
+    deps:
+      - scripts/download_drivaernet_plus_plus.sh
+    outs:
+      - data/datasets/drivaernet_plus_plus/manifest.json
+      - data/datasets/drivaernet_plus_plus/cases

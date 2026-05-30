@@ -98,3 +98,41 @@ def nekrs_sif_present(aero_build_reachable: bool) -> bool:
 def nekrs_extra_installed() -> bool:
     """True iff `aero[nekrs]` host-side deps + provenance MLflow are importable (Stage 07)."""
     return all(importlib.util.find_spec(m) is not None for m in ("meshio", "mlflow"))
+
+
+@pytest.fixture(scope="session")
+def jax_fluids_sif_present(aero_build_reachable: bool) -> bool:
+    """True iff the JAX-Fluids SIF is published on aero-build (Stage 08)."""
+    return aero_build_reachable and _ssh_ok("test", "-f", "/opt/aero/containers/jax-fluids.sif")
+
+
+@pytest.fixture(scope="session")
+def jax_fluids_extra_installed() -> bool:
+    """True iff `aero[jax-fluids]` host-side deps are importable (Stage 08).
+
+    Host-side the adapter only requires h5py + the provenance MLflow stack;
+    jax / jaxlib / jaxfluids live in the SIF (or in-process on aero-dev for
+    the differentiable_run path, opted into by the operator).
+    """
+    return all(importlib.util.find_spec(m) is not None for m in ("h5py", "mlflow"))
+
+
+@pytest.fixture(scope="session")
+def surrogate_smoke_sif_present(aero_build_reachable: bool) -> bool:
+    """True iff the surrogate-smoke SIF is published on aero-build (Stage 08)."""
+    return aero_build_reachable and _ssh_ok(
+        "test", "-f", "/opt/aero/containers/surrogate-smoke.sif"
+    )
+
+
+@pytest.fixture(scope="session")
+def surrogate_smoke_extra_installed() -> bool:
+    """True iff `aero[surrogate-smoke]` deps are importable host-side (Stage 08).
+
+    The three Stage-08 baselines need torch + torch-geometric + mlflow + numpy
+    for their fit/predict paths; without all four the tests skip.
+    """
+    return all(
+        importlib.util.find_spec(m) is not None
+        for m in ("torch", "torch_geometric", "mlflow", "numpy", "einops")
+    )

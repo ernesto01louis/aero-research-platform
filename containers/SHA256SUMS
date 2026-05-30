@@ -6,7 +6,7 @@
 #   Stage 03 — `openfoam-esi.sif`
 #   Stage 06 — `su2-v8.sif`
 #   Stage 07 — `pyfr.sif`, `nekrs.sif`
-#   Stage 08 — `jax-fluids.sif`
+#   Stage 08 — `jax-fluids.sif`, `surrogate-smoke.sif`
 #   Stage 09 — `physicsnemo.sif`
 #   Stage 11 — `precice-distribution.sif`
 #   Stage 12 — `dakota.sif`

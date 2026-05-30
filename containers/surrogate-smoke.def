@@ -1,0 +1,42 @@
+# containers/surrogate-smoke.def — Torch + PyG smoke baselines image.
+#
+# Stage 08 (ADR-008). Lives separately from jax-fluids.sif by the
+# no-torch-and-jax-in-the-same-SIF guardrail. Used by the three Stage-08
+# baselines (MLP, FNO, MeshGraphNet) for end-to-end training runs on
+# RunPod via the existing `RunPodExecutor` + `CostCap` plumbing.
+#
+# Two-step build pattern (inherited from ADR-006/007):
+#   1. `buildah bud -f containers/surrogate-smoke.Dockerfile ...`
+#      `buildah push ... oci-archive:/tmp/surrogate-smoke-oci.tar`
+#   2. this `.def` bootstraps from that OCI archive (filesystem-only).
+#
+# Built, signed, and SHA256-recorded by scripts/build_surrogate_smoke_sif.sh.
+
+Bootstrap: oci-archive
+From: /mnt/aero/tmp/surrogate-smoke-oci.tar
+
+%labels
+    org.aero.component   surrogate-smoke
+    org.aero.stage       08
+    org.aero.purpose     "Torch + PyG smoke baselines"
+    org.aero.maintainer  aero-research-platform
+
+%post
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/surrogate-venv/bin:/usr/local/cuda/bin:$PATH
+    export PYTHONPATH=/opt/surrogate-venv/lib/python3.12/site-packages:${PYTHONPATH:-}
+    export CUDA_HOME=/usr/local/cuda
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/surrogate-venv/lib:${LD_LIBRARY_PATH:-}
+
+%test
+    python3 -c "import torch, torch_geometric, einops, mlflow, h5py; print('torch', torch.__version__, 'pyg', torch_geometric.__version__)" \
+        || { echo "surrogate-smoke imports failed" >&2; exit 1; }
+    echo "aero surrogate-smoke image — torch + pyg + mlflow OK"
+
+%runscript
+    echo "aero-research-platform surrogate-smoke image (Stage 08)"
+    exec "$@"
