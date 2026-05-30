@@ -72,9 +72,10 @@ python3 "${REPO_ROOT}/scripts/build_dataset_manifest.py" \
 
 # 4. Register with DVC + push to MinIO (skip the cases/ dir if STL_MODE=skip).
 if [[ "${STL_MODE}" == "full" ]]; then
-    dvc add manifest.json geo_parameters_all.csv force_mom_all.csv cases/
+    # Use dvc commit (not add): dvc.yaml declares these as stage outputs.
+    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv cases/
 else
-    dvc add manifest.json geo_parameters_all.csv force_mom_all.csv
+    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv
 fi
 dvc push -r aero-minio
 
