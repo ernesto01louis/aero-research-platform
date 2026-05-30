@@ -216,6 +216,14 @@ docs = [
 # Tooling
 # -----------------------------------------------------------------------------
 
+[tool.hatch.metadata]
+# Stage 08: `aero[jax-fluids]` carries `jaxfluids @ git+https://github.com/
+# tumaer/JAXFLUIDS.git@JAX-Fluids-v0.2.1` — a "direct reference" because
+# JAX-Fluids is NOT on PyPI (ADR-008 §D1). Hatchling rejects direct refs by
+# default; this flag opts in. Documented + pinned exactly via the tag, so
+# the security posture stays auditable.
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["aero"]
 
