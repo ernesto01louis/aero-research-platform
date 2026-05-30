@@ -70,13 +70,13 @@ python3 "${REPO_ROOT}/scripts/build_dataset_manifest.py" \
     --dataset-dir "${DATASET_DIR}" \
     --out "${DATASET_DIR}/manifest.json"
 
-# 4. Register with DVC + push to MinIO (skip the cases/ dir if STL_MODE=skip).
+# 4. Register with DVC + push to MinIO. dvc.yaml's `ingest-ahmedml` stage
+# declares manifest.json + cases/ as outputs; the two root CSVs stay
+# re-downloadable from upstream (KB-scale, no DVC tracking needed).
+dvc commit -f manifest.json
 if [[ "${STL_MODE}" == "full" ]]; then
-    # Use dvc commit (not add): dvc.yaml declares these as stage outputs.
-    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv cases/
-else
-    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv
+    dvc commit -f cases/
 fi
 dvc push -r aero-minio
 
-echo "AhmedML mirror complete (STL_MODE=${STL_MODE}); manifest + root CSVs registered."
+echo "AhmedML mirror complete (STL_MODE=${STL_MODE})."

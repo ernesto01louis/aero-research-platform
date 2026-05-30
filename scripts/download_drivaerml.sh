@@ -58,11 +58,11 @@ python3 "${REPO_ROOT}/scripts/build_dataset_manifest.py" \
     --dataset-dir "${DATASET_DIR}" \
     --out "${DATASET_DIR}/manifest.json"
 
+# dvc.yaml's `ingest-drivaerml` stage declares manifest.json + cases/ as
+# outputs; the two root CSVs stay re-downloadable from upstream.
+dvc commit -f manifest.json
 if [[ "${STL_MODE}" == "full" ]]; then
-    # Use dvc commit (not add): dvc.yaml declares these as stage outputs.
-    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv cases/
-else
-    dvc commit -f manifest.json geo_parameters_all.csv force_mom_all.csv
+    dvc commit -f cases/
 fi
 dvc push -r aero-minio
 
