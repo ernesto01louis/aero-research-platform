@@ -8,7 +8,7 @@ session_duration_hours: 4.5
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-4-7
 git_sha_start: "d6318fde2e5869159db5628fe3795a7e550978ff"
-git_sha_end: "PENDING_PR_MERGE"
+git_sha_end: "8131ac93ede1162049da67c9ea0864d3008a8818"
 stage_tag: v0.0.8
 next_stage: 09
 next_stage_name: "Stage 09 — NVIDIA PhysicsNeMo DoMINO production surrogate"
