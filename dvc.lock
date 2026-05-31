@@ -23,15 +23,15 @@ stages:
     deps:
     - path: scripts/download_windsorml.sh
       hash: md5
-      md5: bd20e4986dccf5191643c04922d99e47
-      size: 1851
+      md5: f065e2548d35a6289f893c3228e7328a
+      size: 2118
       isexec: true
     outs:
     - path: data/datasets/windsorml/cases
       hash: md5
-      md5: d751713988987e9331980363e24189ce.dir
-      size: 0
-      nfiles: 0
+      md5: d0e5cd9df837ed0aa4294672b41e02b5.dir
+      size: 1754455065
+      nfiles: 700
     - path: data/datasets/windsorml/manifest.json
       hash: md5
       md5: 3b8b81590b672cb3b6b0b25b8b60e8bf
