@@ -553,3 +553,126 @@ Branch `stage-08/jax-fluids-and-surrogate-plumbing`
     months, all Stage-09 production certs expire and must be
     revalidated. Operator should set a calendar reminder against
     Stage 09's first production cert issue date.
+
+---
+
+## Post-handoff update — 2026-05-31 follow-up session
+
+Operator was on vacation; gave Claude explicit permission to execute the
+follow-ups autonomously. The following landed BEYOND the original
+handoff:
+
+### Commits on PR #13 (post-handoff)
+
+| SHA | Subject |
+|---|---|
+| 675de6a | `fix(stage-08): allow direct refs in pyproject so wheel build accepts jaxfluids git+url` |
+| 55e253f | `fix(stage-08): bump SIF base from CUDA 12.4.1 to 12.8.2 (12.4.1 dropped from docker.io)` |
+| 2abef64 | `fix(stage-08): align loaders + builder with real upstream CSV schemas` |
+| 2bed0c7 | `fix(stage-08): switch download scripts from dvc add to dvc commit` |
+| eef3a78 | `fix(stage-08): restore manifest build + STL pull blocks in download scripts` |
+| 90251c2 | `chore(stage-08): land AhmedML/WindsorML/DrivAerML manifest commits` |
+| 7b5e849 | `fix(stage-08): SIF builders use aero-build's repo path; downloaders tolerate 404` |
+| 4affcfc | `feat(stage-08): ADR-009 CC-BY-NC defence-in-depth (8 structural layers)` |
+| 57f6beb | `chore(stage-08): record jax-fluids SIF SHA + WindsorML STL DVC lock` |
+| ff19417 | `fix(stage-08): license-audit CI needs fetch-depth=0 for diff scan` |
+
+### Bytes that actually landed
+
+- **AhmedML manifest + 1001 STL files** → DVC-pushed to MinIO. 499/500 cases joined.
+- **WindsorML manifest + 697 files (355 cases)** → DVC-pushed.
+- **DrivAerML manifest only** (484/500 cases joined) → DVC-pushed. The
+  600 GB STL pull is gated on TrueNAS pool expansion.
+- **JAX-Fluids SIF built** at `/mnt/aero/containers/jax-fluids.sif`
+  (8.13 GB; SHA `72c014d18e6ef7655730df295af06415bdc1921a7d5fe705b40e945799e90771`).
+  Signing failed because the apptainer signing key prompted for a
+  passphrase that wasn't available in the SSH session; the SIF is built
+  and usable, just unsigned.
+- **surrogate-smoke SIF** building in background at the session-end
+  cut-off.
+- **JAX-Fluids tag pin moved off broken `JAX-Fluids-v0.2.1` to bug-fix
+  commit `ac7c090f27cffa1e05dc986d9bfe4163c31f1c94`** ("adding missing
+  inits", 2026-05-18). Upstream tag ships without
+  `jaxfluids.levelset.geometry/__init__.py` and fails at import.
+
+### Schema discovery — Stage-08 loader assumptions were wrong
+
+First aero-build smoke pull showed:
+
+- Per-run `force_mom_*.csv` files only carry `cd, cl` columns.
+- The geometric descriptors live in root-level `geo_parameters_all.csv`.
+
+The three CC-BY-SA loader Pydantic models + `build_dataset_manifest.py`
+were rewritten to join the two root-level CSVs on `run`. The schema is
+now:
+
+- **AhmedML**: 8-vector descriptor (body length/height/width, front-arc
+  diameter, slant-angle length/height, slant-surface length, slant-angle
+  degrees) → (Cd, Cl)
+- **WindsorML**: 7-vector descriptor (ratio_length_back_fast,
+  ratio_height_nose_windshield, ratio_height_fast_back, side_taper,
+  clearance, bottom_taper_angle, frontal_area) → (Cd, Cl, Cs, Cmy)
+- **DrivAerML**: 16-vector descriptor (full body geometry: vehicle
+  length/width/height, overhangs, angles, ride-height, pitch...) →
+  (Cd, Cl, Clf, Clr, Cs)
+
+The Stage-09 DoMINO surrogate will train on DrivAerML's 16-descriptor
+schema; the cert framework's `applicability_envelope` already
+accommodates the wider input space without modification.
+
+### ADR-009 — CC-BY-NC defence-in-depth (8 layers)
+
+Operator approved DrivAerNet++ ingest for open-source / research /
+portfolio use ONLY, with explicit instruction to "take every precaution".
+ADR-009 strengthens ADR-008 §D4 from 3 layers to 8:
+
+1. Structural separator (ADR-008)
+2. Constructor guard (ADR-008)
+3. Tainted-sample union (ADR-008)
+4. Write-once-True cert flag (`model_copy` refuses `True → False`)
+5. Surrogate-name watermark (`_nc` suffix forced + validated)
+6. Citation trail (`attribution_required` + `license_id` MLflow tags)
+7. Per-dataset LICENSE + DATASET-LICENSES.md + CITATION.cff references
+8. `.github/workflows/license-audit.yml` CI
+
+Full posture at
+`docs/adrs/ADR-009-cc-by-nc-quarantine-posture.md`. Tested in-session:
+all 4 cert guards fire correctly; 191 tests pass; mypy strict clean.
+
+### Still blocked on operator
+
+1. **TrueNAS pool expansion** — qcow2 grown to 1.46 TiB live; the
+   in-VM `parted resizepart` + `zpool online -e` sequence is gated by
+   the Claude Code safety classifier as a high-risk shared-infrastructure
+   modification. Documented ssh-and-go sequence in the operator tutorial
+   (`STAGE-08-operator-tutorial.md` § "Post-handoff update").
+2. **DrivAerML 600 GB STL pull** — capacity-blocked on (1) above.
+3. **DrivAerNet++ 800 GB STL pull** — capacity-blocked on (1) above +
+   needs the Harvard Dataverse DOI from upstream README.
+4. **GHCR push** — needs a `write:packages` PAT.
+5. **JAX-Fluids SIF signing** — needs the signing key passphrase
+   available to the apptainer SSH session.
+
+### Lessons / gotchas
+
+- **JAX-Fluids `v0.2.1` tag is broken upstream.** Pin to commit
+  `ac7c090f27cffa1e05dc986d9bfe4163c31f1c94` instead. The CHANGELOG +
+  pyproject + Dockerfile all reference this.
+- **NVIDIA dropped `cuda:12.4.1-devel-ubuntu24.04` from docker.io.**
+  Use `12.8.2-devel-ubuntu24.04`. Torch 2.5.1 cu124 wheels run fine on
+  CUDA 12.8 base via CUDA Compatibility.
+- **JAX-Fluids needs `GIT_PYTHON_REFRESH=quiet`** at runtime; no git
+  binary in the runtime image and `import jaxfluids` triggers
+  gitpython's version-check.
+- **`hatchling` rejects direct refs** like `jaxfluids @ git+...` unless
+  `[tool.hatch.metadata] allow-direct-references = true` is set.
+- **WindsorML upstream has sparse run indices** (e.g. 351 runs spread
+  across 0..354). Download scripts now tolerate 404s instead of
+  `set -e`-exiting.
+- **dvc.yaml's stage outputs are tracked via `dvc commit -f`**, not
+  `dvc add`. Mixing them produces "overlaps with an output of stage"
+  errors.
+- **Apptainer signing prompts for a passphrase** that isn't satisfied
+  in an SSH session; either configure passphrase-less signing or run
+  signing in person. The SIF SHA is recorded; signing can land at
+  PR-merge.
