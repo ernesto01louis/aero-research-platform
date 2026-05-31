@@ -16,11 +16,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.7  ·  **Status:** partial  ·  **Completed:** 2026-05-20
+**Latest tag:** v0.0.8  ·  **Status:** partial  ·  **Completed:** 2026-05-30
 
-**Stage 07 — PyFR + NekRS GPU Adapters; First Cloud GPU Run** — most recent stage.
+**Stage 08 — JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing** — most recent stage.
 
-**Next:** Stage 08 — JAX-Fluids 2.0 Differentiable Solver.
+**Next:** Stage 09 — NVIDIA PhysicsNeMo DoMINO production surrogate.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

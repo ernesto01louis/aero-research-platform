@@ -1,0 +1,27 @@
+# Stage 08 — FNO smoke baseline Hydra config.
+
+surrogate:
+  name: fno_smoke
+  architecture: fno_smoke
+
+dataset:
+  id: ahmedml
+  dvc_path: data/datasets/ahmedml
+
+train:
+  modes: 4
+  width: 8
+  lr: 0.001
+  epochs: 200
+  seed: 0
+
+envelope:
+  re_range: [100000.0, 5000000.0]
+  mach_range: [0.0, 0.3]
+  aoa_range_deg: [-5.0, 15.0]
+  geometry_class: ahmed-body
+
+runpod:
+  pod_type: "NVIDIA H100 PCIe"
+  projected_hours: 0.3
+  container_image: ghcr.io/ernesto01louis/aero-surrogate-smoke:latest

@@ -1,0 +1,56 @@
+schema: '2.0'
+stages:
+  ingest-ahmedml:
+    cmd: scripts/download_ahmedml.sh
+    deps:
+    - path: scripts/download_ahmedml.sh
+      hash: md5
+      md5: fcb6e39c092a78599c434b1a2de161f4
+      size: 3026
+      isexec: true
+    outs:
+    - path: data/datasets/ahmedml/cases
+      hash: md5
+      md5: 11089d69e6b4d158e4743de04e242476.dir
+      size: 102930664
+      nfiles: 20
+    - path: data/datasets/ahmedml/manifest.json
+      hash: md5
+      md5: a6fdd5b6b2a17f574a6f01f0b08cb3d6
+      size: 216217
+  ingest-windsorml:
+    cmd: scripts/download_windsorml.sh
+    deps:
+    - path: scripts/download_windsorml.sh
+      hash: md5
+      md5: f065e2548d35a6289f893c3228e7328a
+      size: 2118
+      isexec: true
+    outs:
+    - path: data/datasets/windsorml/cases
+      hash: md5
+      md5: d0e5cd9df837ed0aa4294672b41e02b5.dir
+      size: 1754455065
+      nfiles: 700
+    - path: data/datasets/windsorml/manifest.json
+      hash: md5
+      md5: 3b8b81590b672cb3b6b0b25b8b60e8bf
+      size: 170961
+  ingest-drivaerml:
+    cmd: scripts/download_drivaerml.sh
+    deps:
+    - path: scripts/download_drivaerml.sh
+      hash: md5
+      md5: dae8002e3ca983faf14187de769b36c8
+      size: 2392
+      isexec: true
+    outs:
+    - path: data/datasets/drivaerml/cases
+      hash: md5
+      md5: d751713988987e9331980363e24189ce.dir
+      size: 0
+      nfiles: 0
+    - path: data/datasets/drivaerml/manifest.json
+      hash: md5
+      md5: 60638accb5d35a0feb4a867564776e5b
+      size: 323161

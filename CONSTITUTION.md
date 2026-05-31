@@ -162,6 +162,61 @@ attested in the field: a runaway `for` loop that launches 30 H100 pods at
 ~$3/hr, or a terminate-API that returns 200 but leaves billing running. Added
 in Stage 07 with the first paid cloud GPU run (ADR-007).
 
+## Invariant 9 — CERTIFICATE-OF-VALIDITY-REQUIRED-FOR-SURROGATE-INVOCATION
+
+Every call from the agentic CAE layer (Stage 14) to
+`aero.surrogates._common.base:Surrogate.predict(...)` is gated on a current
+`aero.surrogates._common.certificate:CertificateOfValidity`. "Current" means
+**both** of the following hold at invocation time:
+
+1. **Time gate.** `now < certificate.expires_at`. Default lifetime 180 days
+   (ADR-008 §D5; 6 months OR training-dataset DVC hash change, whichever
+   first). Surrogates that have not been revalidated within the window are
+   refused — the agent layer falls back to a validated solver.
+2. **Data gate.** `current_dataset_hash == certificate.training_dataset_dvc_hash`.
+   The training-dataset DVC hash is recomputed at invocation time via
+   `aero.surrogates._common.loaders.dataset_hash(repo_root, dvc_path)`; any
+   drift between the value baked into the cert and the current value fails
+   the gate.
+
+`CertificateOfValidity.assert_current(current_dataset_hash, now)` is the only
+canonical check; it raises `CertExpired` on the first failing gate. The
+agent layer wraps the call in `try / except CertExpired` and on failure
+routes to a validated solver (Principle 4 — *ML augments, never replaces,
+validated physics*).
+
+**Enforcement:** three layers (ADR-008 §D4 covers the related CC-BY-NC
+quarantine):
+
+1. **`Surrogate.predict()` base-class guard.** The platform base class
+   calls `self.certificate()` at the top of every `predict()`; if no
+   cert has been issued (no `set_certificate()` call after `fit()`) the
+   guard raises `UncertifiedSurrogate`. Concrete subclasses MUST call
+   `self.certificate()` (NOT `self._certificate` directly) at the top
+   of their `predict()` implementation so the guard fires before any
+   GPU work.
+2. **Stage-14 agent runtime call.** Every agent path that resolves to a
+   surrogate calls `surrogate.certificate().assert_current(current_dataset_hash,
+   now)` immediately before `predict(...)`; on `CertExpired` the agent
+   falls back to a validated solver.
+3. **Training-time MLflow contract.** The four-fold provenance tuple
+   plus the surrogate-specific tags compose into
+   `aero.surrogates._common.provenance:SurrogateProvenanceTags`. The
+   `aero surrogate train` CLI logs all eight tags and attaches the cert
+   JSON as the MLflow artifact `certificates/<name>.json`.
+
+`tests/stage_08/test_surrogate_certificate.py` pins the predict-before-fit
+guard, the time gate, and the data gate; `tests/stage_08/
+test_drivaernet_quarantine.py` pins the CC-BY-NC taint propagation that
+locks `non_commercial=True` into the cert.
+
+**Why:** A surrogate without a verifiable proof of fitness-for-purpose is a
+plausibility engine, not a research instrument. Stage 08 codifies the cert
+BEFORE the first production surrogate (Stage 09 DoMINO) lands so the
+contract is structural, not retrofit. The 180-day expiry catches "set and
+forget" drift even on frozen datasets; the data gate catches the dataset
+itself drifting. Added in Stage 08 with the surrogate plumbing (ADR-008).
+
 ## Amendment process
 
 To amend a Constitution invariant:

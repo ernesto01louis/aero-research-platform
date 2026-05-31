@@ -53,3 +53,51 @@ date-released: "2026-05-19"
 # Zenodo concept DOI — resolves to the latest release (currently v0.0.4).
 # Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
 doi: 10.5281/zenodo.20292712
+
+# Public datasets the platform consumes — Stage 08 onward. Anyone publishing
+# results that use a surrogate trained on one of these MUST cite the
+# corresponding dataset alongside this software entry. The platform's
+# CertificateOfValidity.attribution_required field captures these citations
+# per training run; the MLflow tag chain keeps the trail.
+references:
+  - type: article
+    title: "AhmedML: High-Fidelity Computational Fluid Dynamics Dataset for Incompressible, Low-Speed Bluff Body Aerodynamics"
+    authors:
+      - family-names: Ashton
+        given-names: Neil
+    year: 2024
+    url: https://arxiv.org/abs/2407.20801
+    notes: "CC-BY-SA-4.0. Hugging Face: neashton/ahmedml"
+  - type: data
+    title: WindsorML
+    authors:
+      - family-names: Ashton
+        given-names: Neil
+    year: 2024
+    url: https://huggingface.co/datasets/neashton/windsorml
+    notes: CC-BY-SA-4.0
+  - type: data
+    title: DrivAerML
+    authors:
+      - family-names: Ashton
+        given-names: Neil
+    year: 2024
+    url: https://huggingface.co/datasets/neashton/drivaerml
+    notes: CC-BY-SA-4.0
+  - type: conference-paper
+    title: "DrivAerNet++: A Large-Scale Multimodal Car Dataset with Computational Fluid Dynamics Simulations and Deep Learning Benchmarks"
+    authors:
+      - family-names: Elrefaie
+        given-names: Mohamed
+      - family-names: Morar
+        given-names: Florin
+      - family-names: Dai
+        given-names: Angela
+      - family-names: Ahmed
+        given-names: Faez
+    conference:
+      name: "Advances in Neural Information Processing Systems (NeurIPS)"
+      location: "Datasets and Benchmarks Track"
+    year: 2024
+    url: https://arxiv.org/abs/2406.09624
+    notes: "CC-BY-NC-4.0 — non-commercial use only. Harvard Dataverse: https://dataverse.harvard.edu/dataverse/DrivAerNet"

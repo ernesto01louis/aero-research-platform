@@ -9,6 +9,129 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.8] - 2026-05-30
+
+### Added — Stage 08 (JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing)
+
+- `aero/adapters/jax_fluids/` — the platform's **fifth** concrete solver and
+  the **first differentiable** one. `JaxFluidsSolver(Solver)` with
+  `JaxFluidsShockTubeSpec` (Sod's 1-D Riemann problem) +
+  `JaxFluidsMeshFileSpec` (JAX-Fluids' native JSON case-pair); the
+  `case_writer.write_shock_tube_case_files` emitter for the canonical
+  HLLC + WENO5 + RK3 numerical setup; an embedded `run_case.py` driver
+  the SIF executes. The additive
+  `JaxFluidsSolver.differentiable_run(case, jax_grad_target)` method runs
+  in-process against `jaxfluids`, bypasses the executor + cost-cap by
+  design, and returns a typed `JaxGradientResult`. The `Solver` ABC is
+  NOT amended (ADR-008 §D3).
+- `aero/surrogates/__init__.py` + `aero/surrogates/_common/` — the
+  surrogate scaffolding the Stage-09+ production models build on:
+  `Surrogate` ABC + structural `SurrogateProtocol`, `Sample` /
+  `TaintedSample` Pydantic discriminated union, `CertificateOfValidity`
+  (strict pydantic, frozen) with `MetricQuantiles` (p50/p95/p99
+  monotonicity) and `ApplicabilityEnvelope`, dual
+  `validate(current_dataset_hash, now)` time + data gates, 180-day
+  default lifetime, and `SurrogateProvenanceTags` composing the
+  four-fold tuple with five surrogate-specific fields →
+  `as_mlflow_tags()` returns the 8-tag dict logged on every training run.
+- `aero/surrogates/_common/loaders/` — `DatasetLoader` structural
+  protocol + per-loader `dataset_hash` helper; loader modules for
+  AhmedML, WindsorML, and DrivAerML each parse a `manifest.json`.
+- `aero/surrogates/_common/loaders/non_commercial/` — the structural
+  quarantine subpackage (ADR-008 §D4). `DrivAerNetPlusPlusDataset`
+  enforces three layers: constructor guard raises
+  `LicenseAcknowledgmentRequired` without
+  `acknowledge_noncommercial=True`, `__getitem__` yields
+  `TaintedSample`, and `log_acknowledgment(run_id)` writes the MLflow
+  audit trail.
+- `aero/surrogates/baselines/` — three smoke surrogates: `MLPBaseline`
+  (4-feature → Cd MLP), `FNOSmoke` (1-D single-block Fourier Neural
+  Operator), `MGNSmoke` (PyG `MessagePassing` on a fixed 8-node chain
+  graph). All three lazy-import torch / torch-geometric, produce
+  `cert_status="smoke"` certs (NOT for publication), and refuse
+  `predict()` without the cert. `MGNSmoke` demonstrates the
+  tainted-sample flow when fed `TaintedSample`s.
+- `aero/surrogates/_common/_dataset_pick.py` — `build_loader` dispatch
+  helper used by the CLI; the DrivAerNet++ branch carries the
+  `# non-commercial: justified` pragma the CI fence accepts.
+- `aero/cli.py` — `aero surrogate train --baseline {mlp_baseline,
+  fno_smoke,mgn_smoke}` subcommand that computes the four-fold tuple,
+  runs `fit()` + `set_certificate()`, composes
+  `SurrogateProvenanceTags`, sets all eight MLflow tags, and logs the
+  cert JSON as the `certificates/<baseline>.json` MLflow artifact. The
+  `--solver` enum gains `jax-fluids`; the solver-version, SIF basename,
+  required-modules, and extras-hint tables extend accordingly.
+- `containers/jax-fluids.{Dockerfile,def}` + `scripts/build_jax_fluids_sif.sh`
+  — two-step OCI→Apptainer build on
+  `nvidia/cuda:12.4.1-devel-ubuntu24.04` + Python 3.12, installing JAX
+  + `jaxfluids` from `git+https://github.com/tumaer/JAXFLUIDS.git@
+  JAX-Fluids-v0.2.1` (no PyPI package exists for JAX-Fluids).
+- `containers/surrogate-smoke.{Dockerfile,def}` +
+  `scripts/build_surrogate_smoke_sif.sh` — second new SIF (Torch 2.5
+  + PyG 2.6 + mlflow + einops + h5py + scipy). Torch and JAX are NEVER
+  in the same SIF (ADR-008 guardrail).
+- `data/datasets/{ahmedml,windsorml,drivaerml,drivaernet_plus_plus}/` —
+  per-dataset `reference.md` (citation + licence + source URL + mirror
+  procedure + capacity guidance); `.dvc` pointer files land at PR-merge
+  after the operator runs the download scripts on aero-build.
+- `scripts/download_{ahmedml,windsorml,drivaerml,drivaernet_plus_plus}.sh`
+  — operator-side mirror scripts. The DrivAerNet++ script requires
+  `AERO_ACKNOWLEDGE_NONCOMMERCIAL=1` and refuses to start if TrueNAS
+  `aero/datasets/` has < 1 TB free.
+- `dvc.yaml` — populated with `ingest-{ahmedml,windsorml,drivaerml,
+  drivaernet-plus-plus}` stages.
+- `conf/surrogate/baselines/{mlp_baseline,fno_smoke,mgn_smoke}.yaml` —
+  three Hydra-shape configs.
+- `.github/workflows/non-commercial-fence.yml` — CI gate asserting
+  every import of `aero.surrogates._common.loaders.non_commercial`
+  under `aero/` either produces `non_commercial=True` in the same file
+  or carries the `# non-commercial: justified` pragma. Greppable, no
+  import-hook machinery.
+- `docs/adrs/ADR-008-jax-fluids-and-surrogate-protocol.md` — six
+  decisions bundled: D1 JAX-Fluids version pin (`JAX-Fluids-v0.2.1`),
+  D2 licence-posture correction (MIT, not GPL-3), D3 differentiability
+  seam (additive on adapter only), D4 DrivAerNet++ quarantine
+  (three-layer defence), D5 cert expiry (6 months OR hash change),
+  D6 GNN library choice (PyG).
+- `tests/stage_08/` — 24 host-side tests pinning the Surrogate
+  protocol guards, the DrivAerNet++ three-layer quarantine, the
+  JAX-Fluids adapter surface (incl. the ABC-vs-adapter
+  `differentiable_run` placement test), and the three baseline
+  end-to-end fit→cert→predict flows (`@pytest.mark.slow`; skip when
+  `aero[surrogate-smoke]` not installed).
+- `tests/conftest.py` — four new session-scoped fixtures
+  (`jax_fluids_sif_present`, `jax_fluids_extra_installed`,
+  `surrogate_smoke_sif_present`, `surrogate_smoke_extra_installed`).
+
+### Changed
+
+- `pyproject.toml` — `aero[jax-fluids]` populated with `h5py>=3.10`,
+  `jax[cuda12]==0.4.34`, `jaxlib==0.4.34`, `jaxfluids @ git+url@JAX-
+  Fluids-v0.2.1`. New `aero[surrogate-smoke]` extra carrying
+  `torch>=2.5`, `torch-geometric>=2.6`, `einops>=0.8`, `mlflow>=2.20`,
+  `numpy>=1.26`. Base `pip install aero` (no extras) still imports
+  cleanly without torch / jax / jaxfluids / pyg in `sys.modules` —
+  PLATFORM-NOT-HUB invariant preserved (verified end-to-end in-session).
+- `containers/SHA256SUMS` — comment header extended with
+  `surrogate-smoke.sif` (alongside the pre-listed `jax-fluids.sif`).
+  Actual SHAs land at PR-merge after the operator runs the build
+  scripts (Stage-07 NekRS precedent).
+- `.aero-stage` — `07` → `08`.
+- `CLAUDE.md` — Stage 08 section appended; the certificate-of-validity
+  pointer updates from "TBD in Stage 08" to the concrete
+  `aero.surrogates._common.certificate:CertificateOfValidity.assert_current`
+  reference.
+
+### CONSTITUTION
+
+- **Invariant 9 added** — `CERTIFICATE-OF-VALIDITY-REQUIRED-FOR-
+  SURROGATE-INVOCATION`. Every `Surrogate.predict()` call (especially
+  from the Stage-14 agent layer) is gated on a current
+  `CertificateOfValidity.assert_current(current_dataset_hash, now)`. Both
+  the time gate (`now < expires_at`, default 180 days) and the data
+  gate (`current_dataset_hash == training_dataset_dvc_hash`) must hold.
+  `CertExpired` on failure; agents fall back to a validated solver.
+
 ## [0.0.7] - 2026-05-20
 
 ### Added — Stage 07 (PyFR + NekRS GPU Adapters; First Cloud GPU Run)

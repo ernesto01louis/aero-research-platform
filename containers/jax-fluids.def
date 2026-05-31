@@ -1,0 +1,57 @@
+# containers/jax-fluids.def — aero-research-platform JAX-Fluids image.
+#
+# Stage 08 — the platform's FIFTH concrete CFD solver, and the FIRST
+# differentiable one (ADR-008). Wraps a locally-built OCI image (from
+# containers/jax-fluids.Dockerfile) so `python -m jaxfluids ...` runs inside
+# a signed, SHA256-pinned Apptainer SIF.
+#
+# GPU passthrough is via `apptainer exec --nv` at runtime — see
+# `build_apptainer_exec(gpu=True)` in `aero/adapters/_base.py` (the Stage-07
+# protocol extension).
+#
+# Two-step build pattern (inherited from ADR-006/007):
+#   1. `buildah bud -f containers/jax-fluids.Dockerfile -t localhost/aero/jax-fluids:<ver>`
+#      ... `buildah push ... oci-archive:/tmp/jax-fluids-oci.tar`
+#   2. this `.def` bootstraps from that OCI archive (filesystem-only).
+#
+# NOTE: `%post` is filesystem-only — the Apptainer build sandbox inside the
+# unprivileged `aero-build` LXC cannot open sockets (Stage 02 §6).
+#
+# Built, signed, and SHA256-recorded by scripts/build_jax_fluids_sif.sh.
+
+Bootstrap: oci-archive
+From: /mnt/aero/tmp/jax-fluids-oci.tar
+
+%labels
+    org.aero.component   jax-fluids
+    org.aero.stage       08
+    org.aero.solver      JAX-Fluids
+    org.aero.license     MIT
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only setup; the OCI image already has /case /work /opt/aero,
+    # but recreate so a fresh bootstrap path lands the targets too.
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/jaxfluids-venv/bin:/usr/local/cuda/bin:$PATH
+    export PYTHONPATH=/opt/jaxfluids-venv/lib/python3.12/site-packages:${PYTHONPATH:-}
+    export CUDA_HOME=/usr/local/cuda
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/opt/jaxfluids-venv/lib:${LD_LIBRARY_PATH:-}
+    # gitpython version-check fallback (no git binary at runtime)
+    export GIT_PYTHON_REFRESH=quiet
+
+%test
+    # Smoke-test the interfaces the aero JAX-Fluids adapter uses. The CUDA
+    # backend requires --nv at exec time, so we only smoke the import +
+    # version-resolution side here.
+    python3 -c "import jaxfluids, jax, jaxlib, flax, optax, h5py; print('jaxfluids', jaxfluids.__version__)" \
+        || { echo "jaxfluids import failed" >&2; exit 1; }
+    echo "aero JAX-Fluids image — module imports + version OK"
+
+%runscript
+    echo "aero-research-platform JAX-Fluids image (Stage 08)"
+    exec "$@"

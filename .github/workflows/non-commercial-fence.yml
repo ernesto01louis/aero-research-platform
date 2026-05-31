@@ -1,0 +1,93 @@
+name: non-commercial-fence
+
+# ADR-008 §D4 layer 1 of 3: the structural quarantine fence.
+#
+# Any module under `aero/` that imports from
+# `aero.surrogates._common.loaders.non_commercial` MUST satisfy one of:
+#
+#   (a) The importing source contains `non_commercial=True` (a literal),
+#       evidence the importing code propagates the CC-BY-NC taint into the
+#       certificate it issues.
+#   (b) The importing source contains `# non-commercial: justified` on or
+#       immediately above the import line, documenting an audited
+#       exception (test fixtures, licence-aware tooling, dataset metadata
+#       reporters).
+#
+# Otherwise the PR fails: a quarantined import without one of those two
+# explicit signals risks producing artifacts that look CC-BY-SA-clean but
+# embed CC-BY-NC training data.
+
+on:
+  pull_request:
+    paths:
+      - 'aero/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/non-commercial-fence.yml'
+  push:
+    branches: [main]
+
+jobs:
+  fence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find quarantined imports under aero/
+        id: scan
+        run: |
+          set -euo pipefail
+          # Every Python file under aero/ that mentions the quarantined path,
+          # paired with the line number of the import. Skip the subpackage's
+          # own files (self-imports are by-design).
+          mapfile -t hits < <(
+            grep -rEn --include='*.py' \
+              'from aero\.surrogates\._common\.loaders\.non_commercial' \
+              aero/ \
+              | grep -v '^aero/surrogates/_common/loaders/non_commercial/' \
+              || true
+          )
+          if [[ "${#hits[@]}" -eq 0 ]]; then
+            echo "no_hits=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "no_hits=false" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${hits[@]}" > /tmp/quarantine-hits.txt
+
+      - name: Verify each hit either tags non_commercial=True or carries the pragma
+        if: steps.scan.outputs.no_hits == 'false'
+        run: |
+          set -euo pipefail
+          failures=0
+          while IFS= read -r line; do
+            file="${line%%:*}"
+            rest="${line#*:}"
+            lineno="${rest%%:*}"
+            # (a) is the literal `non_commercial=True` present anywhere in the file?
+            if grep -qE 'non_commercial\s*=\s*True' "$file"; then
+              echo "  ok (non_commercial=True): $file:$lineno"
+              continue
+            fi
+            # (b) does the import line itself carry the pragma comment?
+            if sed -n "${lineno}p" "$file" | grep -qE '#\s*non-commercial:\s*justified'; then
+              echo "  ok (pragma):              $file:$lineno"
+              continue
+            fi
+            # Also accept the pragma on the line immediately above (single-line imports
+            # with the comment kept on a separate line for readability).
+            prev=$(( lineno - 1 ))
+            if [[ "$prev" -ge 1 ]] && \
+               sed -n "${prev}p" "$file" | grep -qE '#\s*non-commercial:\s*justified'; then
+              echo "  ok (pragma-above):        $file:$lineno"
+              continue
+            fi
+            echo "  FAIL:                     $file:$lineno"
+            failures=$(( failures + 1 ))
+          done < /tmp/quarantine-hits.txt
+          if [[ "$failures" -gt 0 ]]; then
+            echo ""
+            echo "::error::$failures quarantined import(s) lack non_commercial=True or the # non-commercial: justified pragma."
+            echo "Either propagate the CC-BY-NC taint into the issued CertificateOfValidity (non_commercial=True),"
+            echo "or document the audited exception with '# non-commercial: justified' on the import line."
+            exit 1
+          fi

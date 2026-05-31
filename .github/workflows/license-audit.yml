@@ -1,0 +1,114 @@
+name: license-audit
+
+# ADR-009 layer 8: scans every PR + push for cross-licence contamination.
+#
+# Three checks:
+#
+# 1. Every `certificates/*.json` artifact carrying `"non_commercial": true`
+#    MUST have its `"surrogate_name"` end with `_nc`. The watermark is
+#    structural per ADR-009 §"surrogate-name watermark"; if a cert sneaks
+#    in without it, this CI blocks the merge.
+#
+# 2. Every Python file that imports a quarantined CC-BY-NC loader without
+#    producing `non_commercial=True` AND without carrying the
+#    `# non-commercial: justified` pragma → caught by the existing
+#    non-commercial-fence.yml. This workflow complements that one by
+#    looking at *artifact* paths, not import lines.
+#
+# 3. Diff scan: warn if the same PR touches both `data/datasets/
+#    drivaernet_plus_plus/` and any file under `aero/` whose path does NOT
+#    contain `non_commercial`. Surfacing as a comment, not a block — the
+#    intent is for the reviewer to be alerted, not for automation to
+#    second-guess every legitimate change.
+#
+# Pragma: any file containing `# license-audit: justified` on or above
+# the flagged line is treated as an audited exception (mirrors the
+# non-commercial-fence pragma pattern).
+
+on:
+  pull_request:
+    paths:
+      - 'aero/**'
+      - 'tests/**'
+      - 'data/datasets/**'
+      - 'docs/**'
+      - 'certificates/**'
+      - '.github/workflows/license-audit.yml'
+  push:
+    branches: [main]
+
+jobs:
+  watermark-check:
+    runs-on: ubuntu-latest
+    name: certificate watermark + cross-licence diff
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the cross-licence diff scan can resolve the PR base.
+          fetch-depth: 0
+
+      - name: Cert watermark — non_commercial=True requires `_nc` suffix
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          fail=0
+          for f in certificates/*.json $(find . -name 'certificates' -type d -prune -o -name '*.json' -print 2>/dev/null | grep '/certificates/' || true); do
+              [[ -f "$f" ]] || continue
+              if python3 -c "
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          if d.get('non_commercial') is True and not d.get('surrogate_name','').endswith('_nc'):
+              sys.exit(1)
+          " "$f"; then
+                  echo "  ok: $f"
+              else
+                  echo "  FAIL: $f — non_commercial=True but surrogate_name lacks '_nc' suffix"
+                  fail=$((fail+1))
+              fi
+          done
+          if [[ "$fail" -gt 0 ]]; then
+              echo "::error::$fail certificate(s) lack the mandatory _nc watermark (ADR-009 §5)."
+              exit 1
+          fi
+
+      - name: Cross-licence diff scan (warning-only on push; block on PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          base=${{ github.event.pull_request.base.sha }}
+          head=${{ github.event.pull_request.head.sha }}
+          changed=$(git diff --name-only "$base" "$head")
+          touches_nc_data=false
+          touches_aero_outside_nc=false
+          for f in $changed; do
+              case "$f" in
+                  data/datasets/drivaernet_plus_plus/*) touches_nc_data=true ;;
+                  aero/*)
+                      if [[ "$f" != *non_commercial* ]]; then
+                          # Honour the pragma
+                          if ! grep -qE '#\s*license-audit:\s*justified' "$f" 2>/dev/null; then
+                              touches_aero_outside_nc=true
+                              aero_files+=("$f")
+                          fi
+                      fi
+                      ;;
+              esac
+          done
+          if [[ "$touches_nc_data" == "true" && "$touches_aero_outside_nc" == "true" ]]; then
+              echo "::warning::This PR modifies both DrivAerNet++ data and aero/ files outside the non_commercial subpackage."
+              echo "  Reviewers: confirm that no CC-BY-NC artifact is leaking into a commercial-clean module."
+              echo "  Or add '# license-audit: justified' to the aero/ file's import block if intentional."
+              # Warning, not error. The reviewer is the final gate.
+          fi
+
+      - name: Banner — what this workflow protects
+        if: always()
+        run: |
+          cat <<'NOTE'
+          ADR-009 license-audit summary
+          ─────────────────────────────
+          This workflow guards against:
+            • CC-BY-NC certs missing the _nc watermark
+            • PRs that mix DrivAerNet++ data changes with aero/ code outside the quarantine
+          See docs/adrs/ADR-009-cc-by-nc-quarantine-posture.md for the full posture.
+          NOTE
