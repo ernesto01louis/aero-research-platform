@@ -676,3 +676,150 @@ all 4 cert guards fire correctly; 191 tests pass; mypy strict clean.
   in an SSH session; either configure passphrase-less signing or run
   signing in person. The SIF SHA is recorded; signing can land at
   PR-merge.
+
+---
+
+## Stage-08 follow-up session — 2026-05-31 amendment
+
+Second autonomous session against PR #13. Brought the deferred operator
+follow-ups in-house (TrueNAS pool grow, surrogate-smoke SIF build,
+DrivAerNet++ pull research). PR commit count rose from 6 → 17. CI 11/11
+green at amendment time.
+
+### Additional artifacts landed this session
+
+- **surrogate-smoke.sif built + SHA recorded** —
+  `49b75a82e8077ef95f784aa214b46b7edb05bbb9c215369941794b2039b975f6`
+  (8.35 GB; torch 2.5.1+cu124 + torch-geometric 2.6.1 + mlflow 2.20).
+  `%test` section ran green. Like jax-fluids.sif, signing is deferred
+  (same passphrase prompt). Both SIF SHAs are in `containers/SHA256SUMS`.
+- **TrueNAS pool `f3` grown 992 GB → 1.46 TiB** — qcow2 was already
+  resized in the prior session; this session ran the in-VM partition
+  + ZFS expansion: `sgdisk -e`, `parted resizepart 1 100%`,
+  `zpool online -e f3`. Snapshot `f3@pre-grow-2026-05-31` retained.
+  Pool free space: 939 GB on the `aero` NFS view. *No code change —
+  state lives on the TrueNAS VM.*
+- **Buildah storage moved to `/mnt/pve/Storage`** on the Proxmox host
+  via `/etc/containers/storage.conf` (root volume was 68 GB and the
+  surrogate-smoke build's transient CUDA + torch layers deadlocked it
+  twice). Documented at `docs/operator/buildah-storage-config.md` so a
+  clean-Proxmox-host setup applies the fix before any
+  `scripts/build_*_sif.sh` run. **Stage 02 Ansible should pick this up
+  by Stage 09**, when PhysicsNeMo's SIF is bigger still.
+
+### DrivAerNet++ — correct sub-dataset sizes (probed, not guessed)
+
+The earlier handoff said "~800 GB". Probing the Dataverse Native API
+revealed the real numbers — committed to `reference.md`:
+
+| Sub-dataset | DOI | Real size | Files |
+|---|---|---|---|
+| Annotations | `doi:10.7910/DVN/CAWRXI` | **75 GB** | 7 |
+| Pressure | `doi:10.7910/DVN/K7PWNJ` | **213 GB** | 15 |
+| Wall Shear Stress | `doi:10.7910/DVN/PCZYL4` | **436 GB** | 15 |
+| 3D Meshes | `doi:10.7910/DVN/OYU2FG` | **443 GB** | 15 |
+| CFD | `doi:10.7910/DVN/EEYHUA` | **10,568 GB** | 30 |
+
+**The CFD sub-dataset alone is 10.6 TB** — exceeds the homelab pool
+by ~7× even after the grow. The user is "looking into building a NAS"
+specifically for this; until then, CFD is cloud-stage-only.
+
+### DrivAerNet++ — lite mode (new this session)
+
+Discovered upstream publishes three CSV summaries outside Dataverse:
+
+- `DrivAerNetPlusPlus_Cd_8k_Updated.csv` — 8,121 cars × Cd  (Dropbox)
+- `DrivAerNetPlusPlus_CarDesign_Areas.csv` — 8,007 cars × frontal area  (Dropbox)
+- `DrivAerNet_ParametricData.csv` — 4,166 cars × 24 design parameters  (GitHub)
+
+Plus canonical 5,818 / 1,147 / 1,153 train/val/test splits (GitHub).
+Total ~2 MB. The script now branches on `AERO_DRIVAERNET_MODE` with
+`lite` as default; `full` retains the Dataverse path.
+
+**Bytes pre-positioned on aero-build** at
+`/opt/aero/repo/data/datasets/drivaernet_plus_plus/{cases,splits}/`
+from this session's pull. Not yet DVC-pushed to MinIO — `dvc-s3` isn't
+installed in either venv, and the `dvc.yaml`'s
+`ingest-drivaernet-plus-plus` stage outs reference `manifest.json` +
+`cases/` which collides with `dvc add cases/`. Stage-09 first action:
+install `dvc-s3`, revise the dvc.yaml stage outs to include
+`splits/` and drop the (currently un-makeable) `manifest.json`,
+`dvc commit cases splits`, `dvc push -r aero-minio`.
+
+### Dataverse Guestbook gate (new blocker for full-mode pulls)
+
+The Dataverse Native API GET on a datafile returns:
+> 400 "You may not download this file without the required Guestbook
+> response for guestbookID 601."
+
+`?gbrecs=true` doesn't bypass; `POST /access/datafile/{id}/userdata`
+doesn't exist. Upstream README recommends **Globus** for the big pulls.
+Two paths forward for Stage 09:
+1. Wire a Dataverse API token + one-time POSTed guestbook response into
+   `download_drivaernet_plus_plus.sh full` mode.
+2. Add a sibling `scripts/download_drivaernet_plus_plus_via_globus.sh`
+   using `globus-cli` (requires user account).
+
+### DrivAerNet++ manifest-builder gap (Stage-09 blocker)
+
+The loader's `DrivAerNetPlusPlusCase` Pydantic schema expects
+`body_length_m: float = Field(..., gt=0.0)`. The lite pull's
+`A_Car_Length` column in `DrivAerNet_ParametricData.csv` is a **delta**
+from an undocumented baseline (values include negatives, e.g. `-37.6`).
+Without the baseline, body_length cannot be honestly converted to
+absolute meters.
+
+Three Stage-09 fix paths (all documented in `reference.md`):
+1. Recover the DrivAer baseline body length from the paper / repo and
+   compute absolute = baseline + delta.
+2. Pull the 443 GB `3D Meshes` Dataverse sub-dataset and derive
+   absolute length from STL bounding boxes.
+3. Rename the loader field `body_length_m → body_length_param`, drop
+   `gt=0.0`, and treat it as a sign-neutral design variable.
+
+Until one of these lands, the lite manifest cannot be built — so the
+Stage-08 baselines can't actually train on real DrivAerNet++ data this
+session. The plumbing is correct; the data join is one Pydantic field
+away from working.
+
+### Tunable free-space precondition
+
+`scripts/download_drivaernet_plus_plus.sh` now accepts
+`AERO_DRIVAERNET_MIN_FREE_GB` (default 1000 GB). The old hard-coded
+1 TB check was sized for a single 800 GB pull from the paper's
+overall-size description; with the real sub-dataset sizes (75 → 443
+GB each, except CFD), the threshold has to be the sum of the targeted
+sub-datasets + a small margin.
+
+### Still open for next session
+
+1. **DVC-push the DrivAerNet++ lite bytes** —
+   install `dvc-s3`, reconcile `dvc.yaml` stage outs, push to MinIO.
+   `cases/` + `splits/` already exist on aero-build under
+   `/opt/aero/repo/data/datasets/drivaernet_plus_plus/`.
+2. **Resolve the body_length gap** so the lite manifest can be built
+   and the Stage-08 baselines can actually train.
+3. **Globus or Dataverse-API-token integration** for full-mode pulls.
+4. **3D Meshes pull (443 GB)** — fits in current 939 GB free, gates
+   Stage-09 DoMINO; blocked on (3).
+5. **Bigger NAS** — the user has explicitly flagged this; CFD alone
+   needs ~11 TB. Until that hardware exists, CFD stays cloud-only.
+6. **SIF signing** — apptainer key passphrase. Both jax-fluids.sif and
+   surrogate-smoke.sif are unsigned. Either configure passphrase-less
+   signing or sign in person; SHAs are recorded either way.
+7. **GHCR push** — needs `write:packages` PAT.
+8. **PR #13 → v0.0.8 tag** — release decision; CI 11/11 green at
+   amendment time.
+
+### This session's commit deltas on PR #13 (post-amendment)
+
+```
+0384a84 fix(stage-08): correct DrivAerNet++ sub-dataset sizes; tunable free-GB precondition
+bfab79c feat(stage-08): DrivAerNet++ lite-mode pull via Dropbox+GitHub CSVs
+904f5a6 chore(stage-08): record surrogate-smoke SIF SHA
+e6ef748 docs(stage-08): DrivAerNet++ DOIs + buildah-storage operator note
+15b0f90 docs(stage-08): append follow-up session summary to handoff
+ff19417 fix(stage-08): license-audit CI needs fetch-depth=0 for diff scan
+```
+
+Plus this amendment itself.
