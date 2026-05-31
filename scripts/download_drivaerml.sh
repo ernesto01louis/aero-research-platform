@@ -48,7 +48,10 @@ if [[ "${STL_MODE}" == "full" ]]; then
             if [[ -f "${OUT}/${f}" ]]; then continue; fi
             url="https://huggingface.co/datasets/${HF_OWNER}/${HF_PREFIX}/resolve/main/${RUN}/${f}"
             echo ">> ${url}"
-            curl -fsSL "${url}" -o "${OUT}/${f}"
+            if ! curl -fsSL "${url}" -o "${OUT}/${f}"; then
+                rm -f "${OUT}/${f}"
+                echo "   (missing — skipping)"
+            fi
         done
     done
 fi

@@ -45,8 +45,12 @@ echo ">> buildah push -> ${OCI_ARCHIVE_HOST}"
 mkdir -p "$(dirname "${OCI_ARCHIVE_HOST}")"
 buildah push "${IMAGE}" "oci-archive:${OCI_ARCHIVE_HOST}"
 
-echo ">> apptainer build on aero-build"
-ssh root@aero-build "apptainer build --force ${SIF_PUBLISH_PATH} ${REPO_ROOT}/containers/jax-fluids.def"
+# aero-build clones the repo at /opt/aero/repo, not at the Proxmox-host
+# path. Use that path explicitly on the aero-build side. Fallback to the
+# AERO_BUILD_REPO env var for non-default deployments.
+AERO_BUILD_REPO="${AERO_BUILD_REPO:-/opt/aero/repo}"
+echo ">> apptainer build on aero-build (repo=${AERO_BUILD_REPO})"
+ssh root@aero-build "cd ${AERO_BUILD_REPO} && git fetch origin && git checkout -f \$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@') 2>/dev/null || true; apptainer build --force ${SIF_PUBLISH_PATH} ${AERO_BUILD_REPO}/containers/jax-fluids.def"
 ssh root@aero-build "apptainer sign ${SIF_PUBLISH_PATH}"
 ssh root@aero-build "apptainer verify ${SIF_PUBLISH_PATH}"
 
