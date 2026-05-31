@@ -43,6 +43,9 @@ jobs:
     name: certificate watermark + cross-licence diff
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the cross-licence diff scan can resolve the PR base.
+          fetch-depth: 0
 
       - name: Cert watermark — non_commercial=True requires `_nc` suffix
         run: |
