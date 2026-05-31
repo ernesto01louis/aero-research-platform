@@ -19,8 +19,9 @@ Strict pydantic, frozen, ``extra="forbid"``. See
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -181,7 +182,22 @@ class CertificateOfValidity(BaseModel):
     non_commercial: bool = Field(
         ...,
         description="True iff the training set included any CC-BY-NC samples. Auto-propagated "
-        "by Surrogate.set_certificate(); authors must not set directly.",
+        "by Surrogate.set_certificate(); authors must not set directly. Write-once-True: "
+        "once flipped to True by any source it cannot be reset to False (model_copy + the "
+        "_non_commercial_is_write_once_true validator enforce this).",
+    )
+    attribution_required: tuple[str, ...] = Field(
+        default=(),
+        description="Citation strings every publication / artifact / public model description "
+        "MUST carry. Populated by the loader when the dataset's licence carries an attribution "
+        "obligation (CC-BY-*, including CC-BY-SA + CC-BY-NC). Stage-14 agents log every entry "
+        "to MLflow at predict time so the audit trail survives downstream copies.",
+    )
+    license_id: str = Field(
+        default="",
+        description="SPDX-ish licence identifier of the most restrictive training-set licence "
+        "(e.g. 'CC-BY-NC-4.0' if any sample was CC-BY-NC, else 'CC-BY-SA-4.0', etc.). Empty "
+        "string only on smoke / synthetic fixtures.",
     )
     issued_at: datetime = Field(..., description="UTC timestamp the cert was issued.")
     expires_at: datetime = Field(
@@ -199,6 +215,51 @@ class CertificateOfValidity(BaseModel):
             raise ValueError("held_out_metrics must contain at least one metric")
         return self
 
+    @model_validator(mode="after")
+    def _surrogate_name_watermark(self) -> CertificateOfValidity:
+        """Force the ``_nc`` suffix on any surrogate trained on CC-BY-NC data.
+
+        Watermark is structural: every artifact, MLflow tag, model registry
+        entry, and downstream filename carries the ``_nc`` marker so a human
+        scanning a directory listing can see at a glance which models bear
+        the non-commercial obligation. The cert's `non_commercial` flag is
+        the legal contract; this watermark is the visual one.
+        """
+        if self.non_commercial and not self.surrogate_name.endswith("_nc"):
+            raise ValueError(
+                f"surrogate_name {self.surrogate_name!r} carries non_commercial=True "
+                "but lacks the mandatory '_nc' suffix. Append '_nc' to the surrogate "
+                "name so the CC-BY-NC obligation is visually traceable in every "
+                "directory listing, MLflow run name and model-registry entry."
+            )
+        return self
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> CertificateOfValidity:
+        """Override `BaseModel.model_copy` to refuse `non_commercial=True → False`.
+
+        Write-once-True: once a cert is issued with `non_commercial=True`,
+        no model_copy can flip it back. This is the third structural layer of
+        the CC-BY-NC quarantine (after the loader fence + the Surrogate-base
+        taint propagation): even if a caller tries to launder a tainted cert
+        by re-issuing it with `non_commercial=False`, this guard blocks the
+        update at construction time.
+        """
+        if update and self.non_commercial and update.get("non_commercial") is False:
+            raise ValueError(
+                "refusing CertificateOfValidity.model_copy update that flips "
+                "non_commercial from True → False. The CC-BY-NC obligation is "
+                "write-once-True: once a cert is tainted by training-set "
+                "exposure to CC-BY-NC data, the taint is permanent. "
+                "If you genuinely need a commercial-clean model, retrain on "
+                "CC-BY-SA-only datasets and issue a fresh cert."
+            )
+        return super().model_copy(update=update, deep=deep)
+
     @classmethod
     def new(
         cls,
@@ -211,6 +272,8 @@ class CertificateOfValidity(BaseModel):
         applicability_envelope: ApplicabilityEnvelope,
         cert_status: Literal["smoke", "validated", "production"],
         non_commercial: bool,
+        license_id: str = "",
+        attribution_required: tuple[str, ...] = (),
         lifetime: timedelta = DEFAULT_CERT_LIFETIME,
         now: datetime | None = None,
     ) -> CertificateOfValidity:
@@ -221,6 +284,8 @@ class CertificateOfValidity(BaseModel):
         lifetime pass ``lifetime=...`` explicitly and document the deviation.
         """
         issued = now if now is not None else datetime.now(UTC)
+        if non_commercial and not surrogate_name.endswith("_nc"):
+            surrogate_name = f"{surrogate_name}_nc"
         return cls(
             surrogate_name=surrogate_name,
             model_architecture=model_architecture,
@@ -230,6 +295,8 @@ class CertificateOfValidity(BaseModel):
             applicability_envelope=applicability_envelope,
             cert_status=cert_status,
             non_commercial=non_commercial,
+            license_id=license_id,
+            attribution_required=attribution_required,
             issued_at=issued,
             expires_at=issued + lifetime,
         )
@@ -278,8 +345,12 @@ class CertificateOfValidity(BaseModel):
         MLflow tags are strings only; numeric metrics ride as JSON values
         the agent layer parses on read. This pairs with the four-fold
         provenance tuple's :meth:`ProvenanceTuple.as_mlflow_tags`.
+
+        Adds the legal-trail fields (``license_id``, ``attribution_required``)
+        so every MLflow run captures the upstream licence + citation chain
+        without the caller having to remember.
         """
-        return {
+        tags = {
             "surrogate_name": self.surrogate_name,
             "model_architecture": self.model_architecture,
             "training_dataset_dvc_hash": self.training_dataset_dvc_hash,
@@ -289,3 +360,10 @@ class CertificateOfValidity(BaseModel):
             "cert_issued_at": self.issued_at.isoformat(),
             "cert_expires_at": self.expires_at.isoformat(),
         }
+        if self.license_id:
+            tags["license_id"] = self.license_id
+        if self.attribution_required:
+            # Pipe-separated keeps it readable in the MLflow UI; the cert JSON
+            # artifact carries the structured list for programmatic access.
+            tags["attribution_required"] = " | ".join(self.attribution_required)
+        return tags

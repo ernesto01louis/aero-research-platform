@@ -1,0 +1,85 @@
+Creative Commons Attribution-NonCommercial 4.0 International
+=============================================================
+
+This dataset (DrivAerNet++) is licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+To view a copy of this license, visit:
+  https://creativecommons.org/licenses/by-nc/4.0/
+
+In short — this licence allows you to:
+
+  ✅ Share — copy and redistribute the material in any medium or format
+  ✅ Adapt — remix, transform, and build upon the material
+
+Under the following terms:
+
+  📝 Attribution — You must give appropriate credit, provide a link to
+     the license, and indicate if changes were made. You may do so in any
+     reasonable manner, but not in any way that suggests the licensor
+     endorses you or your use.
+
+  🚫 NonCommercial — You may NOT use the material for commercial
+     purposes.
+
+  ➕ No additional restrictions — You may not apply legal terms or
+     technological measures that legally restrict others from doing
+     anything the license permits.
+
+
+WHAT THIS MEANS FOR THE AERO-RESEARCH-PLATFORM
+-----------------------------------------------
+
+Every surrogate trained on this dataset is itself a derivative work and
+inherits the CC-BY-NC-4.0 obligation. The platform's CertificateOfValidity
+framework codifies this:
+
+  * The `non_commercial` flag is auto-set to True on any cert tied to a
+    training run that touched DrivAerNet++.
+  * The flag is write-once-True — once set, it cannot be reset to False
+    via model_copy (the certificate.py model_copy override blocks this).
+  * The surrogate_name carries a forced `_nc` suffix so every artifact,
+    MLflow run, and directory listing visually signals the obligation.
+  * The cert's `attribution_required` field records the citation strings
+    every publication/demo/blog post MUST carry.
+  * The `.github/workflows/non-commercial-fence.yml` CI workflow rejects
+    any code that imports the quarantined loader without producing
+    `non_commercial=True` or the `# non-commercial: justified` pragma.
+  * The `.github/workflows/license-audit.yml` CI workflow scans new
+    artifacts and PR diffs for cross-license contamination.
+
+
+CITATION
+--------
+
+Any publication, presentation, or public artifact that uses DrivAerNet++
+or anything derived from it MUST cite:
+
+  Elrefaie, M., Morar, F., Dai, A., & Ahmed, F. (2024).
+  DrivAerNet++: A Large-Scale Multimodal Car Dataset with Computational
+  Fluid Dynamics Simulations and Deep Learning Benchmarks.
+  In Advances in Neural Information Processing Systems
+  (NeurIPS Datasets & Benchmarks Track).
+
+  arXiv: 2406.09624
+  Dataverse: https://dataverse.harvard.edu/dataverse/DrivAerNet
+
+The aero-research-platform's `attribution_required` cert field carries
+this citation automatically; the MLflow tag captures it on every run.
+
+
+COMMERCIAL USE EXCEPTION
+------------------------
+
+If your use case drifts into commercial territory (paid consulting,
+product engineering, monetised hosting of trained weights, etc.) you
+MUST either:
+
+  1. Retrain on CC-BY-SA-only datasets (AhmedML, WindsorML, DrivAerML)
+     and issue a fresh cert with `non_commercial=False`, OR
+  2. Contact the dataset authors (https://github.com/Mohamedelrefaie/DrivAerNet)
+     for an explicit commercial-use waiver in writing.
+
+The platform's structural defences will refuse to invoke a
+`non_commercial=True` cert from a context flagged commercial; do not
+attempt to bypass them.

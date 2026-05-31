@@ -1,0 +1,19 @@
+Creative Commons Attribution-ShareAlike 4.0 International
+=========================================================
+
+This dataset is licensed under CC BY-SA 4.0 by Neil Ashton et al.
+(see reference.md for citation).
+
+  https://creativecommons.org/licenses/by-sa/4.0/
+
+You may freely use, share and adapt this material, including for
+commercial purposes, provided you:
+
+  1. Give appropriate credit and link to the licence (Attribution).
+  2. Distribute any derivative work under the same CC BY-SA-4.0 licence
+     (ShareAlike).
+
+Derivative works (surrogates trained on this dataset, datasets that
+embed its content, etc.) automatically inherit the ShareAlike obligation.
+The aero-research-platform's CertificateOfValidity carries
+license_id="CC-BY-SA-4.0" for any surrogate trained on this set.
