@@ -52,38 +52,98 @@ stress), integrated Cd. ~800 GB compressed.
 
 ```
 data/datasets/drivaernet_plus_plus/
-├── manifest.json
-├── cases/
-└── reference.md
+├── LICENSE                          # CC-BY-NC-4.0 text
+├── reference.md                     # this file
+├── cases/                           # the bytes; mode depends on pull
+│   ├── DrivAerNetPlusPlus_Cd_8k_Updated.csv       # lite (8,121 cars; Cd labels)
+│   ├── DrivAerNetPlusPlus_CarDesign_Areas.csv     # lite (8,007 cars; frontal area)
+│   ├── DrivAerNet_ParametricData.csv              # lite (4,166 cars; 24 design parameters)
+│   ├── E_S_*.zip / F_S_*.zip / ...                # Dataverse (per sub-dataset)
+├── splits/                          # canonical train/val/test partition
+│   ├── train_design_ids.txt         # 5,818 IDs
+│   ├── val_design_ids.txt           # 1,147 IDs
+│   └── test_design_ids.txt          # 1,153 IDs
+└── manifest.json                    # built by scripts/build_dataset_manifest.py
 ```
 
-## Mirror procedure (operator follow-up — gated)
+## Two pull modes
 
-**Prerequisites before any bytes are pulled to TrueNAS:**
+### Lite mode (default for Stage-08 baselines — ~2 MB)
 
-1. `aero/surrogates/_common/loaders/non_commercial/` test suite is green
-   (Stage 08 `tests/stage_08/test_drivaernet_quarantine.py`).
-2. `.github/workflows/non-commercial-fence.yml` is enabled and passing on
-   the Stage-08 PR.
-3. Operator has confirmed TrueNAS `aero/datasets/` has ≥ 1 TB free margin
-   on top of the CC-BY-SA datasets.
+Pulls only the **CSV summaries + canonical splits** from upstream's
+Dropbox + GitHub paths (no Dataverse access, no guestbook flow). What
+lands:
 
-Once gated:
+- `cases/DrivAerNetPlusPlus_Cd_8k_Updated.csv` — 8,121 cars × Cd
+- `cases/DrivAerNetPlusPlus_CarDesign_Areas.csv` — 8,007 cars × frontal area (m²)
+- `cases/DrivAerNet_ParametricData.csv` — 4,166 cars × 24 parametric design variables
+- `splits/{train,val,test}_design_ids.txt` — canonical 5,818 / 1,147 / 1,153 split
 
 ```bash
 ssh root@aero-build
 cd /opt/aero/repo
-# Set the canonical Harvard Dataverse DOI from the upstream README:
-export AERO_DRIVAERNET_DOI="doi:10.7910/DVN/<...>"
-export AERO_ACKNOWLEDGE_NONCOMMERCIAL=1
+AERO_ACKNOWLEDGE_NONCOMMERCIAL=1 \
+AERO_DRIVAERNET_MODE=lite \
 ./scripts/download_drivaernet_plus_plus.sh
 ```
 
+The lite pull is enough for **descriptor → Cd baselines** (MLPBaseline,
+FNOSmoke, MGNSmoke smoke-grade only) once the manifest builder is
+revised — see below.
+
+### Full mode (Stage-09 DoMINO and beyond — Dataverse pull, multi-GB)
+
+Uses the Dataverse Native API to pull a specific sub-dataset by DOI.
+See sub-dataset table above for sizes.
+
+```bash
+AERO_ACKNOWLEDGE_NONCOMMERCIAL=1 \
+AERO_DRIVAERNET_MODE=full \
+AERO_DRIVAERNET_DOI="doi:10.7910/DVN/OYU2FG" \
+AERO_DRIVAERNET_MIN_FREE_GB=500 \
+./scripts/download_drivaernet_plus_plus.sh
+```
+
+**Dataverse Guestbook gate** — sub-datasets larger than the Annotations
+set sit behind Dataverse's guestbook prompt (the Native API returns
+`400 "You may not download this file without the required Guestbook
+response"`). Upstream recommends **Globus** for the big pulls. A
+Dataverse API token plus a one-time POSTed guestbook response is the
+alternative; neither is wired into the script yet. **Stage 09 must wire
+one of these in before any full pull.**
+
+### Sub-dataset → DOI quick reference
+
+The five sub-datasets and their DOIs are in the top-of-file table.
+
+## Manifest builder gap (Stage 09 work)
+
+The loader's `DrivAerNetPlusPlusCase` Pydantic schema expects
+`body_length_m: float = Field(..., gt=0.0)` — an absolute body length
+in meters. The lite pull's `DrivAerNet_ParametricData.csv` carries
+`A_Car_Length` but **as a delta** from an undocumented baseline car
+(values include negatives, e.g. `-37.6`). Without the baseline reference
+length, body_length_m cannot be computed honestly.
+
+Stage 09 must do one of:
+
+1. Recover the DrivAer baseline geometry (paper supplement or upstream
+   GitHub README) and add a `BASELINE_BODY_LENGTH_M` constant to the
+   manifest builder so absolute lengths = baseline + delta.
+2. Pull the STLs via Dataverse `3D Meshes` sub-dataset (443 GB) and
+   compute the absolute length from the mesh bounding box.
+3. Rename the loader field to `body_length_delta` (or similar
+   sign-neutral identifier) and drop the `gt=0.0` constraint.
+
+Until then, the lite pull's manifest cannot be built — `cases/` and
+`splits/` are committed as source-of-truth, but `manifest.json` is
+absent.
+
 ## Stage-08 baseline use
 
-DrivAerNet++ is **not** trained on in Stage 08. The loader + quarantine +
-fence CI ship; the actual first training run is a Stage 09 decision (and
-the cert will land with `non_commercial=True`).
+DrivAerNet++ is **not** trained on in Stage 08. The loader + quarantine
++ fence CI ship; the actual first training run is a Stage 09 decision
+(and the cert will land with `non_commercial=True`).
 
 ## Citation
 
