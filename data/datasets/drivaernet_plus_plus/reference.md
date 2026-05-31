@@ -13,11 +13,23 @@
 
 - Project page: https://github.com/Mohamedelrefaie/DrivAerNet
 - Actual dataset host: **Harvard Dataverse** —
-  https://dataverse.harvard.edu/dataverse/DrivAerNet (NOT Hugging Face;
-  Stage-08's first draft of the download script had this wrong and the
-  Stage-09 prerequisite step needs the canonical DOI from the GitHub
-  README to populate ``AERO_DRIVAERNET_DOI`` before
-  ``scripts/download_drivaernet_plus_plus.sh`` will run).
+  https://dataverse.harvard.edu/dataverse/DrivAerNet (NOT Hugging Face).
+- The DrivAerNet++ collection is **split into 5 sub-datasets** on
+  Dataverse; each has its own DOI (probed via the Dataverse search API
+  in the Stage-08 follow-up session 2026-05-31):
+
+  | Sub-dataset | DOI | What it has |
+  |---|---|---|
+  | **3D Meshes** | `doi:10.7910/DVN/OYU2FG` | STL surface meshes — Stage-09 DoMINO trains on these (~800 GB) |
+  | **CFD** | `doi:10.7910/DVN/EEYHUA` | Volume / surface field snapshots |
+  | **Pressure** | `doi:10.7910/DVN/K7PWNJ` | Surface pressure fields |
+  | **Wall Shear Stress** | `doi:10.7910/DVN/PCZYL4` | Wall-shear-stress fields |
+  | **Annotations** | `doi:10.7910/DVN/CAWRXI` | 29 component labels per car + summary metadata |
+
+  For Stage-08 baselines (descriptor → Cd): the smallest pull is the
+  **Annotations** dataset (~hundreds of MB). For Stage-09 DoMINO:
+  also pull **3D Meshes** (~800 GB). The ``AERO_DRIVAERNET_DOI`` env
+  var takes ONE DOI per script run; loop over the ones you need.
 - Paper: Elrefaie, M. et al. (2024). *DrivAerNet++: A Large-Scale
   Multimodal Car Dataset with Computational Fluid Dynamics Simulations.*
   NeurIPS Datasets & Benchmarks Track.
