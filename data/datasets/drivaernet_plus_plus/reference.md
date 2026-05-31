@@ -18,18 +18,25 @@
   Dataverse; each has its own DOI (probed via the Dataverse search API
   in the Stage-08 follow-up session 2026-05-31):
 
-  | Sub-dataset | DOI | What it has |
-  |---|---|---|
-  | **3D Meshes** | `doi:10.7910/DVN/OYU2FG` | STL surface meshes — Stage-09 DoMINO trains on these (~800 GB) |
-  | **CFD** | `doi:10.7910/DVN/EEYHUA` | Volume / surface field snapshots |
-  | **Pressure** | `doi:10.7910/DVN/K7PWNJ` | Surface pressure fields |
-  | **Wall Shear Stress** | `doi:10.7910/DVN/PCZYL4` | Wall-shear-stress fields |
-  | **Annotations** | `doi:10.7910/DVN/CAWRXI` | 29 component labels per car + summary metadata |
+  | Sub-dataset | DOI | Size on Dataverse | What it has |
+  |---|---|---|---|
+  | **Annotations** | `doi:10.7910/DVN/CAWRXI` | **75 GB** (7 files) | smallest sub-dataset; summary metadata + per-car labels |
+  | **Pressure** | `doi:10.7910/DVN/K7PWNJ` | **213 GB** (15 files) | surface pressure fields |
+  | **Wall Shear Stress** | `doi:10.7910/DVN/PCZYL4` | **436 GB** (15 files) | wall-shear-stress fields |
+  | **3D Meshes** | `doi:10.7910/DVN/OYU2FG` | **443 GB** (15 files) | STL surface meshes — Stage-09 DoMINO trains on these |
+  | **CFD** | `doi:10.7910/DVN/EEYHUA` | **10.6 TB** (30 files) | full volume + surface field snapshots; far exceeds homelab TrueNAS — pull a sample only, or stage to S3 |
 
-  For Stage-08 baselines (descriptor → Cd): the smallest pull is the
-  **Annotations** dataset (~hundreds of MB). For Stage-09 DoMINO:
-  also pull **3D Meshes** (~800 GB). The ``AERO_DRIVAERNET_DOI`` env
-  var takes ONE DOI per script run; loop over the ones you need.
+  **Sizes were probed via the Dataverse Native API in the Stage-08
+  follow-up session (2026-05-31), not from the paper.** Earlier doc
+  estimates ("~hundreds of MB", "~800 GB") were wrong; trust this
+  table.
+
+  The ``AERO_DRIVAERNET_DOI`` env var takes ONE DOI per script run;
+  loop over the ones you need. The script's hard-coded 1 TB free-space
+  precondition was sized for a single ~800 GB pull from the paper's
+  total-size description; it is too strict for Annotations alone and
+  not strict enough to admit two large sub-datasets back-to-back —
+  Stage 09 should revisit it.
 - Paper: Elrefaie, M. et al. (2024). *DrivAerNet++: A Large-Scale
   Multimodal Car Dataset with Computational Fluid Dynamics Simulations.*
   NeurIPS Datasets & Benchmarks Track.

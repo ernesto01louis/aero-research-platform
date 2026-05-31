@@ -42,9 +42,17 @@ DATAVERSE_BASE="${AERO_DATAVERSE_BASE:-https://dataverse.harvard.edu}"
 # the "Dataset Access" section; copy-paste it into the env var.
 DATASET_DOI="${AERO_DRIVAERNET_DOI:?must set AERO_DRIVAERNET_DOI to the Dataverse DOI}"
 
+# Free-space precondition. Defaults to 1000 GB — sized for the original
+# "single ~800 GB pull" reading of the paper. The Dataverse Native API
+# shows the sub-datasets are 75 / 213 / 436 / 443 / 10568 GB; the default
+# is too strict for Annotations-only (75 GB) and too loose for two large
+# sub-datasets in series. Operator sets AERO_DRIVAERNET_MIN_FREE_GB to
+# the sum of the targeted sub-datasets + a small margin.
+MIN_FREE_GB="${AERO_DRIVAERNET_MIN_FREE_GB:-1000}"
 FREE_GB=$(df --output=avail -BG /mnt/aero/datasets 2>/dev/null | tail -1 | tr -dc '0-9')
-if [[ -n "${FREE_GB}" && "${FREE_GB}" -lt 1000 ]]; then
-    echo "ERROR: TrueNAS aero/datasets/ has < 1 TB free (${FREE_GB} GB)." >&2
+if [[ -n "${FREE_GB}" && "${FREE_GB}" -lt "${MIN_FREE_GB}" ]]; then
+    echo "ERROR: TrueNAS aero/datasets/ has < ${MIN_FREE_GB} GB free (${FREE_GB} GB)." >&2
+    echo "       Override threshold via AERO_DRIVAERNET_MIN_FREE_GB if intentional." >&2
     exit 1
 fi
 
