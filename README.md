@@ -16,11 +16,11 @@ non-negotiable foundation.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.8  ·  **Status:** partial  ·  **Completed:** 2026-05-30
+**Latest tag:** v0.0.9  ·  **Status:** partial  ·  **Completed:** 2026-06-01
 
-**Stage 08 — JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing** — most recent stage.
+**Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo)** — most recent stage.
 
-**Next:** Stage 09 — NVIDIA PhysicsNeMo DoMINO production surrogate.
+**Next:** Stage 10 — Transolver / FIGConvNet / X-MGN ensemble + MoE.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

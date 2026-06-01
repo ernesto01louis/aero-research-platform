@@ -1,0 +1,180 @@
+---
+stage: 09
+stage_name: "Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo)"
+status: partial
+date_started: 2026-06-01
+date_completed: 2026-06-01
+session_duration_hours: 6.0
+claude_code_version: "headless session"
+model: claude-opus-4-8
+git_sha_start: "8b2739ffc5489d8f71b92eb41eba8e2b78d87c1d"
+git_sha_end: "fcef13aeb9f28f7038bc6fde77e2b3e78b277e46"
+stage_tag: v0.0.9
+next_stage: 10
+next_stage_name: "Stage 10 — Transolver / FIGConvNet / X-MGN ensemble + MoE"
+---
+
+# Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo) — DONE 2026-06-01
+
+> Status **partial**: the entire host-side implementation is complete and
+> verified (ruff + mypy `--strict` clean, 220 tests passing). The cluster/cloud
+> deliverables — building/signing `physicsnemo.sif`, GHCR mirror, staging
+> DrivAerML, the multi-day RunPod training, the `validated` cert, and the NAS
+> migration — are operator-gated (Phase 2–4) and deferred, exactly the Stage
+> 07/08 precedent (host-side green, GPU/cluster deferred).
+
+## 1. Deliverables status
+
+| # | Deliverable (from STAGE-09 bundle) | Status | Note |
+|---|---|:-:|---|
+| 1 | PhysicsNeMo SIF pinned + built; SHA in SHA256SUMS | ⚠️ | `.def`/build script + pin authored; build+sign is Phase 2 (NGC 20 GB pull) |
+| 2 | `pip install -e .[surrogate-domino,dev]` works | ✅ | extra is `aero[physicsnemo-cu12]` (CONSTITUTION name; bundle's `surrogate-domino` reconciled) |
+| 3 | DoMINO trains on RunPod with the eight tags | ⚠️ | on-pod entrypoint + CLI + cost-cap path done; the run is Phase 3 (budget-approved) |
+| 4 | Predictor-Corrector applied; speedup logged | ⚠️ | `train_domino` runs baseline + PC + logs speedup; executes on the pod |
+| 5 | Held-out Cd within 5% of CFD | ⚠️ | the gate is implemented (`promote_to_validated`); the number lands Phase 3 |
+| 6 | `CertificateOfValidity` generated + committed | ⚠️ | built + logged as MLflow artifact by the on-pod script |
+| 7 | `aero vv surrogate domino --baseline` passing report | ✅ | `aero/vv/surrogate/` + CLI; the live report is written on the pod |
+| 8 | `surrogate-inference-smoke` weekly CI active | ✅ | added to `vv-scale-resolving.yml` (GPU-gated, non-required) |
+| 9 | ADR committed | ✅ | ADR-010 (DoMINO), +ADR-011 (storage), +ADR-012 (signing) |
+| 10 | Post-stage handoff | ✅ | this file |
+| 11 | Tag `v0.0.9` | ❌ | after Phase 3 (real training evidence); status is `partial` |
+
+Plus the operator-requested "make it clean" work (Part 3): doc-drift fixes,
+xfail milestone tags, DrivAerNet++ `body_length` resolution, signing fix, and the
+pluggable cloud-now/NAS-later storage backend + the NAS migration runbook.
+
+## 2. Decisions made
+
+- **NGC container, not build-from-CUDA** — `physicsnemo.sif` wraps
+  `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08` (NVIDIA's recommended path,
+  carries the PC recipe). Rejected: pip-install PhysicsNeMo onto a CUDA base
+  (more brittle, no upstream-blessed image). ADR-010.
+- **Swappable `DominoEngine`** — the PhysicsNeMo/torch GPU work is behind an
+  injectable engine so the cert/taint/guard seams are host-testable with a fake.
+  Rejected: lazy-import torch directly in the surrogate (un-testable host-side).
+- **Surrogate validation de-conflated from solver V&V** — DoMINO's `validated`
+  cert gates on held-out DrivAerML (Invariant 9), NOT the red NASA-TMR dashboard
+  (Invariant 5). The `production` tier stays gated on the green dashboard.
+  ADR-010. This is the model the bundle already assumes.
+- **`physicsnemo-cu12` extra name** — kept the CONSTITUTION/00-CONTEXT name over
+  the bundle's `surrogate-domino` (the bundle is the outlier). Flag if you want
+  the rename.
+- **Pluggable DVC storage = named remotes + Hydra pointer** — no new Python; flip
+  cloud→NAS by config + Vault creds only. ADR-011.
+- **Non-interactive signing via Vault-fed passphrase** — `scripts/_apptainer_sign.sh`
+  pipes the passphrase to `apptainer sign`. Rejected: passphrase-less key
+  (weakens at-rest). ADR-012.
+- **DrivAerNet++ `body_length` option 3** — rename to `body_length_param`
+  (sign-neutral), the only data-independent fix. ADR-012.
+
+## 3. Deviations from the stage plan
+
+- The bundle said "ADR-009" — already taken (Stage 08 CC-BY-NC). Used **ADR-010**.
+- Extra named `physicsnemo-cu12`, not the bundle's `surrogate-domino`.
+- Config path is `conf/surrogate/domino.yaml` (repo uses `conf/`, not `configs/`).
+- The actual GPU training + cert number + NAS migration are deferred (partial) —
+  they need operator-approved budget + the new NAS hardware.
+- Scope was *widened* per the operator: Part 3 cleanup + the storage backend +
+  the NAS runbook are not in the bundle but were explicitly requested.
+
+## 4. Environment / dependency / schema changes
+
+- `pyproject.toml`: `aero[physicsnemo-cu12]` populated (`nvidia-physicsnemo[cu12]
+  ==1.1.0` proposed pin, `torch-geometric>=2.6`, `warp-lang>=1.4`); new mypy
+  override `aero.surrogates.domino.*` (disallow_subclassing_any=false).
+- Hydra: new `conf/storage/{cloud,nas,minio}.yaml` group + `- storage: cloud`
+  default in `conf/config.yaml` — **shifts every `aero run` config_hash** (storage
+  is now part of the hashed run context; intentional).
+- `.dvc/config`: `aero-cloud` + `aero-nas` remotes added (default stays `aero-minio`).
+- Schema: `DrivAerNetPlusPlusCase.body_length_m` (`gt=0.0`) → `body_length_param`.
+- `containers/SHA256SUMS` reserves the `physicsnemo.sif` slot (digest appended in Phase 2).
+
+## 5. CI/CD changes
+
+- `vv-scale-resolving.yml`: new weekly `surrogate-inference-smoke` job (Mon cron),
+  GPU-gated, non-required.
+- No new required status checks. `non-commercial-fence` promotion to required is
+  still an operator branch-protection step (Open items).
+
+## 6. Gotchas discovered
+
+- **NGC pull is ~20 GB** and per-host (aero-build AND the RunPod pod separately).
+  Needs `apptainer remote login docker://nvcr.io` (NGC API key) + the buildah/
+  apptainer scratch on `/mnt/pve/Storage` (the aero-buildah-storage role).
+- **`--shm-size=1g` is mandatory** for PhysicsNeMo data loaders (DataLoader
+  bus-error otherwise). Docker/RunPod needs the flag; apptainer shares host
+  `/dev/shm`. See `containers/physicsnemo-run.sh`.
+- **A full DrivAerML DoMINO train exceeds the $50/mo cap** — operator-approved
+  per-run budget required (Invariant 8); the DrivAerML subset bounds it.
+- **The PhysicsNeMo engine GPU methods are stubbed** (raise
+  `DominoEngineUnavailable`) pending the first pod run — the DGL→PyG migration
+  + the exact 25.08 DoMINO symbols are validated + patched there.
+- **The `nvidia-physicsnemo` pip pin (1.1.0) is a proposal** — confirm against the
+  25.08 container at first build (Hard Rule 8).
+
+## 7. Open items for the next stage (and beyond)
+
+**Operator decisions (propose-first gates) before the cluster/cloud phases:**
+- Confirm the PhysicsNeMo container tag (25.08) + the `nvidia-physicsnemo` pip pin.
+- Cloud S3 vendor for the `aero-cloud` remote (B2 / R2 / S3 / RunPod-volume MinIO).
+- DrivAerML subset (which variants, train/val/test fraction + seed).
+- Training budget (a per-run cap raise; multi-day H100 ≈ $67–191).
+- Cert expiry (keep the 180-day default?).
+- Whether to fold the TMR V&V hardening (NACA blunt-TE) in now or as its own pass.
+
+**Phase 2 (build host):** apply `aero-buildah-storage`; `apptainer remote login
+docker://nvcr.io`; `scripts/build_physicsnemo_sif.sh` → append the SHA; GHCR mirror;
+**re-sign nekrs/jax-fluids/surrogate-smoke** via `_apptainer_sign.sh`; migrate the
+signing key into Vault; `uv pip install -e .[provenance]` (dvc-s3) on the venvs.
+
+**Phase 3 (cloud):** stage the DrivAerML subset to `aero-cloud`; `aero surrogate
+train --baseline domino --executor runpod --projected-hours <approved>`; confirm
+the `validated` cert + the `surrogate_vv` report; then **tag v0.0.9**.
+
+**Phase 4 (NAS hardware):** execute `docs/runbooks/stage-09-nas-parallel-cutover.md`;
+flip `conf/config.yaml` default `storage: cloud → nas`.
+
+**Stage 10:** Transolver/FIGConvNet/X-MGN reuse `aero/vv/surrogate/` + the loader
++ the `SurrogateProvenanceTags` helper — promote any shared DoMINO data-loading to
+`aero/surrogates/_common/` then.
+
+**Stage 14:** the agent's DoMINO MCP tool must call
+`surrogate.certificate().assert_current(...)` before `predict()` (Invariant 9).
+
+## 8. Pointers for the next session
+
+- **Read first:** this handoff; `STAGE-09-domino-baseline-surrogate.md` (bundle);
+  ADR-010/011/012; `docs/runbooks/stage-09-nas-parallel-cutover.md`; the CLAUDE.md
+  Stage-09 entry.
+- **Do not re-read:** the Stage-08 surrogate plumbing (covered in CLAUDE.md).
+- **Run first to verify the world (host-side):**
+  `.venv/bin/python -m pytest tests/stage_09 tests/unit -q` ;
+  `.venv/bin/mypy aero` ; `.venv/bin/ruff check aero scripts tests`. All green
+  at git_sha_end.
+
+## 9. Artifacts produced
+
+- `aero/surrogates/domino/{__init__,model,training,certificate}.py` — DoMINO surrogate.
+- `aero/vv/surrogate/compare_surrogate_cfd.py` — surrogate-vs-CFD cross-check.
+- `aero/cli.py` — `aero surrogate train --baseline domino`, `aero vv surrogate`.
+- `scripts/stage09_domino_train.py` — on-pod entrypoint.
+- `containers/physicsnemo.{def,run.sh}` + `scripts/build_physicsnemo_sif.sh` +
+  `scripts/_apptainer_sign.sh`.
+- `conf/surrogate/domino.yaml` + `conf/storage/*` + `.dvc/config` remotes.
+- `docs/adrs/ADR-01{0,1,2}-*.md` + `docs/runbooks/stage-09-nas-parallel-cutover.md`.
+- `ansible/roles/aero-buildah-storage/` + `aero-apptainer` extension.
+- `tests/stage_09/*` — host-side test suite.
+
+## 10. Confidence / risk note
+
+- **High confidence:** the host-side implementation — ruff + mypy `--strict` (81
+  files) + 220 tests all green. The cert gate, taint propagation, storage switch,
+  and compare logic are directly tested.
+- **Medium confidence:** the PhysicsNeMo engine GPU seams (stubbed; validated on
+  the first pod run — DGL→PyG drift is the live risk, the bundle warned of it),
+  and the `nvidia-physicsnemo` pip pin.
+- **Low confidence / bus factor:** the exact DrivAerML surface-mesh layout under
+  `cases/` + the DoMINO input packing (operator confirms at first pod run); the
+  cloud S3 vendor + the NAS S3 app's DVC-remote compatibility.
+- **Outstanding risks:** the training cost (cap), the 20 GB NGC pulls, and the NAS
+  cutover's NFS root-squash parity (breaks the signing-key escrow if mismatched).
