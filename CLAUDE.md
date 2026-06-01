@@ -294,6 +294,37 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `nutLowReWallFunction`) — the Stage-03 O-grid is retired. `vv-required` is a
   stage-gated required CI check. See ADR-005.
 
+- **DoMINO production surrogate** (Stage 09, ADR-010/011/012) —
+  `aero/surrogates/domino/` is the platform's first production surrogate.
+  `DominoSurrogate(Surrogate)` (`model.py`) wraps NVIDIA PhysicsNeMo's DoMINO;
+  the SIF wraps the NGC container `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08`
+  (pinned in `containers/physicsnemo.def`; extra `aero[physicsnemo-cu12]` = PyG +
+  warp-lang). The GPU work is behind a **swappable `DominoEngine`** (default
+  `PhysicsNeMoDominoEngine`, lazy-imported, cluster-gated); host-side tests inject
+  a fake engine. `fit` consumes the loader's `Sample` stream for the
+  split/ids/targets/taint; the surface meshes are read by `case_id` from the
+  DVC-pulled `cases_root` (`predict(features)` takes the flattened DoMINO surface
+  input). `train_domino` (`training.py`) runs the no-PC baseline then the
+  **Predictor-Corrector** recipe and logs the observed speedup. The
+  **smoke→validated** cert upgrade is gated SOLELY on held-out **Cd MAE p95 < 5%**
+  (`promote_to_validated`); `_build_certificate` always returns `"smoke"`.
+  **Surrogate validation (Invariant 9, held-out DrivAerML) is de-conflated from
+  solver V&V (Invariant 5, NASA-TMR dashboard)** — a DoMINO `"validated"` cert
+  does NOT need a green TMR dashboard; only the `"production"` tier does (ADR-010).
+  Falsifiable evidence = the `surrogate_vv` artifact
+  (`aero/vv/surrogate/compare_surrogate_cfd.py`; CLI `aero vv surrogate`).
+  Training runs on the pod via `scripts/stage09_domino_train.py`, submitted by
+  `aero surrogate train --baseline domino --executor runpod` (cost-cap gated —
+  a full DrivAerML train exceeds the $50/mo cap; operator-approved per-run).
+  **Pluggable DVC-remote storage** (ADR-011): `conf/storage/{cloud,nas,minio}` +
+  the `aero-cloud`/`aero-nas` remotes in `.dvc/config` flip cloud-now →
+  on-prem-NAS-later by config only; the NAS migration runbook is
+  `docs/runbooks/stage-09-nas-parallel-cutover.md` (preserves 192.168.2.100).
+  **Non-interactive SIF signing** (ADR-012): `scripts/_apptainer_sign.sh` feeds a
+  Vault-rendered passphrase, fixing the over-SSH signing failure (nekrs/jax-fluids/
+  surrogate-smoke re-signed); the signing key migrates into Vault, the escrow
+  rides the NAS ZFS send.
+
 ## Pointers (do not re-derive — read these)
 
 - `CONSTITUTION.md` — invariants in spec-kit form

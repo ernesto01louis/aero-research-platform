@@ -13,3 +13,14 @@ apptainer_subid_count: 65536
 apptainer_fakeroot_users:
   - {user: root, subid_start: 100000}
   - {user: "{{ aero_admin_user }}", subid_start: 165536}
+
+# Stage 09 (ADR-012) — Apptainer signing-key passphrase. The non-interactive
+# signer scripts/_apptainer_sign.sh reads the passphrase from
+# `aero_apptainer_signing_env` (Vault-rendered). The key + passphrase migrate
+# into Vault at `aero_apptainer_signing_vault_path`; the encrypted keyring escrow
+# stays on the NAS (/mnt/aero/.keyring-escrow/) and rides the NAS migration. The
+# full Vault-Agent render reuses the aero-mlflow pattern — enable per host once
+# the AppRole + secret are seeded.
+aero_apptainer_signing_env: /etc/aero/apptainer-signing.env
+aero_apptainer_signing_vault_path: secret/aero/apptainer-signing
+aero_apptainer_signing_vault_enabled: false

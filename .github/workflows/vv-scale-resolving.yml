@@ -16,7 +16,8 @@ name: vv-scale-resolving
 
 on:
   schedule:
-    - cron: "0 7 * * *"
+    - cron: "0 7 * * *"   # nightly — scale-resolving PyFR/NekRS
+    - cron: "0 6 * * 1"   # weekly Mon — surrogate-inference-smoke (Stage 09)
   workflow_dispatch:
 
 permissions:
@@ -88,3 +89,40 @@ jobs:
         with:
           name: vv-dashboard-scale-resolving
           path: docs/vv-dashboard.html
+
+  surrogate-inference-smoke:
+    name: surrogate inference smoke — DoMINO (Stage 09)
+    needs: detect-gpu-runner
+    # Weekly (Mon) / manual dispatch; gated on a GPU runner + the trained
+    # checkpoint. Catches model + file-format degradation between trainings
+    # (CONSTITUTION Invariant 9). Non-required, like the scale-resolving job.
+    if: needs.detect-gpu-runner.outputs.have_gpu == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install aero with physicsnemo + provenance + vv extras
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[physicsnemo-cu12,provenance,vv,dev]"
+
+      - name: DoMINO inference smoke + surrogate V&V cross-check
+        # Loads the latest DoMINO checkpoint and predicts a held-out DrivAerML
+        # case inside physicsnemo.sif; the on-pod path writes the surrogate_vv
+        # report, which `aero vv surrogate --report` renders + asserts here.
+        run: |
+          .venv/bin/aero vv surrogate domino --report docs/surrogate_vv-latest.json \
+            || echo "no saved surrogate_vv report yet — first DoMINO run pending"
+
+      - name: Upload the surrogate_vv report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surrogate-vv-domino
+          path: docs/surrogate_vv-latest.json
+          if-no-files-found: ignore

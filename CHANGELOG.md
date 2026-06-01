@@ -9,6 +9,58 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.9] - 2026-06-01
+
+### Added — Stage 09 (DoMINO Baseline Surrogate; PhysicsNeMo)
+
+- `aero/surrogates/domino/` — the platform's first production surrogate.
+  `DominoSurrogate(Surrogate)` (`model.py`) wraps NVIDIA PhysicsNeMo's DoMINO
+  behind the Stage-08 protocol with a swappable `DominoEngine`
+  (`PhysicsNeMoDominoEngine` lazy-imports PhysicsNeMo; cluster-gated; host-side
+  tests inject a fake engine). `training.py`'s `train_domino` runs the no-PC
+  baseline + the Predictor-Corrector recipe and returns a certified
+  `DominoTrainingResult`; `certificate.py` owns the smoke→validated gate
+  (held-out Cd MAE p95 < 5%, strict `<`) — the only path to `"validated"`.
+- `aero/vv/surrogate/compare_surrogate_cfd.py` — the surrogate-vs-CFD cross-check
+  producing a `SurrogateVVReport` (per-target RMSE, Cd-within-5% verdict,
+  applicability-envelope check). New CLI `aero vv surrogate`.
+- `aero/cli.py` — `aero surrogate train --baseline domino --executor
+  {runpod,local-ssh}` routes to the on-pod entrypoint
+  `scripts/stage09_domino_train.py` (dvc pull → baseline + PC → cert → eight
+  MLflow tags → checkpoint → surrogate_vv); cost-cap gated (Invariant 8).
+- `containers/physicsnemo.{def,run.sh}` + `scripts/build_physicsnemo_sif.sh` —
+  the PhysicsNeMo SIF wraps the NGC container
+  `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08` (pinned); the
+  `aero[physicsnemo-cu12]` extra is populated (PyG + warp-lang).
+- `scripts/_apptainer_sign.sh` — non-interactive Vault-fed SIF signer (ADR-012),
+  fixing the over-SSH signing failure; the Stage-07/08 build scripts route through it.
+- Pluggable DVC-remote storage backend (ADR-011): `conf/storage/{cloud,nas,minio}.yaml`
+  + `aero-cloud`/`aero-nas` remotes in `.dvc/config` + the `- storage: cloud`
+  default in `conf/config.yaml` — cloud-now → on-prem-NAS-later by config only.
+- `docs/runbooks/stage-09-nas-parallel-cutover.md` — the TrueNAS-VM → dedicated-NAS
+  parallel-cutover→re-IP runbook (preserves 192.168.2.100; ZFS-replicates the
+  signing-key escrow).
+- `ansible/roles/aero-buildah-storage/` + the `aero-apptainer` signing extension.
+- `tests/stage_09/` — host-side tests: DoMINO seams, cert gate (both ways),
+  taint propagation, PC speedup, surrogate-vs-CFD compare, storage switch.
+- ADR-010 (DoMINO baseline surrogate), ADR-011 (pluggable storage backend),
+  ADR-012 (non-interactive signing + Stage-09 cleanup).
+
+### Changed
+
+- `aero/surrogates/_common/loaders/non_commercial/drivaernet_plus_plus.py` —
+  `body_length_m` (`gt=0.0`) → `body_length_param` (sign-neutral; ADR-012
+  option 3), unblocking the lite-mode schema. `dvc.yaml` drops the
+  not-yet-buildable DrivAerNet++ `manifest.json` out.
+- `containers/SHA256SUMS` + `SECURITY.md` — corrected the "all SIFs are signed" /
+  "Vault not yet stood up" doc drift.
+- The 7 xfail V&V tests now carry `[resolution-milestone: ...]` tags.
+
+### CI
+
+- `vv-scale-resolving.yml` — new weekly `surrogate-inference-smoke` job (DoMINO
+  checkpoint degradation check; GPU-gated, non-required).
+
 ## [0.0.8] - 2026-05-30
 
 ### Added — Stage 08 (JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing)
