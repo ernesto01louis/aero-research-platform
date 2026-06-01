@@ -1,0 +1,12 @@
+# Stage 09 (ADR-011) — on-prem NAS DVC remote profile.
+#
+# The future TrueNAS-SCALE native S3 app on the dedicated NAS at 192.168.2.100
+# (the parallel-cutover->re-IP migration preserves that IP — see
+# docs/runbooks/stage-09-nas-parallel-cutover.md). Running MinIO/S3 natively on
+# ZFS sidesteps the NFS-atomicity/root-squash reason ADR-004 kept MinIO off NFS.
+# Switch the default to this (conf/config.yaml `- storage: nas`) once the NAS is
+# live; flipping cloud->NAS is config + Vault creds only, zero code change.
+
+dvc_remote: aero-nas
+s3_endpoint: http://192.168.2.100:9000
+bucket: aero-dvc

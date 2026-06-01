@@ -1,0 +1,55 @@
+# Stage 09 — DoMINO production surrogate Hydra config.
+#
+# Picked up by `aero surrogate train --baseline domino` and the on-pod entrypoint
+# scripts/stage09_domino_train.py. The resolved dict is canonical-JSON-hashed
+# into the surrogate provenance `hparam_hash` (mirrors four_fold.config_hash).
+# DoMINO trains on DrivAerML (CC-BY-SA — no taint). See ADR-010.
+
+surrogate:
+  name: domino
+  architecture: domino
+  # Attempt the gated smoke->validated upgrade after training. The gate
+  # (held-out Cd MAE p95 < 5%) is the only path to "validated"; if it fails the
+  # cert stays "smoke" (no tolerance is relaxed). ADR-010.
+  attempt_validation: true
+
+dataset:
+  id: drivaerml
+  dvc_path: data/datasets/drivaerml
+  # The DVC-pulled surface meshes DoMINO consumes (located by case_id).
+  cases_root: data/datasets/drivaerml/cases
+
+train:
+  cases_root: data/datasets/drivaerml/cases
+  seed: 0
+  val_fraction: 0.2
+  # Baseline (no-PC) phase.
+  epochs: 200
+  lr: 0.0005
+  batch_size: 1
+  # Predictor-Corrector fine-tuning phase (PhysicsNeMo 25.08; the ~10x recipe).
+  predictor_corrector: true
+  pc_epochs: 40
+  pc_lr: 0.0001
+
+# Applicability envelope baked into the cert (DrivAerML training distribution;
+# approximate — refine from the actual subset). U~30 m/s, L~4.6 m => Re~9e6.
+envelope:
+  re_range: [8000000.0, 11000000.0]
+  mach_range: [0.0, 0.12]
+  aoa_range_deg: [0.0, 0.0]            # automotive: zero-yaw/pitch baseline
+  geometry_class: drivaer-notchback
+
+# Pluggable storage backend (ADR-011): cloud-now / NAS-later, config-switchable.
+# The on-pod script `dvc pull -r <dvc_remote>`s the dataset from here. Flip to
+# `aero-nas` once the dedicated NAS migration completes. Endpoint + creds live
+# in .dvc/config.local (gitignored) / Vault — never here.
+storage:
+  dvc_remote: aero-cloud
+
+runpod:
+  pod_type: "NVIDIA H100 PCIe"
+  # Multi-day training: set to the operator-APPROVED per-run estimate. The
+  # cost-cap gate (Invariant 8) sums MTD + projected and fails loud if over.
+  projected_hours: 48.0
+  container_image: ghcr.io/ernesto01louis/aero-physicsnemo:25.08

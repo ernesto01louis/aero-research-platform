@@ -1,0 +1,12 @@
+# Stage 09 (ADR-011) — cloud-now DVC remote profile.
+#
+# Holds the ~600 GB DrivAerML subset for RunPod training while the dedicated NAS
+# is procured. The vendor (Backblaze B2 / Cloudflare R2 / AWS S3 / a RunPod
+# network-volume MinIO) is an open operator decision; the endpoint + secret keys
+# live in the gitignored .dvc/config.local + the boto3 env-var chain (Vault) —
+# never in the repo. Flip the default to `nas` (conf/config.yaml) after the
+# NAS migration; the on-pod training script reads `cfg.storage.dvc_remote`.
+
+dvc_remote: aero-cloud
+s3_endpoint: ""        # operator decision — see ADR-011 + .dvc/config.local
+bucket: aero-dvc-cloud

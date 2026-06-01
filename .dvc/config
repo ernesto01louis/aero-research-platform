@@ -4,3 +4,13 @@
 ['remote "aero-minio"']
     url = s3://aero-dvc
     endpointurl = http://192.168.2.234:9000
+# Stage 09 (ADR-011) — pluggable cloud-now / NAS-later remotes. The default
+# stays aero-minio (small artifacts on LXC 212); large-dataset push/pull selects
+# `-r aero-cloud` (now) or `-r aero-nas` (post-migration). Secret keys live in
+# the gitignored .dvc/config.local + the boto3 env-var chain — never committed.
+['remote "aero-cloud"']
+    url = s3://aero-dvc-cloud
+    endpointurl = https://REPLACE-with-cloud-s3-endpoint
+['remote "aero-nas"']
+    url = s3://aero-dvc
+    endpointurl = http://192.168.2.100:9000

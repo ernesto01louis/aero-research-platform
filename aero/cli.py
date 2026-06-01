@@ -150,6 +150,79 @@ def _build_executor(
     raise typer.BadParameter(f"unknown executor {name!r} — choose 'local-ssh' or 'runpod'")
 
 
+def _train_domino_cli(
+    *,
+    executor: str,
+    host: str,
+    config_path: str | None,
+    pod_type: str,
+    container_image: str | None,
+    projected_hours: float,
+    allow_dirty: bool,
+) -> None:
+    """Submit the Stage-09 DoMINO training run via the chosen executor.
+
+    DoMINO is geometry-aware and GPU-resident, so it does NOT train in-process
+    like the smoke baselines. The training runs inside ``physicsnemo.sif`` on the
+    executor target — a RunPod H100 pod (the production path) or an aero LXC (a
+    local-GPU dry-run) — driven by the on-pod entrypoint
+    ``scripts/stage09_domino_train.py`` (dvc pull -> baseline + Predictor-Corrector
+    -> cert -> eight MLflow tags -> surrogate_vv). The cost-cap gate (CONSTITUTION
+    Invariant 8) fires inside ``RunPodExecutor.run`` before any spend.
+    """
+    import time as _time
+
+    repo_root = _repo_root()
+    cfg_rel = config_path or "conf/surrogate/domino.yaml"
+    if not (repo_root / cfg_rel).is_file():
+        typer.echo(f"DoMINO config not found: {cfg_rel}", err=True)
+        raise typer.Exit(code=2)
+
+    flags = " --allow-dirty" if allow_dirty else ""
+    entry = f"python scripts/stage09_domino_train.py --config {cfg_rel}{flags}"
+
+    if executor == "runpod":
+        image = container_image or "ghcr.io/ernesto01louis/aero-physicsnemo:25.08"
+        ex = _build_executor(
+            "runpod",
+            host=host,
+            repo_root=repo_root,
+            pod_type=pod_type,
+            container_image=image,
+            projected_hours=projected_hours,
+        )
+        # On RunPod the pod IS the physicsnemo container — the script runs in it.
+        command = entry
+        typer.echo(
+            f"submitting DoMINO training to RunPod ({pod_type}, image {image}); "
+            f"cost-cap gate fires before launch (projected {projected_hours}h — set "
+            "--projected-hours to the operator-approved estimate)."
+        )
+    else:
+        ex = _build_executor(
+            "local-ssh",
+            host=host,
+            repo_root=repo_root,
+            pod_type=pod_type,
+            container_image=container_image,
+            projected_hours=projected_hours,
+        )
+        # On an aero LXC the script runs inside the SIF. --shm-size=1g is set by
+        # run.sh on the RunPod path; apptainer shares the host /dev/shm here.
+        command = f"apptainer exec --nv /opt/aero/containers/physicsnemo.sif {entry}"
+        typer.echo(f"running DoMINO training on {host} via physicsnemo.sif")
+
+    result = ex.run(command, long_running=True, session=f"domino-train-{int(_time.time())}")
+    if not result.ok:
+        typer.echo(f"DoMINO training failed (rc={result.returncode}) on {result.host}", err=True)
+        if result.stderr:
+            typer.echo(result.stderr[-2000:], err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"DoMINO training done on {result.host} ({result.duration_s:.0f}s)")
+    if result.stdout:
+        typer.echo(result.stdout[-2000:])
+
+
 @app.callback()
 def _cli() -> None:
     """aero-research-platform command-line interface.
@@ -655,6 +728,68 @@ def vv_report(
         typer.echo(f"  [{mark}] {r['case']:<24} {r['status']:<8} {r['run_id']}")
 
 
+@vv_app.command("surrogate")
+def vv_surrogate(
+    name: str = typer.Argument(
+        "domino", help="Surrogate to cross-check (Stage 09 ships 'domino')."
+    ),
+    baseline: bool = typer.Option(
+        False, "--baseline", help="Cross-check the baseline (no-PC) checkpoint."
+    ),
+    report_path: str = typer.Option(
+        "", "--report", help="Render a saved surrogate_vv JSON report (host-runnable)."
+    ),
+) -> None:
+    """Surrogate-vs-CFD cross-check report (Stage 09, aero/vv/surrogate).
+
+    The LIVE comparison (predict held-out DrivAerML, compare to CFD) needs the
+    trained checkpoint + the PhysicsNeMo engine, so it runs inside physicsnemo.sif
+    on the RunPod pod / aero-vv — the on-pod entrypoint
+    (scripts/stage09_domino_train.py) writes the ``surrogate_vv`` report there.
+    Host-side, ``--report <surrogate_vv.json>`` renders that saved report — the
+    falsifiable evidence behind DoMINO's cert (CONSTITUTION Invariant 9; ADR-010
+    de-conflates this from the solver-V&V dashboard).
+    """
+    import json as _json
+
+    if name != "domino":
+        typer.echo(f"unknown surrogate {name!r} — Stage 09 ships 'domino'", err=True)
+        raise typer.Exit(code=2)
+
+    if report_path:
+        p = Path(report_path)
+        if not p.is_file():
+            typer.echo(f"report not found: {report_path}", err=True)
+            raise typer.Exit(code=2)
+        data = _json.loads(p.read_text(encoding="utf-8"))
+        passed = bool(data.get("passed"))
+        typer.echo(
+            f"\n  surrogate V&V — {data.get('surrogate_name')} "
+            f"({data.get('model_architecture')})  ·  cert {data.get('cert_status')}"
+        )
+        typer.echo(
+            f"  Cd within {float(data.get('cd_tolerance', 0.05)):.0%}: "
+            f"{data.get('cd_within_tolerance')}  ·  envelope: {data.get('envelope_respected')}"
+        )
+        rel = data.get("rel_rmse", {})
+        if isinstance(rel, dict):
+            for k in data.get("target_names", []):
+                typer.echo(f"    {k!s:<6} rel-RMSE {float(rel.get(k, 0.0)):.4%}")
+        typer.echo(f"  verdict: {'PASS' if passed else 'FAIL'}  ({data.get('n_cases')} cases)")
+        if not passed:
+            raise typer.Exit(code=1)
+        return
+
+    typer.echo(
+        f"live cross-check of '{name}' (baseline={baseline}) runs inside physicsnemo.sif "
+        "on the training target (needs the trained checkpoint + aero[physicsnemo-cu12]); "
+        "the on-pod entrypoint writes the surrogate_vv report. Re-run with "
+        "`--report <surrogate_vv.json>` to render it host-side.",
+        err=True,
+    )
+    raise typer.Exit(code=3)
+
+
 # =============================================================================
 # `aero cost` — cost-cap ledger inspection (Stage 07)
 # =============================================================================
@@ -759,7 +894,12 @@ def surrogate_train(
     executor: str = typer.Option(
         "local-ssh",
         "--executor",
-        help="'local-ssh' (in-process on aero-dev) or 'runpod' (Stage 09 follow-up).",
+        help="'local-ssh' (in-process / on an aero LXC) or 'runpod' (DoMINO production path).",
+    ),
+    host: str = typer.Option(
+        "aero-dev",
+        "--host",
+        help="LXC the training runs on (local-ssh / DoMINO local-GPU dry-run).",
     ),
     pod_type: str = typer.Option(
         "NVIDIA H100 PCIe",
@@ -809,20 +949,38 @@ def surrogate_train(
     import json
     from datetime import UTC, datetime
 
-    if baseline not in {"mlp_baseline", "fno_smoke", "mgn_smoke"}:
+    if baseline not in {"mlp_baseline", "fno_smoke", "mgn_smoke", "domino"}:
         typer.echo(
-            f"unknown baseline {baseline!r} — choose 'mlp_baseline', 'fno_smoke', or 'mgn_smoke'",
+            f"unknown baseline {baseline!r} — choose 'mlp_baseline', 'fno_smoke', "
+            "'mgn_smoke', or 'domino'",
             err=True,
         )
         raise typer.Exit(code=2)
     if executor not in {"local-ssh", "runpod"}:
         typer.echo(f"unknown executor {executor!r}", err=True)
         raise typer.Exit(code=2)
+
+    # Stage 09 — DoMINO is the production surrogate. It does NOT train in-process;
+    # the run is submitted to physicsnemo.sif on the executor target. Route early.
+    if baseline == "domino":
+        _train_domino_cli(
+            executor=executor,
+            host=host,
+            config_path=config_path,
+            pod_type=pod_type,
+            container_image=container_image,
+            projected_hours=projected_hours,
+            allow_dirty=allow_dirty,
+        )
+        return
+
+    # The three smoke baselines train in-process via local-ssh; their runpod
+    # path is intentionally not wired (DoMINO is the production GPU path).
     if executor == "runpod":
         typer.echo(
-            "the runpod surrogate-training executor is a Stage 09 follow-up "
-            "(needs an on-pod training script + GHCR mirror of surrogate-smoke.sif); "
-            "use --executor local-ssh for the Stage-08 smoke validation.",
+            "the runpod executor is wired for --baseline domino (the Stage-09 "
+            "production path); the smoke baselines (mlp/fno/mgn) train in-process "
+            "via --executor local-ssh.",
             err=True,
         )
         raise typer.Exit(code=2)
