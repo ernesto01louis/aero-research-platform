@@ -66,7 +66,14 @@ class DrivAerNetPlusPlusCase(BaseModel):
     case_id: str = Field(..., min_length=1)
     body_type: str = Field(..., min_length=1)
     frontal_area_m2: float = Field(..., gt=0.0)
-    body_length_m: float = Field(..., gt=0.0)
+    # Stage 09 (ADR-012, option 3): the lite-mode `A_Car_Length` column is a
+    # SIGNED delta from an undocumented DrivAer baseline (values include
+    # negatives, e.g. -37.6), so this is a sign-neutral design parameter — not
+    # an absolute length. Renamed from `body_length_m`; the `gt=0.0` constraint
+    # is dropped so the lite manifest validates without recovering the baseline.
+    body_length_param: float = Field(
+        ..., description="Signed body-length design delta from the DrivAer baseline (lite mode)."
+    )
     cd: float = Field(..., ge=0.0)
 
 
@@ -124,7 +131,7 @@ class DrivAerNetPlusPlusDataset:
                 f"unknown DrivAerNet++ body_type '{c.body_type}' in case {c.case_id}"
             ) from exc
         return TaintedSample(
-            features=(body_code, c.frontal_area_m2, c.body_length_m),
+            features=(body_code, c.frontal_area_m2, c.body_length_param),
             targets=(c.cd,),
             case_id=c.case_id,
             dataset_id=DATASET_ID,

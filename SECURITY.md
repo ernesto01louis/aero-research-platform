@@ -18,7 +18,7 @@ and pre-existing release schedule.
    container layer history.** Anything that ends up in `git log`, MLflow's
    tag store, Apptainer SIF metadata, or a CI log is permanent.
 3. **Vault for everything that isn't local-dev.** A HashiCorp Vault instance
-   (deferred — provisioned in Stage 04+, not yet stood up) will hold
+   (stood up in Stage 04 on `aero-vault`, LXC 217) holds
    cloud-GPU API keys (RunPod, Lambda Labs, Vast.ai), database credentials
    (Postgres LXC 202, MinIO service accounts, MLflow tracking), MCP-server
    tokens (GitHub PAT, future Postgres), the agentic-layer LLM API key, the
@@ -34,7 +34,9 @@ and pre-existing release schedule.
    (mode 0600) on `aero-build`. An encrypted-at-rest copy of the keyring is
    escrowed to the TrueNAS `aero/` NFS dataset (`/mnt/aero/.keyring-escrow/`).
    The public fingerprint is committed at `containers/SIGNING_KEY_FINGERPRINT.txt`.
-   This interim arrangement is superseded by Vault when it lands (Stage 04+).
+   Stage 09 migrates the signing key + passphrase into Vault and renders the
+   passphrase non-interactively for `apptainer sign` (ADR-012); the
+   `/mnt/aero/.keyring-escrow/` copy rides the NAS migration via ZFS replication.
 
 ## Threat model
 

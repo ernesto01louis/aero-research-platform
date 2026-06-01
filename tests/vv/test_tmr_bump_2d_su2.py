@@ -18,7 +18,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_06]
 
 _XFAIL_REASON = (
     "SU2 v8 TMR 2D bump not yet cluster-validated; Stage-06 deliverable is "
-    "the cross-solver comparison, see ADR-006."
+    "the cross-solver comparison, see ADR-006. "
+    "[resolution-milestone: cluster-validation]"
 )
 
 

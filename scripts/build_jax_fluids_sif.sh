@@ -51,7 +51,7 @@ buildah push "${IMAGE}" "oci-archive:${OCI_ARCHIVE_HOST}"
 AERO_BUILD_REPO="${AERO_BUILD_REPO:-/opt/aero/repo}"
 echo ">> apptainer build on aero-build (repo=${AERO_BUILD_REPO})"
 ssh root@aero-build "cd ${AERO_BUILD_REPO} && git fetch origin && git checkout -f \$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@') 2>/dev/null || true; apptainer build --force ${SIF_PUBLISH_PATH} ${AERO_BUILD_REPO}/containers/jax-fluids.def"
-ssh root@aero-build "apptainer sign ${SIF_PUBLISH_PATH}"
+ssh root@aero-build "${AERO_BUILD_REPO}/scripts/_apptainer_sign.sh ${SIF_PUBLISH_PATH}"  # ADR-012 non-interactive signer
 ssh root@aero-build "apptainer verify ${SIF_PUBLISH_PATH}"
 
 echo ">> SHA256 to append to containers/SHA256SUMS:"

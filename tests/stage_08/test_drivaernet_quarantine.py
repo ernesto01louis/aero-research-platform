@@ -35,14 +35,14 @@ _SAMPLE_MANIFEST = [
         "case_id": "npp-001",
         "body_type": "fastback",
         "frontal_area_m2": 2.1,
-        "body_length_m": 4.6,
+        "body_length_param": 4.6,
         "cd": 0.27,
     },
     {
         "case_id": "npp-002",
         "body_type": "notchback",
         "frontal_area_m2": 2.2,
-        "body_length_m": 4.8,
+        "body_length_param": 4.8,
         "cd": 0.30,
     },
 ]
@@ -104,7 +104,7 @@ def test_unknown_body_type_raises_dataset_loader_error(tmp_path: Path) -> None:
                     "case_id": "npp-001",
                     "body_type": "unknown-style",
                     "frontal_area_m2": 2.1,
-                    "body_length_m": 4.6,
+                    "body_length_param": 4.6,
                     "cd": 0.27,
                 }
             ]

@@ -22,7 +22,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_06]
 
 _XFAIL_REASON = (
     "SU2 v8 NACA 0012 not yet cluster-validated against the TMR reference; "
-    "Stage-06 deliverable is the cross-solver comparison, see ADR-006."
+    "Stage-06 deliverable is the cross-solver comparison, see ADR-006. "
+    "[resolution-milestone: cluster-validation]"
 )
 
 

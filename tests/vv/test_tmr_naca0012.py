@@ -29,7 +29,8 @@ _CD_REFERENCE = 0.008120
 _CD_TOLERANCE = 0.03
 _XFAIL_REASON = (
     "NACA 0012 C-grid Cd ~0.0098 vs TMR 0.0081 (+21%); excess is pressure drag "
-    "from trailing-edge mesh resolution — Stage-05 open item, see ADR-005."
+    "from trailing-edge mesh resolution — Stage-05 open item, see ADR-005. "
+    "[resolution-milestone: stage-09 blunt-TE]"
 )
 
 

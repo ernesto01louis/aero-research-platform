@@ -12,8 +12,12 @@
 #   Stage 12 — `dakota.sif`
 #
 # Format: same as `sha256sum` output (`<sha256> <name>`).
-# All SIFs are signed; signing key fingerprint at SIGNING_KEY_FINGERPRINT.txt
-# (created in Stage 02).
+# Signing: SIFs are signed when the non-interactive signing path is available
+# (public fingerprint at SIGNING_KEY_FINGERPRINT.txt, created in Stage 02). The
+# Stage 07/08 SIFs (nekrs, jax-fluids, surrogate-smoke) were built UNSIGNED —
+# `apptainer sign` could not satisfy its TTY passphrase prompt over SSH. Stage 09
+# fixes this with a Vault-fed non-interactive signer and re-signs them (ADR-012).
+# The recorded SHA256 is the bytes-level integrity check regardless of signature.
 #
 # Stage 04+: the `container_sif_sha256` MLflow provenance tag is sourced
 # from this file. Any run logging a SHA not present here fails the

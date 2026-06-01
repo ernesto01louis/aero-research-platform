@@ -43,6 +43,10 @@ stages:
     cmd: scripts/download_drivaernet_plus_plus.sh
     deps:
       - scripts/download_drivaernet_plus_plus.sh
+    # Stage 09: `manifest.json` is NOT yet an out — the lite-mode manifest
+    # builder is still a pending `_LAYOUT` entry (three CSVs, not the geo/fm
+    # join); see data/datasets/drivaernet_plus_plus/reference.md. `cases/` is
+    # the always-produced source-of-truth; the manifest.json out is restored
+    # once the builder join is wired after the operator's first pull.
     outs:
-      - data/datasets/drivaernet_plus_plus/manifest.json
       - data/datasets/drivaernet_plus_plus/cases

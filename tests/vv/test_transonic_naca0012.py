@@ -19,7 +19,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_06]
 
 _XFAIL_REASON = (
     "Transonic NACA 0012 SU2 path not yet cluster-validated; the O-grid mesh "
-    "the adapter generates is not yet the grid-converged Cd grid (ADR-006)."
+    "the adapter generates is not yet the grid-converged Cd grid (ADR-006). "
+    "[resolution-milestone: cluster-validation]"
 )
 
 
