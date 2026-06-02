@@ -61,6 +61,11 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
 - `containers/SHA256SUMS` + `SECURITY.md` — corrected the "all SIFs are signed" /
   "Vault not yet stood up" doc drift.
 - The 7 xfail V&V tests now carry `[resolution-milestone: ...]` tags.
+- Stages 01–09 cleanup pass: the JAX-Fluids `solver_version` provenance string now
+  reflects the pinned commit (`v0.2.1+ac7c090f`, was the broken `v0.2.1` tag);
+  CLAUDE.md footer + the SHA256SUMS physicsnemo placeholder + the handoff-template
+  `model` field clarified; new `docs/operator/deferred-work-ledger.md` consolidates
+  the hardware-gated backlog (the audit found zero design debt).
 
 ### CI
 

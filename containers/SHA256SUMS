@@ -7,7 +7,7 @@
 #   Stage 06 — `su2-v8.sif`
 #   Stage 07 — `pyfr.sif`, `nekrs.sif`
 #   Stage 08 — `jax-fluids.sif`, `surrogate-smoke.sif`
-#   Stage 09 — `physicsnemo.sif`
+#   Stage 09 — `physicsnemo.sif` (digest appended when built — Phase 2)
 #   Stage 11 — `precice-distribution.sif`
 #   Stage 12 — `dakota.sif`
 #

@@ -351,4 +351,4 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 ---
 
-*Stage 01 (2026-05-17). Updated by each stage's post-stage handoff write.*
+*Stage 01 (2026-05-17); updated through Stage 09 (2026-06-01) by each stage's post-stage handoff write.*
