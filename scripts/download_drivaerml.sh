@@ -39,6 +39,7 @@ DVC_REMOTE="${DVC_REMOTE:-aero-nfs}"
 DVC_TRACK="${DVC_TRACK:-1}"
 HF_MAX_WORKERS="${HF_MAX_WORKERS:-8}"
 export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
+export HF_HUB_DOWNLOAD_TIMEOUT="${HF_HUB_DOWNLOAD_TIMEOUT:-60}"   # raise httpx read timeout
 
 mkdir -p "${DATASET_DIR}/cases"
 
@@ -56,7 +57,7 @@ echo ">> target=${DATASET_DIR} runs=${N_RUNS} fileset=${FILESET} free=${FREE_GB:
 DATASET_DIR="${DATASET_DIR}" HF_REPO="${HF_REPO}" N_RUNS="${N_RUNS}" \
 FILESET="${FILESET}" HF_MAX_WORKERS="${HF_MAX_WORKERS}" \
 python3 - <<'PY'
-import os
+import os, time
 from huggingface_hub import snapshot_download
 
 dataset_dir = os.environ["DATASET_DIR"]
@@ -65,12 +66,25 @@ n = int(os.environ["N_RUNS"])
 fileset = os.environ["FILESET"]
 workers = int(os.environ["HF_MAX_WORKERS"])
 
+def dl(local_dir, allow_patterns, attempts=10):
+    # snapshot_download is resumable (completed files are skipped), so on any
+    # transient error (httpx ReadTimeout, LFS hiccup) we just retry the call.
+    last = None
+    for k in range(1, attempts + 1):
+        try:
+            return snapshot_download(
+                repo_id=repo, repo_type="dataset", local_dir=local_dir,
+                allow_patterns=allow_patterns, max_workers=workers,
+            )
+        except Exception as e:  # noqa: BLE001 - resumable; retry on anything transient
+            last = e
+            nap = min(20 * k, 120)
+            print(f"[retry {k}/{attempts}] {type(e).__name__}: {e} -> sleep {nap}s", flush=True)
+            time.sleep(nap)
+    raise last
+
 # 1) root join-CSVs -> dataset root (the manifest builder reads these).
-snapshot_download(
-    repo_id=repo, repo_type="dataset", local_dir=dataset_dir,
-    allow_patterns=["geo_parameters_all.csv", "force_mom_all.csv"],
-    max_workers=workers,
-)
+dl(dataset_dir, ["geo_parameters_all.csv", "force_mom_all.csv"])
 
 # 2) per-run files -> dataset_dir/cases/run_i/...
 per_run = ["drivaer_{i}.stl"]
@@ -79,12 +93,8 @@ if fileset == "surface":
 per_run += ["force_mom_{i}.csv", "force_mom_constref_{i}.csv",
             "geo_parameters_{i}.csv", "geo_ref_{i}.csv"]
 patterns = [f"run_{i}/" + p.format(i=i) for i in range(1, n + 1) for p in per_run]
+dl(os.path.join(dataset_dir, "cases"), patterns)
 
-snapshot_download(
-    repo_id=repo, repo_type="dataset",
-    local_dir=os.path.join(dataset_dir, "cases"),
-    allow_patterns=patterns, max_workers=workers,
-)
 print(f"snapshot_download complete: {n} runs, fileset={fileset}")
 PY
 

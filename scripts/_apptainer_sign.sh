@@ -7,10 +7,11 @@
 # `apptainer sign` via stdin (apptainer reads the passphrase from a non-TTY
 # stdin), so SIF builds over SSH sign cleanly.
 #
-# Passphrase source (first found wins):
-#   1. $APPTAINER_SIGN_PASSPHRASE env  (Vault-agent rendered; preferred)
+# Passphrase source (first found wins). Accepted variable names in each source:
+# APPTAINER_SIGN_PASSPHRASE, AERO_SIGNING_PASSPHRASE, or SIF_PASSPHRASE.
+#   1. environment            (Vault-agent rendered; preferred)
 #   2. /etc/aero/apptainer-signing.env  (Vault-agent rendered, mode 0600)
-#   3. /root/.config/aero/signing.env   (Stage-02 interim location)
+#   3. /root/.config/aero/signing.env   (Stage-02 interim; uses AERO_SIGNING_PASSPHRASE)
 # If none is found, fall back to a normal interactive `apptainer sign` so a
 # human at a TTY can still sign — NEVER silently skip signing.
 #
@@ -26,14 +27,17 @@ SIF="${1:?usage: _apptainer_sign.sh <sif-path> [key-index]}"
 KEYIDX="${2:-0}"
 
 _load_pass() {
-  if [[ -n "${APPTAINER_SIGN_PASSPHRASE:-}" ]]; then
-    printf '%s' "${APPTAINER_SIGN_PASSPHRASE}"
-    return 0
-  fi
+  local v
+  for v in APPTAINER_SIGN_PASSPHRASE AERO_SIGNING_PASSPHRASE SIF_PASSPHRASE; do
+    if [[ -n "${!v:-}" ]]; then
+      printf '%s' "${!v}"
+      return 0
+    fi
+  done
   local f val
   for f in /etc/aero/apptainer-signing.env /root/.config/aero/signing.env; do
     if [[ -r "${f}" ]]; then
-      val="$(grep -E '^(APPTAINER_SIGN_PASSPHRASE|SIF_PASSPHRASE)=' "${f}" | head -n1 | cut -d= -f2-)"
+      val="$(grep -E '^(APPTAINER_SIGN_PASSPHRASE|AERO_SIGNING_PASSPHRASE|SIF_PASSPHRASE)=' "${f}" | head -n1 | cut -d= -f2-)"
       if [[ -n "${val}" ]]; then
         printf '%s' "${val}"
         return 0
