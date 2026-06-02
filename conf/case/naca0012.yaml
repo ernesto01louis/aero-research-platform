@@ -23,3 +23,8 @@ n_front: 48
 n_wake: 72
 first_cell_height: 2.0e-6
 turbulence_intensity: 0.001
+# Sharp TE for the `aero run` path (the verified Stage-05 mesh); the V&V
+# hardening case (aero/vv/tmr/naca0012.py) uses the blunt TE. Flip these to
+# 0.0025 / 8 once the blunt-TE mesh is cluster-validated (ADR-012).
+trailing_edge_thickness: 0.0
+n_te: 0

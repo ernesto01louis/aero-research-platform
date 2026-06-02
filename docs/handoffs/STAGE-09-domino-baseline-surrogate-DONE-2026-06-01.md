@@ -178,3 +178,24 @@ flip `conf/config.yaml` default `storage: cloud → nas`.
   cloud S3 vendor + the NAS S3 app's DVC-remote compatibility.
 - **Outstanding risks:** the training cost (cap), the 20 GB NGC pulls, and the NAS
   cutover's NFS root-squash parity (breaks the signing-key escrow if mismatched).
+
+## 11. Post-handoff addendum — operator decisions (2026-06-01)
+
+After the handoff the operator resolved the propose-first decisions:
+
+- **Push + draft PR** of the `stage-09/domino-baseline-surrogate` branch.
+- **`aero-cloud` = a RunPod network volume** (no egress; co-located with the H100
+  pods) — `conf/storage/cloud.yaml` + `.dvc/config` now use a LOCAL DVC remote on
+  the volume mount, not S3.
+- **Training budget: decide later** — Phase 3 training is held; everything else is
+  prepped.
+- **NACA 0012 blunt-TE folded in now** — `aero/adapters/openfoam/{schemas,geometry,
+  case_writer}.py` + `aero/vv/tmr/naca0012.py` add the open-TE geometry + the
+  blunt-TE C-grid (split TE vertex, base wall, collapsed base-wake wedge). Host-
+  tested for structure (`tests/stage_09/test_naca0012_blunt_te_blockmesh.py`: sharp
+  unchanged 8-block/32-vert; blunt 9-block/34-vert). The `aero run` path stays
+  sharp; the V&V case is blunt. **The xfail on `tests/vv/test_tmr_naca0012.py`
+  stays until the Phase-3 cluster mesh-sweep confirms the mesh is VALID AND Cd is
+  within 3%** — the collapsed base-wake wedge is the candidate that may need
+  iteration there (a 2D `empty`-patch degenerate cell; cluster-validate before
+  relying on it).

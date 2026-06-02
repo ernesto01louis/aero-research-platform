@@ -53,7 +53,8 @@ def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
     """Upper and lower surface point arrays, each LE -> TE, with `2*n_surface+1`
     points so index `n_surface` is the exact mid-chord split point."""
     n = spec.n_surface
-    upper = naca0012_coordinates(2 * n + 1, chord=spec.chord)  # LE -> TE, +y
+    blunt = spec.trailing_edge_thickness > 0.0
+    upper = naca0012_coordinates(2 * n + 1, chord=spec.chord, blunt_te=blunt)  # LE -> TE, +y
     lower = upper.copy()
     lower[:, 1] *= -1.0
     return {"upper": np.asarray(upper, np.float64), "lower": np.asarray(lower, np.float64)}
@@ -69,12 +70,20 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     umid = surf["upper"][n]
     xm, ym = float(umid[0]), float(umid[1])
 
-    # --- 16 base vertices at z=0 (duplicated at z=span as +16) ---
+    # Trailing edge: sharp closes to the single vertex 3 = (c, 0); blunt
+    # (trailing_edge_thickness>0) splits it into 3u=(c,+h) and a new 3l=(c,-h),
+    # adds a base wall + a collapsed base-wake block that pushes the residual
+    # singularity to the outlet (100 chords downstream, drag-irrelevant). ADR-012.
+    blunt = spec.trailing_edge_thickness > 0.0
+    h = float(surf["upper"][-1][1])  # TE half-thickness (0 sharp, >0 blunt)
+    nte = spec.n_te
+
+    # --- base vertices at z=0 (duplicated at z=span as +nb) ---
     base = [
         (-ext, 0.0),  # 0  inlet point
         (0.0, 0.0),  # 1  leading edge
         (xm, ym),  # 2  upper mid-chord
-        (c, 0.0),  # 3  trailing edge
+        (c, h),  # 3  trailing edge (upper corner 3u; h=0 when sharp)
         (xm, -ym),  # 4  lower mid-chord
         (ext, 0.0),  # 5  outlet point
         (-ext, ext),  # 6  far field, above inlet
@@ -88,6 +97,14 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         (c, -ext),  # 14 far field, below TE
         (ext, -ext),  # 15 far field, below outlet
     ]
+    # Blunt TE: append the lower TE corner 3l=(c,-h); the lower surface + lower
+    # wake terminate there instead of at the shared sharp-TE vertex 3.
+    if blunt:
+        base.append((c, -h))  # 16 trailing edge (lower corner 3l)
+        te_lo = 16
+    else:
+        te_lo = 3
+    nb = len(base)
     verts = [pt(x, y, 0.0) for x, y in base] + [pt(x, y, span) for x, y in base]
 
     # --- grading ---
@@ -99,7 +116,7 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     # --- 8 blocks: z=0 face wound CCW-from-above, +16 for the z=span face ---
     # (v0 v1 v2 v3) at z=0 then (v0 v1 v2 v3)+16; counts along (v0->v1, v1->v2, z).
     def _verts(a: int, b: int, d: int, e: int) -> str:
-        return " ".join(str(v) for v in (a, b, d, e, a + 16, b + 16, d + 16, e + 16))
+        return " ".join(str(v) for v in (a, b, d, e, a + nb, b + nb, d + nb, e + nb))
 
     def hexb(a: int, b: int, d: int, e: int, n1: int, n2: int, gx: float, gy: float) -> str:
         """An airfoil-surface block — simpleGrading (both eta edges wall-clustered)."""
@@ -131,10 +148,16 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         # LF: airfoil eta edge is v1->v2 (below the LE); inlet edge v0->v3.
         edge_hexb(11, 12, 1, 0, nf, 1.0 / e_front, (1.0, gi, gi, 1.0)),
         hexb(12, 13, 4, 1, ns, nn, 1.0, gi),  # LA1
-        hexb(13, 14, 3, 4, ns, nn, 1.0, gi),  # LA2
+        hexb(13, 14, te_lo, 4, ns, nn, 1.0, gi),  # LA2 (lower TE corner te_lo)
         # LW: airfoil eta edge is v0->v3 (below the TE); outlet edge v1->v2.
-        edge_hexb(14, 15, 5, 3, nw, e_wake, (gi, 1.0, 1.0, gi)),
+        edge_hexb(14, 15, 5, te_lo, nw, e_wake, (gi, 1.0, 1.0, gi)),
     ]
+    if blunt:
+        # BW: the base-wake wedge filling 3u, 3l and the outlet. v1==v2==5
+        # collapses to a prism; nte cells span the base (v0->v3 = 3l->3u, a
+        # wall), nw streamwise. The collapse sits at the outlet, far from any
+        # wall, so its skew does not bias the surface pressure / drag.
+        blocks.append(f"    hex ({_verts(te_lo, 5, 5, 3)}) ({nw} {nte} 1) simpleGrading (1 1 1)")
 
     # --- polyLine edges along the airfoil surface (interior points only) ---
     def poly(v1: int, v2: int, pts: NDArray[np.float64], z: float) -> str:
@@ -147,18 +170,21 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         (1, 2, surf["upper"][1:n]),
         (2, 3, surf["upper"][n + 1 : 2 * n]),
         (1, 4, surf["lower"][1:n]),
-        (4, 3, surf["lower"][n + 1 : 2 * n]),
+        (4, te_lo, surf["lower"][n + 1 : 2 * n]),
     ]
     for v1, v2, interior in specs:
         edges.append(poly(v1, v2, interior, 0.0))
-        edges.append(poly(v1 + 16, v2 + 16, interior, span))
+        edges.append(poly(v1 + nb, v2 + nb, interior, span))
 
     # --- boundary patches ---
     def face(a: int, b: int) -> str:
-        return f"({a} {b} {b + 16} {a + 16})"
+        return f"({a} {b} {b + nb} {a + nb})"
 
-    # airfoil wall: the inner edge of each surface block.
-    wall = " ".join(face(a, b) for a, b in ((1, 2), (2, 3), (1, 4), (4, 3)))
+    # airfoil wall: the inner edge of each surface block, plus the blunt base.
+    wall_faces = [(1, 2), (2, 3), (1, 4), (4, te_lo)]
+    if blunt:
+        wall_faces.append((3, te_lo))  # the blunt TE base (3u -> 3l)
+    wall = " ".join(face(a, b) for a, b in wall_faces)
     # far field: every outer / inlet / outlet face (freestream BC handles in/out).
     outer = [
         (0, 6),
@@ -183,11 +209,13 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         (3, 5, 10, 9),
         (11, 12, 1, 0),
         (12, 13, 4, 1),
-        (13, 14, 3, 4),
-        (14, 15, 5, 3),
+        (13, 14, te_lo, 4),
+        (14, 15, 5, te_lo),
     ]
+    if blunt:
+        z_faces.append((te_lo, 5, 5, 3))  # BW base-wake wedge front/back face
     front = " ".join(f"({a} {b} {d} {e})" for a, b, d, e in z_faces)
-    back = " ".join(f"({a + 16} {b + 16} {d + 16} {e + 16})" for a, b, d, e in z_faces)
+    back = " ".join(f"({a + nb} {b + nb} {d + nb} {e + nb})" for a, b, d, e in z_faces)
 
     boundary = f"""    airfoil
     {{

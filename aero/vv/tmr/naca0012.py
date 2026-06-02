@@ -36,6 +36,12 @@ class NACA0012Verification:
             mach=0.15,
             aoa_deg=0.0,
             end_time=3000,
+            # Stage-09 blunt-TE hardening (ADR-012): a finite open TE splits the
+            # singular sharp-TE vertex that produced the +21% pressure drag. The
+            # xfail flips to a strict pass once the cluster mesh-sweep confirms
+            # the new mesh is valid AND Cd is within 3%.
+            trailing_edge_thickness=0.0025,
+            n_te=8,
         )
 
     def case_spec(self) -> CaseSpec:
@@ -76,6 +82,7 @@ class NACA0012Verification:
                     "n_normal": scaled_count(s.n_normal, ratio),
                     "n_front": scaled_count(s.n_front, ratio),
                     "n_wake": scaled_count(s.n_wake, ratio),
+                    "n_te": scaled_count(s.n_te, ratio) if s.n_te else 0,
                 }
             )
         )

@@ -45,6 +45,12 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
   taint propagation, PC speedup, surrogate-vs-CFD compare, storage switch.
 - ADR-010 (DoMINO baseline surrogate), ADR-011 (pluggable storage backend),
   ADR-012 (non-interactive signing + Stage-09 cleanup).
+- `aero/adapters/openfoam/{schemas,geometry,case_writer}.py` — NACA 0012
+  **blunt-TE C-grid** (ADR-012 V&V hardening): `trailing_edge_thickness`/`n_te`
+  split the singular sharp-TE vertex into a finite base + a base-wake wedge,
+  targeting the +21% pressure-drag error (the NACA 0012 TMR xfail). Sharp TE
+  stays the default for all other cases; the xfail flips on the Phase-3 cluster
+  mesh-sweep. The `aero-cloud` DVC remote is now a RunPod network volume.
 
 ### Changed
 
