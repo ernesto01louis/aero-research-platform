@@ -25,12 +25,11 @@ From: nvcr.io/nvidia/physicsnemo/physicsnemo:25.08
 %post
     set -eu
     mkdir -p /case /work /opt/aero
-    # PyG + warp on top of the NGC base. Exact versions are confirmed against
-    # the 25.08 base at first build and locked in ADR-010 (Hard Rule 8); the
-    # base already pins physicsnemo + torch + the CUDA/RAPIDS stack.
-    python3 -m pip install --no-cache-dir \
-        "torch-geometric>=2.6" \
-        "warp-lang>=1.4"
+    # NO pip here: the 25.08 base already bundles physicsnemo 1.2.0, torch
+    # (2.8.0a0+nv25.06), torch-geometric 2.6.1 and warp 1.8.1 (verified at the
+    # first build, ADR-010). The unprivileged aero-build LXC blocks %post network
+    # sockets anyway (the SU2/jax-fluids two-step reason), so a pip layer here
+    # would fail; %test below fails the build loud if any import is missing.
 
 %environment
     export LC_ALL=C.UTF-8
@@ -38,9 +37,9 @@ From: nvcr.io/nvidia/physicsnemo/physicsnemo:25.08
     export PYTHONUNBUFFERED=1
 
 %test
-    python3 -c "import physicsnemo, torch, torch_geometric; print('physicsnemo', physicsnemo.__version__, 'torch', torch.__version__, 'pyg', torch_geometric.__version__)" \
+    python3 -c "import physicsnemo, torch, torch_geometric, warp; print('physicsnemo', physicsnemo.__version__, 'torch', torch.__version__, 'pyg', torch_geometric.__version__, 'warp', warp.__version__)" \
         || { echo "physicsnemo image imports failed" >&2; exit 1; }
-    echo "aero physicsnemo image — physicsnemo + torch + pyg OK"
+    echo "aero physicsnemo image — physicsnemo + torch + pyg + warp OK"
 
 %runscript
     echo "aero-research-platform physicsnemo image (Stage 09, DoMINO)"

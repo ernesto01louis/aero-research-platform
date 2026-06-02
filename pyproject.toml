@@ -149,10 +149,11 @@ surrogate-smoke = [
 # is NOT pulled by the base `import aero` (PLATFORM-NOT-HUB / import-platform-only).
 # PyG is the platform GNN library (ADR-008 §D6); warp-lang is DoMINO's geometry
 # kernel backend. The `nvidia-physicsnemo` pin MUST match the version bundled in
-# the 25.08 container — confirmed at first build and locked in ADR-010 (Hard Rule
-# 8); 1.1.0 is the proposed pin pending that confirmation (open decision).
+# the 25.08 container — confirmed at first build (Phase 2, 2026-06-02) as
+# physicsnemo 1.2.0 / torch-geometric 2.6.1 / warp 1.8.1, locked in ADR-010
+# (Hard Rule 8). See the ADR-010 amendment.
 physicsnemo-cu12 = [
-    "nvidia-physicsnemo[cu12]==1.1.0",
+    "nvidia-physicsnemo[cu12]==1.2.0",
     "torch-geometric>=2.6",
     "warp-lang>=1.4",
 ]

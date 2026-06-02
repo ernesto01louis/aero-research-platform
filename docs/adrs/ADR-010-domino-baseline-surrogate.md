@@ -103,6 +103,29 @@ this is an operator-approved **per-run** budget (the brief: "Production-tier or
 large training runs are operator-approved per-run"). The DrivAerML subset size
 bounds the spend; `aero cost show` reconciles the actual.
 
+## Amendment — first-build version confirmation (Phase 2, 2026-06-02)
+
+The open decision "confirm the `nvidia-physicsnemo` pip pin at first build" is now
+closed. Probing the pinned `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08` base on
+aero-build reports:
+
+| Component | Version in the 25.08 base |
+|---|---|
+| `physicsnemo` | **1.2.0** (the proposed `==1.1.0` was wrong) |
+| `torch` | 2.8.0a0+5228986c39.nv25.06 |
+| `torch_geometric` | 2.6.1 (satisfies `>=2.6`) |
+| `warp` | 1.8.1 (satisfies `warp-lang>=1.4`) |
+
+Actions taken (Hard Rule 8 — PIN HEAVY DEPS):
+- `pyproject.toml[physicsnemo-cu12]` pin bumped `nvidia-physicsnemo[cu12]==1.1.0`
+  → `==1.2.0` to match the container.
+- `containers/physicsnemo.def`: the `%post` `pip install torch-geometric warp-lang`
+  was **removed** — both are already in the base, and the unprivileged aero-build
+  LXC blocks `%post` network sockets (the SU2/jax-fluids two-step reason), so the
+  pip layer would have failed. The SIF is now a clean apptainer-direct build from
+  the NGC `Bootstrap: docker` image; `%test` imports physicsnemo/torch/pyg/warp and
+  fails the build loud if any is missing. No buildah two-step was needed.
+
 ## Links
 
 - Stage prompt: `STAGE-09-domino-baseline-surrogate.md` (operator-pasted)
