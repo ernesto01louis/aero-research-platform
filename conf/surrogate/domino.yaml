@@ -32,8 +32,14 @@ train:
   pc_epochs: 40
   pc_lr: 0.0001
 
-# Applicability envelope baked into the cert (DrivAerML training distribution;
-# approximate — refine from the actual subset). U~30 m/s, L~4.6 m => Re~9e6.
+# Applicability envelope baked into the cert. Reviewed against the actual
+# DrivAerML geo_parameters_all.csv (Phase 2, 2026-06-02): all 500 variants are
+# morphs of ONE DrivAer NOTCHBACK baseline (16 morph deltas, e.g. Vehicle_Length
+# -150..+249 mm) at zero yaw/pitch — geometry_class below is correct. DrivAerML
+# is a single fixed full-scale condition; the Re bracket is approximate (the exact
+# value + reference-length basis are confirmed from the paper/data when the cert
+# is ISSUED at training, Phase 3 — arXiv 2408.11969). re_range stays a generous
+# bracket so it is not falsely narrow before that confirmation.
 envelope:
   re_range: [8000000.0, 11000000.0]
   mach_range: [0.0, 0.12]

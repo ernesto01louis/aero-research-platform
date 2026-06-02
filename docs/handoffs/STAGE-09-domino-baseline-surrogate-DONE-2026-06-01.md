@@ -199,3 +199,57 @@ After the handoff the operator resolved the propose-first decisions:
   within 3%** — the collapsed base-wake wedge is the candidate that may need
   iteration there (a 2D `empty`-patch degenerate cell; cluster-validate before
   relying on it).
+
+## 12. Phase-2 execution + DrivAerML pull (2026-06-02)
+
+Phase 2 (build host) and the DrivAerML data pull ran this session. Tag `v0.0.9`
+remains deferred to Phase 3 (no training evidence yet).
+
+**PhysicsNeMo SIF — built + signed.**
+- `physicsnemo.sif` (15 GB) built on aero-build, apptainer-direct from the pinned
+  `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08`. `%test` passed.
+- Probe of the base settled two open items: it already bundles **physicsnemo 1.2.0,
+  torch 2.8.0a0+nv25.06, torch-geometric 2.6.1, warp 1.8.1**. So (a) the `%post`
+  `pip install` was REMOVED (redundant + the unprivileged LXC blocks `%post`
+  network — no buildah two-step needed); (b) the `pyproject` pin was corrected
+  `nvidia-physicsnemo==1.1.0` → **`==1.2.0`** (ADR-010 amendment).
+- Signed with key `682F6145…`; `apptainer verify` passes; SHA
+  `4e6ea371…` recorded in `containers/SHA256SUMS`.
+
+**Signer bug fixed (ADR-012).** `_apptainer_sign.sh` only matched
+`APPTAINER_SIGN_PASSPHRASE`/`SIF_PASSPHRASE`, but the Stage-02 interim
+`/root/.config/aero/signing.env` uses **`AERO_SIGNING_PASSPHRASE`** — so it fell
+back to an interactive prompt and hung the build's sign step. Fixed to accept that
+name. `jax-fluids.sif` + `surrogate-smoke.sif` re-signed (were unsigned; nekrs was
+already signed); their `SHA256SUMS` entries updated to the signed-artifact digests
+(`125c3f2e…`, `a3ad846e…`).
+
+**DrivAerML surface pull (STL + boundary VTP, 500 runs ≈ 0.78 GiB/run).**
+- Lands on the TrueNAS NFS. **DVC refuses to `dvc add` a symlinked dir**, so the
+  pull runs from a repo clone ON the NFS (`/mnt/aero/aero-dev-repo`): working tree
+  + cache (`/mnt/aero/dvc-cache`, `cache.type=hardlink` → single copy) + the new
+  `aero-nfs` LOCAL remote (`/mnt/aero/dvc-remote`) all on one filesystem.
+- `download_drivaerml.sh` rewritten: `huggingface_hub.snapshot_download`
+  (resumable, retry loop, `HF_HUB_DOWNLOAD_TIMEOUT=60`), `FILESET=surface` (volume
+  `.vtu` excluded — the full set is ~31 TB). 10-run smoke validated the whole path
+  (download → manifest → `dvc add` → `dvc push`). Manifest joins to **484 rows**
+  (root `geo_parameters_all.csv` 500 / `force_mom_all.csv` 484).
+- Full pull launched detached (`run_long … drivaerml-full`); HF unauthenticated is
+  slow (~16 MB/s) so it is a multi-hour job. **When it finishes:** `dvc add` +
+  `dvc push -r aero-nfs`, then commit `data/datasets/drivaerml/{cases,manifest.json}.dvc`.
+- `dvc.yaml`: the `ingest-drivaerml` repro stage was removed (a path can't be both a
+  pipeline out and a `dvc add` `.dvc` out).
+
+**Envelope review.** `geo_parameters_all.csv` confirms 500 morphs of ONE DrivAer
+**notchback** baseline at zero yaw → `conf/surrogate/domino.yaml` `geometry_class`
+is correct. The exact Re/reference-length is confirmed from the paper at cert-issue
+time (Phase 3); the bracket stays generous until then.
+
+**Deferred (Phase 3 / later):** GHCR mirror of physicsnemo (RunPod-pod prereq); the
+Vault signing-key migration (signing already works via `signing.env`); the multi-day
+H100 training + the `validated` cert + the `surrogate_vv` report; then tag `v0.0.9`.
+
+**Gotchas for next session:** DVC + symlinked dirs (use a repo on the data's
+filesystem); git "dubious ownership" on NFS files owned by `nobody` when running as
+root (`git config --global --add safe.directory …`); the signer passphrase var name;
+HF unauthenticated download throughput (set an HF token for Phase-3 cloud staging).
