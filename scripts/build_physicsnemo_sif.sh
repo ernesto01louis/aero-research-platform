@@ -7,11 +7,14 @@
 # docker image — apptainer pulls it (~20 GB; needs NGC creds + network).
 #
 # Prereqs on aero-build:
-#   * buildah/apptainer scratch storage on /mnt/pve/Storage — the
-#     aero-buildah-storage Ansible role (docs/operator/buildah-storage-config.md).
-#     The ~20 GB pull + unpack deadlocks the 68 GB root volume otherwise.
+#   * apptainer build scratch (cache + tmp) on a volume with ~50 GB free for the
+#     ~20 GB pull + squashfs. We pin APPTAINER_CACHEDIR/APPTAINER_TMPDIR to the
+#     LXC's local root (~139 GB free) below — NOT NFS (squashfs/mmap is slow and
+#     unreliable over NFS). The ~20 GB pull + unpack deadlocks a small root volume
+#     otherwise (docs/operator/buildah-storage-config.md).
 #   * NGC login (operator NGC API key; never committed):
-#       apptainer remote login --username '$oauthtoken' docker://nvcr.io
+#       echo "$NGC_API_KEY" | apptainer remote login --username '$oauthtoken' \
+#         --password-stdin docker://nvcr.io
 #
 # Usage (on aero-build):
 #   ./scripts/build_physicsnemo_sif.sh [<repo-root>]
@@ -23,6 +26,12 @@ set -euo pipefail
 REPO_ROOT="${1:-/opt/aero/repo}"
 DEF="${REPO_ROOT}/containers/physicsnemo.def"
 SIF_PUBLISH_PATH="/mnt/aero/containers/physicsnemo.sif"
+
+# Build scratch on local disk (NOT NFS). aero-build's / has ~139 GB free; the
+# ~20 GB NGC pull + squashfs needs ~40-50 GB transient. Override via env if needed.
+export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-/root/.apptainer/cache}"
+export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-/var/tmp/apptainer-build}"
+mkdir -p "${APPTAINER_TMPDIR}"
 
 echo ">> apptainer build (NGC base, pinned in physicsnemo.def) -> ${SIF_PUBLISH_PATH}"
 echo "   (~20 GB NGC pull; ensure 'apptainer remote login docker://nvcr.io' is done)"

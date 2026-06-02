@@ -28,13 +28,14 @@ stages:
       - data/datasets/windsorml/manifest.json
       - data/datasets/windsorml/cases
 
-  ingest-drivaerml:
-    cmd: scripts/download_drivaerml.sh
-    deps:
-      - scripts/download_drivaerml.sh
-    outs:
-      - data/datasets/drivaerml/manifest.json
-      - data/datasets/drivaerml/cases
+  # ingest-drivaerml — NOT a repro stage (Stage 09). The DrivAerML surface
+  # subset (~401 GB: STL + boundary VTP × 500 runs) is materialised on the
+  # TrueNAS NFS and tracked with `dvc add` → the `aero-nfs` local remote by
+  # `scripts/download_drivaerml.sh` (DVC_TRACK=1), producing
+  # data/datasets/drivaerml/{cases.dvc,manifest.json.dvc}. A repro stage would
+  # re-run the multi-hour download to "produce" its outs and collide with the
+  # in-script `dvc add`; a path cannot be both a stage out and a `.dvc` out.
+  # The smaller ahmedml/windsorml placeholders keep their repro stages above.
 
   # QUARANTINED — CC-BY-NC-4.0. Requires `AERO_ACKNOWLEDGE_NONCOMMERCIAL=1`
   # in the executing environment, gated on the non-commercial-fence CI
