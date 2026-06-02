@@ -45,7 +45,7 @@ _SOLVER_VERSIONS: dict[str, str] = {
     "su2": "SU2 v8",
     "pyfr": "PyFR 1.15.0",
     "nekrs": "NekRS v23.0",
-    "jax-fluids": "JAX-Fluids v0.2.1",
+    "jax-fluids": "JAX-Fluids v0.2.1+ac7c090f",  # pinned commit, not the broken v0.2.1 tag (ADR-008)
 }
 
 # Per-solver SIF basenames — looked up in containers/SHA256SUMS during
