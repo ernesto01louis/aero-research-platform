@@ -25,7 +25,7 @@ date_started: YYYY-MM-DD
 date_completed: YYYY-MM-DD
 session_duration_hours: <number>
 claude_code_version: <claude --version output>
-model: claude-opus-4-7
+model: <claude model id, e.g. claude-opus-4-8>
 git_sha_start: <SHA>
 git_sha_end: <SHA>
 stage_tag: v0.0.NN

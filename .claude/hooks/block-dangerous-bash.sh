@@ -27,7 +27,14 @@
 set -euo pipefail
 
 input="$(cat)"
-cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // empty')"
+# Parse the command field with python3 (always present). `jq` is NOT installed on
+# the Proxmox host (Stage-02 §7), and under `set -e` a missing `jq` made this hook
+# error out and FAIL OPEN (commands ran unchecked). python3 removes that gap.
+cmd="$(printf '%s' "$input" | python3 -c 'import sys, json
+try:
+    print(json.load(sys.stdin).get("tool_input", {}).get("command", ""))
+except Exception:
+    pass' 2>/dev/null || true)"
 
 if [[ -z "$cmd" ]]; then
   exit 0

@@ -9,26 +9,22 @@
 > Per-stage detail lives in `docs/handoffs/STAGE-*-DONE-*.md`; decisions in
 > `docs/adrs/`. Nothing here is "debt" — it's sequenced work waiting on a gate.
 
-## 0. Host-side — operator-authorization-gated (no hardware needed)
+## 0. Host-side — operator-authorized cleanups (RESOLVED 2026-06-01)
 
-Two clean-ups the Stage-09 cleanup pass identified but the auto-mode classifier
-(correctly) refused without explicit operator sign-off, because they self-modify
-the agent's own controls:
+Three clean-ups the auto-mode classifier (correctly) gated until explicit operator
+sign-off, because they self-modify the agent's own controls / repo settings.
+Operator approved; all three done:
 
-- [ ] **`.claude/hooks/block-dangerous-bash.sh` fails open without `jq`.** It
-  parses stdin with `jq` under `set -e`; `jq` is not installed on the Proxmox
-  host (Stage-02 §7), so the hook errors and lets commands through unchecked. Fix:
-  parse the `tool_input.command` field with `python3` (always present). Patch is
-  ready — needs operator approval to edit the security hook.
-- [ ] **`.claude/rules/handoff-discipline.md` frontmatter** still hard-codes
-  `model: claude-opus-4-7` (the repo `docs/handoffs/_template.md` was updated to a
-  placeholder; this mirror needs operator approval to edit agent-config).
-- [ ] **Promote `non-commercial-fence` (check name `fence`) to a required status
-  check on `main`** (flagged ready since Stage 08). The PATCH is ready — add
-  `"fence"` to the existing 7 required contexts (ruff, mypy, pytest, README STATUS,
-  commit-lint, import-aero, vv-required). Blocked pending operator approval:
-  modifying the default branch's protection is a high-severity repo-settings change.
-  Do NOT add `provenance-completeness` (self-hosted runner; see §"Optional").
+- [x] **`.claude/hooks/block-dangerous-bash.sh`** no longer fails open without
+  `jq` — it parses `tool_input.command` with `python3` (always present). Tested:
+  `--no-verify`, `pct destroy`, and `ssh <shared-host> rm` all block (exit 2);
+  benign + malformed input allow (exit 0).
+- [x] **`.claude/rules/handoff-discipline.md`** + `docs/handoffs/_template.md`
+  `model` field is now a placeholder (was hard-coded `claude-opus-4-7`).
+- [x] **`non-commercial-fence` (check `fence`) promoted to a required status check
+  on `main`** (8 required contexts now; the original 7 preserved). Verified via
+  `gh api`. `provenance-completeness` deliberately NOT promoted (self-hosted
+  runner — see §"Optional").
 
 ## 1. Phase 2 — build host / CPU cluster (aero-build, aero-vv; NO GPU/NAS)
 
