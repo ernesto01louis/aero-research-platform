@@ -22,6 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
         ("cloud", "aero-cloud", ""),
         ("nas", "aero-nas", "http://192.168.2.100:9000"),
         ("minio", "aero-minio", "http://192.168.2.234:9000"),
+        ("nfs", "aero-nfs", ""),
     ],
 )
 def test_storage_profile(profile: str, remote: str, endpoint: str) -> None:

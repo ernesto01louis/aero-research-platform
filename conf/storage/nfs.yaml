@@ -1,0 +1,13 @@
+# Stage 09 (ADR-011) — on-prem NFS DVC remote profile (current TrueNAS pool).
+#
+# Phase 2 (2026-06-02) pulled the DrivAerML surface subset (484 runs, ~353 GiB)
+# to the TrueNAS NFS and DVC-tracked it on the `aero-nfs` LOCAL remote
+# (/mnt/aero/dvc-remote). Select this profile to train DoMINO straight from the
+# on-prem copy (an aero LXC, or a pod that NFS-mounts /mnt/aero). Distinct from
+# `nas` (the FUTURE TrueNAS-SCALE S3 app) — this is the plain local/NFS remote on
+# the existing pool; after the NAS migration the data + remote move with it.
+
+dvc_remote: aero-nfs
+type: local
+path: /mnt/aero/dvc-remote
+s3_endpoint: ""                 # n/a — local/NFS remote, not S3
