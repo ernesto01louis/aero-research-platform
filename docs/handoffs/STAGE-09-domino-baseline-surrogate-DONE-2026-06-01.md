@@ -234,9 +234,16 @@ already signed); their `SHA256SUMS` entries updated to the signed-artifact diges
   `.vtu` excluded — the full set is ~31 TB). 10-run smoke validated the whole path
   (download → manifest → `dvc add` → `dvc push`). Manifest joins to **484 rows**
   (root `geo_parameters_all.csv` 500 / `force_mom_all.csv` 484).
-- Full pull launched detached (`run_long … drivaerml-full`); HF unauthenticated is
-  slow (~16 MB/s) so it is a multi-hour job. **When it finishes:** `dvc add` +
-  `dvc push -r aero-nfs`, then commit `data/datasets/drivaerml/{cases,manifest.json}.dvc`.
+- Full pull **COMPLETE (2026-06-03)**: 484/484 runs (STL + boundary VTP), ~353 GiB /
+  5810 files, `dvc add` + `dvc push -r aero-nfs` done (cache+remote in sync), pointers
+  committed in **8a495ff** (`cases.dir` md5 `27bfdbd931aca71be3c3a4bebbf8aac4`,
+  `manifest.json` md5 `60638acc…`). Data lives at
+  `/mnt/aero/aero-dev-repo/data/datasets/drivaerml/cases` (NFS) + the aero-nfs remote
+  `/mnt/aero/dvc-remote`; ~369 GB free on the TrueNAS NFS afterwards. **Gotcha:** the
+  pull silently HUNG once at ~99% on a dead HTTPS socket (CLOSE-WAIT, no bytes for
+  ~10 h — it evaded `HF_HUB_DOWNLOAD_TIMEOUT`); `run_long` still showed "running".
+  Killed + resumed cleanly (snapshot_download skips completed files). For Phase-3
+  cloud staging, set an HF token and add a wall-clock watchdog around the download.
 - `dvc.yaml`: the `ingest-drivaerml` repro stage was removed (a path can't be both a
   pipeline out and a `dvc add` `.dvc` out).
 
