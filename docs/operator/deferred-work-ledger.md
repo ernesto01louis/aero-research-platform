@@ -30,31 +30,40 @@ Operator approved; all three done:
 
 Critical path: SIF builds unblock Phase 3.
 
-- [ ] Apply the `aero-buildah-storage` Ansible role (graphroot → /mnt/pve/Storage)
-  so the large SIF builds don't deadlock the root volume. `ansible/roles/aero-buildah-storage/`.
-- [ ] Build SIFs on aero-build (scripts ready): `su2-v8` (Stage 06), `pyfr` +
-  `nekrs` (Stage 07), `jax-fluids` + `surrogate-smoke` (Stage 08), `physicsnemo`
-  (Stage 09 — NGC `physicsnemo:25.08`, ~20 GB pull, `apptainer remote login docker://nvcr.io`).
-  Append each SHA to `containers/SHA256SUMS`.
-- [ ] **Re-sign the unsigned SIFs** (nekrs, jax-fluids, surrogate-smoke) via
-  `scripts/_apptainer_sign.sh` once the signing-key passphrase is Vault-rendered
-  (ADR-012). Confirm signing doesn't churn the squashfs SHA.
-- [ ] Migrate the Apptainer signing key + passphrase into Vault (ADR-012; the
-  `aero-apptainer` role's vault-agent template). Escrow stays on the NAS.
-- [ ] GHCR-mirror the SIFs (`ghcr.io/ernesto01louis/aero-*`) for RunPod pulls (CR_PAT).
-- [ ] `uv pip install -e ".[provenance]"` on the aero-build/aero-dev venvs (dvc-s3)
-  so DVC can push to the S3/MinIO remotes.
-- [ ] SU2 + transonic cluster V&V validation runs → un-xfail
-  `tests/vv/test_tmr_*_su2.py` + `test_transonic_naca0012.py` as cases pass (never
-  relax tolerances).
-- [ ] Confirm the `nvidia-physicsnemo` pip pin (proposed `1.1.0`) against the 25.08
-  container; lock in ADR-010.
-- [ ] **V&V reference-data digitization** (host-authorable once sources are in
-  hand): Taylor-Green dissipation (Brachet 1983) → `data/references/scale_resolving/`,
-  ONERA M6 Cp (Schmitt-Charpin) → `data/references/transonic/onera_m6/`. Until
-  present, those cases raise `BenchmarkError`.
+**Phase 2 COMPLETE (2026-06-02/03)** — ran on aero-build + the DrivAerML pull:
+- [x] `physicsnemo.sif` built (apptainer-direct from NGC 25.08) + **signed**; SHA
+  recorded. (The other 5 SIFs already existed from Stages 06–08.) Pin confirmed +
+  bumped to `nvidia-physicsnemo==1.2.0` (ADR-010 amendment); redundant `%post` pip dropped.
+- [x] **All SIFs signed + verified** (`apptainer verify`, 2026-06-03): nekrs,
+  physicsnemo, jax-fluids, surrogate-smoke, pyfr, su2-v8, openfoam-esi — chain
+  complete. (jax-fluids + surrogate-smoke re-signed; the rest were already signed —
+  the Stage-09 "nekrs unsigned" audit note was WRONG. The signer's
+  `AERO_SIGNING_PASSPHRASE` bug was fixed.)
+- [x] DrivAerML surface subset pulled: **484 runs, ~353 GiB (STL + boundary VTP)**,
+  DVC-tracked on the new `aero-nfs` local remote (`/mnt/aero/dvc-remote`).
+- [x] Build scratch via `APPTAINER_CACHEDIR/TMPDIR` on local disk (physicsnemo is
+  apptainer-direct — no buildah; apply `aero-buildah-storage` before any future
+  buildah two-step SIF).
+
+Deferred from Phase 2 (not build-blocking):
+- [ ] **Vault signing-key migration** — signing works via the Stage-02 interim
+  `signing.env`; migrate to Vault when convenient (ADR-012).
+- [ ] **GHCR mirror** — optional; physicsnemo:25.08 is a public NGC image (see the
+  Phase-3 runbook Step 2 for the image/registry-auth choice).
+- [ ] `dvc[s3]` on the venvs — only for Phase-3 *cloud* staging (the on-prem pull
+  used a local remote).
+
+Separate **V&V-hardening** track (CPU cluster; NOT a build task — was mis-bucketed here):
+- [ ] SU2 + transonic cluster V&V → un-xfail `tests/vv/test_tmr_*_su2.py` +
+  `test_transonic_naca0012.py` as cases pass (never relax tolerances).
+- [ ] V&V reference-data digitization: Taylor-Green dissipation (Brachet 1983),
+  ONERA M6 Cp (Schmitt-Charpin). Until present those cases raise `BenchmarkError`.
 
 ## 2. Phase 3 — GPU (RunPod) + data staging (operator-approved budget)
+
+> **Turnkey procedure: `docs/runbooks/stage-09-phase-3-domino-training.md`** — the
+> real PhysicsNeMo 1.2.0 DoMINO API + the `PhysicsNeMoDominoEngine` wiring spec +
+> image/registry-auth + data staging + the training command + post-run un-xfail/tag.
 
 - [ ] Stage the DrivAerML subset to the `aero-cloud` RunPod network volume
   (conf/storage/cloud.yaml; the chosen cloud-now home).

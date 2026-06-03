@@ -260,3 +260,22 @@ H100 training + the `validated` cert + the `surrogate_vv` report; then tag `v0.0
 filesystem); git "dubious ownership" on NFS files owned by `nobody` when running as
 root (`git config --global --add safe.directory …`); the signer passphrase var name;
 HF unauthenticated download throughput (set an HF token for Phase-3 cloud staging).
+
+## 13. Phase-3 prep + cross-check (2026-06-03)
+
+Cross-checked Phase 2 (clean: ruff/mypy/`225 passed`, PR #14 11/11 CI green) and
+prepared Phase 3:
+
+- **All SIFs verified SIGNED** on aero-build (`apptainer verify`) — incl. nekrs (the
+  Stage-09 audit's "unsigned" note was wrong; corrected). Signing chain complete.
+- **Real DoMINO API introspected** in the 1.2.0 SIF:
+  `physicsnemo.models.domino.model.DoMINO(input_features, output_features_vol=None,
+  output_features_surf, global_features=2, model_parameters=cfg)`; data via
+  `physicsnemo.datapipes.cae`. CPU import works; running needs the GPU pod.
+- `conf/storage/nfs.yaml` added (Hydra profile for the `aero-nfs` on-prem remote;
+  `cloud`/`minio`/`nas` already had profiles) + a storage-switch test param.
+- **The turnkey Phase-3 procedure is `docs/runbooks/stage-09-phase-3-domino-training.md`**:
+  the one real dev task is wiring `PhysicsNeMoDominoEngine` (still a stub) against
+  that API on the pod (adapt PhysicsNeMo's `examples/cfd/external_aerodynamics/domino/`),
+  then image/registry-auth + data staging + the budget-gated training → `validated`
+  cert + `surrogate_vv` → NACA blunt-TE mesh-sweep un-xfail → tag `v0.0.9`.
