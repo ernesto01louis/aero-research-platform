@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "aero"
 version = "0.0.1"
-description = "Open-source peer-review-grade computational aerodynamics research platform"
+description = "Open-source, reproducibility-first aerodynamic shape-optimization platform (CFD as ground truth)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"

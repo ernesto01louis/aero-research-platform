@@ -18,33 +18,32 @@ authors:
 repository-code: https://github.com/ernesto01louis/aero-research-platform
 url: https://github.com/ernesto01louis/aero-research-platform
 abstract: |
-  A fully open-source, peer-review-grade, hardware-agnostic research platform
-  for computational aerodynamics. Integrates classical CFD (OpenFOAM-ESI,
-  SU2, PyFR, NekRS), differentiable CFD (JAX-Fluids 2.0), ML surrogates
-  (NVIDIA PhysicsNeMo: DoMINO, Transolver, FIGConvNet, X-MeshGraphNet, MoE),
-  multi-physics coupling (preCICE 3), V&V automation against NASA TMR / AIAA
-  DPW/HLPW / ERCOFTAC, UQ via UQpy+Dakota, multi-cloud GPU orchestration
-  (RunPod/Lambda Labs/Vast.ai), and agentic CAE (NVIDIA NeMo Agent Toolkit
-  + AI-Q Blueprint fork). Every result traces to a four-tuple provenance
-  record (git SHA, DVC input hash, Apptainer SIF SHA256, config hash).
+  A fully open-source, peer-review-grade, hardware-agnostic aerodynamic
+  shape/topology optimizer: a researcher plugs in geometry (parametric, then
+  CAD/STL/3MF), defines an aerodynamic objective, and the platform returns an
+  improved, CFD-verified design, with CFD as the ground truth. The forward
+  stack — OpenFOAM-ESI (core), preCICE/CalculiX FSI, a flapping-wing
+  validation ladder against experiment/DNS (Dickinson 1999; McCroskey;
+  Heathcote-Gursul), NASA TMR turbulence-model baselines, and a small-signal
+  UQ core — makes every claimed improvement trustworthy. Surrogates accelerate
+  the optimization loop, trained only on the platform's own validated CFD.
+  Every result traces to a four-tuple provenance record (git SHA, DVC input
+  hash, Apptainer SIF SHA256, config hash), and no improvement is reported
+  unless its CFD-verified delta exceeds its combined uncertainty.
 keywords:
   - computational fluid dynamics
   - aerodynamics
+  - aerodynamic shape optimization
+  - design optimization
+  - Bayesian optimization
+  - flapping-wing aerodynamics
   - OpenFOAM
-  - SU2
-  - PyFR
-  - NekRS
-  - JAX-Fluids
-  - PhysicsNeMo
-  - DoMINO
-  - Transolver
   - preCICE
   - fluid-structure interaction
   - verification and validation
   - uncertainty quantification
   - neural operators
-  - mixture of experts
-  - agentic CAE
+  - surrogate modeling
   - provenance
   - reproducibility
 license: GPL-3.0

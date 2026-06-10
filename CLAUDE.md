@@ -9,20 +9,31 @@
 
 ## What this project is
 
-`aero-research-platform` is a fully open-source, peer-review-grade,
-hardware-agnostic research platform for computational aerodynamics. The
-final state spans classical CFD (OpenFOAM-ESI, SU2, PyFR, NekRS),
-differentiable CFD (JAX-Fluids 2.0), ML surrogates (NVIDIA PhysicsNeMo —
-DoMINO, Transolver, FIGConvNet, X-MeshGraphNet, MoE), multi-physics
-coupling (preCICE 3 — flapping wing, vibrating skin, conjugate heat
-transfer), V&V automation (NASA TMR, AIAA DPW-7, HLPW-5, ERCOFTAC), UQ via
-UQpy+Dakota, multi-cloud GPU orchestration (RunPod / Lambda Labs /
-Vast.ai), agentic CAE (NVIDIA NeMo Agent Toolkit + AI-Q Blueprint fork),
-and literature mining (arXiv + Semantic Scholar + OpenAlex via pgvector).
+`aero-research-platform` is a **hypothesis-driven aerodynamic shape/topology
+optimizer** (ADR-013; governing scope `docs/handoff-bundle/00-MISSION-AND-SCOPE.md`).
+A researcher brings a hypothesis, plugs in geometry (parametric first; CAD/STL/3MF
+later), defines an aerodynamic objective, and the platform returns an **improved,
+CFD-verified design** — *topology optimization, but for aerodynamics*, with **CFD as
+the ground truth**. The deliverable is the optimizer; the forward CFD + UQ + provenance
+stack is the **foundation that makes claimed improvements trustworthy**, not the product.
 
-The platform is built session-by-session against a staged handoff bundle
-of **16 stages**, one Claude Code session per stage. The current stage is
-named in `.aero-stage` at the repo root.
+- **Flapping-wing aerodynamics is the single flagship demonstration domain** (broad +
+  underexplored; Re ≈ 10²–10⁴, LEV-dominated, rigid → flexible/FSI). The optimizer is
+  demonstrated here.
+- **Stance:** general architecture (the `Solver`/`Surrogate` protocols + capability
+  layers stay mission-agnostic) + **mission-first prioritization** (effort goes to the
+  optimizer + flapping). The **SCOPE-GATE** rule gates *effort allocation, not interface
+  generality*.
+- **Cut / demoted (ADR-013):** the automotive surrogate zoo (DoMINO/Transolver/FIGConvNet/
+  X-MGN on DrivAerML) + MoE; DPW-7/HLPW-5 (NASA TMR kept); the NeMo agent layer +
+  literature miner (deferred indefinitely). **Riblets are one example, not a flagship**;
+  **PyFR/NekRS/SU2/JAX-Fluids are frozen-optional** (kept, not deleted — SU2 is the
+  post-v0.1.0 adjoint seed).
+
+The platform is built session-by-session against a staged plan of **20 stages**, one
+Claude Code session per stage (the re-aimed Stage 10–20 map is in
+`docs/handoff-bundle/README-handoff.md`). The current stage is named in `.aero-stage` at
+the repo root.
 
 ## The four-layer memory model
 
@@ -103,6 +114,41 @@ Then begin work.
     `/root/projects/aero-research-platform.PRIOR-REMOTE-CLONE-do-not-touch/`
     are not part of this project — do not modify.**
 
+### Mission rules added at the optimizer refocus (ADR-013; Stage 09)
+
+12. **IMPROVEMENT-EXCEEDS-UNCERTAINTY.** No reported effect or claimed improvement is
+    thesis-grade unless its **CFD-verified delta exceeds k·U95** (k ≥ 1, default 2).
+    `U95 = RSS(u95_numerical, u95_statistical, u95_input)` — GCI/ASME V&V 20 covers
+    *only* `u95_numerical`; unsteady quantities also need `u95_statistical` (batch-means
+    / autocorrelation effective-sample-size after a periodic-steady-state check).
+    Optimization **deltas** run baseline + candidate at matched numerics/mesh so
+    correlated errors cancel. *(Promoting to CONSTITUTION Invariant 10 via ADR-015 —
+    72 h window; schema `aero/vv/reportable.py` lands Stage 10, full U95 + CI gate
+    Stage 12.)*
+13. **NO-SURROGATE-ON-FOREIGN-DATA.** Surrogates train only on the platform's own
+    validated CFD; foreign datasets (automotive/aircraft) cannot produce a
+    `validated`/`production` certificate (`smoke` exempt). *(Promoting to CONSTITUTION
+    Invariant 11 via ADR-015 — 72 h window; `data_origin` field + CI fence land Stage 12;
+    reuses the Stage-08 taint machinery.)*
+14. **CFD-VERIFIED-OPTIMUM-ONLY.** Every reported optimum is verified by ground-truth CFD
+    before it is reported; no optimum is claimed on a surrogate prediction alone;
+    best-of-N reporting is selection-bias-aware (held-out CFD verification). Guards the
+    documented AI-scientist failure modes (Luo et al., arXiv:2509.08713). Pairs with
+    Invariants 9 + 10; constitutional promotion at Stage 15 when the `OptimizationResult`
+    schema lands.
+15. **VALIDATE-AGAINST-EXPERIMENT.** Forward capabilities validate against
+    experimental/DNS reference data (the flapping ladder — `.claude/rules/flapping-
+    validation-ladder.md`), not CFD-vs-CFD alone. Every physics-capability stage carries
+    ≥1 experiment-anchored gate.
+16. **RESULTS-MUST-TRAVEL.** Every exported result is a self-describing bundle
+    (`CaseSpec` + four-tuple + U95 envelope + validity context) usable in a thesis
+    without the cluster. Constitutional promotion at Stage 20 with the bundle +
+    round-trip CI.
+17. **SCOPE-GATE.** New solvers/ML/agents/features stay deferred unless they directly
+    serve the optimizer mission or the flapping-wing flagship. This gates **effort
+    allocation, NOT interface generality** — the `Solver`/`Surrogate` protocols stay
+    general.
+
 ## How to ask vs how to act
 
 - **Ambiguity in deliverables** → ask via `AskUserQuestion`.
@@ -132,8 +178,11 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   100/104/111/112) are off-limits beyond the explicitly-shared services
   (Postgres 202, Grafana 205, Tempo 204, Redis 203, TrueNAS 104).
   Topology: `docs/architecture/proxmox-topology.md`.
-- **Production-tag UQ requirement** — TBD in Stage 12; any
-  `tag=production` MLflow run will require a `--uq` envelope.
+- **Production-tag UQ + improvement-exceeds-uncertainty** — reframed by ADR-013
+  (Hard Rule 12). The UQ core lands **Stage 12**: total `U95 = RSS(numerical GCI,
+  statistical batch-means, input)`; any `tag=production` or `validation_tag=thesis-grade`
+  run requires the U95 envelope, and any reported improvement's CFD-verified delta must
+  exceed k·U95 (default k=2). Schema skeleton `aero/vv/reportable.py` lands Stage 10.
 - **Surrogate certificate-of-validity check** (Stage 08, ADR-008; CONSTITUTION
   Invariant 9) — every surrogate is a subclass of
   `aero.surrogates._common.base:Surrogate` that ships with a typed
@@ -145,10 +194,15 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `validate()` in a `try/except CertExpired`; on failure it refuses to
   invoke the model and falls back to a validated solver. The certificate is
   attached to every training run as the MLflow artifact
-  `certificates/<surrogate>.json`.
-- **Cost cap** — Stage 07 ships the initial $50/month ledger at
-  `/etc/aero/runpod-ledger.json`; Stage 13 promotes to the full multi-cloud
-  cost router.
+  `certificates/<surrogate>.json`. **Per ADR-013, the agent layer (old Stage 14) is
+  deferred indefinitely; the cert gate now guards the optimizer's surrogate-accelerated
+  loop (Stage 16) — every surrogate-predicted optimum is re-verified by ground-truth CFD
+  (Hard Rule 14).**
+- **Cost cap** — Stage 07 ships the cloud-GPU ledger at `/etc/aero/runpod-ledger.json`;
+  the default cap is **$150/month** (ADR-014, raised from the initial $50; bumped in
+  `aero/orchestration/cost_cap.py` at Stage 10). Sustained ($200–600) and burst ($1–2k)
+  tiers are per-campaign-approved. The multi-cloud router (old Stage 13) is deferred; the
+  tiers carry over when it lands.
 - **Self-hosted CI runner** (Stage 03) — `vv-smoke` runs the NACA 0012
   walking-skeleton smoke test on a self-hosted runner labeled `vv`,
   registered on `aero-build`. Not a required status check.
@@ -324,6 +378,25 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   Vault-rendered passphrase, fixing the over-SSH signing failure (nekrs/jax-fluids/
   surrogate-smoke re-signed); the signing key migrates into Vault, the escrow
   rides the NAS ZFS send.
+
+- **Optimizer-mission refocus** (Stage 09 close-out, ADR-013/014/016; governing scope
+  `docs/handoff-bundle/00-MISSION-AND-SCOPE.md`) — the platform is an **aerodynamic
+  shape optimizer**; flapping-wing is the single flagship; the optimization loop is the
+  mission (a named milestone, Stage 15 = the thesis checkpoint), not backlog. **Cuts
+  (ADR-013):** automotive surrogate zoo (DoMINO-on-DrivAerML as designed),
+  Transolver/FIGConvNet/X-MGN, MoE, DPW-7/HLPW-5 (NASA TMR kept), NeMo agent + literature
+  miner (deferred indefinitely), riblet/channel-DNS stages (riblets demote to an
+  example). **Frozen-optional (kept, NOT deleted):** SU2 (adjoint seed for the
+  post-v0.1.0 topology layer), PyFR, NekRS, JAX-Fluids — their adapters, SIFs, tests
+  stay; do not invest. **Stage-09 Phase-3 DoMINO training is CANCELLED** ($67–191 avoided)
+  — `aero/surrogates/domino/`, `scripts/stage09_domino_train.py`, `physicsnemo.sif`, and
+  the **484-run / ~353 GiB DrivAerML** on the `aero-nfs` remote are **frozen in place**.
+  **Do NOT delete or touch DrivAerML / `physicsnemo.sif` / `SHA256SUMS` entries without
+  literal `approved`** — disk reclaim (~369 GB free on TrueNAS) is a separate
+  propose-first decision (ledgered). The re-aimed Stage 10–20 map + cross-stage
+  guardrails are in `docs/handoff-bundle/README-handoff.md`. Stage prompts are
+  **committed** from Stage 10 on (`docs/handoff-bundle/STAGE-NN-<slug>.md`); each handoff
+  authors the next stage's prompt.
 
 ## Pointers (do not re-derive — read these)
 

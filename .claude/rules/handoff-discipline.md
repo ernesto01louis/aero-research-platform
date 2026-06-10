@@ -53,7 +53,10 @@ five fields `stage`, `stage_name`, `status`, `date_completed`,
    checks; branch protection diffs
 6. **Gotchas discovered** — surprises future sessions need to know about
 7. **Open items for the next stage** (and beyond) — concrete next-action
-   items, not vague intentions
+   items, not vague intentions. Since the optimizer refocus (ADR-013), stage
+   prompts are committed to the repo: this section must confirm the **next
+   stage's prompt file exists** at `docs/handoff-bundle/STAGE-(NN+1)-<slug>.md`
+   (each handoff authors the next stage's prompt before session Stop).
 8. **Pointers for next session** — read first / do not re-read / run
    first to verify
 9. **Artifacts produced** — narrative index (full diff is in git;
