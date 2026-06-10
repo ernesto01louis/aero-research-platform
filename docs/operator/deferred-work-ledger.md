@@ -1,4 +1,4 @@
-# Deferred-work ledger (as of Stage 09, 2026-06-01)
+# Deferred-work ledger (as of Stage 09, 2026-06-01; refocused 2026-06-10)
 
 > Single source of truth for everything not-yet-done across Stages 01–09,
 > grouped by **what unblocks it**. Born from the Stage-09 cleanup audit: the
@@ -8,6 +8,14 @@
 >
 > Per-stage detail lives in `docs/handoffs/STAGE-*-DONE-*.md`; decisions in
 > `docs/adrs/`. Nothing here is "debt" — it's sequenced work waiting on a gate.
+>
+> **⚠ Optimizer-mission refocus (ADR-013, 2026-06-10).** The platform is now an
+> aerodynamic shape optimizer (flapping flagship). The automotive surrogate path is
+> **cut**: §2 DoMINO training is CANCELLED (struck through below, kept for the record);
+> §4's old Stage 10–16 list is replaced by the Stage 10–20 map in
+> `docs/handoff-bundle/README-handoff.md`. Frozen artifacts (DoMINO code,
+> `physicsnemo.sif`, the 353 GiB DrivAerML subset) stay in place — **disk reclaim is a
+> NEW propose-first item (§5) requiring literal `approved`.**
 
 ## 0. Host-side — operator-authorized cleanups (RESOLVED 2026-06-01)
 
@@ -65,20 +73,24 @@ Separate **V&V-hardening** track (CPU cluster; NOT a build task — was mis-buck
 > real PhysicsNeMo 1.2.0 DoMINO API + the `PhysicsNeMoDominoEngine` wiring spec +
 > image/registry-auth + data staging + the training command + post-run un-xfail/tag.
 
-- [ ] Stage the DrivAerML subset to the `aero-cloud` RunPod network volume
-  (conf/storage/cloud.yaml; the chosen cloud-now home).
-- [ ] First paid H100 PyFR run (Taylor-Green; ~$0.62; cost-cap gated, Invariant 8).
-- [ ] Smoke baselines (MLP/FNO/MGN) on RunPod via `aero surrogate train --executor runpod`.
-- [ ] **DoMINO training** (`aero surrogate train --baseline domino --executor
-  runpod --projected-hours <approved>`): multi-day H100 ≈ $67–191 → **exceeds the
-  $50/mo cap; raise the per-run cap for this run**. Then: held-out Cd MAE p95 < 5%
-  → `validated` cert + `surrogate_vv` report.
-- [ ] NACA 0012 blunt-TE cluster mesh-sweep → confirm mesh VALID + Cd within 3% →
+**CANCELLED per ADR-013 (2026-06-10) — struck through, kept for the record:**
+- ~~Stage the DrivAerML subset to the `aero-cloud` RunPod network volume.~~
+- ~~Smoke baselines (MLP/FNO/MGN) on RunPod.~~
+- ~~**DoMINO training** (multi-day H100 ≈ $67–191).~~ *(automotive path cut; no spend.)*
+- ~~DrivAerNet++ lite manifest builder `_LAYOUT` population; full-mode (10.6 TB) pull.~~
+
+**SURVIVES — moved to Stage 10 (V&V debt go/no-go):**
+- [ ] **NACA 0012 blunt-TE cluster mesh-sweep** → confirm mesh VALID + Cd within 3% →
   un-xfail `tests/vv/test_tmr_naca0012.py` (the collapsed base-wake wedge may need
-  iteration — see handoff §11).
-- [ ] Then **tag `v0.0.9`** (Hard Rule 10 — handoff already exists).
-- [ ] DrivAerNet++ lite manifest builder `_LAYOUT` population (after the first pull
-  confirms the CSV columns); the full-mode (10.6 TB CFD) pull is NAS-gated.
+  iteration — see handoff §11). *(Was mis-coupled to the surrogate stage; it is
+  V&V-hardening. Now a Stage-10 deliverable.)*
+
+**Optional infra-validation (demoted; not on the optimizer path):**
+- [ ] First paid H100 PyFR run (Taylor-Green; ~$0.62) — only as a cloud-path liveness
+  check if/when a GPU run is needed; smoke runs are Invariant-11-exempt.
+
+**Tag:** v0.0.9 is recommended at the Stage-09 close-out (handoff §14) on the operator's
+literal `approved` — no longer gated on training evidence.
 
 ## 3. Phase 4 — dedicated NAS (hardware purchase)
 
@@ -88,18 +100,27 @@ Separate **V&V-hardening** track (CPU cluster; NOT a build task — was mis-buck
   round-trip against the TrueNAS-SCALE S3 app.
 - [ ] Full-mode DrivAerNet++ + DrivAerML on-prem once capacity allows.
 
-## 4. Future stages (10–16) — correctly scoped, NOT debt
+## 4. Future stages (10–20) — see the re-aimed map
 
-- Stage 10: Transolver / FIGConvNet / X-MGN ensemble + MoE (reuse `aero/vv/surrogate/`).
-- Stage 11: preCICE 3 FSI/CHT.
-- Stage 12: DPW-7 / HLPW-5 / ERCOFTAC 3D V&V; ONERA M6 3D wing-slice; UQ envelope;
-  periodic-hill pointwise profiles; the NACA-TE / flat-plate / bump V&V hardening
-  to <5%.
-- Stage 13: multi-cloud cost router (Lambda/Vast) + Postgres-backed ledger; adjoint
-  shape-opt on JAX-Fluids `differentiable_run`.
-- Stage 14: NeMo Agent Toolkit; the agent-side `cert.assert_current()` gate.
-- Stage 15: literature mining (arXiv/Semantic Scholar/OpenAlex + pgvector); ORCID.
-- Stage 16: JOSS submission; Zenodo per-release DOI; license-scan CI.
+The original Stage 10–16 list (automotive zoo, DPW/HLPW, multi-cloud router, NeMo agent,
+literature miner) is **superseded by ADR-013.** The current map is
+`docs/handoff-bundle/README-handoff.md` (Stage 10–20): V&V debt go/no-go → moving-mesh +
+unsteady → UQ core → transition → rigid flapping → **parametric optimization (thesis
+checkpoint)** → surrogate-accelerated optimization → geometry ingestion → preCICE FSI →
+flexible flapping → flexible-flapping optimization + v0.1.0. **Deferred indefinitely:** NeMo
+agent layer, literature miner, MoE, DPW/HLPW, riblet DNS.
+
+## 5. NEW — propose-first / acquisition items (post-refocus)
+
+- [ ] **DrivAerML ~353 GiB disk reclaim** — propose-first, requires literal `approved`.
+  The 484-run subset on the `aero-nfs` remote is frozen (ADR-013); ~369 GB free on TrueNAS,
+  so there is real pressure, but removal touches `SHA256SUMS`/DVC and is not automatic.
+- [ ] **Flapping reference-data acquisition** (DVC-tracked under `data/reference/`, per
+  owning stage): McCroskey + Heathcote-Gursul → Stage 13; Dickinson + Wang-Birch-Dickinson
+  → Stage 14; Turek-Hron tabulated → Stage 18; Blasius / low-Re cylinder Strouhal → Stage 10.
+- **Post-v0.1.0 named sequence (committed, further out):** adjoint shape/topology
+  optimization (DAFoam v5 + SU2 adjoint — SU2 frozen-optional, re-activated here) →
+  generative / true-topology proposers.
 
 ## Optional / low-priority
 

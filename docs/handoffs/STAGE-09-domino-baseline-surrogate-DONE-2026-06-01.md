@@ -11,7 +11,7 @@ git_sha_start: "8b2739ffc5489d8f71b92eb41eba8e2b78d87c1d"
 git_sha_end: "fcef13aeb9f28f7038bc6fde77e2b3e78b277e46"
 stage_tag: v0.0.9
 next_stage: 10
-next_stage_name: "Stage 10 — Transolver / FIGConvNet / X-MGN ensemble + MoE"
+next_stage_name: "Stage 10 — V&V Debt Retirement + Output-Validity Bar"
 ---
 
 # Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo) — DONE 2026-06-01
@@ -279,3 +279,35 @@ prepared Phase 3:
   that API on the pod (adapt PhysicsNeMo's `examples/cfd/external_aerodynamics/domino/`),
   then image/registry-auth + data staging + the budget-gated training → `validated`
   cert + `surrogate_vv` → NACA blunt-TE mesh-sweep un-xfail → tag `v0.0.9`.
+
+## 14. Scope-refocus close-out addendum (2026-06-10)
+
+The operator refocused the platform as a **hypothesis-driven aerodynamic shape optimizer**
+(flapping-wing flagship; riblets demoted to an example; the optimization loop is the
+mission). Adopted via **ADR-013** (refocus), **ADR-014** (budget tiers), **ADR-016** (FSI
+structural-solver strategy), and **ADR-015** (Constitution Invariants 10 + 11, on a separate
+PR in 72 h review). Governing scope: `docs/handoff-bundle/00-MISSION-AND-SCOPE.md` (reworked);
+re-aimed map: `docs/handoff-bundle/README-handoff.md` (Stages 10–20).
+
+**Effect on Stage 09 (annotations, not history rewrites):**
+- **Phase 3 DoMINO training CANCELLED per ADR-013** — §1 deliverables 3, 4, 5, 6 and the §7
+  Phase-3 items are superseded. The path trained on automotive data (DrivAerML), which the
+  optimizer mission cuts (cross-domain transfer to wings is unproven; the own-data surrogate
+  factory replaces it at Stage 16). No GPU spend ($67–191 avoided).
+- **Stranded artifacts FROZEN, not deleted:** `aero/surrogates/domino/`,
+  `scripts/stage09_domino_train.py`, the Phase-3 runbook, the signed 15 GB `physicsnemo.sif`,
+  and the **484-run / ~353 GiB DrivAerML** subset on the `aero-nfs` remote stay in place.
+  **DrivAerML disk reclaim is a separate propose-first decision (literal `approved`)** — ~369
+  GB free on TrueNAS; ledgered.
+- **NACA blunt-TE mesh-sweep EXTRACTED into Stage 10** — it was always V&V-hardening,
+  mis-coupled to the surrogate stage. It is now a Stage-10 hard-go/no-go deliverable.
+- **Phase 4 NAS cutover unchanged** (operator-owned). **Vault signing-key migration survives**
+  (ADR-012).
+- **Frozen-optional solvers:** SU2 (now the post-v0.1.0 adjoint seed), PyFR, NekRS,
+  JAX-Fluids — kept, not invested in.
+
+**Status stays `partial`** (cancelled ≠ delivered; Stage-05 precedent). `next_stage_name`
+updated to "Stage 10 — V&V Debt Retirement + Output-Validity Bar". **Tag `v0.0.9` is
+recommended** (handoff valid; the Phase-3-evidence deferral reason is voided by the
+cancellation; the tag pins the last pre-pivot state + the adoption docs) — applied on the
+operator's literal `approved`.

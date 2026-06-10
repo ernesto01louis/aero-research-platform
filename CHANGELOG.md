@@ -72,6 +72,36 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
 - `vv-scale-resolving.yml` — new weekly `surrogate-inference-smoke` job (DoMINO
   checkpoint degradation check; GPU-gated, non-required).
 
+### Changed — Stage-09 close-out: optimizer-mission refocus (2026-06-10)
+
+- **Mission refocus (ADR-013):** the platform is now a **hypothesis-driven aerodynamic
+  shape/topology optimizer** (flapping-wing flagship; CFD as ground truth). The
+  optimization loop is the mission (Stage 15 = thesis checkpoint), not backlog. Cut: the
+  automotive surrogate zoo (DoMINO-on-DrivAerML as designed, Transolver/FIGConvNet/X-MGN,
+  MoE), DPW-7/HLPW-5 (NASA TMR kept), the NeMo agent layer + literature miner (deferred
+  indefinitely), riblet/channel-DNS (riblets demote to an example). SU2/PyFR/NekRS/JAX-Fluids
+  frozen-optional (SU2 = post-v0.1.0 adjoint seed). **Stage-09 Phase-3 DoMINO training
+  CANCELLED** ($67–191 avoided); DoMINO code + SIF + 353 GiB DrivAerML frozen, not deleted.
+- `docs/handoff-bundle/00-MISSION-AND-SCOPE.md` (governing scope, reworked) +
+  `README-handoff.md` (Stage 10–20 map) + `STAGE-10-vv-debt-and-validity-bar.md` (committed
+  stage prompt — the new convention) + `archive/` (superseded planning docs).
+- `docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md` — filed as a
+  partially-adopted reference.
+- ADR-013 (optimizer-mission refocus), ADR-014 (budget tiers: $150/mo baseline, supersedes
+  ADR-007's cap value), ADR-016 (FSI structural-solver strategy: deal.II/Nutils for
+  Turek-Hron verification, CalculiX for the flexible-wing application).
+- CLAUDE.md — mission rewrite + Hard Rules 12–17 (IMPROVEMENT-EXCEEDS-UNCERTAINTY,
+  NO-SURROGATE-ON-FOREIGN-DATA, CFD-VERIFIED-OPTIMUM-ONLY, VALIDATE-AGAINST-EXPERIMENT,
+  RESULTS-MUST-TRAVEL, SCOPE-GATE) + Stage-09.5 refocus block. README intro, CITATION.cff
+  abstract/keywords, and the `pyproject.toml` description re-pointed to the optimizer mission.
+- New rules `.claude/rules/{flapping-validation-ladder,optimization-integrity}.md`.
+- `docs/operator/deferred-work-ledger.md` rewritten around the refocus.
+
+### Proposed (constitution PR, 72 h review — NOT yet merged)
+
+- ADR-015 + **CONSTITUTION Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) and 11
+  (NO-SURROGATE-ON-FOREIGN-DATA)** — on branch `adr-015-constitution-invariants-10-11`.
+
 ## [0.0.8] - 2026-05-30
 
 ### Added — Stage 08 (JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing)

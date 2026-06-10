@@ -4,14 +4,17 @@
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![DOI](https://zenodo.org/badge/1241412451.svg)](https://doi.org/10.5281/zenodo.20292712)
 
-A fully open-source, peer-review-grade, hardware-agnostic research platform for
-computational aerodynamics. Spans classical CFD (OpenFOAM-ESI, SU2, PyFR, NekRS),
-differentiable CFD (JAX-Fluids 2.0), ML surrogates (NVIDIA PhysicsNeMo —
-DoMINO, Transolver, FIGConvNet, X-MeshGraphNet, MoE), multi-physics coupling
-(preCICE 3), and agentic CAE (NVIDIA NeMo Agent Toolkit + AI-Q Blueprint fork).
-Every published number traces to a `(git_sha, dvc_input_hash,
-container_sif_sha256, config_hash)` four-tuple — reproducibility is the
-non-negotiable foundation.
+A fully open-source, peer-review-grade, hardware-agnostic **aerodynamic shape
+optimizer**: plug in geometry (parametric, then CAD/STL/3MF), define an aerodynamic
+objective, and the platform returns an **improved, CFD-verified design** — with CFD as
+the ground truth. The forward CFD + UQ + provenance stack (OpenFOAM-ESI core; preCICE
+FSI; the flapping-wing flagship validation ladder) is the foundation that makes every
+claimed improvement trustworthy. Every reported number traces to a `(git_sha,
+dvc_input_hash, container_sif_sha256, config_hash)` four-tuple, and **no improvement is
+thesis-grade unless its CFD-verified delta exceeds its quantified uncertainty** —
+reproducibility and honest error bars are the non-negotiable foundation. See
+[`docs/handoff-bundle/00-MISSION-AND-SCOPE.md`](docs/handoff-bundle/00-MISSION-AND-SCOPE.md)
+for scope.
 
 ## Status
 
@@ -20,7 +23,7 @@ non-negotiable foundation.
 
 **Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo)** — most recent stage.
 
-**Next:** Stage 10 — Transolver / FIGConvNet / X-MGN ensemble + MoE.
+**Next:** Stage 10 — V&V Debt Retirement + Output-Validity Bar.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
@@ -55,8 +58,9 @@ on `aero-build`. Expected: Cd ≈ 0.0079 (±25% walking-skeleton band).
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — Conventional Commits, PR workflow
 - [`docs/architecture/`](docs/architecture/) — Pass 1 architecture doc
 - [`docs/sota/`](docs/sota/) — Pass 2 SOTA literature review
-- [`docs/handoff-bundle/`](docs/handoff-bundle/) — Pass 3 best-practices guide + 16-stage
-  build bundle
+- [`docs/handoff-bundle/`](docs/handoff-bundle/) — governing scope
+  ([`00-MISSION-AND-SCOPE.md`](docs/handoff-bundle/00-MISSION-AND-SCOPE.md)) + the
+  20-stage build map ([`README-handoff.md`](docs/handoff-bundle/README-handoff.md))
 - [`docs/adrs/`](docs/adrs/) — architecture decision records
 - [`docs/handoffs/`](docs/handoffs/) — per-stage handoff exit notes
 
