@@ -227,3 +227,106 @@ def test_math_import_used() -> None:
     # guard the RSS helper against an accidental refactor to a wrong norm
     q = ReportableQuantity(name="x", value=0.0, u95_numerical=1.0, u95_statistical=1.0)
     assert q.u95_total == pytest.approx(math.sqrt(2.0))
+
+
+# --- statistical-U95 enforcement (the GCI-only hole) ------------------------
+
+
+def test_phase_averaged_thesis_grade_requires_statistical_u95() -> None:
+    # a phase-averaged flapping quantity with no sampling uncertainty must NOT pass
+    q = ReportableQuantity(
+        name="thrust_coefficient",
+        value=0.42,
+        kind="phase_averaged",
+        u95_numerical=0.01,
+        u95_statistical=0.0,  # the hole: GCI present, sampling error missing
+    )
+    with pytest.raises(ValidationError, match="statistical U95"):
+        ReportableResult(
+            case_name="flapping_rigid",
+            quantities=(q,),
+            provenance=_prov(),
+            anchors=(_anchor(passed=True),),
+            validation_tag="thesis-grade",
+        )
+
+
+def test_time_averaged_thesis_grade_requires_statistical_u95() -> None:
+    q = ReportableQuantity(
+        name="cd", value=0.01, kind="time_averaged", u95_numerical=0.001, u95_statistical=0.0
+    )
+    with pytest.raises(ValidationError, match="statistical U95"):
+        ReportableResult(
+            case_name="unsteady",
+            quantities=(q,),
+            provenance=_prov(),
+            anchors=(_anchor(passed=True),),
+            validation_tag="thesis-grade",
+        )
+
+
+def test_phase_averaged_thesis_grade_ok_with_statistical_u95() -> None:
+    q = ReportableQuantity(
+        name="thrust_coefficient",
+        value=0.42,
+        kind="phase_averaged",
+        u95_numerical=0.01,
+        u95_statistical=0.008,
+    )
+    result = ReportableResult(
+        case_name="flapping_rigid",
+        quantities=(q,),
+        provenance=_prov(),
+        anchors=(_anchor(passed=True),),
+        validation_tag="thesis-grade",
+    )
+    assert result.validation_tag == "thesis-grade"
+
+
+def test_steady_quantity_needs_no_statistical_u95() -> None:
+    # the default kind stays simple: a steady quantity is thesis-grade with GCI alone
+    q = ReportableQuantity(name="cd", value=0.0081, u95_numerical=0.0002)
+    assert q.kind == "steady"
+    ReportableResult(
+        case_name="naca0012",
+        quantities=(q,),
+        provenance=_prov(),
+        anchors=(_anchor(passed=True),),
+        validation_tag="thesis-grade",
+    )
+
+
+# --- u95_delta strictly positive; improvement/optimization mutually exclusive
+
+
+def test_zero_u95_delta_rejected() -> None:
+    # a zero-uncertainty delta would trivially clear any margin
+    with pytest.raises(ValidationError):
+        ImprovementClaim(
+            quantity="cd",
+            baseline=0.0100,
+            improved=0.0080,
+            higher_is_better=False,
+            u95_delta=0.0,
+            matched_conditions=True,
+        )
+
+
+def test_improvement_and_optimization_mutually_exclusive() -> None:
+    q = ReportableQuantity(name="propulsive_efficiency", value=0.40, u95_numerical=0.001)
+    with pytest.raises(ValidationError, match="not both"):
+        ReportableResult(
+            case_name="flapping_opt",
+            quantities=(q,),
+            provenance=_prov(),
+            improvement=_claim(),
+            optimization=OptimizationResult(
+                objective="maximize propulsive_efficiency at fixed thrust",
+                design_variables={"stroke_amplitude_deg": 75.0},
+                improvement=_claim(),
+                cfd_verified=_prov(),
+                n_candidates=1,
+                held_out_verification=False,
+            ),
+            validation_tag="validated",
+        )
