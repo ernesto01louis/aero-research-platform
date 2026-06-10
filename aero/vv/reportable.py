@@ -54,6 +54,11 @@ DEFAULT_K = 2.0
 
 ValidationTag = Literal["smoke", "validated", "thesis-grade"]
 
+# Whether a reported quantity is a steady value or an average over time. Non-steady
+# quantities REQUIRE a positive statistical U95 to be thesis-grade (GCI alone is
+# insufficient for unsteady flows) — see ReportableResult._thesis_grade_gate.
+QuantityKind = Literal["steady", "time_averaged", "phase_averaged"]
+
 
 class SmallSignalError(ValueError):
     """A claimed improvement did not clear ``k * U95`` (CONSTITUTION Invariant 10).
@@ -97,9 +102,12 @@ class ValidationAnchor(BaseModel):
 class ReportableQuantity(BaseModel):
     """A scalar result with its three independent U95 contributions (RSS-combined).
 
-    ``u95_statistical`` defaults to 0 for steady quantities (no time-averaging); it is
-    mandatory and positive for unsteady / phase-averaged quantities (enforced by the
-    thesis-grade gate downstream, not here, so a steady result stays simple).
+    ``kind`` records whether the quantity is steady or a time/phase-average. For a
+    non-steady ``kind`` the thesis-grade gate REQUIRES a positive ``u95_statistical``
+    (the sampling error of the average — GCI covers only discretization). This field
+    is what makes that requirement expressible and enforceable; without it an unsteady
+    flapping result could be tagged thesis-grade with ``u95_statistical = 0`` and nothing
+    would catch it. ``u95_statistical`` defaults to 0, which is valid only for ``steady``.
     """
 
     model_config = _STRICT
@@ -109,6 +117,11 @@ class ReportableQuantity(BaseModel):
     )
     value: float = Field(..., description="The reported scalar value.")
     units: str = Field(default="", description="Physical units; '' for dimensionless coefficients.")
+    kind: QuantityKind = Field(
+        default="steady",
+        description="Steady value, or a time-/phase-average. Non-steady kinds require a "
+        "positive u95_statistical to be thesis-grade (enforced in the thesis-grade gate).",
+    )
     u95_numerical: float = Field(
         ...,
         ge=0.0,
@@ -156,8 +169,9 @@ class ImprovementClaim(BaseModel):
     higher_is_better: bool = Field(..., description="Direction of improvement for this quantity.")
     u95_delta: float = Field(
         ...,
-        ge=0.0,
-        description="Combined U95 of the DELTA (matched-condition; correlated errors cancelled).",
+        gt=0.0,
+        description="Combined U95 of the DELTA (matched-condition; correlated errors cancelled). "
+        "Strictly positive — a zero-uncertainty delta would trivially clear any margin.",
     )
     k: float = Field(default=DEFAULT_K, ge=1.0, description="Safety margin; never < 1. Default 2.")
     matched_conditions: bool = Field(
@@ -253,10 +267,19 @@ class ReportableResult(BaseModel):
     """The thesis-grade output contract: quantities + four-tuple + anchors (+ optional claim).
 
     ``validation_tag="thesis-grade"`` is issuable **only** through this schema and only if
-    every quantity carries a positive numerical U95 and the result is anchored to experiment
-    (a passing :class:`ValidationAnchor`) or to a CFD-verified :class:`OptimizationResult`.
-    This is the MLflow gate for CONSTITUTION Invariant 10. ``smoke`` and ``validated`` tags
-    carry no such gate (they are explicitly not publication-grade).
+    every quantity carries a positive numerical U95, every non-steady quantity also carries
+    a positive *statistical* U95, and the result is anchored to experiment (a passing
+    :class:`ValidationAnchor`) or to a CFD-verified :class:`OptimizationResult`. This is the
+    MLflow gate for CONSTITUTION Invariant 10. ``smoke`` and ``validated`` tags carry no such
+    gate (they are explicitly not publication-grade).
+
+    **Scope note (schema + process, not schema alone):** a CFD-verified
+    :class:`OptimizationResult` is accepted as thesis-grade anchoring on the strength of its
+    ``cfd_verified`` four-tuple. That the *forward model* used to verify the optimum was
+    itself experimentally validated is a **process guarantee** — the forward problem clears
+    the validation ladder (Stage 14) before the optimizer runs on it (Stage 15) — not
+    something this schema enforces. The schema enforces CFD-verification of the optimum;
+    experimental anchoring of the forward model lives in the stage sequencing.
     """
 
     model_config = _STRICT
@@ -280,6 +303,17 @@ class ReportableResult(BaseModel):
     )
 
     @model_validator(mode="after")
+    def _improvement_optimization_consistent(self) -> ReportableResult:
+        # An OptimizationResult carries its own ImprovementClaim; a top-level one alongside
+        # it could silently diverge. Require exactly one source of truth.
+        if self.optimization is not None and self.improvement is not None:
+            raise ValueError(
+                "set either `improvement` or `optimization` (which carries its own "
+                "`improvement`), not both — two improvement claims must not diverge."
+            )
+        return self
+
+    @model_validator(mode="after")
     def _thesis_grade_gate(self) -> ReportableResult:
         if self.validation_tag != "thesis-grade":
             return self
@@ -288,6 +322,13 @@ class ReportableResult(BaseModel):
                 raise ValueError(
                     "thesis-grade requires a positive numerical U95 (GCI) on every quantity; "
                     f"'{q.name}' has u95_numerical={q.u95_numerical}."
+                )
+            if q.kind != "steady" and q.u95_statistical <= 0.0:
+                raise ValueError(
+                    f"thesis-grade requires a positive statistical U95 for the {q.kind} "
+                    f"quantity '{q.name}' (sampling error of a time/phase-average — batch-means "
+                    "/ autocorrelation effective-sample-size); GCI alone is insufficient for "
+                    f"unsteady flows. Got u95_statistical={q.u95_statistical}."
                 )
         anchored = any(a.passed for a in self.anchors)
         cfd_verified_opt = self.optimization is not None
