@@ -1,0 +1,9 @@
+# Stage 09 (ADR-011) — the Stage-04 MinIO remote on aero-mlflow (LXC 212).
+#
+# Small artifacts only (smoke baselines, certs, model checkpoints) — the 50 GB
+# LXC-local disk cannot hold CFD-scale datasets, which is exactly why Stage 09
+# adds the cloud/NAS profiles. This is the `[core] remote` default in .dvc/config.
+
+dvc_remote: aero-minio
+s3_endpoint: http://192.168.2.234:9000
+bucket: aero-dvc

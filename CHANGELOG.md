@@ -9,6 +9,99 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 _(empty — work pending toward the next `v0.0.NN` stage tag)_
 
+## [0.0.9] - 2026-06-01
+
+### Added — Stage 09 (DoMINO Baseline Surrogate; PhysicsNeMo)
+
+- `aero/surrogates/domino/` — the platform's first production surrogate.
+  `DominoSurrogate(Surrogate)` (`model.py`) wraps NVIDIA PhysicsNeMo's DoMINO
+  behind the Stage-08 protocol with a swappable `DominoEngine`
+  (`PhysicsNeMoDominoEngine` lazy-imports PhysicsNeMo; cluster-gated; host-side
+  tests inject a fake engine). `training.py`'s `train_domino` runs the no-PC
+  baseline + the Predictor-Corrector recipe and returns a certified
+  `DominoTrainingResult`; `certificate.py` owns the smoke→validated gate
+  (held-out Cd MAE p95 < 5%, strict `<`) — the only path to `"validated"`.
+- `aero/vv/surrogate/compare_surrogate_cfd.py` — the surrogate-vs-CFD cross-check
+  producing a `SurrogateVVReport` (per-target RMSE, Cd-within-5% verdict,
+  applicability-envelope check). New CLI `aero vv surrogate`.
+- `aero/cli.py` — `aero surrogate train --baseline domino --executor
+  {runpod,local-ssh}` routes to the on-pod entrypoint
+  `scripts/stage09_domino_train.py` (dvc pull → baseline + PC → cert → eight
+  MLflow tags → checkpoint → surrogate_vv); cost-cap gated (Invariant 8).
+- `containers/physicsnemo.{def,run.sh}` + `scripts/build_physicsnemo_sif.sh` —
+  the PhysicsNeMo SIF wraps the NGC container
+  `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08` (pinned); the
+  `aero[physicsnemo-cu12]` extra is populated (PyG + warp-lang).
+- `scripts/_apptainer_sign.sh` — non-interactive Vault-fed SIF signer (ADR-012),
+  fixing the over-SSH signing failure; the Stage-07/08 build scripts route through it.
+- Pluggable DVC-remote storage backend (ADR-011): `conf/storage/{cloud,nas,minio}.yaml`
+  + `aero-cloud`/`aero-nas` remotes in `.dvc/config` + the `- storage: cloud`
+  default in `conf/config.yaml` — cloud-now → on-prem-NAS-later by config only.
+- `docs/runbooks/stage-09-nas-parallel-cutover.md` — the TrueNAS-VM → dedicated-NAS
+  parallel-cutover→re-IP runbook (preserves 192.168.2.100; ZFS-replicates the
+  signing-key escrow).
+- `ansible/roles/aero-buildah-storage/` + the `aero-apptainer` signing extension.
+- `tests/stage_09/` — host-side tests: DoMINO seams, cert gate (both ways),
+  taint propagation, PC speedup, surrogate-vs-CFD compare, storage switch.
+- ADR-010 (DoMINO baseline surrogate), ADR-011 (pluggable storage backend),
+  ADR-012 (non-interactive signing + Stage-09 cleanup).
+- `aero/adapters/openfoam/{schemas,geometry,case_writer}.py` — NACA 0012
+  **blunt-TE C-grid** (ADR-012 V&V hardening): `trailing_edge_thickness`/`n_te`
+  split the singular sharp-TE vertex into a finite base + a base-wake wedge,
+  targeting the +21% pressure-drag error (the NACA 0012 TMR xfail). Sharp TE
+  stays the default for all other cases; the xfail flips on the Phase-3 cluster
+  mesh-sweep. The `aero-cloud` DVC remote is now a RunPod network volume.
+
+### Changed
+
+- `aero/surrogates/_common/loaders/non_commercial/drivaernet_plus_plus.py` —
+  `body_length_m` (`gt=0.0`) → `body_length_param` (sign-neutral; ADR-012
+  option 3), unblocking the lite-mode schema. `dvc.yaml` drops the
+  not-yet-buildable DrivAerNet++ `manifest.json` out.
+- `containers/SHA256SUMS` + `SECURITY.md` — corrected the "all SIFs are signed" /
+  "Vault not yet stood up" doc drift.
+- The 7 xfail V&V tests now carry `[resolution-milestone: ...]` tags.
+- Stages 01–09 cleanup pass: the JAX-Fluids `solver_version` provenance string now
+  reflects the pinned commit (`v0.2.1+ac7c090f`, was the broken `v0.2.1` tag);
+  CLAUDE.md footer + the SHA256SUMS physicsnemo placeholder + the handoff-template
+  `model` field clarified; new `docs/operator/deferred-work-ledger.md` consolidates
+  the hardware-gated backlog (the audit found zero design debt).
+
+### CI
+
+- `vv-scale-resolving.yml` — new weekly `surrogate-inference-smoke` job (DoMINO
+  checkpoint degradation check; GPU-gated, non-required).
+
+### Changed — Stage-09 close-out: optimizer-mission refocus (2026-06-10)
+
+- **Mission refocus (ADR-013):** the platform is now a **hypothesis-driven aerodynamic
+  shape/topology optimizer** (flapping-wing flagship; CFD as ground truth). The
+  optimization loop is the mission (Stage 15 = thesis checkpoint), not backlog. Cut: the
+  automotive surrogate zoo (DoMINO-on-DrivAerML as designed, Transolver/FIGConvNet/X-MGN,
+  MoE), DPW-7/HLPW-5 (NASA TMR kept), the NeMo agent layer + literature miner (deferred
+  indefinitely), riblet/channel-DNS (riblets demote to an example). SU2/PyFR/NekRS/JAX-Fluids
+  frozen-optional (SU2 = post-v0.1.0 adjoint seed). **Stage-09 Phase-3 DoMINO training
+  CANCELLED** ($67–191 avoided); DoMINO code + SIF + 353 GiB DrivAerML frozen, not deleted.
+- `docs/handoff-bundle/00-MISSION-AND-SCOPE.md` (governing scope, reworked) +
+  `README-handoff.md` (Stage 10–20 map) + `STAGE-10-vv-debt-and-validity-bar.md` (committed
+  stage prompt — the new convention) + `archive/` (superseded planning docs).
+- `docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md` — filed as a
+  partially-adopted reference.
+- ADR-013 (optimizer-mission refocus), ADR-014 (budget tiers: $150/mo baseline, supersedes
+  ADR-007's cap value), ADR-016 (FSI structural-solver strategy: deal.II/Nutils for
+  Turek-Hron verification, CalculiX for the flexible-wing application).
+- CLAUDE.md — mission rewrite + Hard Rules 12–17 (IMPROVEMENT-EXCEEDS-UNCERTAINTY,
+  NO-SURROGATE-ON-FOREIGN-DATA, CFD-VERIFIED-OPTIMUM-ONLY, VALIDATE-AGAINST-EXPERIMENT,
+  RESULTS-MUST-TRAVEL, SCOPE-GATE) + Stage-09.5 refocus block. README intro, CITATION.cff
+  abstract/keywords, and the `pyproject.toml` description re-pointed to the optimizer mission.
+- New rules `.claude/rules/{flapping-validation-ladder,optimization-integrity}.md`.
+- `docs/operator/deferred-work-ledger.md` rewritten around the refocus.
+
+### Proposed (constitution PR, 72 h review — NOT yet merged)
+
+- ADR-015 + **CONSTITUTION Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) and 11
+  (NO-SURROGATE-ON-FOREIGN-DATA)** — on branch `adr-015-constitution-invariants-10-11`.
+
 ## [0.0.8] - 2026-05-30
 
 ### Added — Stage 08 (JAX-Fluids 2.x Differentiable Solver; Surrogate Plumbing)

@@ -116,28 +116,31 @@ one of these in before any full pull.**
 
 The five sub-datasets and their DOIs are in the top-of-file table.
 
-## Manifest builder gap (Stage 09 work)
+## Manifest builder gap — RESOLVED (Stage 09, ADR-012, option 3)
 
-The loader's `DrivAerNetPlusPlusCase` Pydantic schema expects
-`body_length_m: float = Field(..., gt=0.0)` — an absolute body length
-in meters. The lite pull's `DrivAerNet_ParametricData.csv` carries
-`A_Car_Length` but **as a delta** from an undocumented baseline car
-(values include negatives, e.g. `-37.6`). Without the baseline reference
-length, body_length_m cannot be computed honestly.
+The loader's `DrivAerNetPlusPlusCase` schema previously expected
+`body_length_m: float = Field(..., gt=0.0)` — an absolute body length in
+meters. The lite pull's `DrivAerNet_ParametricData.csv` carries
+`A_Car_Length` but **as a signed delta** from an undocumented baseline car
+(values include negatives, e.g. `-37.6`), so an absolute length cannot be
+computed honestly without the baseline.
 
-Stage 09 must do one of:
+**Stage 09 chose option 3** (the only data-independent fix): the loader
+field is renamed `body_length_m → body_length_param` and the `gt=0.0`
+constraint dropped, so it is honestly a *sign-neutral design parameter*,
+not a length. The lite-mode `*Case` schema now validates the raw deltas.
+(Options 1 — recover the baseline — and 2 — derive length from the 443 GB
+3D-Meshes STL bounding boxes — remain available later if an absolute
+length is ever needed; neither is required for DoMINO, which trains on
+DrivAerML, not DrivAerNet++.)
 
-1. Recover the DrivAer baseline geometry (paper supplement or upstream
-   GitHub README) and add a `BASELINE_BODY_LENGTH_M` constant to the
-   manifest builder so absolute lengths = baseline + delta.
-2. Pull the STLs via Dataverse `3D Meshes` sub-dataset (443 GB) and
-   compute the absolute length from the mesh bounding box.
-3. Rename the loader field to `body_length_delta` (or similar
-   sign-neutral identifier) and drop the `gt=0.0` constraint.
-
-Until then, the lite pull's manifest cannot be built — `cases/` and
-`splits/` are committed as source-of-truth, but `manifest.json` is
-absent.
+The lite-mode manifest *builder*
+(`scripts/build_dataset_manifest.py`'s `_LAYOUT["drivaernet_plus_plus"]`)
+is still a pending entry: the lite pull is three CSVs (`*_Cd_8k_*`,
+`*_Areas`, `*_ParametricData`), not the geo/force-moment two-CSV join the
+builder does, so it needs the operator's first pull to confirm the exact
+columns before the join is wired. `cases/` and `splits/` are the committed
+source-of-truth meanwhile.
 
 ## Stage-08 baseline use
 

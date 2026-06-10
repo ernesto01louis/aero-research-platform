@@ -26,6 +26,20 @@
     - role: aero-apptainer
       tags: [apptainer]
 
+# --- Stage 09 — buildah container storage off the small root volume -----------
+# Relocates /etc/containers/storage.conf graphroot onto the big NVMe so the
+# PhysicsNeMo (and other CUDA+torch) SIF builds don't deadlock the root volume.
+# Targets the `aero_buildah_storage` group — the operator opts the container
+# build host into it (Hard Rule 11 if that host is the Proxmox host). The group
+# may be empty; the play then matches no hosts and is a no-op.
+#       ansible-playbook site.yml --tags buildah-storage
+- name: Buildah container storage relocation (build host)
+  hosts: aero_buildah_storage
+  gather_facts: true
+  roles:
+    - role: aero-buildah-storage
+      tags: [buildah-storage]
+
 - name: TrueNAS NFS client (build + dev + vv + mlflow)
   hosts: aero_nfs_client
   gather_facts: true

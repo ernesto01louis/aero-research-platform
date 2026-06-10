@@ -1,72 +1,121 @@
 #!/usr/bin/env bash
-# scripts/download_drivaerml.sh — Stage 08 mirror of DrivAerML (CC-BY-SA-4.0).
+# scripts/download_drivaerml.sh — DrivAerML surface-model pull (CC-BY-SA-4.0).
 #
-# Upstream (Hugging Face): https://huggingface.co/datasets/neashton/drivaerml.
-# Largest CC-BY-SA set in the bundle. STL_MODE controls whether per-run STLs
-# are mirrored — `skip` (default) just pulls the root CSVs for the manifest
-# (~150 KB); `full` mirrors every run_i/ STL (~600 GB total).
+# Upstream (Hugging Face, git-LFS): https://huggingface.co/datasets/neashton/drivaerml
+# (~31 TB full, 500 runs). Stage 09's DoMINO is a SURFACE model, so it needs the
+# geometry + the surface fields but NOT the (~50 GB/run) volume fields:
+#   FILESET=surface (default) → per run: drivaer_i.stl (~142 MB)
+#                                       + boundary_i.vtp (~660 MB)  ← surface p / WSS
+#                                       + the small per-run CSVs
+#   FILESET=stl               → per run: drivaer_i.stl + the small CSVs only
+# The volume files (volume_i.vtu*) are NEVER pulled here.
 #
-# Pre-flight: refuse to start the full STL pull if TrueNAS aero/datasets/
-# has < 1 TB free margin. The manifest-only path has no such check (it's
-# tiny).
+# Uses huggingface_hub.snapshot_download (resumable, parallel via hf_transfer,
+# follows the LFS 307 redirects) instead of a serial curl loop. Two snapshots
+# keep the per-run folders under cases/ and the root join-CSVs at the root:
+#   <DATASET_DIR>/cases/run_i/{drivaer_i.stl,boundary_i.vtp,*.csv}
+#   <DATASET_DIR>/{geo_parameters_all.csv,force_mom_all.csv}
+#
+# On aero-dev, <DATASET_DIR>/cases is a symlink to the NFS dataset
+# (/mnt/aero/datasets/drivaerml/cases) so the ~401 GB lands on TrueNAS while the
+# small .dvc pointers + manifest stay in the repo tree. See the Stage-09 handoff.
+#
+# Env knobs (all optional):
+#   DATASET_DIR     target dir (default <REPO_ROOT>/data/datasets/drivaerml)
+#   N_RUNS          number of runs to pull, 1..N (default 500)
+#   FILESET         surface (default) | stl
+#   DVC_REMOTE      dvc remote for the push (default aero-nfs)
+#   DVC_TRACK       1 = dvc add + push (default) · 0 = download + manifest only (smoke)
+#   HF_MAX_WORKERS  parallel download workers (default 8)
 
 set -euo pipefail
 
-REPO_ROOT="${REPO_ROOT:-$(pwd)}"
-DATASET_DIR="${REPO_ROOT}/data/datasets/drivaerml"
-HF_OWNER="neashton"
-HF_PREFIX="drivaerml"
+REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+DATASET_DIR="${DATASET_DIR:-${REPO_ROOT}/data/datasets/drivaerml}"
+HF_REPO="neashton/drivaerml"
 N_RUNS="${N_RUNS:-500}"
-STL_MODE="${STL_MODE:-skip}"
+FILESET="${FILESET:-surface}"
+DVC_REMOTE="${DVC_REMOTE:-aero-nfs}"
+DVC_TRACK="${DVC_TRACK:-1}"
+HF_MAX_WORKERS="${HF_MAX_WORKERS:-8}"
+export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-1}"
+export HF_HUB_DOWNLOAD_TIMEOUT="${HF_HUB_DOWNLOAD_TIMEOUT:-60}"   # raise httpx read timeout
 
 mkdir -p "${DATASET_DIR}/cases"
-cd "${DATASET_DIR}"
 
-if [[ "${STL_MODE}" == "full" ]]; then
-    FREE_GB=$(df --output=avail -BG /mnt/aero/datasets 2>/dev/null | tail -1 | tr -dc '0-9')
-    if [[ -n "${FREE_GB}" && "${FREE_GB}" -lt 1000 ]]; then
-        echo "ERROR: TrueNAS aero/datasets/ has < 1 TB free (${FREE_GB} GB)." >&2
-        echo "Pull AhmedML + WindsorML first, free space, then retry." >&2
-        exit 1
-    fi
+# --- pre-flight: free space on the target filesystem --------------------------
+PER_RUN_GB=1                                   # ~0.8 GB surface/run; round up for margin
+NEED_GB=$(( N_RUNS * PER_RUN_GB + 50 ))
+FREE_GB=$(df -PBG "${DATASET_DIR}/cases" | awk 'NR==2{gsub(/G/,"",$4); print $4}')
+if [[ -n "${FREE_GB}" && "${FREE_GB}" -lt "${NEED_GB}" ]]; then
+    echo "ERROR: $(readlink -f "${DATASET_DIR}/cases") has ${FREE_GB} GB free; need ~${NEED_GB} GB for ${N_RUNS} runs." >&2
+    exit 1
 fi
+echo ">> target=${DATASET_DIR} runs=${N_RUNS} fileset=${FILESET} free=${FREE_GB:-?}GB need~${NEED_GB}GB"
 
-for f in "geo_parameters_all.csv" "force_mom_all.csv"; do
-    if [[ ! -f "${f}" ]]; then
-        url="https://huggingface.co/datasets/${HF_OWNER}/${HF_PREFIX}/resolve/main/${f}"
-        echo ">> ${url}"
-        curl -fsSL "${url}" -o "${f}"
-    fi
-done
+# --- download (snapshot_download does the work; config passed via env) ---------
+DATASET_DIR="${DATASET_DIR}" HF_REPO="${HF_REPO}" N_RUNS="${N_RUNS}" \
+FILESET="${FILESET}" HF_MAX_WORKERS="${HF_MAX_WORKERS}" \
+python3 - <<'PY'
+import os, time
+from huggingface_hub import snapshot_download
 
-if [[ "${STL_MODE}" == "full" ]]; then
-    for i in $(seq 1 "${N_RUNS}"); do
-        RUN="run_${i}"
-        OUT="cases/${RUN}"
-        mkdir -p "${OUT}"
-        for f in "drivaer_${i}.stl" "force_mom_${i}.csv"; do
-            if [[ -f "${OUT}/${f}" ]]; then continue; fi
-            url="https://huggingface.co/datasets/${HF_OWNER}/${HF_PREFIX}/resolve/main/${RUN}/${f}"
-            echo ">> ${url}"
-            if ! curl -fsSL "${url}" -o "${OUT}/${f}"; then
-                rm -f "${OUT}/${f}"
-                echo "   (missing — skipping)"
-            fi
-        done
-    done
-fi
+dataset_dir = os.environ["DATASET_DIR"]
+repo = os.environ["HF_REPO"]
+n = int(os.environ["N_RUNS"])
+fileset = os.environ["FILESET"]
+workers = int(os.environ["HF_MAX_WORKERS"])
 
+def dl(local_dir, allow_patterns, attempts=10):
+    # snapshot_download is resumable (completed files are skipped), so on any
+    # transient error (httpx ReadTimeout, LFS hiccup) we just retry the call.
+    last = None
+    for k in range(1, attempts + 1):
+        try:
+            return snapshot_download(
+                repo_id=repo, repo_type="dataset", local_dir=local_dir,
+                allow_patterns=allow_patterns, max_workers=workers,
+            )
+        except Exception as e:  # noqa: BLE001 - resumable; retry on anything transient
+            last = e
+            nap = min(20 * k, 120)
+            print(f"[retry {k}/{attempts}] {type(e).__name__}: {e} -> sleep {nap}s", flush=True)
+            time.sleep(nap)
+    raise last
+
+# 1) root join-CSVs -> dataset root (the manifest builder reads these).
+dl(dataset_dir, ["geo_parameters_all.csv", "force_mom_all.csv"])
+
+# 2) per-run files -> dataset_dir/cases/run_i/...
+per_run = ["drivaer_{i}.stl"]
+if fileset == "surface":
+    per_run.append("boundary_{i}.vtp")          # surface pressure + wall-shear
+per_run += ["force_mom_{i}.csv", "force_mom_constref_{i}.csv",
+            "geo_parameters_{i}.csv", "geo_ref_{i}.csv"]
+patterns = [f"run_{i}/" + p.format(i=i) for i in range(1, n + 1) for p in per_run]
+dl(os.path.join(dataset_dir, "cases"), patterns)
+
+print(f"snapshot_download complete: {n} runs, fileset={fileset}")
+PY
+
+# --- manifest (joins the two root CSVs; per-run files are not consulted) -------
 python3 "${REPO_ROOT}/scripts/build_dataset_manifest.py" \
     --dataset drivaerml \
     --dataset-dir "${DATASET_DIR}" \
     --out "${DATASET_DIR}/manifest.json"
 
-# dvc.yaml's `ingest-drivaerml` stage declares manifest.json + cases/ as
-# outputs; the two root CSVs stay re-downloadable from upstream.
-dvc commit -f manifest.json
-if [[ "${STL_MODE}" == "full" ]]; then
-    dvc commit -f cases/
+echo ">> file counts under cases/:"
+echo "   drivaer_*.stl : $(find "${DATASET_DIR}/cases" -name 'drivaer_*.stl' | wc -l)"
+if [[ "${FILESET}" == "surface" ]]; then
+    echo "   boundary_*.vtp: $(find "${DATASET_DIR}/cases" -name 'boundary_*.vtp' | wc -l)"
 fi
-dvc push -r aero-minio
 
-echo "DrivAerML mirror complete (STL_MODE=${STL_MODE})."
+# --- DVC (gated so the smoke can inspect footprint before committing) ----------
+if [[ "${DVC_TRACK}" == "1" ]]; then
+    cd "${REPO_ROOT}"
+    dvc add data/datasets/drivaerml/cases data/datasets/drivaerml/manifest.json
+    dvc push -r "${DVC_REMOTE}"
+    echo ">> dvc add + push -r ${DVC_REMOTE} complete"
+fi
+
+echo "DrivAerML ${FILESET} pull complete (N_RUNS=${N_RUNS})."

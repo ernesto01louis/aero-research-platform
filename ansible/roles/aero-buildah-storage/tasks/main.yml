@@ -1,0 +1,28 @@
+---
+# aero-buildah-storage — point buildah/podman container storage at the big NVMe
+# (Stage 09; docs/operator/buildah-storage-config.md). Applied to the host where
+# `buildah bud` runs (the `aero_buildah_storage` inventory group). Hard Rule 11:
+# if that host is the Proxmox host, the operator opts it into the group
+# explicitly — this role writes ONLY the aero-scoped /etc/containers/storage.conf,
+# nothing else on the box.
+
+- name: Ensure the buildah graphroot directory exists
+  ansible.builtin.file:
+    path: "{{ buildah_storage_graphroot }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Template /etc/containers/storage.conf (graphroot on the big NVMe)
+  ansible.builtin.template:
+    src: storage.conf.j2
+    dest: /etc/containers/storage.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+
+- name: Report the buildah storage location
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: buildah graphroot -> {{ buildah_storage_graphroot }}"

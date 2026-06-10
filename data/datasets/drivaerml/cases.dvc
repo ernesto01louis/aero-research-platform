@@ -1,0 +1,6 @@
+outs:
+- md5: 27bfdbd931aca71be3c3a4bebbf8aac4.dir
+  size: 379664705830
+  nfiles: 5810
+  hash: md5
+  path: cases

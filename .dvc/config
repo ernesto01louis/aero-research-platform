@@ -4,3 +4,25 @@
 ['remote "aero-minio"']
     url = s3://aero-dvc
     endpointurl = http://192.168.2.234:9000
+# Stage 09 (ADR-011) — pluggable cloud-now / NAS-later remotes. The default
+# stays aero-minio (small artifacts on LXC 212); large-dataset push/pull selects
+# `-r aero-cloud` (now) or `-r aero-nas` (post-migration). Secret keys live in
+# the gitignored .dvc/config.local + the boto3 env-var chain — never committed.
+# aero-cloud (cloud-now): a RunPod network volume mounted into the H100 pod,
+# used as a LOCAL DVC remote (no egress; data co-located with compute). Stage
+# the ~600 GB DrivAerML subset to it once via a staging pod, then training pods
+# `dvc pull -r aero-cloud` read it locally. The mount path is the pod-side
+# volume mount point. ADR-011.
+['remote "aero-cloud"']
+    url = /runpod-volume/aero-dvc
+['remote "aero-nas"']
+    url = s3://aero-dvc
+    endpointurl = http://192.168.2.100:9000
+# aero-nfs (homelab-now): a LOCAL DVC remote on the TrueNAS NFS export
+# (/mnt/aero/dvc-remote, mounted on aero-dev/aero-vv). Holds the large DrivAerML
+# surface subset (~401 GB) on-prem until the dedicated NAS + its S3 app (aero-nas)
+# land. Selected explicitly with `-r aero-nfs`; the default stays aero-minio.
+# The DVC cache lives on the same NFS filesystem (cache.dir in .dvc/config.local)
+# so checkout/push link instead of copy. ADR-011.
+['remote "aero-nfs"']
+    url = /mnt/aero/dvc-remote

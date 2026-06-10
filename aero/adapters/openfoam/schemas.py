@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Lifecycle handles + platform paths now live in the solver-agnostic base.
 from aero.adapters._base import (
@@ -106,3 +106,24 @@ class CaseSpec(BaseModel):
     turbulence_intensity: float = Field(
         default=0.001, gt=0, description="Freestream turbulence intensity (fraction)."
     )
+    # --- trailing-edge closure (Stage 09 blunt-TE C-grid; ADR-012) ---
+    trailing_edge_thickness: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Blunt-TE full thickness in chords; 0 = sharp/closed TE (default). "
+        ">0 splits the singular TE vertex into a finite base to kill the +21% "
+        "pressure-drag error (the resolution-milestone for the NACA 0012 TMR xfail).",
+    )
+    n_te: int = Field(
+        default=0,
+        ge=0,
+        description="Cells across the blunt-TE base; required >=1 when trailing_edge_thickness>0.",
+    )
+
+    @model_validator(mode="after")
+    def _blunt_te_needs_base_cells(self) -> CaseSpec:
+        if self.trailing_edge_thickness > 0.0 and self.n_te < 1:
+            raise ValueError(
+                "trailing_edge_thickness>0 (blunt TE) requires n_te>=1 (cells across the base)"
+            )
+        return self

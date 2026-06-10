@@ -7,7 +7,7 @@ date_started: YYYY-MM-DD
 date_completed: YYYY-MM-DD
 session_duration_hours: 0                  # rounded to nearest 0.5
 claude_code_version: ""                    # output of `claude --version`
-model: claude-opus-4-7
+model: <claude model id, e.g. claude-opus-4-8>
 git_sha_start: ""                          # 40-char SHA at session start
 git_sha_end: ""                            # 40-char SHA at session end (post-handoff commit)
 stage_tag: v0.0.NN

@@ -1,0 +1,6 @@
+# Managed by Ansible (aero-buildah-storage role).
+# See docs/operator/buildah-storage-config.md + ADR-012.
+[storage]
+driver = "{{ buildah_storage_driver }}"
+graphroot = "{{ buildah_storage_graphroot }}"
+runroot = "{{ buildah_storage_runroot }}"

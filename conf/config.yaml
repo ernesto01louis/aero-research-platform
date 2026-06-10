@@ -9,4 +9,5 @@ defaults:
   - case: naca0012
   - mlflow: default
   - provenance: default
+  - storage: cloud   # Stage 09 (ADR-011): cloud-now DVC remote; flip to `nas` post-migration
   - _self_

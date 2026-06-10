@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "aero"
 version = "0.0.1"
-description = "Open-source peer-review-grade computational aerodynamics research platform"
+description = "Open-source, reproducibility-first aerodynamic shape-optimization platform (CFD as ground truth)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
@@ -142,9 +142,20 @@ surrogate-smoke = [
     "numpy>=1.26",
 ]
 
-# Stage 09 — NVIDIA PhysicsNeMo (CUDA 12)
+# Stage 09 — NVIDIA PhysicsNeMo (CUDA 12). DoMINO production surrogate.
+# The DoMINO net + its training run INSIDE physicsnemo.sif, which wraps the NGC
+# container `nvcr.io/nvidia/physicsnemo/physicsnemo:25.08` (ADR-010). This extra
+# exists for host-side test/lint passes and the on-pod entrypoint's imports; it
+# is NOT pulled by the base `import aero` (PLATFORM-NOT-HUB / import-platform-only).
+# PyG is the platform GNN library (ADR-008 §D6); warp-lang is DoMINO's geometry
+# kernel backend. The `nvidia-physicsnemo` pin MUST match the version bundled in
+# the 25.08 container — confirmed at first build (Phase 2, 2026-06-02) as
+# physicsnemo 1.2.0 / torch-geometric 2.6.1 / warp 1.8.1, locked in ADR-010
+# (Hard Rule 8). See the ADR-010 amendment.
 physicsnemo-cu12 = [
-    # populated in stage-09: nvidia-physicsnemo[cu12], pyg, warp-lang
+    "nvidia-physicsnemo[cu12]==1.2.0",
+    "torch-geometric>=2.6",
+    "warp-lang>=1.4",
 ]
 
 # Stage 11 — preCICE 3 multi-physics coupling
@@ -282,6 +293,14 @@ ignore_errors = true
 # baselines; the loader / cert / provenance contracts they conform to are
 # still strict-typed in `aero.surrogates._common.*`. ADR-008 §D6.
 module = "aero.surrogates.baselines.*"
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+# Stage-09 DoMINO wraps PhysicsNeMo's DoMINO net + torch_geometric; like the
+# Stage-08 baselines these resolve to `Any` under ignore_missing_imports, which
+# mypy strict refuses to subclass. The Surrogate / certificate / provenance
+# contracts the wrapper conforms to stay strict-typed in `_common`. ADR-010.
+module = "aero.surrogates.domino.*"
 disallow_subclassing_any = false
 
 [tool.pytest.ini_options]

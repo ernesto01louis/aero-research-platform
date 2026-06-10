@@ -1,0 +1,10 @@
+---
+# aero-buildah-storage role defaults (Stage 09; docs/operator/buildah-storage-config.md).
+#
+# Relocate buildah/podman container storage off the small root volume onto the
+# big NVMe so CUDA+torch SIF builds don't deadlock (the Stage-08 deadlock: the
+# CUDA+torch+PyG layers push transient storage to ~45 GB). The PhysicsNeMo SIF
+# (Stage 09) is the largest yet — this is a hard prerequisite for its build.
+buildah_storage_driver: overlay
+buildah_storage_graphroot: /mnt/pve/Storage/containers-storage
+buildah_storage_runroot: /run/containers/storage

@@ -52,3 +52,24 @@
 - name: Report the installed Apptainer version
   ansible.builtin.debug:
     msg: "{{ inventory_hostname }}: {{ aero_apptainer_final.stdout }}"
+
+# --- Stage 09 (ADR-012) — non-interactive signing-key passphrase --------------
+# scripts/_apptainer_sign.sh reads the passphrase from a Vault-rendered env file.
+# Ensure its directory exists with tight perms; the Vault Agent (reusing the
+# aero-mlflow pattern) renders the env file once aero_apptainer_signing_vault_
+# enabled=true and the AppRole + secret are seeded. The encrypted keyring escrow
+# remains on the NAS at /mnt/aero/.keyring-escrow/.
+- name: Ensure the signing-passphrase directory exists (mode 0750)
+  ansible.builtin.file:
+    path: "{{ aero_apptainer_signing_env | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Note the signing-passphrase contract (ADR-012)
+  ansible.builtin.debug:
+    msg: >-
+      signer reads {{ aero_apptainer_signing_env }} (Vault path
+      {{ aero_apptainer_signing_vault_path }}); render via the Vault Agent when
+      aero_apptainer_signing_vault_enabled=true.

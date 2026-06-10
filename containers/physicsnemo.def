@@ -1,0 +1,46 @@
+# containers/physicsnemo.def — NVIDIA PhysicsNeMo DoMINO image (Stage 09, ADR-010).
+#
+# Wraps the NGC container nvcr.io/nvidia/physicsnemo/physicsnemo:25.08 (NVIDIA's
+# recommended path, Pass 3 §9.1) and adds the platform GNN library (PyG,
+# ADR-008 §D6) + warp-lang (DoMINO's geometry kernels). PhysicsNeMo + torch +
+# RAPIDS are already in the NGC base. Torch-only — NEVER jax in the same SIF
+# (ADR-008 guardrail).
+#
+# The base tag 25.08 is pinned (Hard Rule 8) and carries the Predictor-Corrector
+# training recipe (Pass 2 §11.3). Built, signed (scripts/_apptainer_sign.sh) and
+# SHA256-recorded by scripts/build_physicsnemo_sif.sh. The ~20 GB NGC pull runs
+# once on aero-build (and separately on the RunPod pod, which pulls the GHCR
+# mirror). --shm-size=1g is mandatory at run — see containers/physicsnemo-run.sh.
+
+Bootstrap: docker
+From: nvcr.io/nvidia/physicsnemo/physicsnemo:25.08
+
+%labels
+    org.aero.component   physicsnemo
+    org.aero.stage       09
+    org.aero.purpose     "NVIDIA PhysicsNeMo DoMINO production surrogate"
+    org.aero.basetag     nvcr.io/nvidia/physicsnemo/physicsnemo:25.08
+    org.aero.maintainer  aero-research-platform
+
+%post
+    set -eu
+    mkdir -p /case /work /opt/aero
+    # NO pip here: the 25.08 base already bundles physicsnemo 1.2.0, torch
+    # (2.8.0a0+nv25.06), torch-geometric 2.6.1 and warp 1.8.1 (verified at the
+    # first build, ADR-010). The unprivileged aero-build LXC blocks %post network
+    # sockets anyway (the SU2/jax-fluids two-step reason), so a pip layer here
+    # would fail; %test below fails the build loud if any import is missing.
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PYTHONUNBUFFERED=1
+
+%test
+    python3 -c "import physicsnemo, torch, torch_geometric, warp; print('physicsnemo', physicsnemo.__version__, 'torch', torch.__version__, 'pyg', torch_geometric.__version__, 'warp', warp.__version__)" \
+        || { echo "physicsnemo image imports failed" >&2; exit 1; }
+    echo "aero physicsnemo image — physicsnemo + torch + pyg + warp OK"
+
+%runscript
+    echo "aero-research-platform physicsnemo image (Stage 09, DoMINO)"
+    exec "$@"

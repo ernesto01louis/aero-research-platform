@@ -7,13 +7,19 @@
 #   Stage 06 — `su2-v8.sif`
 #   Stage 07 — `pyfr.sif`, `nekrs.sif`
 #   Stage 08 — `jax-fluids.sif`, `surrogate-smoke.sif`
-#   Stage 09 — `physicsnemo.sif`
+#   Stage 09 — `physicsnemo.sif` (digest appended when built — Phase 2)
 #   Stage 11 — `precice-distribution.sif`
 #   Stage 12 — `dakota.sif`
 #
 # Format: same as `sha256sum` output (`<sha256> <name>`).
-# All SIFs are signed; signing key fingerprint at SIGNING_KEY_FINGERPRINT.txt
-# (created in Stage 02).
+# Signing: SIFs are signed when the non-interactive signing path is available
+# (public fingerprint at SIGNING_KEY_FINGERPRINT.txt, created in Stage 02). The
+# Stage 07/08 SIFs (jax-fluids, surrogate-smoke) were initially built UNSIGNED —
+# `apptainer sign` could not satisfy its TTY passphrase prompt over SSH. Stage 09
+# Phase 2 fixed this (ADR-012; _apptainer_sign.sh reads AERO_SIGNING_PASSPHRASE)
+# and RE-SIGNED them — their SHA256 below is the new signed-artifact digest
+# (signing appends a signature, changing the bytes). physicsnemo.sif is signed at
+# first build. The recorded SHA256 is the bytes-level integrity check regardless.
 #
 # Stage 04+: the `container_sif_sha256` MLflow provenance tag is sourced
 # from this file. Any run logging a SHA not present here fails the
@@ -26,5 +32,6 @@ c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c  openfoam-esi.s
 d8b12aba1b93a8c1d30ce000a4f92797bc4a70b0db81fd00dc2fb5e92100b349  pyfr.sif
 35b0a54ed73cd61b8da7eb71b21e984c2e339014e9e70349af64a6bad097f86f  nekrs.sif
 # ghcr.io/ernesto01louis/aero-pyfr:v1.15.0 sha256:75970dfd6ab4c718e6a485833ccccccb69405501a9aac15617f9c38cf683101f
-72c014d18e6ef7655730df295af06415bdc1921a7d5fe705b40e945799e90771  jax-fluids.sif
-49b75a82e8077ef95f784aa214b46b7edb05bbb9c215369941794b2039b975f6  surrogate-smoke.sif
+125c3f2e7fa3ed9fc87402f75b099b42eda810118b374889bda662f4951307a3  jax-fluids.sif
+a3ad846ef6d39e0f0b4dd6d8c960e7b5ff10373880bc1b6463aad7f19ad6235c  surrogate-smoke.sif
+4e6ea371deb3cccc7fe396e5a273574608de80875c9d490c2b47c1e73576df59  physicsnemo.sif

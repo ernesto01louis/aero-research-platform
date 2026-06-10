@@ -27,7 +27,8 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
 @pytest.mark.mesh_sweep
 @pytest.mark.xfail(
     reason="bump solves (PCG) but does not converge tightly enough for a "
-    "reliable GCI; needs convergence/domain tuning — Stage-05 open item.",
+    "reliable GCI; needs convergence/domain tuning — Stage-05 open item. "
+    "[resolution-milestone: stage-10 bump-convergence]",
     strict=False,
 )
 def test_bump_gci_mesh_sweep(vv_cluster_ready: bool, vv_runner: Any, repo_root: Path) -> None:
