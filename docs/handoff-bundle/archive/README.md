@@ -6,22 +6,35 @@ governing scope is `docs/handoff-bundle/00-MISSION-AND-SCOPE.md`, the current ma
 `docs/handoff-bundle/README-handoff.md`. They are kept so the supersession chain is
 auditable.
 
-## Contents
+## Contents (committed verbatim from the operator's clean source files)
 
 | File | What it is | Superseded by |
 |---|---|---|
-| `00-CONTEXT-project-brief.md` | The original generic "do-everything" project brief, pasted alongside every early stage prompt (never previously committed). | `00-MISSION-AND-SCOPE.md` + ADR-013 |
-| `00-MISSION-AND-SCOPE-original-two-flagship.md` | The operator's first refocus draft (flapping + riblet as co-flagships; optimizer treated as backlog). | the reworked `00-MISSION-AND-SCOPE.md` + ADR-013 |
-| `original-roadmap/STAGE-10..16-*.md` | The original operator-side Stage 10–16 prompts (automotive surrogate zoo, preCICE, DPW/HLPW V&V, multi-cloud router, NeMo agent, literature miner, hardening). | the Stage 10–20 map in `README-handoff.md` + ADR-013 |
+| `00-CONTEXT-project-brief.md` | The original generic "do-everything" project brief, pasted alongside every early stage prompt. | `../00-MISSION-AND-SCOPE.md` + ADR-013 |
+| `00-MISSION-AND-SCOPE-original-two-flagship.md` | The operator's first refocus draft (flapping + riblet as co-flagships; optimizer treated as backlog). | the reworked `../00-MISSION-AND-SCOPE.md` + ADR-013 |
+| `original-roadmap/README-handoff.md` | The original 16-stage bundle overview. | `../README-handoff.md` (Stage 10–20 map) + ADR-013 |
+| `original-roadmap/PROMPT-00-proxmox-inspection.md`, `PROMPT-CONTEXT-RESTORE.md` | The original recon / context-restore prompts. | n/a (historical) |
+| `original-roadmap/STAGE-01..16-*.md` | The original operator-side Stage 01–16 prompts (incl. the automotive surrogate zoo + MoE at 09–10, DPW/HLPW V&V at 12, multi-cloud router at 13, NeMo agent at 14, literature miner at 15). | the Stage 10–20 map in `../README-handoff.md` + ADR-013 |
 
-## Pending verbatim commit
+Committed **verbatim** (only end-of-file/whitespace normalization by pre-commit hooks);
+their location under `archive/` plus this README mark them superseded — no per-file banner.
+The chat-attachment channel that delivered earlier copies corrupted UTF-8 lossily
+(em-dashes, Greek letters, box-drawing destroyed); these were instead committed from the
+operator's clean on-disk copies.
 
-The four document classes above are committed **verbatim from the operator's clean
-source files** (the copies available to the agent during the refocus session carried
-UTF-8 rendering corruption, so they were not transcribed). They land here when the
-operator pastes the clean originals — committed unmodified except for a one-line
-`> ARCHIVED — superseded by ADR-013 (2026-06-10); does not govern.` banner at the top of
-each.
+## Still pending (not yet on disk)
+
+Two architecture-review documents are referenced by ADR-013 / `../00-MISSION-AND-SCOPE.md`
+but were not in the operator's file drop, so they are **not yet committed**:
+
+- **`docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md`** — the
+  corrected general-platform architecture briefing (partially adopted per ADR-013). Until
+  filed, the ADR-013 link to it dangles; its adopted substance already lives in ADR-013 +
+  `../00-MISSION-AND-SCOPE.md`.
+- **the original "compass artifact" architecture review** (the pre-correction,
+  tubercle-locked first draft) → belongs here in `archive/`.
+
+They land as soon as a clean copy reaches a disk path (not via chat paste, which corrupts).
 
 ## Convention going forward (ADR-013)
 
