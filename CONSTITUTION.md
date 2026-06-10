@@ -217,6 +217,61 @@ contract is structural, not retrofit. The 180-day expiry catches "set and
 forget" drift even on frozen datasets; the data gate catches the dataset
 itself drifting. Added in Stage 08 with the surrogate plumbing (ADR-008).
 
+## Invariant 10 — IMPROVEMENT-EXCEEDS-UNCERTAINTY
+
+No reported effect or claimed improvement is thesis-grade unless its
+**CFD-verified delta exceeds `k · U95`** (margin `k ≥ 1`, default `k = 2`). The
+combined 95% uncertainty is the root-sum-square of three independent
+contributions:
+
+```
+U95 = sqrt( u95_numerical**2 + u95_statistical**2 + u95_input**2 )
+```
+
+where `u95_numerical` is the discretization uncertainty (ASME V&V 20 / Roache
+GCI — which covers *only* this), `u95_statistical` is the sampling uncertainty
+of a time- or phase-averaged quantity (batch-means / autocorrelation
+effective-sample-size, after a periodic-steady-state cycle-convergence check),
+and `u95_input` is the parametric uncertainty. For an optimization **delta**,
+the baseline and the candidate are evaluated at matched numerics/mesh-topology
+so correlated errors cancel — the uncertainty of the delta is then below the
+RSS of the two absolute uncertainties.
+
+**Enforcement:** the typed `aero.vv.reportable:ReportableResult` (skeleton lands
+Stage 10; full U95 composition Stage 12) is the only object that may carry an
+MLflow `validation_tag="thesis-grade"`; its validator asserts
+`abs(delta) > k * u95_total` (default `k = 2`, never `k < 1`) for any
+`ImprovementClaim`. CI job `small-signal-gate` (required, lands Stage 12)
+re-runs the assertion. The pattern mirrors Invariant 5's "enforcement tooling
+lands at a named stage."
+
+**Why:** the platform's product is *trustworthy improvements*. A claimed
+improvement smaller than the solver's own uncertainty is numerical noise, not a
+result. GCI alone is insufficient for unsteady flows; the three-part U95 closes
+that hole, and the matched-condition delta is what makes a small but real
+improvement defensible. Added at the optimizer-mission refocus (ADR-013/015).
+
+## Invariant 11 — NO-SURROGATE-ON-FOREIGN-DATA
+
+Surrogates train only on the platform's **own validated CFD**. A foreign dataset
+(automotive, transport-aircraft, or any corpus the platform did not generate and
+validate) may seed `smoke`-tier experiments but **cannot produce a `validated`
+or `production` `CertificateOfValidity`**.
+
+**Enforcement:** the `Sample` / `TaintedSample` union and `CertificateOfValidity`
+carry `data_origin: Literal["platform-validated", "foreign"]` (lands Stage 12,
+reusing the Stage-08 CC-BY-NC taint machinery); `promote_to_validated(...)`
+raises on `data_origin == "foreign"`. CI extends the `non-commercial-fence`
+workflow to assert that every loader under
+`aero/surrogates/_common/loaders/` emits `data_origin="foreign"` and that no
+`validated`/`production` cert is constructible from foreign-origin samples.
+
+**Why:** the optimizer's surrogates accelerate *its own* design space; a
+surrogate trained on car shapes cannot certify a wing prediction, and
+cross-domain neural-operator transfer is unresolved in the literature. Training
+on own validated CFD (the data flywheel the optimization loop produces) keeps
+the certificate meaningful. Added at the optimizer-mission refocus (ADR-013/015).
+
 ## Amendment process
 
 To amend a Constitution invariant:
