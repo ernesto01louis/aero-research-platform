@@ -22,19 +22,16 @@ The chat-attachment channel that delivered earlier copies corrupted UTF-8 lossil
 (em-dashes, Greek letters, box-drawing destroyed); these were instead committed from the
 operator's clean on-disk copies.
 
-## Still pending (not yet on disk)
+## Architecture reviews (now committed)
 
-Two architecture-review documents are referenced by ADR-013 / `../00-MISSION-AND-SCOPE.md`
-but were not in the operator's file drop, so they are **not yet committed**:
-
-- **`docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md`** — the
-  corrected general-platform architecture briefing (partially adopted per ADR-013). Until
-  filed, the ADR-013 link to it dangles; its adopted substance already lives in ADR-013 +
-  `../00-MISSION-AND-SCOPE.md`.
-- **the original "compass artifact" architecture review** (the pre-correction,
-  tubercle-locked first draft) → belongs here in `archive/`.
-
-They land as soon as a clean copy reaches a disk path (not via chat paste, which corrupts).
+- **`architecture-review-original-compass-artifact.md`** (here) — the **pre-correction,
+  tubercle-locked first review** ("build a small, sharp thesis, not a platform"). This is the
+  **opposite** of the current mission (the platform IS the deliverable; ADR-013). Kept for
+  provenance only; **does not govern**.
+- **`docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md`** (not here —
+  it's a live, non-normative *reference*, not a superseded original) — the corrected
+  general-platform briefing, partially adopted per ADR-013 (its capability-layer framing +
+  verify-every-optimum principle are core).
 
 ## Convention going forward (ADR-013)
 

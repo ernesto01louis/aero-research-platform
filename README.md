@@ -60,7 +60,9 @@ on `aero-build`. Expected: Cd ≈ 0.0079 (±25% walking-skeleton band).
 - [`docs/sota/`](docs/sota/) — Pass 2 SOTA literature review
 - [`docs/handoff-bundle/`](docs/handoff-bundle/) — governing scope
   ([`00-MISSION-AND-SCOPE.md`](docs/handoff-bundle/00-MISSION-AND-SCOPE.md)) + the
-  20-stage build map ([`README-handoff.md`](docs/handoff-bundle/README-handoff.md))
+  20-stage build map ([`README-handoff.md`](docs/handoff-bundle/README-handoff.md)).
+  New here? Start with
+  [`PROMPT-CONTEXT-RESTORE.md`](docs/handoff-bundle/PROMPT-CONTEXT-RESTORE.md).
 - [`docs/adrs/`](docs/adrs/) — architecture decision records
 - [`docs/handoffs/`](docs/handoffs/) — per-stage handoff exit notes
 
