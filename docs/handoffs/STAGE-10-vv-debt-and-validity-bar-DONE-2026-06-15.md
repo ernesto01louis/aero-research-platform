@@ -45,6 +45,20 @@ never-cluster-tested Stage-09 blunt-TE C-grid (the NACA 0012 fix). That validati
 **Sequencing:** land + commit all code fixes + verify the mesh via `checkMesh` (no env), THEN
 operator exports vars + relaunches, THEN run the provenance-backed diagnostic solve + sweep.
 
+**Progress (committed on `stage-10/vv-debt-naca0012`, draft PR #20):**
+- `9103999` — Stage-10 open (this handoff stub).
+- `a3c907b` — all 4 mesh/decomposition fixes + reference.md + tests. checkMesh-verified on
+  aero-dev; 262 host-side tests pass; ruff/mypy clean.
+- **REMAINING:** the provenance-backed diagnostic solve + 3-grid sweep (needs env), the honest
+  NO-GO write-up + xfail-reason update, deliverable-2 forward-regime cases, ADR, Stage-11
+  prompt, finalize this handoff to `complete`, tag `v0.0.10`.
+
+**INFRA FINDING — run the diagnostic on `aero-dev`, NOT `aero-vv`:** `aero-vv` (LXC 213, the
+designated V&V runner) is **missing apptainer entirely** (only the SIF is present), so
+`aero vv run --host aero-vv` would fail. `aero-dev` (16 cores) and `aero-build` (8) both have
+apptainer + the OpenFOAM SIF. Use `--host aero-dev` for the diagnostic. (Installing apptainer
+on aero-vv is a provisioning action — propose-first per the classifier gate; not done here.)
+
 ## 1. Deliverables status
 
 | # | Deliverable (verbatim from stage prompt) | Status | Note |
@@ -165,8 +179,19 @@ None yet. (Tests updated under `tests/stage_09` + a new decomposition-parse unit
 
 ## 9. Artifacts produced
 
-[To be completed at session end — see the branch diff.] So far: branch
-`stage-10/vv-debt-naca0012`; `.aero-stage`→10; this partial handoff.
+Branch `stage-10/vv-debt-naca0012`; draft PR #20. `.aero-stage`→10; this handoff.
+Commit `a3c907b`: `case_writer.py` (BW e_wake grading; outlet-split 5u/5l replacing the
+collapsed prism; `airfoil_te` patch + Spalding nut; `forces` FO; PCG for blunt),
+`geometry.py` (`OPEN_TE_FULL_THICKNESS`), `schemas.py` (geometry-consistency validator),
+`_base.py` (`SolveResult.cd_pressure`/`cd_viscous`), `solver.py` (force-decomposition parse +
+fail-loud reconstruction check), `reference.md` (SA/SST provenance), stage-09 blockmesh test
+update + new `tests/stage_10/test_drag_decomposition.py`. [Diagnostic MLflow runs + final
+write-up to be appended.]
+
+**Note on §3 finding 2:** `checkMesh` surfaced an ADDITIONAL degeneracy beyond the original
+validation — the BW base-wake block collapsed to a point at the outlet (zero-area face +
+1e150 skewness). Fixed by splitting the outlet into 5u/5l so BW is a proper constant-height
+quad. This is why the fix is larger than a one-line grading change.
 
 ## 10. Confidence / risk note
 
