@@ -100,16 +100,20 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     ]
     # Blunt TE: append the lower TE corner 3l=(c,-h); the lower surface + lower
     # wake terminate there instead of at the shared sharp-TE vertex 3. The single
-    # outlet vertex 5 also splits into 5u=(ext,+h) / 5l=(ext,-h) so the base-wake
-    # block is a proper quad of constant height 2h instead of a prism collapsing
-    # to a point at the outlet — the collapse produced a zero-area face + a
-    # 1e150 skewness that fail checkMesh and would break the solve (Stage-10).
-    # Vertex 5 is then unused by the blunt blocks (blockMesh ignores it). For the
-    # sharp TE, out_up == out_lo == 5 (the original single outlet point).
+    # outlet vertex 5 also splits into 5u=(ext,+h_wake) / 5l=(ext,-h_wake) so the
+    # base-wake block is a proper quad instead of a prism collapsing to a point at
+    # the outlet (the collapse gave a zero-area face + 1e150 skewness, failing
+    # checkMesh). The outlet half-height h_wake > h TAPERS the base wake wider
+    # downstream: a constant-h (~0.0013c) strip over the 100c wake produced
+    # aspect ratios ~3e4 that made the pressure equation ill-conditioned and
+    # diverged the solve; widening the outlet brings the far base-wake cells back
+    # to ~the sharp-wake aspect ratio. Vertex 5 is then unused by the blunt
+    # blocks (blockMesh ignores it). For the sharp TE, out_up == out_lo == 5.
+    h_wake = max(h, 0.02 * c)  # base-wake outlet half-height (taper target)
     if blunt:
         base.append((c, -h))  # 16 trailing edge (lower corner 3l)
-        base.append((ext, h))  # 17 outlet, upper (5u)
-        base.append((ext, -h))  # 18 outlet, lower (5l)
+        base.append((ext, h_wake))  # 17 outlet, upper (5u)
+        base.append((ext, -h_wake))  # 18 outlet, lower (5l)
         te_lo, out_up, out_lo = 16, 17, 18
     else:
         te_lo, out_up, out_lo = 3, 5, 5
@@ -163,8 +167,10 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     ]
     if blunt:
         # BW: the base-wake block — a proper quad from the blunt base (3l->3u at
-        # x=c) to the split outlet (5l->5u at x=ext), constant height 2h. nte
-        # cells span the base (v0->v3 = 3l->3u, the wall edge), nw streamwise.
+        # x=c, height 2h) to the split outlet (5l->5u at x=ext, height 2*h_wake);
+        # it TAPERS wider downstream to keep the far cells off extreme aspect
+        # ratio. nte cells span the base (v0->v3 = 3l->3u, the wall edge), nw
+        # streamwise.
         # Its streamwise (x1) edges 3l->5l and 3u->5u are SHARED with LW (edge
         # 16->18) and UW (edge 3->17); all three grade x1 with `e_wake`, so the
         # shared internal faces have identical node distributions (no duplicate
@@ -482,17 +488,23 @@ def write_case(spec: CaseSpec, dest: Path) -> None:
         ref_length=spec.chord,
         turbulence_intensity=spec.turbulence_intensity,
     )["nu"]
-    # The blunt-TE base-wake strip carries extreme-aspect-ratio cells far
-    # downstream (constant base height over a 100c wake); GAMG coarsening stalls
-    # there, so the blunt case uses the PCG/DIC pressure solver (robust on high
-    # cell aspect ratio — same reason the TMR long-channel cases use it). Solver
-    # choice does not change the converged solution, only linear-solve robustness.
+    # The blunt-TE base wake is a harder mesh than the sharp airfoil: even
+    # tapered it carries higher-aspect-ratio cells, so the blunt case uses the
+    # PCG/DIC pressure solver (robust where GAMG coarsening stalls) and lower
+    # momentum/turbulence under-relaxation (0.7/0.5 vs the airfoil 0.9/0.7) for
+    # SIMPLE stability. Neither changes the converged solution — only the path
+    # to it. (The default-relaxation blunt solve diverged; Stage-10.)
     blunt = spec.trailing_edge_thickness > 0.0
     (system / "blockMeshDict").write_text(_blockmeshdict(spec), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
     (system / "fvSchemes").write_text(fvschemes(), encoding="utf-8")
     (system / "fvSolution").write_text(
-        fvsolution(pressure_solver="PCG" if blunt else "GAMG"), encoding="utf-8"
+        fvsolution(
+            pressure_solver="PCG" if blunt else "GAMG",
+            u_relax=0.7 if blunt else 0.9,
+            kw_relax=0.5 if blunt else 0.7,
+        ),
+        encoding="utf-8",
     )
     (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(

@@ -123,13 +123,20 @@ wallDist        { method meshWave; }
     )
 
 
-def fvsolution(*, pressure_solver: str = "GAMG") -> str:
+def fvsolution(
+    *, pressure_solver: str = "GAMG", u_relax: float = 0.9, kw_relax: float = 0.7
+) -> str:
     """SIMPLE solver controls — pressure solver + smoothSolver for the rest.
 
     `pressure_solver` is `GAMG` (the default; fast on well-conditioned meshes)
     or `PCG`. PCG with a DIC preconditioner is far more robust on meshes with
     extreme cell aspect ratios, where GAMG's coarsening stalls — the TMR
     long-channel cases use it.
+
+    `u_relax` / `kw_relax` are the SIMPLE(C) momentum and turbulence
+    under-relaxation factors (defaults 0.9 / 0.7 — the well-conditioned
+    airfoil values). Harder meshes (the blunt-TE base wake) take lower values
+    for stability; the converged solution is unchanged, only the path to it.
     """
     if pressure_solver == "PCG":
         p_block = """    p
@@ -180,8 +187,12 @@ relaxationFactors
 {
     equations
     {
-        U               0.9;
-        "(k|omega)"     0.7;
+        U               """
+        + f"{u_relax:.8g};"
+        + """
+        "(k|omega)"     """
+        + f"{kw_relax:.8g};"
+        + """
     }
 }
 """
