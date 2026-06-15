@@ -211,7 +211,20 @@ nu              {nu:.10g};
 
 
 def turbulence_properties(model: str) -> str:
-    """`constant/turbulenceProperties` — a RAS closure."""
+    """`constant/turbulenceProperties` — a RAS closure, or laminar.
+
+    `model == "laminar"` selects `simulationType laminar`: the momentum equation
+    sees only the molecular viscosity (no k/omega/nut transport). Used by the
+    forward-regime low-Re cases (Blasius flat plate, laminar airfoil) where the
+    flow is below transition. Any other value is a RAS `RASModel`.
+    """
+    if model == "laminar":
+        return (
+            header("dictionary", "turbulenceProperties")
+            + """
+simulationType  laminar;
+"""
+        )
     return (
         header("dictionary", "turbulenceProperties")
         + f"""
