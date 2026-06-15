@@ -7,7 +7,45 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
-_(empty — work pending toward the next `v0.0.NN` stage tag)_
+Post-`v0.0.9` work (optimizer-mission refocus continued + the Stage-10 output-validity
+bar), heading toward `v0.0.10`.
+
+### Added — CONSTITUTION
+
+- **Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) + 11 (NO-SURROGATE-ON-FOREIGN-DATA)
+  ratified** (ADR-015; the 72 h review window elapsed) — supersedes the "Proposed" note
+  under [0.0.9].
+
+### Added — Stage 10 (output-validity bar)
+
+- `aero/vv/reportable.py` — the thesis-grade output contract for Invariant 10:
+  `ReportableResult` / `ReportableQuantity` / `ImprovementClaim` / `OptimizationResult`.
+  `U95 = RSS(numerical, statistical, input)`; a `kind` field (steady / time_averaged /
+  phase_averaged) makes the **statistical-U95 requirement enforceable** (closes the
+  GCI-only hole — a non-steady quantity can no longer be thesis-grade with zero sampling
+  uncertainty); `delta > k·U95` (k≥1, default 2; `u95_delta` strictly > 0); matched-
+  condition deltas; CFD-VERIFIED-OPTIMUM-ONLY + best-of-N selection-bias guard;
+  improvement/optimization mutual-exclusion.
+- `docs/vv/output-validity-bar.md` — the operational definition of "thesis-grade output."
+- `tests/stage_10/` — 22 tests pinning the contract.
+
+### Changed — budget (ADR-014)
+
+- `aero/orchestration/cost_cap.py` default cap **$50 → $150** (baseline tier; raised by
+  ADR-014, superseding ADR-007's value). Sustained ($200–600) and burst ($1–2k) tiers are
+  per-campaign env-var overrides. Test now asserts the concrete default.
+  - *Known doc-drift:* `CONSTITUTION.md` Invariant 8's descriptive parenthetical still
+    reads `default 50.0`; syncing it touches the constitution, so it is deferred to a
+    constitution-touch PR rather than edited outside the amendment process.
+
+### Added — provenance / docs
+
+- `docs/architecture/BRIEFING-architecture-review-for-independent-challenge.md` filed
+  (non-normative reference, partially adopted per ADR-013). The pre-refocus planning
+  bundle (original brief, two-flagship mission draft, 16-stage roadmap prompts) and both
+  architecture reviews archived under `docs/handoff-bundle/archive/`.
+- `docs/handoff-bundle/PROMPT-CONTEXT-RESTORE.md` — the single "start here" pointer at
+  current scope, with a scope-drift guard steering sessions away from `archive/`.
 
 ## [0.0.9] - 2026-06-01
 
@@ -97,10 +135,11 @@ _(empty — work pending toward the next `v0.0.NN` stage tag)_
 - New rules `.claude/rules/{flapping-validation-ladder,optimization-integrity}.md`.
 - `docs/operator/deferred-work-ledger.md` rewritten around the refocus.
 
-### Proposed (constitution PR, 72 h review — NOT yet merged)
+### Proposed (constitution PR, 72 h review)
 
 - ADR-015 + **CONSTITUTION Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) and 11
-  (NO-SURROGATE-ON-FOREIGN-DATA)** — on branch `adr-015-constitution-invariants-10-11`.
+  (NO-SURROGATE-ON-FOREIGN-DATA)** — proposed here; **ratified post-`v0.0.9`** after the
+  72 h review (see [Unreleased]).
 
 ## [0.0.8] - 2026-05-30
 

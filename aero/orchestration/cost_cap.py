@@ -4,9 +4,10 @@ Every rented-GPU launch — RunPod (Stage 07), Lambda Labs and Vast.ai (Stage 13
 — passes through `CostCap.check_budget()` before any spend is committed.
 The cap is enforced via a local append-only JSON ledger
 (`/etc/aero/runpod-ledger.json` by default), summed month-to-date and
-compared against `AERO_RUNPOD_MONTHLY_CAP_USD` (default `50.0`). This is
-CONSTITUTION Invariant 8 — COST-CAP-ENFORCED-CLOUD-EXECUTION — codified as
-code (ADR-007).
+compared against `AERO_RUNPOD_MONTHLY_CAP_USD` (default `150.0`; the baseline
+tier, raised from $50 by ADR-014 — sustained/burst campaigns are per-campaign
+env-var overrides). This is CONSTITUTION Invariant 8 —
+COST-CAP-ENFORCED-CLOUD-EXECUTION — codified as code (ADR-007, value per ADR-014).
 
 PLATFORM-NOT-HUB clean: stdlib + pydantic only. No `requests`, no cloud
 SDK; this module is import-safe with no extras installed.
@@ -15,7 +16,7 @@ Why a local ledger and not a billing-API call: cloud billing APIs (RunPod,
 Vast.ai) are eventually-consistent with hour-level latency, sometimes more.
 A pre-launch check that queries them races the new launch; a local
 estimate-before-spend, true-up-after-spend ledger is precise enough for
-$50/month CI hygiene and has zero network dependency. Stage 13's
+$150/month baseline budgeting and has zero network dependency. Stage 13's
 multi-cloud cost router is the place for a sophisticated multi-vendor
 spend reconciliation; Stage 07 keeps it stupid.
 
@@ -40,7 +41,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 DEFAULT_LEDGER_PATH = Path("/etc/aero/runpod-ledger.json")
-DEFAULT_CAP_USD = 50.0
+DEFAULT_CAP_USD = 150.0  # baseline tier (ADR-014, raised from $50/ADR-007)
 CAP_ENV_VAR = "AERO_RUNPOD_MONTHLY_CAP_USD"
 
 _STRICT = ConfigDict(

@@ -24,10 +24,12 @@ def _new_cap(tmp_path: Path, *, cap_usd: float | None = None) -> CostCap:
     return CostCap(ledger_path=tmp_path / "runpod-ledger.json", cap_usd=cap_usd)
 
 
-def test_default_cap_is_50_usd_when_no_env_or_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_cap_is_150_usd_when_no_env_or_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+    # baseline tier per ADR-014 (raised from $50/ADR-007); assert the concrete value,
+    # not just the constant, so a silent default change is caught.
     monkeypatch.delenv(CAP_ENV_VAR, raising=False)
     cap = CostCap(ledger_path=Path("/tmp/unused"))
-    assert cap.cap_usd == DEFAULT_CAP_USD
+    assert cap.cap_usd == DEFAULT_CAP_USD == 150.0
 
 
 def test_env_var_overrides_default(monkeypatch: pytest.MonkeyPatch) -> None:
