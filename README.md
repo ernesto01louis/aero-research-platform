@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.9  ·  **Status:** partial  ·  **Completed:** 2026-06-01
+**Latest tag:** v0.0.10  ·  **Status:** partial  ·  **Completed:** 2026-06-15
 
-**Stage 09 — DoMINO Baseline Surrogate (PhysicsNeMo)** — most recent stage.
+**Stage 10 — V&V Debt Retirement + Output-Validity Bar** — most recent stage.
 
-**Next:** Stage 10 — V&V Debt Retirement + Output-Validity Bar.
+**Next:** Stage 11 — Moving Mesh & Unsteady.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
