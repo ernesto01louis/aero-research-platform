@@ -47,11 +47,41 @@ operator exports vars + relaunches, THEN run the provenance-backed diagnostic so
 
 **Progress (committed on `stage-10/vv-debt-naca0012`, draft PR #20):**
 - `9103999` — Stage-10 open (this handoff stub).
-- `a3c907b` — all 4 mesh/decomposition fixes + reference.md + tests. checkMesh-verified on
-  aero-dev; 262 host-side tests pass; ruff/mypy clean.
-- **REMAINING:** the provenance-backed diagnostic solve + 3-grid sweep (needs env), the honest
-  NO-GO write-up + xfail-reason update, deliverable-2 forward-regime cases, ADR, Stage-11
-  prompt, finalize this handoff to `complete`, tag `v0.0.10`.
+- `a3c907b` — 4 mesh/decomposition fixes + reference.md + tests. checkMesh-verified.
+- `60d5711` — base-wake taper + PCG + under-relaxation (after the solve diverged).
+- xfail-reason update (this commit) — evidence-based NO-GO, tolerance NOT relaxed.
+
+**DIAGNOSTIC OUTCOME — NACA 0012 is a documented NO-GO (the blunt-TE remedy is not viable):**
+The provenance env works end-to-end (the derived `AERO_PROVENANCE_DSN` carried `aero vv run`
+through prep + four-tuple + job submission). But the solve does **not converge**, across
+three attempts on the checkMesh-valid mesh:
+1. default U=0.9 → SIGFPE at iter ~33;
+2. under-relaxed U=0.5/kω=0.4 → diverged iter ~61, **DICPCG pressure solve pinned at its
+   1000-iter cap** (ill-conditioned pressure eqn — the base-wake aspect ratio ~28800);
+3. after the **taper** (base-wake AR → 2954 = sharp baseline) + PCG + under-relax (0.7/0.5):
+   ~83 **stable** iterations, then a sudden **momentum/pressure blow-up while turbulence
+   stayed converged** (kω residuals ~1e-9) → SIGFPE in the U Gauss-Seidel smoother.
+Root cause (attempts 1–2 were the AR; attempt 3 is deeper): the finite blunt base produces an
+**inherently unsteady / vortex-shedding wake that a steady-state solver (`simpleFoam`) cannot
+converge**, and/or error buildup at the now-sloped wake-cut's high-non-orthogonality cells.
+Combined with the closed-form budget (blunt-TE can't reach 3% even converged), the blunt-TE
+C-grid is rejected as the NACA 0012 remedy. No converged Cd was obtained (the divergence IS
+the diagnostic result). NACA stays xfail with the evidence-based reason.
+
+**Candidate strategies (for the operator / a future stage — NOT pursued this session):**
+- **Transient + time-average:** `pimpleFoam` (or a URANS/DDES run) with phase/time-averaging
+  of Cd — the physically-correct treatment of a shedding blunt base. Big change: the solver
+  is steady-only today, and the decomposition/`SolveResult` assume a steady result.
+- **Sharp-TE TE-region remesh:** keep the sharp TE (the TMR geometry) but fix the original
+  sharp-TE pressure-drag artifact with a better TE-region topology (structured/hyperbolic TE,
+  TE-bisector wake cut, more TE clustering) — addresses the Stage-05 root cause directly.
+- **SU2 cross-check:** SU2 has its own mesher (no C-grid TE singularity); run the TMR NACA
+  case through it to see if the +21% is OpenFOAM-C-grid-specific.
+
+**REMAINING for Stage 10:** deliverable-2 forward-regime cases (Blasius, cylinder Strouhal,
+laminar airfoil) + the 2D bump convergence; an ADR once a NACA path is chosen; Stage-11
+prompt; finalize this handoff to `complete`; tag `v0.0.10`. (Operator steer pending on
+whether to pursue a NACA rethink now vs. accept the NO-GO and move to forward-regime work.)
 
 **INFRA FINDING — run the diagnostic on `aero-dev`, NOT `aero-vv`:** `aero-vv` (LXC 213, the
 designated V&V runner) is **missing apptainer entirely** (only the SIF is present), so
