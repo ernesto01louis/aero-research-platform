@@ -4,12 +4,21 @@ The bump's *verification* is a GCI mesh sweep (no reference data needed); its
 *validation* (Cp/Cf vs. TMR data) is skipped until the TMR data files are
 mirrored — see data/references/tmr/bump_2d/reference.md.
 
-KNOWN FAILURE (Stage 05, xfail) — the bump now *solves* (the Stage-05 fix pass
-switched its pressure solver to PCG/DIC, which the long-channel high-aspect-
-ratio cells need — GAMG stalled), but it does not yet converge tightly
-(p residual ~3e-4 at 3000 iterations) and its Cp/Cf are well off the TMR data
-(~24% / ~64%). The GCI machinery is unit-tested (`test_gci.py`) and correct;
-the bump *case* needs convergence and domain tuning. Stage-05 open item.
+KNOWN FAILURE (Stage 05 origin, xfail) — the bump *solves* (PCG/DIC; GAMG
+stalled on the long-channel high-aspect-ratio cells) but does not reach tight
+iterative convergence, so the suction-peak `cp_min` the GCI sweep tracks is
+not cleanly grid-converged.
+
+STAGE-10 CONCERN (confirmed, not resolved) — a single-grid diagnostic at
+end_time=8000 confirmed the p initial-residual **plateaus at ~2-5e-4 from
+~iter 2000 through 4000+** and never reaches the 1e-6 residualControl target;
+it is a genuine convergence stall (likely low-level unsteadiness / stiff
+turbulence coupling in the long channel), NOT an iteration-count shortfall —
+more iterations do not break it. The GCI machinery is unit-tested (`test_gci.py`)
+and correct; the bump *case* needs a dedicated convergence pass (relaxation /
+turbulence-numerics / domain tuning) or a transient time-averaged treatment
+(the Stage-11 unsteady path). The tolerance is NOT relaxed; the test stays
+xfail. See ADR-017 and the Stage-10 handoff. [resolution-milestone: deferred]
 """
 
 from __future__ import annotations
@@ -26,9 +35,11 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
 
 @pytest.mark.mesh_sweep
 @pytest.mark.xfail(
-    reason="bump solves (PCG) but does not converge tightly enough for a "
-    "reliable GCI; needs convergence/domain tuning — Stage-05 open item. "
-    "[resolution-milestone: stage-10 bump-convergence]",
+    reason="bump solves (PCG) but the p initial-residual plateaus at ~3e-4 "
+    "(confirmed Stage-10 to ~iter 4000+, not iteration-limited), so cp_min is "
+    "not grid-converged for a reliable GCI; needs a dedicated convergence pass "
+    "or a transient-mean treatment (Stage 11). Tolerance NOT relaxed; see "
+    "ADR-017. [resolution-milestone: deferred]",
     strict=False,
 )
 def test_bump_gci_mesh_sweep(vv_cluster_ready: bool, vv_runner: Any, repo_root: Path) -> None:

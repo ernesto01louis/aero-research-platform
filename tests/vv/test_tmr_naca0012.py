@@ -4,14 +4,23 @@ Two checks: a single-grid run against the 3% Cd tolerance, and a 3-grid GCI
 mesh sweep whose Richardson-extrapolated Cd is the honest grid-converged value
 to judge. Do not relax the tolerance — a failure is a physics/mesh regression.
 
-KNOWN FAILURE (Stage 05, xfail) — the C-grid drag is Cd ~ 0.0098 against the
-TMR reference 0.0081 (+21%). The skin-friction part (0.0067) is correct to
-~2%; the excess is entirely *pressure* drag (0.0031 vs ~0.0015 expected),
-traced to imperfect resolution of the sharp trailing edge (the C-grid still
-has ~28 severely non-orthogonal faces, max ~89 deg, at the TE block corner).
-The tolerance is NOT relaxed — the assertion stands and the test is marked
-xfail so its real error is still reported. Tracked as the headline Stage-05
-open item; see ADR-005 and the Stage-05 handoff.
+KNOWN FAILURE (Stage 05 origin, xfail) — the sharp-TE C-grid drag is Cd ~ 0.0098
+vs the TMR reference 0.0081 (+21%); skin friction (0.0067) is ~correct, the
+excess is pressure drag from the singular sharp trailing edge.
+
+STAGE-10 NO-GO (this is the resolution attempt, and it failed): the Stage-09
+blunt-TE C-grid remedy was repaired to a checkMesh-valid mesh (BW e_wake
+grading, outlet-split, base patch + nutUSpaldingWallFunction, base-wake taper to
+sharp-baseline aspect ratio, PCG + under-relaxation), but the steady solve does
+NOT converge — simpleFoam runs ~83 stable iterations then a momentum/pressure
+blow-up (SIGFPE) while turbulence stays converged, the signature of the finite
+blunt base's inherently unsteady (shedding) wake defeating a steady-state
+solver. AND a closed-form budget shows blunt-TE cannot reach 3% even if it
+converged (friction held fixed, base drag additive). So NACA 0012 remains a
+documented NO-GO; resolution is DEFERRED to a rethink (transient pimpleFoam +
+time-averaging, or a sharp-TE TE-region remesh). The tolerance is NOT relaxed —
+the assertions stand and the test is xfail so the real error is still reported.
+See ADR-005 and the Stage-10 handoff for the full root-cause + candidate fixes.
 """
 
 from __future__ import annotations
@@ -28,9 +37,11 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
 _CD_REFERENCE = 0.008120
 _CD_TOLERANCE = 0.03
 _XFAIL_REASON = (
-    "NACA 0012 C-grid Cd ~0.0098 vs TMR 0.0081 (+21%); excess is pressure drag "
-    "from trailing-edge mesh resolution — Stage-05 open item, see ADR-005. "
-    "[resolution-milestone: stage-09 blunt-TE]"
+    "NACA 0012 sharp-TE C-grid Cd +21% (pressure drag). Stage-10: the blunt-TE "
+    "remedy is checkMesh-valid but NOT steady-convergeable (blunt-base unsteady "
+    "wake diverges simpleFoam ~iter 83) and can't reach 3% even converged — "
+    "documented NO-GO, tolerance NOT relaxed. "
+    "[resolution-milestone: deferred — transient solver or sharp-TE remesh]"
 )
 
 

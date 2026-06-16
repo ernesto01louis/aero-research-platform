@@ -278,6 +278,16 @@ class SolveResult(BaseModel):
     cl: float | None = Field(
         default=None, description="Converged lift coefficient, if the case defines one."
     )
+    cd_pressure: float | None = Field(
+        default=None,
+        description="Pressure (form) drag-coefficient component, if the solve emits a "
+        "force decomposition. cd_pressure + cd_viscous reconstructs cd.",
+    )
+    cd_viscous: float | None = Field(
+        default=None,
+        description="Viscous (skin-friction) drag-coefficient component, if the solve "
+        "emits a force decomposition. cd_pressure + cd_viscous reconstructs cd.",
+    )
     iterations_to_convergence: int = Field(..., gt=0, description="Iterations the solve ran.")
     final_residual: float = Field(
         ...,

@@ -40,6 +40,16 @@ def naca0012_half_thickness(
     return np.asarray(yt * chord, dtype=np.float64)
 
 
+# The full base thickness (both TE corners) the standard open-TE geometry leaves
+# at x=c, in chords (~0.00252c). The blunt-TE C-grid meshes exactly this fixed
+# geometry; `CaseSpec.trailing_edge_thickness` records it and is validated
+# against it (a value that does not match the geometry fails loud — the field is
+# not a free knob, it documents the open-TE the mesh actually uses).
+OPEN_TE_FULL_THICKNESS: float = float(
+    2.0 * naca0012_half_thickness(np.asarray([1.0], dtype=np.float64), a4=_A4_OPEN_TE)[0]
+)
+
+
 def naca0012_coordinates(
     n_points: int = 120, *, chord: float = 1.0, blunt_te: bool = False
 ) -> NDArray[np.float64]:

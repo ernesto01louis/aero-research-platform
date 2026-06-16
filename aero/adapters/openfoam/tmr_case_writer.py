@@ -115,12 +115,16 @@ def _tmr_fields(
     wall_patches: list[str],
     slip_patch: str,
     slip_type: str,
+    laminar: bool = False,
 ) -> dict[str, str]:
     """Field files for a TMR case.
 
     `farfield` is a freestream patch (inlet/top/outlet); `wall_patches` are
     no-slip viscous walls; `slip_patch` is the symmetry patch (`slip_type` is
     `symmetry`). Every field carries an explicit BC for every patch.
+
+    `laminar=True` writes only U and p — a `simulationType laminar` solve has no
+    k/omega/nut transport (the forward-regime Blasius / low-Re cases).
     """
     st = flow_state(
         reynolds=reynolds,
@@ -138,7 +142,7 @@ def _tmr_fields(
         bcs["back"] = "        type empty;"
         return _field(obj, cls, dims, internal, bcs)
 
-    return {
+    fields = {
         "U": per_field(
             f"        type freestream;\n        freestreamValue uniform {u_vec};",
             "        type noSlip;",
@@ -155,34 +159,37 @@ def _tmr_fields(
             "volScalarField",
             "[0 2 -2 0 0 0 0]",
         ),
-        "nut": per_field(
-            f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-            # Wall-resolved (y+ < 1): low-Re wall treatment, not a log-law function.
-            "        type nutLowReWallFunction;\n        value uniform 0;",
-            f"{nut:.8g}",
-            "nut",
-            "volScalarField",
-            "[0 2 -1 0 0 0 0]",
-        ),
-        "k": per_field(
-            f"        type inletOutlet;\n        inletValue uniform {k:.8g};"
-            f"\n        value uniform {k:.8g};",
-            f"        type kqRWallFunction;\n        value uniform {k:.8g};",
-            f"{k:.8g}",
-            "k",
-            "volScalarField",
-            "[0 2 -2 0 0 0 0]",
-        ),
-        "omega": per_field(
-            f"        type inletOutlet;\n        inletValue uniform {omega:.8g};"
-            f"\n        value uniform {omega:.8g};",
-            f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
-            f"{omega:.8g}",
-            "omega",
-            "volScalarField",
-            "[0 0 -1 0 0 0 0]",
-        ),
     }
+    if laminar:
+        return fields
+    fields["nut"] = per_field(
+        f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
+        # Wall-resolved (y+ < 1): low-Re wall treatment, not a log-law function.
+        "        type nutLowReWallFunction;\n        value uniform 0;",
+        f"{nut:.8g}",
+        "nut",
+        "volScalarField",
+        "[0 2 -1 0 0 0 0]",
+    )
+    fields["k"] = per_field(
+        f"        type inletOutlet;\n        inletValue uniform {k:.8g};"
+        f"\n        value uniform {k:.8g};",
+        f"        type kqRWallFunction;\n        value uniform {k:.8g};",
+        f"{k:.8g}",
+        "k",
+        "volScalarField",
+        "[0 2 -2 0 0 0 0]",
+    )
+    fields["omega"] = per_field(
+        f"        type inletOutlet;\n        inletValue uniform {omega:.8g};"
+        f"\n        value uniform {omega:.8g};",
+        f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
+        f"{omega:.8g}",
+        "omega",
+        "volScalarField",
+        "[0 0 -1 0 0 0 0]",
+    )
+    return fields
 
 
 # --- flat plate ---------------------------------------------------------------
@@ -342,6 +349,7 @@ def write_tmr_case(spec: TMRCaseSpec, dest: Path) -> None:
     for d in (system, constant, zero):
         d.mkdir(parents=True, exist_ok=True)
 
+    laminar = spec.turbulence_model == "laminar"
     if spec.geometry == "flat_plate":
         blockmesh = _flat_plate_blockmesh(spec)
         ref_length = spec.plate_length
@@ -353,6 +361,7 @@ def write_tmr_case(spec: TMRCaseSpec, dest: Path) -> None:
             wall_patches=["wall"],
             slip_patch="symmetry",
             slip_type="symmetryPlane",
+            laminar=laminar,
         )
     elif spec.geometry == "bump_2d":
         blockmesh = _bump_blockmesh(spec)

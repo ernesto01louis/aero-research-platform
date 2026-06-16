@@ -79,8 +79,10 @@ class CaseSpec(BaseModel):
     chord: float = Field(default=1.0, gt=0, description="Chord length.")
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
     end_time: int = Field(default=1500, gt=0, description="Max SIMPLE iterations.")
-    turbulence_model: Literal["kOmegaSST"] = Field(
-        default="kOmegaSST", description="RAS turbulence closure."
+    turbulence_model: Literal["kOmegaSST", "laminar"] = Field(
+        default="kOmegaSST",
+        description="RAS closure ('kOmegaSST'), or 'laminar' (no model) for the "
+        "forward-regime low-Re airfoil — sub-transition, no k/omega/nut transport.",
     )
 
     # --- mesh resolution (2D multi-block C-grid) ---
@@ -110,9 +112,12 @@ class CaseSpec(BaseModel):
     trailing_edge_thickness: float = Field(
         default=0.0,
         ge=0.0,
-        description="Blunt-TE full thickness in chords; 0 = sharp/closed TE (default). "
-        ">0 splits the singular TE vertex into a finite base to kill the +21% "
-        "pressure-drag error (the resolution-milestone for the NACA 0012 TMR xfail).",
+        description="Blunt-TE full base thickness in chords; 0 = sharp/closed TE (default). "
+        ">0 selects the standard NACA 0012 open-TE geometry, splitting the singular TE "
+        "vertex into a finite base to address the +21% pressure-drag error. The blunt TE "
+        "is the FIXED standard open-TE section (full thickness ~0.00252c); this field is "
+        "validated against that geometry (a value inconsistent with it fails loud — it is "
+        "not a free knob), so the recorded value is faithful to the mesh in config_hash.",
     )
     n_te: int = Field(
         default=0,
@@ -126,4 +131,27 @@ class CaseSpec(BaseModel):
             raise ValueError(
                 "trailing_edge_thickness>0 (blunt TE) requires n_te>=1 (cells across the base)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _blunt_te_matches_geometry(self) -> CaseSpec:
+        # FAIL-LOUD (Hard Rule 2): the blunt TE meshes the FIXED standard
+        # open-TE geometry, whose full base thickness is set by the airfoil
+        # quartic, not by this field. Require the recorded value to match it so
+        # a misleading value (e.g. 0.01) cannot be silently ignored — the
+        # config_hash must describe the geometry that was actually meshed.
+        if self.trailing_edge_thickness > 0.0:
+            from aero.adapters.openfoam.geometry import OPEN_TE_FULL_THICKNESS
+
+            rel = (
+                abs(self.trailing_edge_thickness - OPEN_TE_FULL_THICKNESS) / OPEN_TE_FULL_THICKNESS
+            )
+            if rel > 0.05:
+                raise ValueError(
+                    f"trailing_edge_thickness={self.trailing_edge_thickness} is inconsistent "
+                    f"with the standard NACA 0012 open-TE full base thickness "
+                    f"{OPEN_TE_FULL_THICKNESS:.5f}c that the blunt-TE mesh actually uses. "
+                    f"Set it to ~{OPEN_TE_FULL_THICKNESS:.4f} (the open-TE thickness) or 0 "
+                    f"for a sharp TE; this field records the geometry, it does not size it."
+                )
         return self

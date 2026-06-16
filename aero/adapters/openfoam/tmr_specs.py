@@ -50,7 +50,9 @@ class FlatPlateSpec(BaseModel):
     domain_height: float = Field(default=1.0, gt=0, description="Domain height above the wall.")
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
     end_time: int = Field(default=3000, gt=0, description="Max SIMPLE iterations.")
-    turbulence_model: Literal["kOmegaSST"] = Field(default="kOmegaSST")
+    # "laminar" (no turbulence model) drives the forward-regime Blasius case at
+    # sub-transition Re; "kOmegaSST" is the turbulent TMR plate.
+    turbulence_model: Literal["kOmegaSST", "laminar"] = Field(default="kOmegaSST")
 
     n_streamwise: int = Field(default=240, gt=3, description="Cells along the plate.")
     n_inlet: int = Field(default=48, gt=3, description="Cells in the upstream symmetry run.")

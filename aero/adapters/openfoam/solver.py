@@ -19,6 +19,7 @@ and the shared handle/result types live in `_base`.
 
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
@@ -34,13 +35,16 @@ from aero.adapters._base import (
     Solver,
     SolveResult,
     SpecLike,
+    TimeHistory,
     WallDistribution,
     build_apptainer_exec,
 )
 from aero.adapters._base import (
     CaseDir as CaseDir,  # re-exported for backward-compatible imports
 )
+from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
+from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
@@ -83,6 +87,8 @@ class OpenFOAMSolver(Solver):
             write_case(case, host_path)
         elif isinstance(case, FlatPlateSpec | Bump2DSpec):
             write_tmr_case(case, host_path)
+        elif isinstance(case, CylinderSpec):
+            write_cylinder_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -113,11 +119,16 @@ class OpenFOAMSolver(Solver):
         )
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
-        """Run `simpleFoam` inside the SIF (long-running, via the executor)."""
+        """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
+
+        Steady cases run `simpleFoam`; a transient case (`spec.transient`, e.g.
+        the vortex-shedding cylinder) runs `pimpleFoam`.
+        """
+        app = "pimpleFoam" if getattr(case_dir.spec, "transient", False) else "simpleFoam"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            command="simpleFoam",
+            command=app,
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
         if not result.ok:
@@ -136,7 +147,14 @@ class OpenFOAMSolver(Solver):
         (not a field file), so this parses with `numpy.loadtxt`. The
         monitored-residual `ConvergenceHistory` is the per-iteration sequence of
         `simpleFoam` pressure-equation initial residuals (Invariant 7).
+
+        A transient case (`spec.transient`) takes a different path: the lift
+        coefficient is a time series, and the result carries a `TimeHistory`
+        plus the FFT-derived Strouhal number (vortex shedding).
         """
+        if getattr(result.case_dir.spec, "transient", False):
+            return self._load_transient(result)
+
         coeff_file = _coefficient_file(result.output_host_path)
         columns, data = _read_coefficient_dat(coeff_file)
         if data.ndim == 1:
@@ -155,14 +173,102 @@ class OpenFOAMSolver(Solver):
             iteration=tuple(range(1, len(residuals) + 1)),
             residual=tuple(residuals),
         )
+
+        # Pressure/viscous drag decomposition from the `forces` function object,
+        # if the case wrote one (airfoil cases do — flat-plate / bump use
+        # wall_distribution instead). The hypothesis under test for NACA 0012 is
+        # "the excess Cd is pressure drag, not friction"; without this the harness
+        # could only see total Cd. None for cases that emit no force.dat.
+        cd_total = float(cd[-1])
+        cd_pressure, cd_viscous = self._drag_decomposition(result, cd_total)
+
         return SolveResult(
             run_id=result.case_dir.run_id,
             case_name=result.case_dir.spec.name,
-            cd=float(cd[-1]),
+            cd=cd_total,
             cl=float(cl[-1]),
+            cd_pressure=cd_pressure,
+            cd_viscous=cd_viscous,
             iterations_to_convergence=int(iteration[-1]),
             final_residual=residuals[-1],
             history=history,
+            source=str(coeff_file),
+        )
+
+    def _drag_decomposition(
+        self, result: ResultHandle, cd_total: float
+    ) -> tuple[float | None, float | None]:
+        """(cd_pressure, cd_viscous) from the `forces` FO, or (None, None).
+
+        Projects the pressure- and viscous-force vectors onto the drag direction
+        (cos(aoa), sin(aoa)) and divides by the dynamic pressure x reference area
+        (0.5 * rhoInf * magUInf^2 * Aref). FAIL-LOUD: if the two components do
+        not reconstruct the forceCoeffs total Cd, the force.dat layout was not
+        what we parsed — raise rather than report a wrong split.
+        """
+        force_file = _maybe_force_file(result.output_host_path)
+        if force_file is None:
+            return None, None
+        spec = result.case_dir.spec
+        aoa = math.radians(float(getattr(spec, "aoa_deg", 0.0)))
+        drag_dir = (math.cos(aoa), math.sin(aoa))
+        a_ref = float(getattr(spec, "chord", 1.0)) * float(getattr(spec, "span", 1.0))
+        q_aref = 0.5 * RHO_INF * U_INF**2 * a_ref
+        cd_pressure, cd_viscous = _read_force_decomposition(
+            force_file, drag_dir=drag_dir, q_aref=q_aref
+        )
+        recon = cd_pressure + cd_viscous
+        # generous band: parser/format error shows up as a gross mismatch, not a
+        # rounding wobble, so 1e-3 absolute + 1% relative cannot mask a real bug.
+        if abs(recon - cd_total) > 1.0e-3 + 1.0e-2 * abs(cd_total):
+            raise ValueError(
+                f"force decomposition cd_pressure+cd_viscous={recon:.6g} disagrees with "
+                f"forceCoeffs total cd={cd_total:.6g} for {result.case_dir.run_id} — "
+                f"unexpected force.dat layout in {force_file}"
+            )
+        return cd_pressure, cd_viscous
+
+    def _load_transient(self, result: ResultHandle) -> SolveResult:
+        """Parse a transient `forceCoeffs` time series into a `SolveResult`.
+
+        Reads the full Cl(t) history, drops the initial transient (the shedding
+        instability takes ~half the run to saturate), FFTs the saturated tail to
+        recover the dominant shedding frequency, and reports the Strouhal number
+        St = f D / U in `scalars`. `history` is the lift-coefficient TimeHistory;
+        `cd`/`cl` are the post-transient time means.
+        """
+        spec = result.case_dir.spec
+        coeff_file = _coefficient_file(result.output_host_path)
+        columns, data = _read_coefficient_dat(coeff_file)
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        t = data[:, columns.index("Time")]
+        cd = data[:, columns.index("Cd")]
+        cl = data[:, columns.index("Cl")]
+        if len(t) < 16:
+            raise ValueError(
+                f"transient solve {result.case_dir.run_id} wrote only {len(t)} force samples "
+                "— too few to resolve a shedding frequency (did pimpleFoam run to endTime?)"
+            )
+        # Saturated tail: drop the first half (instability growth + transient).
+        start = len(t) // 2
+        t_w, cl_w, cd_w = t[start:], cl[start:], cd[start:]
+        diameter = float(getattr(spec, "diameter", 1.0))
+        strouhal = _strouhal_from_signal(t_w, cl_w, diameter=diameter, u_inf=U_INF)
+        history = TimeHistory(
+            t=tuple(float(v) for v in t_w),
+            monitor=tuple(float(v) for v in cl_w),
+            monitor_name="lift_coefficient",
+        )
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=float(cd_w.mean()),
+            cl=float(cl_w.mean()),
+            iterations_to_convergence=len(t),
+            final_residual=float(cl_w.std()),  # shedding amplitude (RMS lift)
+            history=history,
+            scalars={"strouhal": strouhal},
             source=str(coeff_file),
         )
 
@@ -187,6 +293,59 @@ def _coefficient_file(post_processing: Path) -> Path:
     )
 
 
+def _maybe_force_file(post_processing: Path) -> Path | None:
+    """Locate the `forces` FO `force.dat` under a postProcessing tree, or None.
+
+    Returns None when the case wrote no `forces1` output (e.g. flat-plate / bump,
+    which use wall_distribution instead) so the loader leaves the decomposition
+    unset rather than failing.
+    """
+    for name in ("force.dat", "forces.dat"):
+        hits = sorted(post_processing.glob(f"forces1/*/{name}"))
+        if hits:
+            return hits[0]
+    return None
+
+
+def _read_force_decomposition(
+    path: Path, *, drag_dir: tuple[float, float], q_aref: float
+) -> tuple[float, float]:
+    """(cd_pressure, cd_viscous) from an OpenFOAM `forces` force.dat last row.
+
+    Handles both output layouts the `forces` FO has used: the parenthesised
+    vector form ``((Fp_x Fp_y Fp_z) (Fv_x Fv_y Fv_z) ...) (moments...)`` where
+    the first two triples are the pressure and viscous force vectors, and the
+    flat-column ESI form ``Time total(3) pressure(3) viscous(3) [porous(3)]``.
+    The caller (`_drag_decomposition`) FAIL-LOUD-checks the result against the
+    independently-computed total Cd, so a mis-parsed layout cannot pass silently.
+    """
+    last: str | None = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            last = stripped
+    if last is None:
+        raise ValueError(f"no data rows in forces file {path}")
+
+    if "(" in last:
+        triples = re.findall(r"\(([^()]*)\)", last)
+        if len(triples) < 2:
+            raise ValueError(f"unexpected parenthesised forces layout in {path}: {last!r}")
+        fp = [float(v) for v in triples[0].split()]
+        fv = [float(v) for v in triples[1].split()]
+    else:
+        nums = [float(v) for v in last.split()]
+        # flat ESI: Time, total(3), pressure(3), viscous(3), [porous(3)]
+        if len(nums) < 10:
+            raise ValueError(f"unexpected flat forces layout in {path}: {last!r}")
+        fp = nums[4:7]
+        fv = nums[7:10]
+
+    cd_pressure = (fp[0] * drag_dir[0] + fp[1] * drag_dir[1]) / q_aref
+    cd_viscous = (fv[0] * drag_dir[0] + fv[1] * drag_dir[1]) / q_aref
+    return cd_pressure, cd_viscous
+
+
 def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
     """Return (column names, data array) from an OpenFOAM coefficient file."""
     header: list[str] = []
@@ -205,3 +364,31 @@ def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
 def _p_residuals(solver_log: str) -> list[float]:
     """The per-iteration pressure-equation initial residuals from a solve log."""
     return [float(m) for m in _P_RESIDUAL_RE.findall(solver_log)]
+
+
+def _strouhal_from_signal(t: np.ndarray, cl: np.ndarray, *, diameter: float, u_inf: float) -> float:
+    """Strouhal number from a lift-coefficient time series via FFT.
+
+    Detrends Cl, takes the real FFT over the (near-uniform, from the FO's
+    adjustableRunTime writes) time samples, and returns St = f_peak * D / U for
+    the dominant non-DC frequency — the vortex-shedding frequency.
+    """
+    n = len(t)
+    cl = np.asarray(cl, dtype=np.float64)
+    cl = cl - cl.mean()
+    dt = float((t[-1] - t[0]) / (n - 1))  # mean sample spacing
+    freqs = np.fft.rfftfreq(n, d=dt)
+    amp = np.abs(np.fft.rfft(cl))
+    if len(amp) < 4:
+        raise ValueError("too few samples for a shedding-frequency FFT")
+    peak = int(np.argmax(amp[1:])) + 1  # skip the DC bin
+    df = float(freqs[1] - freqs[0])
+    # Parabolic interpolation around the peak bin -> sub-bin frequency accuracy
+    # (the FFT bin width 1/T would otherwise cap St precision at a few %).
+    f_peak = float(freqs[peak])
+    if 0 < peak < len(amp) - 1:
+        a0, a1, a2 = amp[peak - 1], amp[peak], amp[peak + 1]
+        denom = a0 - 2.0 * a1 + a2
+        if denom != 0.0:
+            f_peak += df * 0.5 * float((a0 - a2) / denom)
+    return f_peak * diameter / u_inf

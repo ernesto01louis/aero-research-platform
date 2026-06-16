@@ -45,12 +45,41 @@ def test_sharp_te_is_unchanged_eight_block_cgrid(tmp_path: Path) -> None:
 
 def test_blunt_te_adds_base_block_and_split_vertex(tmp_path: Path) -> None:
     text = _blockmesh(tmp_path, _spec(trailing_edge_thickness=0.0025, n_te=8))
-    # 9 hex blocks: the 8-block C-grid + the collapsed base-wake wedge.
+    # 9 hex blocks: the 8-block C-grid + the base-wake block.
     assert text.count("hex (") == 9
-    # 34 vertices (17 base x 2): the lower TE corner 3l is appended.
-    assert _vertex_count(text) == 34
+    # 38 vertices (19 base x 2): the lower TE corner 3l plus the split outlet
+    # 5u/5l (Stage-10: the outlet split replaces the degenerate collapsed prism).
+    assert _vertex_count(text) == 38
     # Surface polyLines are unchanged (the base is a straight line, not a curve).
     assert text.count("polyLine") == 8
+
+
+def test_blunt_te_base_is_its_own_patch(tmp_path: Path) -> None:
+    # Stage-10: the blunt base is a SEPARATE wall patch so it can carry an
+    # all-y+ wall function; the sharp TE has no such patch.
+    blunt = _blockmesh(tmp_path / "b", _spec(trailing_edge_thickness=0.0025, n_te=8))
+    sharp = _blockmesh(tmp_path / "s", _spec())
+    assert "airfoil_te" in blunt
+    assert "airfoil_te" not in sharp
+
+
+def test_blunt_base_wake_block_is_non_degenerate(tmp_path: Path) -> None:
+    # Stage-10: the base-wake block must be a proper quad — no repeated vertex
+    # (the old `hex (te_lo 5 5 3 ...)` collapsed prism produced a zero-area face
+    # + 1e150 skewness that failed checkMesh). Assert the last hex block (BW) has
+    # four distinct base-face vertices.
+    text = _blockmesh(tmp_path, _spec(trailing_edge_thickness=0.0025, n_te=8))
+    bw = [ln for ln in text.splitlines() if ln.strip().startswith("hex (")][-1]
+    verts = bw.split("hex (", 1)[1].split(")", 1)[0].split()
+    base_face = verts[:4]  # v0 v1 v2 v3
+    assert len(set(base_face)) == 4, f"BW base face has a repeated vertex (collapsed): {base_face}"
+
+
+def test_blunt_te_thickness_must_match_geometry() -> None:
+    # FAIL-LOUD: trailing_edge_thickness records the FIXED open-TE geometry; a
+    # value inconsistent with it (not a free knob) is rejected.
+    with pytest.raises(ValueError, match="inconsistent"):
+        _spec(trailing_edge_thickness=0.01, n_te=8)
 
 
 def test_sharp_and_blunt_blockmeshdicts_differ(tmp_path: Path) -> None:
