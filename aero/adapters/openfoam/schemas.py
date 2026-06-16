@@ -79,8 +79,10 @@ class CaseSpec(BaseModel):
     chord: float = Field(default=1.0, gt=0, description="Chord length.")
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
     end_time: int = Field(default=1500, gt=0, description="Max SIMPLE iterations.")
-    turbulence_model: Literal["kOmegaSST"] = Field(
-        default="kOmegaSST", description="RAS turbulence closure."
+    turbulence_model: Literal["kOmegaSST", "laminar"] = Field(
+        default="kOmegaSST",
+        description="RAS closure ('kOmegaSST'), or 'laminar' (no model) for the "
+        "forward-regime low-Re airfoil — sub-transition, no k/omega/nut transport.",
     )
 
     # --- mesh resolution (2D multi-block C-grid) ---

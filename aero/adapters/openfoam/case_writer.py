@@ -422,7 +422,7 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
     te_omega = (
         f"        type omegaWallFunction;\n        value uniform {omega:.8g};" if blunt else None
     )
-    return {
+    fields = {
         "U": _field(
             "U",
             "volVectorField",
@@ -441,38 +441,40 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
             "        type zeroGradient;",
             te_base=te_p,
         ),
-        "nut": _field(
-            "nut",
-            "volScalarField",
-            "[0 2 -1 0 0 0 0]",
-            f"{nut:.8g}",
-            f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-            # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
-            # wall function (using nutkWallFunction here biased Cd ~+20%).
-            "        type nutLowReWallFunction;\n        value uniform 0;",
-            te_base=te_nut,
-        ),
-        "k": _field(
-            "k",
-            "volScalarField",
-            "[0 2 -2 0 0 0 0]",
-            f"{k:.8g}",
-            f"        type inletOutlet;\n        inletValue uniform {k:.8g};"
-            f"\n        value uniform {k:.8g};",
-            f"        type kqRWallFunction;\n        value uniform {k:.8g};",
-            te_base=te_k,
-        ),
-        "omega": _field(
-            "omega",
-            "volScalarField",
-            "[0 0 -1 0 0 0 0]",
-            f"{omega:.8g}",
-            f"        type inletOutlet;\n        inletValue uniform {omega:.8g};"
-            f"\n        value uniform {omega:.8g};",
-            f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
-            te_base=te_omega,
-        ),
     }
+    # Laminar (forward-regime low-Re airfoil): no k/omega/nut transport.
+    if spec.turbulence_model == "laminar":
+        return fields
+    fields["nut"] = _field(
+        "nut",
+        "volScalarField",
+        "[0 2 -1 0 0 0 0]",
+        f"{nut:.8g}",
+        f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
+        # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
+        # wall function (using nutkWallFunction here biased Cd ~+20%).
+        "        type nutLowReWallFunction;\n        value uniform 0;",
+        te_base=te_nut,
+    )
+    fields["k"] = _field(
+        "k",
+        "volScalarField",
+        "[0 2 -2 0 0 0 0]",
+        f"{k:.8g}",
+        f"        type inletOutlet;\n        inletValue uniform {k:.8g};\n        value uniform {k:.8g};",
+        f"        type kqRWallFunction;\n        value uniform {k:.8g};",
+        te_base=te_k,
+    )
+    fields["omega"] = _field(
+        "omega",
+        "volScalarField",
+        "[0 0 -1 0 0 0 0]",
+        f"{omega:.8g}",
+        f"        type inletOutlet;\n        inletValue uniform {omega:.8g};\n        value uniform {omega:.8g};",
+        f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
+        te_base=te_omega,
+    )
+    return fields
 
 
 def write_case(spec: CaseSpec, dest: Path) -> None:
