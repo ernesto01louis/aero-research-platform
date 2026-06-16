@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.10  ·  **Status:** partial  ·  **Completed:** 2026-06-15
+**Latest tag:** v0.0.10  ·  **Status:** complete  ·  **Completed:** 2026-06-16
 
 **Stage 10 — V&V Debt Retirement + Output-Validity Bar** — most recent stage.
 

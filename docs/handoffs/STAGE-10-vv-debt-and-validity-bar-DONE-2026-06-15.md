@@ -2,232 +2,156 @@
 # Required frontmatter — scripts/check_handoff_exists.sh parses these.
 stage: 10
 stage_name: "Stage 10 — V&V Debt Retirement + Output-Validity Bar"
-status: partial
+status: complete
 date_started: 2026-06-15
-date_completed: 2026-06-15
+date_completed: 2026-06-16
 session_duration_hours: 0
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-4-8
 git_sha_start: "632678fda0d76dcf2a920f13bfd60ddd6ec8e237"
-git_sha_end: "632678fda0d76dcf2a920f13bfd60ddd6ec8e237"
+git_sha_end: "0122f35b5a4d476ed173ee5490f64857bc932f44"
 stage_tag: v0.0.10
 next_stage: 11
 next_stage_name: "Stage 11 — Moving Mesh & Unsteady"
 ---
 
-# Stage 10 — V&V Debt Retirement + Output-Validity Bar — IN PROGRESS (2026-06-15)
+# Stage 10 — V&V Debt Retirement + Output-Validity Bar — DONE (2026-06-16)
 
-> **STATUS: partial / in-progress.** This handoff is being written incrementally so the
-> Stop-hook gate passes and so a session that resumes across an IDE relaunch (to load the
-> provenance env) picks up exactly where we are. `git_sha_end` is provisional (= start SHA)
-> until the session completes; it is corrected at the `v0.0.10` tag. The authoritative
-> live state is this file + the `stage-10/vv-debt-naca0012` branch.
+> `git_sha_end` is provisional (= the last code commit `0122f35`); reconcile to the
+> squash-merge SHA at the `v0.0.10` tag (the Stage-08 pattern). Work landed on branch
+> `stage-10/vv-debt-naca0012` / PR #20.
 
-## 0. Where we are right now (read this first on resume)
+## 0. Headline
 
-The Stage-10 V&V-debt session opened with a **pre-cluster adversarial validation** of the
-never-cluster-tested Stage-09 blunt-TE C-grid (the NACA 0012 fix). That validation returned
-**NO-GO with 4 confirmed blockers** — meaning a cluster run *as-is* would have (a) failed
-`checkMesh`, (b) had an invalid base BC, (c) been unmeasurable, and (d) been unable to pass
-3% anyway. We are fixing those on this branch **before** spending cluster CPU.
-
-**Operator decisions (this session):**
-- **NACA 0012 → "diagnostic + honest NO-GO".** Fix the mesh, add a minimal pressure/viscous
-  drag decomposition, pin the reference, run ONE diagnostic cluster solve to *measure* the
-  real Cdp/Cdv + the improvement, then document root cause and keep it xfail with an
-  evidence-based reason. Do **not** chase a 3% pass this session.
-- **Provenance env → operator exports the 4 vars (`AERO_PROVENANCE_DSN` + MLflow/MinIO) in
-  the shell that launches `claude`, then relaunches.** The reload that prompted this resume
-  did NOT propagate `settings.local.json`'s `env` block into Bash subprocesses, and
-  `aero vv run` hard-fails without `AERO_PROVENANCE_DSN` (`aero/provenance/db.py:resolve_dsn`).
-  Mesh `blockMesh`/`checkMesh` validation needs none of this — only the solve does.
-
-**Sequencing:** land + commit all code fixes + verify the mesh via `checkMesh` (no env), THEN
-operator exports vars + relaunches, THEN run the provenance-backed diagnostic solve + sweep.
-
-**Progress (committed on `stage-10/vv-debt-naca0012`, draft PR #20):**
-- `9103999` — Stage-10 open (this handoff stub).
-- `a3c907b` — 4 mesh/decomposition fixes + reference.md + tests. checkMesh-verified.
-- `60d5711` — base-wake taper + PCG + under-relaxation (after the solve diverged).
-- xfail-reason update (this commit) — evidence-based NO-GO, tolerance NOT relaxed.
-
-**DIAGNOSTIC OUTCOME — NACA 0012 is a documented NO-GO (the blunt-TE remedy is not viable):**
-The provenance env works end-to-end (the derived `AERO_PROVENANCE_DSN` carried `aero vv run`
-through prep + four-tuple + job submission). But the solve does **not converge**, across
-three attempts on the checkMesh-valid mesh:
-1. default U=0.9 → SIGFPE at iter ~33;
-2. under-relaxed U=0.5/kω=0.4 → diverged iter ~61, **DICPCG pressure solve pinned at its
-   1000-iter cap** (ill-conditioned pressure eqn — the base-wake aspect ratio ~28800);
-3. after the **taper** (base-wake AR → 2954 = sharp baseline) + PCG + under-relax (0.7/0.5):
-   ~83 **stable** iterations, then a sudden **momentum/pressure blow-up while turbulence
-   stayed converged** (kω residuals ~1e-9) → SIGFPE in the U Gauss-Seidel smoother.
-Root cause (attempts 1–2 were the AR; attempt 3 is deeper): the finite blunt base produces an
-**inherently unsteady / vortex-shedding wake that a steady-state solver (`simpleFoam`) cannot
-converge**, and/or error buildup at the now-sloped wake-cut's high-non-orthogonality cells.
-Combined with the closed-form budget (blunt-TE can't reach 3% even converged), the blunt-TE
-C-grid is rejected as the NACA 0012 remedy. No converged Cd was obtained (the divergence IS
-the diagnostic result). NACA stays xfail with the evidence-based reason.
-
-**Candidate strategies (for the operator / a future stage — NOT pursued this session):**
-- **Transient + time-average:** `pimpleFoam` (or a URANS/DDES run) with phase/time-averaging
-  of Cd — the physically-correct treatment of a shedding blunt base. Big change: the solver
-  is steady-only today, and the decomposition/`SolveResult` assume a steady result.
-- **Sharp-TE TE-region remesh:** keep the sharp TE (the TMR geometry) but fix the original
-  sharp-TE pressure-drag artifact with a better TE-region topology (structured/hyperbolic TE,
-  TE-bisector wake cut, more TE clustering) — addresses the Stage-05 root cause directly.
-- **SU2 cross-check:** SU2 has its own mesher (no C-grid TE singularity); run the TMR NACA
-  case through it to see if the +21% is OpenFOAM-C-grid-specific.
-
-**REMAINING for Stage 10:** deliverable-2 forward-regime cases (Blasius, cylinder Strouhal,
-laminar airfoil) + the 2D bump convergence; an ADR once a NACA path is chosen; Stage-11
-prompt; finalize this handoff to `complete`; tag `v0.0.10`. (Operator steer pending on
-whether to pursue a NACA rethink now vs. accept the NO-GO and move to forward-regime work.)
-
-**INFRA FINDING — run the diagnostic on `aero-dev`, NOT `aero-vv`:** `aero-vv` (LXC 213, the
-designated V&V runner) is **missing apptainer entirely** (only the SIF is present), so
-`aero vv run --host aero-vv` would fail. `aero-dev` (16 cores) and `aero-build` (8) both have
-apptainer + the OpenFOAM SIF. Use `--host aero-dev` for the diagnostic. (Installing apptainer
-on aero-vv is a provisioning action — propose-first per the classifier gate; not done here.)
+The forward-regime laminar/transient regime — the one the flapping optimizer actually
+operates in — is **validated GREEN** (3 new cases). The turbulent table-stakes debt is
+**honestly characterised**: NACA 0012 is a documented NO-GO (the blunt-TE remedy is not
+steady-convergeable) and the 2D bump is a documented CONCERN (an iterative-convergence
+plateau); neither tolerance was relaxed. A reusable **laminar** and **transient
+(pimpleFoam)** OpenFOAM capability now exists — the transient seed Stage 11 builds on.
 
 ## 1. Deliverables status
 
-| # | Deliverable (verbatim from stage prompt) | Status | Note |
+| # | Deliverable (from the stage prompt) | Status | Note |
 |---|---|:-:|---|
-| 1 | Retire turbulent canonical debt (NACA 0012 Cd, flat-plate Cf, 2D bump) | ⚠️ | In progress. NACA → diagnostic+NO-GO (see §2/§3). Flat-plate xfail is self-milestoned **stage-12** (correlation-spread), bump → **stage-10** convergence tuning (not yet started). |
-| 2 | Add forward-regime canonical cases (Blasius plate, cylinder Strouhal, laminar airfoil) | ❌ | Not started. |
-| 3 | Output-validity bar (`docs/vv/output-validity-bar.md` + `aero/vv/reportable.py` + tests) | ✅ | Landed at Stage-09 close-out (`reportable.py`, `tests/stage_10/`, 22 tests). Verify green this session. |
-| 4 | Budget cap bump $50 → $150 (ADR-014) | ✅ | Done (commit 632678f); `aero/orchestration/cost_cap.py`. |
+| 1 | Retire turbulent canonical debt (NACA 0012 Cd, flat-plate Cf, 2D bump) | ⚠️ | NACA → **documented NO-GO** (blunt-TE not steady-convergeable; §3). Flat-plate Cf self-milestoned **Stage 12** (correlation-spread). Bump → **documented CONCERN** (p-residual plateau ~3e-4, confirmed; §3). xfails retained, tolerances NOT relaxed. |
+| 2 | Add forward-regime canonical cases (Blasius plate, laminar airfoil, cylinder Strouhal) | ✅ | **All 3 GREEN** — see §3. New `aero/vv/forward_regime/` package + a laminar + a transient OpenFOAM path. |
+| 3 | Output-validity bar (`docs/vv/output-validity-bar.md` + `aero/vv/reportable.py` + tests) | ✅ | Landed at Stage-09 close-out (22 tests); verified green. |
+| 4 | Budget cap bump $50 → $150 (ADR-014) | ✅ | `aero/orchestration/cost_cap.py` (commit 632678f). |
 | 5 | Merge ADR-015 constitution PR (Invariants 10 + 11) | ✅ | Ratified/merged 2026-06-15 (PR #15). |
-| 6 | ADRs + post-stage handoff + Stage-11 prompt + tag v0.0.10 | ⚠️ | ADR for the blunt-TE mesh fixes pending; handoff = this file; Stage-11 prompt + tag pending. |
+| 6 | ADRs + handoff + Stage-11 prompt + tag v0.0.10 | ✅ | **ADR-017** (forward-regime + laminar/transient + NACA NO-GO); this handoff; **STAGE-11 prompt** at `docs/handoff-bundle/STAGE-11-moving-mesh-and-unsteady.md`; tag at close-out. |
 
 ## 2. Decisions made
 
-- **Run an adversarial pre-cluster validation of the blunt-TE C-grid before any solve.**
-  Rationale: the grid was built in Stage 09 and *never cluster-validated*; CPU cluster time
-  is scarce. The 4-dimension workflow (routing / geometry / mesh-topology / drag-physics,
-  each finding adversarially re-checked) found 4 confirmed blockers — none of which a cluster
-  run would have surfaced cheaply. Validating first **saved** the wasted cycles.
+- **Pre-cluster adversarial validation before any solve.** A 4-dimension workflow
+  (routing / geometry / mesh-topology / drag-physics, each adversarially re-checked) found
+  4 blockers in the never-tested blunt-TE C-grid — caught before spending cluster CPU.
+- **NACA 0012 = documented NO-GO** (operator-chosen "diagnostic + honest NO-GO", then
+  confirmed beyond it): the blunt-TE remedy is rejected (ADR-017). See §3.
+- **Add forward-regime cases + a laminar and a transient OpenFOAM path** (ADR-017) — invest
+  effort in the mission's regime; all 3 cases are GREEN.
+- **2D bump = documented CONCERN, not forced** — the iterative-convergence plateau is a
+  deep turbulent-numerics issue (the stage prompt's "rabbit-hole = rethink trigger"); defer
+  to a dedicated convergence pass / a transient-mean treatment (Stage 11).
+- **Provenance env** — operator derived `AERO_PROVENANCE_DSN` by swapping the DB name in
+  `MLFLOW_BACKEND_STORE_URI` to `aero_provenance` (same owner role `aero_mlflow_user` owns
+  both DBs, per `db/provision/aero_databases.sql`); validated end-to-end (MLflow runs log).
 
-- **NACA 0012 is a "diagnostic + honest NO-GO", not a pass-attempt** (operator-chosen).
-  Rationale (the arithmetic): friction is held fixed at the Stage-05 measured 0.006711, the
-  3% pass ceiling is ~0.00836, leaving only ~0.00165 for pressure+base drag; best case
-  (genuine pressure ~0.0015 + smallest base drag ~0.00025) lands ~+4.2%, and likely higher if
-  the suspected friction over-prediction is real. Blunt-TE alone *cannot* close 3%. Rejected:
-  "drive to PASS" (would need base-BL re-engineering + a friction investigation, may not
-  converge this session, risks stealth tolerance pressure) and "defer entirely to Stage 12"
-  (loses the chance to measure the real decomposition now). Honest NO-GO with measured
-  evidence is the rigorous middle path and matches the prompt's "document the root cause."
+## 3. Results
 
-- **Split the blunt base into its own `airfoil_te` wall patch with `nutUSpaldingWallFunction`.**
-  Rationale: the base's wall-normal direction *is* the shared wake-cut streamwise direction,
-  so it cannot get y⁺<1 resolution without breaking conformality with UW/LW; Spalding is valid
-  across all y⁺. Keeps the validated surface treatment (`nutLowReWallFunction`, y⁺<1)
-  untouched and lets the diagnostic measure base drag on its own patch. Rejected: leaving the
-  base on the `airfoil` patch with `nutLowReWallFunction` (a confirmed-invalid BC at y⁺~2300).
+**Forward-regime cases — all GREEN (validated on aero-dev, MLflow runs logged):**
 
-- **Add a minimal pressure/viscous drag decomposition now** (a `forces` FO + loader parse +
-  two optional `SolveResult` fields), pre-empting a thin slice of the Stage-11 post-process
-  toolkit. Rationale: the central NACA hypothesis ("excess is *entirely* pressure drag") is
-  currently un-testable by the harness — the 0.0031/0.0067 split was hand-read off a Stage-05
-  log. Without the decomposition the diagnostic cannot answer the go/no-go honestly.
+| Case | Regime | Reference | Result |
+|---|---|---|---|
+| `blasius_flat_plate` | steady laminar | Blasius Cf=0.664/√Re_x (exact) | **GO** — Cf 2.15% (tol 5%) |
+| `laminar_airfoil_naca0012` | steady laminar, Re=1000 | Kurtuluş 2015 Cd + Cl=0 symmetry | **GO** — Cd 0.16%, Cl 0.23% |
+| `cylinder_strouhal_re100` | **transient** shedding | Roshko/Williamson St≈0.165 | **GO** — St 4.0% (tol 5%) |
 
-- **Reference data:** the TMR mirror (`tmbwg.github.io`) gives grid-converged **SST** Cd at
-  α=0 as **0.00809 (CFL3D) / 0.00808 (FUN3D)**; our `reference.md` value 0.008120 is actually
-  the **SA** number, mislabeled "SST" (<0.5%, inside tolerance, but a provenance error to
-  fix). The page publishes **no Cdp/Cdv split**, so the friction question is resolved only by
-  the diagnostic run + literature, not the reference summary.
+**NACA 0012 — documented NO-GO (blunt-TE remedy rejected).** The blunt-TE C-grid was
+repaired to checkMesh-valid (BW e_wake grading; outlet-split 5u/5l replacing a collapsed-prism
+zero-area face; `airfoil_te` patch + nutUSpaldingWallFunction; base-wake taper to the
+sharp-baseline aspect ratio; PCG + under-relaxation), and a pressure/viscous drag
+decomposition was added (`forces` FO → `SolveResult.cd_pressure`/`cd_viscous`). But the steady
+solve does **not converge** across 3 attempts: U=0.9 → SIGFPE iter ~33; under-relaxed →
+diverged iter ~61 (DICPCG pinned at 1000-iter cap = base-wake AR ~28800); after the taper
+(AR → 2954) → ~83 stable iters then a momentum/pressure blow-up while turbulence stayed
+converged = the finite blunt base's **unsteady/shedding wake defeating a steady solver**.
+The closed-form budget also shows blunt-TE can't reach 3% even converged. Resolution deferred
+(transient + time-average / sharp-TE remesh / SU2 cross-check — ADR-017). xfail retained,
+tolerance NOT relaxed.
 
-## 3. Validation findings (the blunt-TE C-grid GO/NO-GO)
-
-Confirmed blockers (all upheld at high confidence after adversarial re-check):
-1. **bw-grading-mismatch** — the base-wake (BW) block graded `simpleGrading (1 1 1)` while
-   neighbours UW/LW grade the shared streamwise edges with `e_wake`≈917 → duplicate unmerged
-   points on the shared internal faces → **`checkMesh` fails / mesh invalid**.
-   Fix: `simpleGrading (e_wake 1 1)` on BW (`case_writer.py:160`).
-2. **bw-base-no-bl** — the blunt base wall has no wall-normal resolution (first cell ≈ 0.01c
-   after the grading fix → y⁺~2300) so `nutLowReWallFunction` (y⁺<1) is invalid there; the
-   base also never enters the asymptotic GCI range. Fix: split base → `airfoil_te` patch +
-   `nutUSpaldingWallFunction`.
-3. **no-drag-decomp-in-loader** — the loader surfaces only *total* Cd; `forceCoeffs1` has no
-   pressure/viscous split; `SolveResult` has no such fields. The hypothesis is un-testable as
-   built. Fix: `forces` FO + loader parse + `SolveResult.cd_pressure`/`cd_viscous`.
-4. **blunt-te-cannot-close-3pct-arithmetic** — closed-form: blunt-TE alone lands ~+4.2% best
-   case; it improves but cannot pass 3% (friction held fixed; base drag additive). Drives the
-   diagnostic+NO-GO decision.
-
-Upheld major (real, lower-risk): **te-thickness-value-is-gate-only** — `trailing_edge_thickness`
-is a boolean `>0` gate; the actual TE thickness (0.00252c full) is fixed by the NACA open-TE
-coefficient `_A4_OPEN_TE=0.1015`, so the float value never sizes the mesh (a FAIL-LOUD /
-provenance-fidelity gap). Fix: add a `model_validator` reconciling the field with the
-geometry's open-TE thickness (else fail loud). **friction-claim-internally-inconsistent** —
-"friction ~2% correct" only holds under a friction-heavy reference split; the conventional
-TMR split (Cdv~0.0060–0.0061) would make our friction ~+10% high — a co-equal error blunt-TE
-can't touch. Resolve via the diagnostic decomposition.
-
-Refuted false alarms (adversarial verification did its job): "reference is sharp-TE/SA" and
-two turbulence-model-mismatch claims — reference and solve are both k-ω SST; the +21% was a
-sharp-vs-sharp comparison; blunt-TE is the standard open NACA 0012 TE (a numerical remedy).
+**2D bump — documented CONCERN.** A single-grid diagnostic at end_time=8000 confirmed the
+p initial-residual **plateaus at ~2-5e-4 from iter ~2000 through 4000+** and never reaches the
+1e-6 target — a genuine convergence stall (not iteration-limited), so `cp_min` is not cleanly
+grid-converged for a reliable GCI. Deferred to a dedicated convergence pass / transient-mean
+(Stage 11). xfail retained, tolerance NOT relaxed.
 
 ## 4. Environment / dependency / schema changes
 
-- `SolveResult` (`aero/adapters/_base.py`): two new optional fields `cd_pressure`,
-  `cd_viscous` (default None; back-compat for non-airfoil cases). [pending commit]
-- `CaseSpec` (`aero/adapters/openfoam/schemas.py`): `trailing_edge_thickness` reconciled with
-  the geometry's open-TE thickness via a validator. [pending commit]
-- No new pyproject extras; no DB/bucket changes; no container SHA changes.
+- `SolveResult` (`aero/adapters/_base.py`): `cd_pressure`, `cd_viscous` optional fields.
+- `CaseSpec` / `FlatPlateSpec` (`schemas.py` / `tmr_specs.py`): `turbulence_model` accepts
+  `"laminar"`; `CaseSpec` validator ties `trailing_edge_thickness` to the open-TE geometry.
+- New `aero/adapters/openfoam/cylinder.py` (`CylinderSpec` + transient O-grid case writer).
+- New `aero/vv/forward_regime/` package (3 cases) + registry, wired into `aero vv list/run`.
+- New reference data under `data/references/forward_regime/` (git-tracked, small/analytical).
+- No new pyproject extras; no DB/bucket/container-SHA changes.
 
 ## 5. CI/CD changes
 
-None yet. (Tests updated under `tests/stage_09` + a new decomposition-parse unit test.)
+New cluster-bound (slow) V&V tests: `tests/vv/test_forward_regime_{blasius,laminar_airfoil,
+cylinder}.py` (real PASS assertions, not xfail). Host-side `tests/stage_10/` tests added.
+No new required status checks.
 
 ## 6. Gotchas discovered
 
-- `settings.local.json`'s `env` block does NOT reach Bash subprocesses in this Claude build;
-  `aero vv run` hard-fails without `AERO_PROVENANCE_DSN`. Operator exports the vars in the
-  launching shell instead.
-- The NACA 0012 V&V case routes through `case_writer.py` (the blunt-TE path), **not** the
-  TMR-specific `tmr_case_writer.py` — confirmed; the blunt-TE code is live for this case.
-- The Stop hook blocks every turn-end unless a Stage-10 handoff with valid frontmatter exists
-  — hence this partial handoff was committed as the first Stage-10 commit.
+- **`aero-vv` (LXC 213) lacks apptainer** — only the SIF is present; run SIF solves on
+  `aero-dev` (16 cores) or `aero-build` (8). `aero vv run --host aero-vv` fails.
+- `settings.local.json`'s `env` block did not reach Bash subprocesses; the operator exports
+  the provenance vars from the shell profile instead (each Bash tool call re-inits from it).
+- A symmetric cylinder + axial inflow won't shed within a finite run; a small freestream tilt
+  (5°, axisymmetric body → St unaffected) seeds it; the FFT detrends the small mean lift.
+- pimpleFoam `fvSolution` needs `"(U|UFinal)"` (no space) or it fails on `UFinal` at PIMPLE
+  iter 2.
+- The NACA blunt-TE base wake (constant tiny height over 100c) gave AR ~3e4 → ill-conditioned
+  pressure eqn; tapering the outlet fixes it. Solver choice (PCG) + under-relaxation are
+  robustness-only (don't change the converged solution).
 
 ## 7. Open items for the next stage (and beyond)
 
-- **This session, post-relaunch:** run the diagnostic NACA solve + 3-grid sweep through
-  `aero vv run` (provenance on); record measured Cdp/Cdv + total Cd; finalize the honest
-  NO-GO write-up + updated xfail reason; then the bump-convergence work + forward-regime cases.
-- **Stage 11 prompt** must exist at `docs/handoff-bundle/STAGE-11-moving-mesh-and-unsteady.md`
-  before the v0.0.10 tag (not yet written).
-- Flat-plate Cf is self-milestoned to **Stage 12** (correlation-spread); not in this stage's
-  pass scope.
+- **Stage 11 (Moving Mesh & Unsteady):** prompt is written. Builds on the transient seed —
+  moving meshes, `aero/postprocess/` (phase-avg, propulsive efficiency, cycle-convergence),
+  oscillating-cylinder + plunging-airfoil V&V. The deferred NACA transient-mean rethink + the
+  bump transient-mean treatment fit here.
+- **Stage 12:** `u95_statistical` for the unsteady St (the cylinder St=4% carries no
+  statistical-uncertainty envelope yet); flat-plate Cf correlation-spread.
+- **Rigor follow-ups (cheap):** clean-SHA reportable re-runs of the 3 forward-regime cases
+  (the GO runs used `--allow-dirty`); a GCI mesh-independence sweep per forward-regime case.
+- **Reference reconcile:** NACA `cd.csv` 0.008120 is the SA value (true SST ~0.00808-0.00809)
+  — flagged in `reference.md`, operator decision (touches the V&V contract + `_CD_REFERENCE`).
 
 ## 8. Pointers for next session
 
-- **Read first:** this file (§0), then `git log --oneline origin/main..stage-10/vv-debt-naca0012`.
-- **Do not re-read:** the full validation transcript — its conclusions are in §3.
-- **Run first to verify:** `pytest tests/stage_09 tests/unit -q`, `ruff check aero`, `mypy aero`.
-- Validation workflow run id (this session): `wf_87cabf34-6aa` (cached if resumed).
+- **Read first:** this file + ADR-017 + `git log --oneline origin/main..` (or the v0.0.10 tag).
+- **Run first to verify:** `pytest tests/stage_10 tests/unit -q`, `ruff check aero tests`,
+  `mypy aero`. Cluster V&V: `aero vv run --case <name> --host aero-dev` (NOT aero-vv).
+- **Do not re-read:** the full validation/diagnostic transcripts — conclusions are in §3.
 
 ## 9. Artifacts produced
 
-Branch `stage-10/vv-debt-naca0012`; draft PR #20. `.aero-stage`→10; this handoff.
-Commit `a3c907b`: `case_writer.py` (BW e_wake grading; outlet-split 5u/5l replacing the
-collapsed prism; `airfoil_te` patch + Spalding nut; `forces` FO; PCG for blunt),
-`geometry.py` (`OPEN_TE_FULL_THICKNESS`), `schemas.py` (geometry-consistency validator),
-`_base.py` (`SolveResult.cd_pressure`/`cd_viscous`), `solver.py` (force-decomposition parse +
-fail-loud reconstruction check), `reference.md` (SA/SST provenance), stage-09 blockmesh test
-update + new `tests/stage_10/test_drag_decomposition.py`. [Diagnostic MLflow runs + final
-write-up to be appended.]
-
-**Note on §3 finding 2:** `checkMesh` surfaced an ADDITIONAL degeneracy beyond the original
-validation — the BW base-wake block collapsed to a point at the outlet (zero-area face +
-1e150 skewness). Fixed by splitting the outlet into 5u/5l so BW is a proper constant-height
-quad. This is why the fix is larger than a one-line grading change.
+Commits on `stage-10/vv-debt-naca0012` (PR #20): `9103999` open; `a3c907b` blunt-TE mesh +
+decomposition fixes; `7952e66` handoff; `60d5711` base-wake taper; `05c24d5` NACA NO-GO docs;
+`6ab3c99` Blasius flat plate (GO); `63e5049` laminar airfoil (GO); `0122f35` transient cylinder
+(GO); + this close-out (ADR-017, Stage-11 prompt, bump-xfail update, this handoff). New code:
+`aero/adapters/openfoam/cylinder.py`, `aero/vv/forward_regime/{blasius_flat_plate,laminar_airfoil,
+cylinder_strouhal}.py`, the laminar/transient adapter paths, `data/references/forward_regime/`,
+host + cluster tests. MLflow runs (aero-mlflow): the 3 forward-regime GO runs.
 
 ## 10. Confidence / risk note
 
-High confidence: the 4 blockers are real (adversarially verified, with empirical/numerical
-checks); the grading + base-patch fixes are mechanically sound and `checkMesh`-verifiable
-without the env. Medium: the exact `force.dat` column format of the ESI v2412 SIF — the
-loader parser is written defensively + unit-tested on a synthetic sample, and validated
-end-to-end by the diagnostic run. Open: whether the diagnostic confirms a friction
-over-prediction (the co-equal suspect); that is what the run measures.
+High confidence: the 3 forward-regime GOs (analytical/literature matches on well-conditioned
+meshes, MLflow-logged); the NACA NO-GO + bump CONCERN (multiple cluster runs, evidence-based).
+Medium: the cylinder St (4%, single grid, no statistical-U95 yet — Stage 12) and the FFT
+sampling; the laminar-airfoil 10% band reflects the genuine low-Re Cd spread. The transient
+path is new — exercised on one case (the cylinder); Stage 11 hardens it (moving mesh,
+cycle-convergence). The bump/NACA root-cause attributions are evidence-based but their
+*resolutions* (transient-mean, remesh) are unproven and deferred.
