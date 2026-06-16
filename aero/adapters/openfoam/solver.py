@@ -35,6 +35,7 @@ from aero.adapters._base import (
     Solver,
     SolveResult,
     SpecLike,
+    TimeHistory,
     WallDistribution,
     build_apptainer_exec,
 )
@@ -43,6 +44,7 @@ from aero.adapters._base import (
 )
 from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
+from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
@@ -85,6 +87,8 @@ class OpenFOAMSolver(Solver):
             write_case(case, host_path)
         elif isinstance(case, FlatPlateSpec | Bump2DSpec):
             write_tmr_case(case, host_path)
+        elif isinstance(case, CylinderSpec):
+            write_cylinder_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -115,11 +119,16 @@ class OpenFOAMSolver(Solver):
         )
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
-        """Run `simpleFoam` inside the SIF (long-running, via the executor)."""
+        """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
+
+        Steady cases run `simpleFoam`; a transient case (`spec.transient`, e.g.
+        the vortex-shedding cylinder) runs `pimpleFoam`.
+        """
+        app = "pimpleFoam" if getattr(case_dir.spec, "transient", False) else "simpleFoam"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            command="simpleFoam",
+            command=app,
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
         if not result.ok:
@@ -138,7 +147,14 @@ class OpenFOAMSolver(Solver):
         (not a field file), so this parses with `numpy.loadtxt`. The
         monitored-residual `ConvergenceHistory` is the per-iteration sequence of
         `simpleFoam` pressure-equation initial residuals (Invariant 7).
+
+        A transient case (`spec.transient`) takes a different path: the lift
+        coefficient is a time series, and the result carries a `TimeHistory`
+        plus the FFT-derived Strouhal number (vortex shedding).
         """
+        if getattr(result.case_dir.spec, "transient", False):
+            return self._load_transient(result)
+
         coeff_file = _coefficient_file(result.output_host_path)
         columns, data = _read_coefficient_dat(coeff_file)
         if data.ndim == 1:
@@ -211,6 +227,50 @@ class OpenFOAMSolver(Solver):
                 f"unexpected force.dat layout in {force_file}"
             )
         return cd_pressure, cd_viscous
+
+    def _load_transient(self, result: ResultHandle) -> SolveResult:
+        """Parse a transient `forceCoeffs` time series into a `SolveResult`.
+
+        Reads the full Cl(t) history, drops the initial transient (the shedding
+        instability takes ~half the run to saturate), FFTs the saturated tail to
+        recover the dominant shedding frequency, and reports the Strouhal number
+        St = f D / U in `scalars`. `history` is the lift-coefficient TimeHistory;
+        `cd`/`cl` are the post-transient time means.
+        """
+        spec = result.case_dir.spec
+        coeff_file = _coefficient_file(result.output_host_path)
+        columns, data = _read_coefficient_dat(coeff_file)
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        t = data[:, columns.index("Time")]
+        cd = data[:, columns.index("Cd")]
+        cl = data[:, columns.index("Cl")]
+        if len(t) < 16:
+            raise ValueError(
+                f"transient solve {result.case_dir.run_id} wrote only {len(t)} force samples "
+                "— too few to resolve a shedding frequency (did pimpleFoam run to endTime?)"
+            )
+        # Saturated tail: drop the first half (instability growth + transient).
+        start = len(t) // 2
+        t_w, cl_w, cd_w = t[start:], cl[start:], cd[start:]
+        diameter = float(getattr(spec, "diameter", 1.0))
+        strouhal = _strouhal_from_signal(t_w, cl_w, diameter=diameter, u_inf=U_INF)
+        history = TimeHistory(
+            t=tuple(float(v) for v in t_w),
+            monitor=tuple(float(v) for v in cl_w),
+            monitor_name="lift_coefficient",
+        )
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=float(cd_w.mean()),
+            cl=float(cl_w.mean()),
+            iterations_to_convergence=len(t),
+            final_residual=float(cl_w.std()),  # shedding amplitude (RMS lift)
+            history=history,
+            scalars={"strouhal": strouhal},
+            source=str(coeff_file),
+        )
 
     def wall_distribution(self, result: ResultHandle, *, patch: str = "wall") -> WallDistribution:
         """Extract the Cf/Cp distribution along wall `patch` from a finished solve.
@@ -304,3 +364,31 @@ def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
 def _p_residuals(solver_log: str) -> list[float]:
     """The per-iteration pressure-equation initial residuals from a solve log."""
     return [float(m) for m in _P_RESIDUAL_RE.findall(solver_log)]
+
+
+def _strouhal_from_signal(t: np.ndarray, cl: np.ndarray, *, diameter: float, u_inf: float) -> float:
+    """Strouhal number from a lift-coefficient time series via FFT.
+
+    Detrends Cl, takes the real FFT over the (near-uniform, from the FO's
+    adjustableRunTime writes) time samples, and returns St = f_peak * D / U for
+    the dominant non-DC frequency — the vortex-shedding frequency.
+    """
+    n = len(t)
+    cl = np.asarray(cl, dtype=np.float64)
+    cl = cl - cl.mean()
+    dt = float((t[-1] - t[0]) / (n - 1))  # mean sample spacing
+    freqs = np.fft.rfftfreq(n, d=dt)
+    amp = np.abs(np.fft.rfft(cl))
+    if len(amp) < 4:
+        raise ValueError("too few samples for a shedding-frequency FFT")
+    peak = int(np.argmax(amp[1:])) + 1  # skip the DC bin
+    df = float(freqs[1] - freqs[0])
+    # Parabolic interpolation around the peak bin -> sub-bin frequency accuracy
+    # (the FFT bin width 1/T would otherwise cap St precision at a few %).
+    f_peak = float(freqs[peak])
+    if 0 < peak < len(amp) - 1:
+        a0, a1, a2 = amp[peak - 1], amp[peak], amp[peak + 1]
+        denom = a0 - 2.0 * a1 + a2
+        if denom != 0.0:
+            f_peak += df * 0.5 * float((a0 - a2) / denom)
+    return f_peak * diameter / u_inf

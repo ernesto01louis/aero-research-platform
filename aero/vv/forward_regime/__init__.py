@@ -10,9 +10,9 @@ analytical / experimental references (the flapping-validation-ladder rule's
   Blasius skin-friction law (Cf = 0.664/sqrt(Re_x)).
 * `LaminarAirfoil` — laminar NACA 0012 at Re=1000, AoA=0 (low-Re Cd vs Kurtuluş
   2015 + the Cl=0 symmetry sanity).
-
-(The low-Re cylinder vortex-shedding Strouhal case follows; it needs the
-transient solve path — Stage-11 unsteady machinery.)
+* `CylinderStrouhal` — transient low-Re cylinder (Re=100) vortex-shedding
+  Strouhal vs the Roshko/Williamson St-Re relation (the platform's first
+  transient OpenFOAM case — `pimpleFoam` + lift-FFT).
 
 `FORWARD_REGIME_CASES` is the registry the `aero vv` CLI iterates.
 """
@@ -21,11 +21,13 @@ from __future__ import annotations
 
 from aero.vv._base import BenchmarkCase
 from aero.vv.forward_regime.blasius_flat_plate import BlasiusFlatPlate
+from aero.vv.forward_regime.cylinder_strouhal import CylinderStrouhal
 from aero.vv.forward_regime.laminar_airfoil import LaminarAirfoil
 
 FORWARD_REGIME_CASES: dict[str, BenchmarkCase] = {
     BlasiusFlatPlate.name: BlasiusFlatPlate(),
     LaminarAirfoil.name: LaminarAirfoil(),
+    CylinderStrouhal.name: CylinderStrouhal(),
 }
 
-__all__ = ["FORWARD_REGIME_CASES", "BlasiusFlatPlate", "LaminarAirfoil"]
+__all__ = ["FORWARD_REGIME_CASES", "BlasiusFlatPlate", "CylinderStrouhal", "LaminarAirfoil"]
