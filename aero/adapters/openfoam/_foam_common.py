@@ -237,3 +237,83 @@ RAS
 }}
 """
     )
+
+
+# --- transient (pimpleFoam) dictionaries --------------------------------------
+def transient_fvschemes() -> str:
+    """Transient laminar schemes — first-order Euler in time, second-order space.
+
+    Shared by the transient/moving cases (cylinder, plunging airfoil). Euler is the
+    robust default for the low-Re unsteady cases; the div/laplacian schemes match the
+    Stage-10 cylinder path so the static cylinder renders identically.
+    """
+    return (
+        header("dictionary", "fvSchemes")
+        + """
+ddtSchemes      { default Euler; }
+gradSchemes     { default Gauss linear; }
+divSchemes
+{
+    default         none;
+    div(phi,U)      Gauss linearUpwind grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+laplacianSchemes  { default Gauss linear corrected; }
+interpolationSchemes { default linear; }
+snGradSchemes   { default corrected; }
+"""
+    )
+
+
+def transient_fvsolution(*, cell_displacement: bool = False) -> str:
+    """PIMPLE controls for a transient solve, optionally with a mesh-motion solver.
+
+    With ``cell_displacement=True`` a ``cellDisplacement`` solver block is added for the
+    ``displacementLaplacian`` mesh-motion equation (the moving-mesh cases). With the
+    default ``False`` the rendered dictionary is byte-identical to the Stage-10 static
+    cylinder's ``fvSolution`` (no regression to the transient-cylinder GO).
+    """
+    cd_block = ""
+    if cell_displacement:
+        cd_block = """    cellDisplacement
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0;
+    }
+"""
+    return (
+        header("dictionary", "fvSolution")
+        + f"""
+solvers
+{{
+    p
+    {{
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       1e-7;
+        relTol          0.01;
+    }}
+    pFinal
+    {{
+        $p;
+        relTol          0;
+    }}
+    "(U|UFinal)"
+    {{
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-8;
+        relTol          0;
+    }}
+{cd_block}}}
+
+PIMPLE
+{{
+    nOuterCorrectors    2;
+    nCorrectors         2;
+    nNonOrthogonalCorrectors 1;
+}}
+"""
+    )
