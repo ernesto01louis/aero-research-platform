@@ -33,9 +33,11 @@ Strouhal is **0.63 %** from the forcing frequency, from a **35-cycle converged l
 and the pressure/viscous force split **closes exactly**. The morphing motion solver
 (`dynamicMotionSolverFvMesh`, ADR-018) is validated on the real ESI v2412 SIF. The
 `aero/postprocess/` toolkit (ADR-019) is typed, tested, and exposes the per-cycle-sample seam
-Stage 12's `u95_statistical` consumes. The **plunging-foil resolved-GO is deferred** (its
-solve is multi-day at a defensible resolution); the case + propulsion loader are built and a
-coarse real-data diagnostic exercised the propulsion path end-to-end.
+Stage 12's `u95_statistical` consumes. The **plunging-foil ran to completion** (resolved,
+cycle-converged, resolution-insensitive C_T≈0.96, net thrust) but is a **documented CONCERN**:
+C_T is ~4.5× the *unverified* digitized reference 0.21 — evidence points at the reference value
+(implausibly low; St=0.4 is the deflected-jet regime), not the solver. Not relaxed; verify the
+reference / re-anchor at a lower St (Stage 12).
 
 ## 1. Deliverables status
 
@@ -43,7 +45,7 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
 |---|---|:-:|---|
 | 1 | Moving-mesh solve path (`dynamicMotionSolverFvMesh`; overset available) | ✅ | Morphing writers (`dynamicMeshDict`/`pointDisplacement`/`movingWallVelocity`/`pcorr`+`cellDisplacement`); `pimpleFoam` unchanged; **validated on the SIF** (2911 clean steps at A/D=0.5, no divergence/negative-volume). Overset libs confirmed present (fallback needs no rebuild). ADR-018. |
 | 2 | `aero/postprocess/` unsteady toolkit | ✅ | 6 modules (frequency, phase_averaging, forces, efficiency, cycle_detection, _base), strict-pydantic, stdlib+numpy. 36 host unit tests. Force-closure is a schema invariant; `CycleSamples.per_cycle_mean` is the Stage-12 batch-means seam. ADR-019. |
-| 3 | Moving-body V&V (oscillating cylinder + plunging airfoil) | ⚠️ | **Cylinder lock-in GO GREEN (St 0.63 %, 35-cycle converged, split closes; MLflow `816eae4b`).** Plunging-foil **resolved-GO DEFERRED** (multi-day solve; case + propulsion loader built + **validated end-to-end on real data** by a coarse diagnostic: cycle-converged, C_T/C_P/η computed, split closes, **net thrust confirmed** at St=0.4; coarse C_T over-predicts, so a resolved run is needed). Reference data + `reference.md` for both. |
+| 3 | Moving-body V&V (oscillating cylinder + plunging airfoil) | ⚠️ | **Cylinder lock-in GO GREEN (St 0.63 %, 35-cycle converged, split closes; MLflow `816eae4b`).** Plunging-foil **ran to completion → documented CONCERN** (reference-limited): resolved solve is cycle-converged (19 cyc), resolution-insensitive (C_T 0.91→0.96), net thrust, split closes — but C_T≈0.96 is ~4.5× the **unverified** digitized ref 0.21 (implausibly low; St=0.4 is the deflected-jet regime). Verify reference / lower St; **not relaxed** (§3). |
 | 4 | NACA-0012 transient-mean Cd rethink (optional) | ⚠️ | **Assessed → still-NO-GO on the blunt-TE remedy** (no relaxation). The transient path is now validated (makes the transient-mean route feasible), but a faithful y+<1 Re=6e6 URANS is multi-day and ADR-017's base-drag budget shows blunt-TE can't reach 3 % even converged; a wall-function shortcut confounds the 3 % test with the Stage-5 ~+20 % bias. Real fix = sharp-TE remesh / SU2 — Stage-13 follow-up (§3). |
 | 5 | ADRs + handoff + Stage-12 prompt + tag v0.0.11 | ✅/⏳ | ADR-018 + ADR-019; this handoff; **Stage-12 prompt exists** (`docs/handoff-bundle/STAGE-12-vv-uq-core.md`). Tag decision pending (foil deferral — §10). |
 
@@ -70,21 +72,24 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
 
 ## 3. Deviations from the stage plan
 
-- **Plunging-foil resolved-GO not completed in-session.** The Re=1e4 fine-wall + moving-wall
-  Courant makes the solve long at a defensible resolution: the first run (first_cell 1e-3,
-  end_time 40, under cylinder contention) projected ~14 h+; the **re-tuned committed case**
-  (first_cell 2e-3, end_time 18) runs **~10 h serial solo** (dt≈5.7e-4; observed ~Time 0.9 in
-  ~30 min) — long but a single collectable run, not multi-day. Thrust is
-  pressure/vortex-dominated, but coarsening the wall enough to be fast under-resolves the LEV
-  and would confound the 15 % band. The case + propulsion loader are committed and runnable.
-  **Propulsion loader validated end-to-end on REAL foil data** (a coarse first_cell=5e-3
-  diagnostic, Time 12, 12 converged cycles): C_T=0.907, C_P=6.10, eta=0.149, strouhal_heave=0.400
-  (exact), force split closes exactly. Two findings: (i) the foil produces **net thrust** at
-  St=0.4 (sign-correct — the trend/threshold fallback evidence); (ii) the coarse-mesh C_T (0.907)
-  **grossly over-predicts** the HG reference (0.21, ~4.3x) — the LEV under-resolution confirms a
-  resolved mesh is essential for the 15 % GO and validates NOT using a coarse mesh for the
-  contract. The resolved GO is a **Stage-12 open item** (the submitted serial run — §7 — or an
-  MPI-unblocked / GCI campaign).
+- **Plunging-foil = documented CONCERN (reference-value-limited), not a clean GO.** The
+  committed case (first_cell 2e-3, end_time 18) **ran to completion serially** (~a few h once
+  `adjustTimeStep` grew the step past the transient; MPI parallelism is blocked — §6) and gives
+  a **clean, cycle-converged (19 cycles), resolution-insensitive** result: **C_T ≈ 0.96**
+  (coarse first_cell=5e-3 gave 0.91 — they agree, so the LEV is adequately captured), C_P≈6.0,
+  η≈0.16, strouhal_heave=0.400 (exact), force split closes exactly, **net thrust** confirmed.
+  **But C_T ≈ 0.96 is ~4.5× the digitized reference 0.21 — a MISS on the 15 % band.** The
+  evidence points at the **reference value, not the solver**: (i) the solve is converged,
+  resolution-insensitive, and self-consistent; (ii) a plunging foil at St=0.4, h0/c=0.175
+  physically produces C_T ~ O(0.5–1.0) (thrust ∝ St²), so **0.21 is implausibly low** — and
+  `reference.md` already flagged that value as an **unverified digitized estimate**; (iii) St=0.4
+  is the rigid-foil **deflected-jet bifurcation** regime (asymmetric wake), a hard anchor.
+  **Per the operator's fallback (never relax the tolerance):** documented as a **CONCERN** — the
+  resolution is to **verify the HG C_T value + its normalization against the primary figure**
+  and/or move the anchor to a **lower St (0.2–0.3, pre-bifurcation)**, a Stage-12 follow-up. A
+  minor loader note: propulsive_metrics' integer-cycle C_T (0.96) vs the forceCoeffs tail-mean
+  −Cd (1.28) differ ~30 % — consistent with the St=0.4 deflected/period-2 wake making the
+  forcing-period segmentation approximate; worth a cross-check.
 - **NACA transient-mean = assessed, not run** (§1 row 4). ADR-017's arithmetic already predicts
   NO-GO; the faithful run is multi-day; the shortcut is confounded. Documented, not relaxed.
 - **Reference data git-tracked, not DVC** (the prompt said DVC). Justification: ~100-byte
@@ -144,13 +149,17 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
 - **Stage 12 (Verification & UQ Core):** prompt written. Batch-means `u95_statistical` over the
   Stage-11 converged-cycle samples (the cylinder already has 35 converged cycles); full U95;
   the `small-signal-gate` + `data_origin` CI gates; the ADR-015 constitution merge.
-- **Plunging-foil resolved-GO (carry-over hard GO):** a **serial** run of the committed
-  `plunging_airfoil_hg2007` case is submitted detached on aero-dev (`run_long.sh` session
-  `sf-foil-serial`, case `/mnt/aero/runs/stage11-foil-parallel`) but is **multi-day** — collect
-  it in a follow-up (`OpenFOAMSolver().load(...)` on the run dir, or re-run via the driver).
-  **MPI (the real speedup) is blocked in the LXC (§6)** — unblocking it (privileged container /
-  Slurm / RunPod) is the prerequisite for a same-session foil GO. Also **verify the HG digitized
-  C_T points vs the primary figure** before treating the foil result as thesis-grade.
+- **Plunging-foil CONCERN → resolve the reference (the actual blocker, not compute).** The
+  resolved case RAN and converged (C_T≈0.96, resolution-insensitive); the 4.5× miss is almost
+  certainly the **unverified digitized reference 0.21** (implausibly low vs the physics). Action:
+  **verify the HG rigid-foil C_T value + its normalization convention against the primary figure**
+  (AIAA J 45(5), the C_T-vs-St figure), and/or **re-anchor at a lower St (0.2–0.3)** below the
+  deflected-jet bifurcation for a cleaner comparison. Then re-run/re-load
+  (`OpenFOAMSolver().load(...)` on `/mnt/aero/runs/stage11-foil-parallel`, or the driver). Also
+  cross-check the propulsive_metrics vs forceCoeffs C_T (~30 % gap at St=0.4 — the deflected/
+  period-2 wake; §3). MLflow logging of the foil run is a quick follow-up (the run completed
+  outside the runner). MPI-unblock (privileged/Slurm/RunPod) only matters if many foil runs are
+  needed.
 - **NACA-0012 transient-mean (real fix):** a **sharp-TE** TE-region remesh transient-mean (no
   base drag) or the SU2 cross-check — the blunt-TE remedy stays rejected.
 - **Rigor:** clean-SHA reportable re-runs of the moving cases (GO used `--allow-dirty`); a
@@ -181,10 +190,15 @@ oscillating-cylinder lock-in GO run `816eae4bdcc440acbbd486a44f673386` (St 0.63 
 High confidence: the moving-mesh capability (validated on the SIF) + the cylinder lock-in GO
 (a clean 0.63 %, 35-cycle-converged, force-split-closing result, MLflow-logged) + the
 `aero/postprocess/` toolkit (typed, 36 unit tests). The cylinder GO satisfies the stage's
-formal (AND/OR) GO gate. Medium/deferred: the **plunging-foil resolved-GO** is not yet green
-(genuine multi-day cost; machinery + coarse diagnostic validate the path, but the 15 % contract
-is unverified on a resolved grid) — this is the operator's second wanted GO and the main
-incompleteness. The HG reference C_T is a digitized estimate (verify vs figure). The NACA
+formal (AND/OR) GO gate. The **plunging-foil ran and converged** (resolved + coarse agree on
+C_T≈0.9–1.0, net thrust, split closes) — high confidence the *solve* is sound; the CONCERN is
+that C_T is ~4.5× the **unverified digitized reference 0.21**, and the evidence (converged,
+resolution-insensitive, physically-plausible O(0.5–1) at St=0.4) points at the reference being
+wrong, not the solver — but I could not access the HG figure to confirm, so this is honestly a
+CONCERN, not a claimed GO. Lower confidence: the exact HG C_T value + normalization convention;
+the ~30 % propulsive-vs-forceCoeffs C_T gap at the St=0.4 deflected-jet bifurcation. The NACA
 transient-mean stays a documented NO-GO. **Bus-factor / tag note:** the operator asked for both
-GOs; whether to tag `v0.0.11` now (cylinder GO = stage gate, foil deferred) or hold for the
-foil is an operator decision (§7).
+GOs; the foil is a documented CONCERN (reference-limited), not a clean GO. Whether to tag
+`v0.0.11` now (cylinder GO = stage gate; foil CONCERN + NACA NO-GO documented, the Stage-10
+precedent) or hold until the reference is verified and the foil re-anchored is an operator
+decision (§7).
