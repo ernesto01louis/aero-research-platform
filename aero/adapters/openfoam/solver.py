@@ -46,6 +46,10 @@ from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
 from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.fields import extract_wall_distributions
+from aero.adapters.openfoam.plunging_airfoil import (
+    PlungingAirfoilSpec,
+    write_plunging_airfoil_case,
+)
 from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
@@ -95,6 +99,8 @@ class OpenFOAMSolver(Solver):
             write_tmr_case(case, host_path)
         elif isinstance(case, CylinderSpec):
             write_cylinder_case(case, host_path)
+        elif isinstance(case, PlungingAirfoilSpec):
+            write_plunging_airfoil_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"

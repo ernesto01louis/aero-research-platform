@@ -107,14 +107,23 @@ def segment_cycles(
     for k in range(n_full):
         lo = t0 + k * period
         hi = lo + period
-        mask = (t >= lo - _EPS) & (t < hi - _EPS)
-        yk = y[mask]
-        if yk.size < min_samples_per_cycle:
+        interior = (t > lo + _EPS) & (t < hi - _EPS)
+        ti = t[interior]
+        yi = y[interior]
+        if ti.size < min_samples_per_cycle:
             raise ValueError(
-                f"signal {sig.name!r} cycle {k} has {yk.size} samples "
+                f"signal {sig.name!r} cycle {k} has {ti.size} samples "
                 f"(< {min_samples_per_cycle}); increase the write frequency"
             )
-        means.append(float(yk.mean()))
+        # Integrate over EXACTLY one period with interpolated endpoints, so the per-cycle
+        # mean of an oscillation is unbiased regardless of where samples fall relative to
+        # the cycle boundary (a plain sample-mean wobbles by a few percent of amplitude
+        # when a boundary sample is included in one cycle but not the next).
+        y_lo = float(np.interp(lo, t, y))
+        y_hi = float(np.interp(hi, t, y))
+        tk = np.concatenate(([lo], ti, [hi]))
+        yk = np.concatenate(([y_lo], yi, [y_hi]))
+        means.append(float(np.trapezoid(yk, tk) / period))
         amps.append(0.5 * float(yk.max() - yk.min()))
         mins.append(float(yk.min()))
         maxs.append(float(yk.max()))
