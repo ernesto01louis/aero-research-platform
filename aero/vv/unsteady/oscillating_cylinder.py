@@ -55,7 +55,10 @@ class OscillatingCylinderLockin:
                 reynolds=100.0,
                 inflow_angle_deg=0.0,  # the motion breaks symmetry; no tilt seed needed
                 motion=MotionSpec(amplitude=_AMP_RATIO, frequency=f_forced),
-                end_time_convective=300.0,  # ~54 forcing periods (lock-in + converged tail)
+                # ~36 forcing periods: under forcing the wake locks within ~5-10 periods
+                # (faster than free shedding), leaving a long converged tail for the FFT +
+                # cycle-convergence + the Stage-12 batch-means samples.
+                end_time_convective=200.0,
                 write_interval_convective=0.1,  # ~55 samples/period (FFT + cycle resolution)
             )
         self._spec = spec

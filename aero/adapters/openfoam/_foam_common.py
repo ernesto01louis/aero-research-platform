@@ -268,13 +268,25 @@ snGradSchemes   { default corrected; }
 def transient_fvsolution(*, cell_displacement: bool = False) -> str:
     """PIMPLE controls for a transient solve, optionally with a mesh-motion solver.
 
-    With ``cell_displacement=True`` a ``cellDisplacement`` solver block is added for the
-    ``displacementLaplacian`` mesh-motion equation (the moving-mesh cases). With the
-    default ``False`` the rendered dictionary is byte-identical to the Stage-10 static
+    With ``cell_displacement=True`` the moving-mesh solvers are added: a ``"pcorr.*"``
+    flux-correction solver (for ``correctPhi``, which makes the face fluxes consistent with
+    the mesh motion — pimpleFoam aborts without it) and a ``cellDisplacement`` solver for the
+    ``displacementLaplacian`` mesh-motion equation, plus ``correctPhi yes`` in PIMPLE. With
+    the default ``False`` the rendered dictionary is byte-identical to the Stage-10 static
     cylinder's ``fvSolution`` (no regression to the transient-cylinder GO).
     """
+    pcorr_block = ""
     cd_block = ""
+    correct_phi = ""
     if cell_displacement:
+        pcorr_block = """    "pcorr.*"
+    {
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       0.02;
+        relTol          0;
+    }
+"""
         cd_block = """    cellDisplacement
     {
         solver          PCG;
@@ -283,12 +295,13 @@ def transient_fvsolution(*, cell_displacement: bool = False) -> str:
         relTol          0;
     }
 """
+        correct_phi = "    correctPhi          yes;\n"
     return (
         header("dictionary", "fvSolution")
         + f"""
 solvers
 {{
-    p
+{pcorr_block}    p
     {{
         solver          GAMG;
         smoother        GaussSeidel;
@@ -311,7 +324,7 @@ solvers
 
 PIMPLE
 {{
-    nOuterCorrectors    2;
+{correct_phi}    nOuterCorrectors    2;
     nCorrectors         2;
     nNonOrthogonalCorrectors 1;
 }}

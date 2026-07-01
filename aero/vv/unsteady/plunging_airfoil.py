@@ -57,15 +57,21 @@ class PlungingAirfoilHG2007:
                 name=self.name,
                 reynolds=1.0e4,
                 motion=MotionSpec(amplitude=_AMP_RATIO, frequency=f),
-                # cost-tuned for the campaign: an adequately-resolved single grid, ~46
-                # plunge periods (limit cycle reached in ~10-20), ~44 samples/period.
-                first_cell_height=1.0e-3,
-                n_surface=100,
-                n_normal=80,
-                n_front=50,
-                n_wake=80,
-                end_time_convective=40.0,
+                # Cost-tuned for a tractable single-grid campaign. The thrust is
+                # pressure/vortex-dominated (added-mass + circulatory + LEV), NOT
+                # skin-friction, so a first cell of 2e-3 c (~4-5 cells in the Re=1e4 laminar
+                # BL, delta ~ c/sqrt(Re) ~ 0.01c) is adequate; the limit cycle is reached in
+                # ~10-15 plunge periods so ~18 periods (end_time 18) leaves a converged tail;
+                # maxCo=1.0 (2 outer + 2 inner PIMPLE correctors) keeps the moving-wall
+                # timestep affordable. A finer-grid / GCI confirmation is a Stage-12 follow-up.
+                first_cell_height=2.0e-3,
+                n_surface=90,
+                n_normal=70,
+                n_front=48,
+                n_wake=72,
+                end_time_convective=18.0,
                 write_interval_convective=0.02,
+                max_courant=1.0,
             )
         self._spec = spec
 
