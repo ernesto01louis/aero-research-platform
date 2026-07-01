@@ -126,16 +126,26 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
   not `tail`).
 - **The plunging foil at Re=1e4 is far more expensive than estimated** — the fine wall +
   plunge-velocity Courant dominates; there is no accurate-and-fast shortcut.
+- **MPI is blocked in the aero LXCs** (the real foil speedup path). `mpirun`/PMIx fails at
+  `opal_ifinit: socket() errno=13` — the unprivileged-LXC network sandbox blocks `socket()`
+  before any transport selection, so no `--mca` flag helps (the same limitation the SU2 build
+  hit — CLAUDE.md). Parallel OpenFOAM (`decomposePar` + `mpirun pimpleFoam -parallel`) is
+  therefore not runnable in-LXC; the foil is stuck on serial. Options to unblock: a privileged
+  container / a Slurm or RunPod backend / an MPI-capable host. `decomposeParDict` writers must
+  use the platform `header()` (a compact one-line FoamFile header fails to parse).
 
 ## 7. Open items for the next stage (and beyond)
 
 - **Stage 12 (Verification & UQ Core):** prompt written. Batch-means `u95_statistical` over the
   Stage-11 converged-cycle samples (the cylinder already has 35 converged cycles); full U95;
   the `small-signal-gate` + `data_origin` CI gates; the ADR-015 constitution merge.
-- **Plunging-foil resolved-GO (carry-over hard GO):** run the committed
-  `plunging_airfoil_hg2007` case to completion (a submitted multi-hour/day run, or more cores /
-  a coarser-but-GCI-justified campaign); **verify the HG digitized C_T points vs the primary
-  figure** before treating the foil result as thesis-grade.
+- **Plunging-foil resolved-GO (carry-over hard GO):** a **serial** run of the committed
+  `plunging_airfoil_hg2007` case is submitted detached on aero-dev (`run_long.sh` session
+  `sf-foil-serial`, case `/mnt/aero/runs/stage11-foil-parallel`) but is **multi-day** — collect
+  it in a follow-up (`OpenFOAMSolver().load(...)` on the run dir, or re-run via the driver).
+  **MPI (the real speedup) is blocked in the LXC (§6)** — unblocking it (privileged container /
+  Slurm / RunPod) is the prerequisite for a same-session foil GO. Also **verify the HG digitized
+  C_T points vs the primary figure** before treating the foil result as thesis-grade.
 - **NACA-0012 transient-mean (real fix):** a **sharp-TE** TE-region remesh transient-mean (no
   base drag) or the SU2 cross-check — the blunt-TE remedy stays rejected.
 - **Rigor:** clean-SHA reportable re-runs of the moving cases (GO used `--allow-dirty`); a
