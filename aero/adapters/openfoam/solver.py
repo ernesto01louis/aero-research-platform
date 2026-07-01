@@ -50,6 +50,9 @@ from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
 from aero.orchestration._base import Executor
+from aero.postprocess._base import Signal
+from aero.postprocess.forces import ForceDecomposition
+from aero.postprocess.frequency import strouhal as _pp_strouhal
 
 # `build_apptainer_exec` moved to `_base` in Stage 06 (it is solver-neutral);
 # it is re-exported here so the Stage-03 adapter unit tests keep importing it
@@ -217,16 +220,19 @@ class OpenFOAMSolver(Solver):
         cd_pressure, cd_viscous = _read_force_decomposition(
             force_file, drag_dir=drag_dir, q_aref=q_aref
         )
-        recon = cd_pressure + cd_viscous
-        # generous band: parser/format error shows up as a gross mismatch, not a
-        # rounding wobble, so 1e-3 absolute + 1% relative cannot mask a real bug.
-        if abs(recon - cd_total) > 1.0e-3 + 1.0e-2 * abs(cd_total):
+        # Closure is now a schema invariant (aero.postprocess.forces.ForceDecomposition):
+        # its validator uses the same 1e-3 absolute + 1% relative band. A parser/format
+        # error shows up as a gross mismatch, not a rounding wobble, so it cannot mask a
+        # real bug. Wrap the failure to preserve the adapter's file-pointing message.
+        try:
+            fd = ForceDecomposition(total=cd_total, pressure=cd_pressure, viscous=cd_viscous)
+        except ValueError as exc:
             raise ValueError(
-                f"force decomposition cd_pressure+cd_viscous={recon:.6g} disagrees with "
-                f"forceCoeffs total cd={cd_total:.6g} for {result.case_dir.run_id} — "
-                f"unexpected force.dat layout in {force_file}"
-            )
-        return cd_pressure, cd_viscous
+                f"force decomposition cd_pressure+cd_viscous={cd_pressure + cd_viscous:.6g} "
+                f"disagrees with forceCoeffs total cd={cd_total:.6g} for "
+                f"{result.case_dir.run_id} — unexpected force.dat layout in {force_file}"
+            ) from exc
+        return fd.pressure, fd.viscous
 
     def _load_transient(self, result: ResultHandle) -> SolveResult:
         """Parse a transient `forceCoeffs` time series into a `SolveResult`.
@@ -369,26 +375,14 @@ def _p_residuals(solver_log: str) -> list[float]:
 def _strouhal_from_signal(t: np.ndarray, cl: np.ndarray, *, diameter: float, u_inf: float) -> float:
     """Strouhal number from a lift-coefficient time series via FFT.
 
-    Detrends Cl, takes the real FFT over the (near-uniform, from the FO's
-    adjustableRunTime writes) time samples, and returns St = f_peak * D / U for
-    the dominant non-DC frequency — the vortex-shedding frequency.
+    Stage 11 promoted the FFT + parabolic-peak-interpolation helper into the
+    solver-agnostic ``aero.postprocess.frequency`` toolkit (identical math, so the
+    Stage-10 cylinder result is preserved). This thin wrapper is kept so the
+    Stage-03/10 adapter unit tests keep importing it from this module.
     """
-    n = len(t)
-    cl = np.asarray(cl, dtype=np.float64)
-    cl = cl - cl.mean()
-    dt = float((t[-1] - t[0]) / (n - 1))  # mean sample spacing
-    freqs = np.fft.rfftfreq(n, d=dt)
-    amp = np.abs(np.fft.rfft(cl))
-    if len(amp) < 4:
-        raise ValueError("too few samples for a shedding-frequency FFT")
-    peak = int(np.argmax(amp[1:])) + 1  # skip the DC bin
-    df = float(freqs[1] - freqs[0])
-    # Parabolic interpolation around the peak bin -> sub-bin frequency accuracy
-    # (the FFT bin width 1/T would otherwise cap St precision at a few %).
-    f_peak = float(freqs[peak])
-    if 0 < peak < len(amp) - 1:
-        a0, a1, a2 = amp[peak - 1], amp[peak], amp[peak + 1]
-        denom = a0 - 2.0 * a1 + a2
-        if denom != 0.0:
-            f_peak += df * 0.5 * float((a0 - a2) / denom)
-    return f_peak * diameter / u_inf
+    est = _pp_strouhal(
+        Signal.from_arrays(t, cl, name="lift_coefficient"), length=diameter, velocity=u_inf
+    )
+    st = est.strouhal
+    assert st is not None  # strouhal() always populates it
+    return st
