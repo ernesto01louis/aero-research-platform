@@ -71,8 +71,10 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
 ## 3. Deviations from the stage plan
 
 - **Plunging-foil resolved-GO not completed in-session.** The Re=1e4 fine-wall + moving-wall
-  Courant makes the solve ~multi-day at a defensible resolution (first run: Time 1.16/40 in
-  25 min ⇒ ~14 h; re-tuned run still Courant-limited to dt≈5.7e-4, ~days). Thrust is
+  Courant makes the solve long at a defensible resolution: the first run (first_cell 1e-3,
+  end_time 40, under cylinder contention) projected ~14 h+; the **re-tuned committed case**
+  (first_cell 2e-3, end_time 18) runs **~10 h serial solo** (dt≈5.7e-4; observed ~Time 0.9 in
+  ~30 min) — long but a single collectable run, not multi-day. Thrust is
   pressure/vortex-dominated, but coarsening the wall enough to be fast under-resolves the LEV
   and would confound the 15 % band. The case + propulsion loader are committed and runnable.
   **Propulsion loader validated end-to-end on REAL foil data** (a coarse first_cell=5e-3
