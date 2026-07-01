@@ -43,7 +43,7 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
 |---|---|:-:|---|
 | 1 | Moving-mesh solve path (`dynamicMotionSolverFvMesh`; overset available) | ✅ | Morphing writers (`dynamicMeshDict`/`pointDisplacement`/`movingWallVelocity`/`pcorr`+`cellDisplacement`); `pimpleFoam` unchanged; **validated on the SIF** (2911 clean steps at A/D=0.5, no divergence/negative-volume). Overset libs confirmed present (fallback needs no rebuild). ADR-018. |
 | 2 | `aero/postprocess/` unsteady toolkit | ✅ | 6 modules (frequency, phase_averaging, forces, efficiency, cycle_detection, _base), strict-pydantic, stdlib+numpy. 36 host unit tests. Force-closure is a schema invariant; `CycleSamples.per_cycle_mean` is the Stage-12 batch-means seam. ADR-019. |
-| 3 | Moving-body V&V (oscillating cylinder + plunging airfoil) | ⚠️ | **Cylinder lock-in GO GREEN (St 0.63 %, 35-cycle converged, split closes; MLflow `816eae4b`).** Plunging-foil **resolved-GO DEFERRED** (multi-day solve; case + propulsion loader built + coarse-diagnostic-exercised). Reference data + `reference.md` for both. |
+| 3 | Moving-body V&V (oscillating cylinder + plunging airfoil) | ⚠️ | **Cylinder lock-in GO GREEN (St 0.63 %, 35-cycle converged, split closes; MLflow `816eae4b`).** Plunging-foil **resolved-GO DEFERRED** (multi-day solve; case + propulsion loader built + **validated end-to-end on real data** by a coarse diagnostic: cycle-converged, C_T/C_P/η computed, split closes, **net thrust confirmed** at St=0.4; coarse C_T over-predicts, so a resolved run is needed). Reference data + `reference.md` for both. |
 | 4 | NACA-0012 transient-mean Cd rethink (optional) | ⚠️ | **Assessed → still-NO-GO on the blunt-TE remedy** (no relaxation). The transient path is now validated (makes the transient-mean route feasible), but a faithful y+<1 Re=6e6 URANS is multi-day and ADR-017's base-drag budget shows blunt-TE can't reach 3 % even converged; a wall-function shortcut confounds the 3 % test with the Stage-5 ~+20 % bias. Real fix = sharp-TE remesh / SU2 — Stage-13 follow-up (§3). |
 | 5 | ADRs + handoff + Stage-12 prompt + tag v0.0.11 | ✅/⏳ | ADR-018 + ADR-019; this handoff; **Stage-12 prompt exists** (`docs/handoff-bundle/STAGE-12-vv-uq-core.md`). Tag decision pending (foil deferral — §10). |
 
@@ -74,12 +74,15 @@ coarse real-data diagnostic exercised the propulsion path end-to-end.
   Courant makes the solve ~multi-day at a defensible resolution (first run: Time 1.16/40 in
   25 min ⇒ ~14 h; re-tuned run still Courant-limited to dt≈5.7e-4, ~days). Thrust is
   pressure/vortex-dominated, but coarsening the wall enough to be fast under-resolves the LEV
-  and would confound the 15 % band. The case + propulsion loader are committed and runnable; a
-  **coarse real-data diagnostic** was running at write-up to exercise the foil propulsion branch end-to-end (the
-  `propulsive_metrics` branch is otherwise host-tested on synthetic force fields with
-  closed-form C_T/C_P/η; the shared `_load_moving` real-data path is validated on the cylinder
-  run). The resolved GO is a **Stage-12 open item** (a submitted long run / more cores / a
-  GCI-aware campaign).
+  and would confound the 15 % band. The case + propulsion loader are committed and runnable.
+  **Propulsion loader validated end-to-end on REAL foil data** (a coarse first_cell=5e-3
+  diagnostic, Time 12, 12 converged cycles): C_T=0.907, C_P=6.10, eta=0.149, strouhal_heave=0.400
+  (exact), force split closes exactly. Two findings: (i) the foil produces **net thrust** at
+  St=0.4 (sign-correct — the trend/threshold fallback evidence); (ii) the coarse-mesh C_T (0.907)
+  **grossly over-predicts** the HG reference (0.21, ~4.3x) — the LEV under-resolution confirms a
+  resolved mesh is essential for the 15 % GO and validates NOT using a coarse mesh for the
+  contract. The resolved GO is a **Stage-12 open item** (the submitted serial run — §7 — or an
+  MPI-unblocked / GCI campaign).
 - **NACA transient-mean = assessed, not run** (§1 row 4). ADR-017's arithmetic already predicts
   NO-GO; the faithful run is multi-day; the shortcut is confounded. Documented, not relaxed.
 - **Reference data git-tracked, not DVC** (the prompt said DVC). Justification: ~100-byte
