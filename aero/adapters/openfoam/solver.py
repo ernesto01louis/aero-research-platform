@@ -312,6 +312,8 @@ class OpenFOAMSolver(Solver):
         t = data[:, columns.index("Time")]
         cd = data[:, columns.index("Cd")]
         cl = data[:, columns.index("Cl")]
+        keep = _strictly_increasing_mask(t)  # dedupe duplicate FO timestamps (write boundaries)
+        t, cd, cl = t[keep], cd[keep], cl[keep]
         if len(t) < 16:
             raise ValueError(
                 f"moving solve {result.case_dir.run_id} wrote only {len(t)} force samples "
@@ -482,6 +484,25 @@ def _read_force_decomposition(
     return cd_pressure, cd_viscous
 
 
+def _strictly_increasing_mask(t: np.ndarray) -> np.ndarray:
+    """Boolean mask keeping only rows whose time strictly exceeds all earlier times.
+
+    OpenFOAM force/forceCoeffs FO output can carry **duplicate timestamps**: with
+    ``adjustTimeStep`` + ``adjustableRunTime`` writes the solver takes a sub-step to land
+    exactly on a write time, and the FO records both at the same (written-precision) time
+    (a restart can also re-append). A ``Signal`` needs strictly-ascending time, so dedupe
+    by keeping the first row at each new maximum time. (Frequent writes — e.g. the foil's
+    0.02 interval — trigger this; the cylinder's 0.1 interval did not.)
+    """
+    if len(t) == 0:
+        return np.zeros(0, dtype=bool)
+    run_max = np.maximum.accumulate(t)
+    keep = np.empty(len(t), dtype=bool)
+    keep[0] = True
+    keep[1:] = t[1:] > run_max[:-1]
+    return keep
+
+
 def _read_force_history(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """(times, pressure_xy, viscous_xy) time series from a `forces` FO `force.dat`.
 
@@ -515,11 +536,11 @@ def _read_force_history(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
         viscous.append(fv[:2])
     if not times:
         raise ValueError(f"no data rows in forces file {path}")
-    return (
-        np.asarray(times, dtype=np.float64),
-        np.asarray(pressures, dtype=np.float64),
-        np.asarray(viscous, dtype=np.float64),
-    )
+    t_arr = np.asarray(times, dtype=np.float64)
+    fp_arr = np.asarray(pressures, dtype=np.float64)
+    fv_arr = np.asarray(viscous, dtype=np.float64)
+    keep = _strictly_increasing_mask(t_arr)  # dedupe duplicate FO timestamps
+    return t_arr[keep], fp_arr[keep], fv_arr[keep]
 
 
 def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:

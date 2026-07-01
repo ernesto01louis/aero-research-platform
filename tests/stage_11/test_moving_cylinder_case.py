@@ -90,3 +90,28 @@ def test_load_moving_recovers_lockin_and_split(tmp_path: Path) -> None:
 def test_load_moving_fails_loud_when_not_converged(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="periodic steady state"):
         OpenFOAMSolver().load(_write_post(tmp_path, converged=False))
+
+
+def test_strictly_increasing_mask_dedupes_duplicate_timestamps() -> None:
+    # OpenFOAM FO output can repeat a timestamp at adjustableRunTime write boundaries;
+    # the mask must keep only strictly-increasing times so a Signal is constructible.
+    import numpy as np
+    from aero.adapters.openfoam.solver import _strictly_increasing_mask
+
+    t = np.array([0.0, 0.1, 0.1, 0.2, 0.2, 0.2, 0.3])
+    keep = _strictly_increasing_mask(t)
+    assert list(t[keep]) == [0.0, 0.1, 0.2, 0.3]  # duplicates dropped, order preserved
+    assert bool(np.all(np.diff(t[keep]) > 0.0))
+
+
+def test_load_moving_survives_duplicate_timestamps(tmp_path: Path) -> None:
+    # A real-data regression (the resolved foil run): duplicate FO timestamps must not
+    # break the loader (previously raised 'Signal t must be strictly ascending').
+    rh = _write_post(tmp_path, converged=True)
+    # Duplicate every coefficient row's timestamp to mimic the write-boundary artefact.
+    cf = next((rh.output_host_path / "forceCoeffs1").glob("*/coefficient.dat"))
+    lines = cf.read_text().splitlines()
+    dup = [lines[0]] + [ln for row in lines[1:] for ln in (row, row)]
+    cf.write_text("\n".join(dup) + "\n")
+    solve = OpenFOAMSolver().load(rh)  # must not raise
+    assert solve.scalars["cycle_converged"] == 1.0
