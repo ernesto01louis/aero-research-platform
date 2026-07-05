@@ -15,7 +15,10 @@ name: vv-required
 #       -> the suite steps are skipped; the job is trivially green.
 #
 # The GCI mesh sweep (`mesh_sweep`-marked) is excluded here — it runs nightly
-# in `vv-smoke`. Promote this to a required status check via branch protection.
+# in `vv-smoke`. The multi-hour moving-mesh cases (`moving`-marked) are also
+# excluded: they exceed the 60-min CI budget and run via the driver script
+# (`scripts/stage11_moving_vv.py`), not this runner. Promote this to a required
+# status check via branch protection.
 
 on:
   pull_request:

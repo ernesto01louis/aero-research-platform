@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from aero.vv.unsteady import PlungingAirfoilHG2007
 
-pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_11]
+pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.moving, pytest.mark.stage_11]
 
 
 def test_plunging_airfoil_thrust_within_band(

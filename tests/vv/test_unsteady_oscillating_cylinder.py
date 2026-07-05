@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from aero.vv.unsteady import OscillatingCylinderLockin
 
-pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_11]
+pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.moving, pytest.mark.stage_11]
 
 
 def test_oscillating_cylinder_locks_in(
