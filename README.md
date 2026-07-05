@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.10  ·  **Status:** complete  ·  **Completed:** 2026-06-16
+**Latest tag:** v0.0.11  ·  **Status:** complete  ·  **Completed:** 2026-07-01
 
-**Stage 10 — V&V Debt Retirement + Output-Validity Bar** — most recent stage.
+**Stage 11 — Moving-Mesh + Unsteady Post-Processing Toolkit** — most recent stage.
 
-**Next:** Stage 11 — Moving Mesh & Unsteady.
+**Next:** Stage 12 — Verification & UQ Core.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

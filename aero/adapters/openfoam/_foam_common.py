@@ -237,3 +237,96 @@ RAS
 }}
 """
     )
+
+
+# --- transient (pimpleFoam) dictionaries --------------------------------------
+def transient_fvschemes() -> str:
+    """Transient laminar schemes — first-order Euler in time, second-order space.
+
+    Shared by the transient/moving cases (cylinder, plunging airfoil). Euler is the
+    robust default for the low-Re unsteady cases; the div/laplacian schemes match the
+    Stage-10 cylinder path so the static cylinder renders identically.
+    """
+    return (
+        header("dictionary", "fvSchemes")
+        + """
+ddtSchemes      { default Euler; }
+gradSchemes     { default Gauss linear; }
+divSchemes
+{
+    default         none;
+    div(phi,U)      Gauss linearUpwind grad(U);
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+laplacianSchemes  { default Gauss linear corrected; }
+interpolationSchemes { default linear; }
+snGradSchemes   { default corrected; }
+"""
+    )
+
+
+def transient_fvsolution(*, cell_displacement: bool = False) -> str:
+    """PIMPLE controls for a transient solve, optionally with a mesh-motion solver.
+
+    With ``cell_displacement=True`` the moving-mesh solvers are added: a ``"pcorr.*"``
+    flux-correction solver (for ``correctPhi``, which makes the face fluxes consistent with
+    the mesh motion — pimpleFoam aborts without it) and a ``cellDisplacement`` solver for the
+    ``displacementLaplacian`` mesh-motion equation, plus ``correctPhi yes`` in PIMPLE. With
+    the default ``False`` the rendered dictionary is byte-identical to the Stage-10 static
+    cylinder's ``fvSolution`` (no regression to the transient-cylinder GO).
+    """
+    pcorr_block = ""
+    cd_block = ""
+    correct_phi = ""
+    if cell_displacement:
+        pcorr_block = """    "pcorr.*"
+    {
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       0.02;
+        relTol          0;
+    }
+"""
+        cd_block = """    cellDisplacement
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0;
+    }
+"""
+        correct_phi = "    correctPhi          yes;\n"
+    return (
+        header("dictionary", "fvSolution")
+        + f"""
+solvers
+{{
+{pcorr_block}    p
+    {{
+        solver          GAMG;
+        smoother        GaussSeidel;
+        tolerance       1e-7;
+        relTol          0.01;
+    }}
+    pFinal
+    {{
+        $p;
+        relTol          0;
+    }}
+    "(U|UFinal)"
+    {{
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-8;
+        relTol          0;
+    }}
+{cd_block}}}
+
+PIMPLE
+{{
+{correct_phi}    nOuterCorrectors    2;
+    nCorrectors         2;
+    nNonOrthogonalCorrectors 1;
+}}
+"""
+    )

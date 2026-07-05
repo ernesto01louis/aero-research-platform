@@ -46,10 +46,20 @@ from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
 from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.fields import extract_wall_distributions
+from aero.adapters.openfoam.plunging_airfoil import (
+    PlungingAirfoilSpec,
+    write_plunging_airfoil_case,
+)
 from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
 from aero.orchestration._base import Executor
+from aero.postprocess._base import Signal
+from aero.postprocess.cycle_detection import detect_cycle_convergence
+from aero.postprocess.efficiency import MotionKinematics, propulsive_metrics
+from aero.postprocess.forces import ForceDecomposition, decompose_drag
+from aero.postprocess.frequency import strouhal as _pp_strouhal
+from aero.postprocess.phase_averaging import segment_cycles
 
 # `build_apptainer_exec` moved to `_base` in Stage 06 (it is solver-neutral);
 # it is re-exported here so the Stage-03 adapter unit tests keep importing it
@@ -89,6 +99,8 @@ class OpenFOAMSolver(Solver):
             write_tmr_case(case, host_path)
         elif isinstance(case, CylinderSpec):
             write_cylinder_case(case, host_path)
+        elif isinstance(case, PlungingAirfoilSpec):
+            write_plunging_airfoil_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -152,6 +164,8 @@ class OpenFOAMSolver(Solver):
         coefficient is a time series, and the result carries a `TimeHistory`
         plus the FFT-derived Strouhal number (vortex shedding).
         """
+        if getattr(result.case_dir.spec, "motion", None) is not None:
+            return self._load_moving(result)
         if getattr(result.case_dir.spec, "transient", False):
             return self._load_transient(result)
 
@@ -217,16 +231,19 @@ class OpenFOAMSolver(Solver):
         cd_pressure, cd_viscous = _read_force_decomposition(
             force_file, drag_dir=drag_dir, q_aref=q_aref
         )
-        recon = cd_pressure + cd_viscous
-        # generous band: parser/format error shows up as a gross mismatch, not a
-        # rounding wobble, so 1e-3 absolute + 1% relative cannot mask a real bug.
-        if abs(recon - cd_total) > 1.0e-3 + 1.0e-2 * abs(cd_total):
+        # Closure is now a schema invariant (aero.postprocess.forces.ForceDecomposition):
+        # its validator uses the same 1e-3 absolute + 1% relative band. A parser/format
+        # error shows up as a gross mismatch, not a rounding wobble, so it cannot mask a
+        # real bug. Wrap the failure to preserve the adapter's file-pointing message.
+        try:
+            fd = ForceDecomposition(total=cd_total, pressure=cd_pressure, viscous=cd_viscous)
+        except ValueError as exc:
             raise ValueError(
-                f"force decomposition cd_pressure+cd_viscous={recon:.6g} disagrees with "
-                f"forceCoeffs total cd={cd_total:.6g} for {result.case_dir.run_id} — "
-                f"unexpected force.dat layout in {force_file}"
-            )
-        return cd_pressure, cd_viscous
+                f"force decomposition cd_pressure+cd_viscous={cd_pressure + cd_viscous:.6g} "
+                f"disagrees with forceCoeffs total cd={cd_total:.6g} for "
+                f"{result.case_dir.run_id} — unexpected force.dat layout in {force_file}"
+            ) from exc
+        return fd.pressure, fd.viscous
 
     def _load_transient(self, result: ResultHandle) -> SolveResult:
         """Parse a transient `forceCoeffs` time series into a `SolveResult`.
@@ -269,6 +286,127 @@ class OpenFOAMSolver(Solver):
             final_residual=float(cl_w.std()),  # shedding amplitude (RMS lift)
             history=history,
             scalars={"strouhal": strouhal},
+            source=str(coeff_file),
+        )
+
+    def _load_moving(self, result: ResultHandle) -> SolveResult:
+        """Parse a MOVING-mesh (morphing) transient solve into a `SolveResult`.
+
+        Cycle-segments the lift trace over the forcing period, checks periodic steady
+        state (FAIL-LOUD if not converged — a non-converged number is not reportable,
+        the Stage-11 NO-GO discipline), recovers the response Strouhal over the converged
+        tail (for the oscillating cylinder this equals the forcing frequency = lock-in),
+        and reports the cycle-mean pressure/viscous drag split. A plunging airfoil (chord,
+        no diameter) additionally reports thrust / power / propulsive efficiency from the
+        total aerodynamic force history over the converged cycles.
+        """
+        spec = result.case_dir.spec
+        motion = getattr(spec, "motion", None)
+        assert motion is not None  # the load() dispatch guarantees a moving spec
+        period = 1.0 / float(motion.frequency)
+
+        coeff_file = _coefficient_file(result.output_host_path)
+        columns, data = _read_coefficient_dat(coeff_file)
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        t = data[:, columns.index("Time")]
+        cd = data[:, columns.index("Cd")]
+        cl = data[:, columns.index("Cl")]
+        keep = _strictly_increasing_mask(t)  # dedupe duplicate FO timestamps (write boundaries)
+        t, cd, cl = t[keep], cd[keep], cl[keep]
+        if len(t) < 16:
+            raise ValueError(
+                f"moving solve {result.case_dir.run_id} wrote only {len(t)} force samples "
+                "— too few to segment cycles (did pimpleFoam run to endTime?)"
+            )
+
+        samples = segment_cycles(Signal.from_arrays(t, cl, name="lift_coefficient"), period=period)
+        conv = detect_cycle_convergence(samples)
+        if not conv.converged:
+            raise ValueError(
+                f"moving case {result.case_dir.run_id} did not reach a periodic steady "
+                f"state (mean_drift={conv.mean_drift:.3g}, amplitude_drift="
+                f"{conv.amplitude_drift:.3g} over {conv.n_cycles} cycles) — not reportable "
+                "(Stage-11 NO-GO discipline; investigate motion/mesh/time-resolution)"
+            )
+
+        t_start = float(t[0]) + conv.converged_from_cycle * period
+        tail = t >= t_start - 1.0e-12
+        length_ref = float(getattr(spec, "diameter", getattr(spec, "chord", 1.0)))
+        st = _pp_strouhal(
+            Signal.from_arrays(t[tail], cl[tail], name="lift_coefficient"),
+            length=length_ref,
+            velocity=U_INF,
+        ).strouhal
+        assert st is not None
+
+        scalars: dict[str, float] = {
+            "strouhal": st,
+            "cycle_converged": 1.0,
+            "n_converged_cycles": float(conv.n_converged_cycles),
+            "converged_from_cycle": float(conv.converged_from_cycle),
+            "mean_drift": conv.mean_drift,
+            "amplitude_drift": conv.amplitude_drift,
+            "forcing_period": period,
+        }
+
+        # Cycle-mean pressure/viscous drag split (moving cases write a `forces` FO); and,
+        # for a plunging airfoil, thrust / power / propulsive efficiency.
+        cd_pressure: float | None = None
+        cd_viscous: float | None = None
+        force_file = _maybe_force_file(result.output_host_path)
+        if force_file is not None:
+            ft, fp, fv = _read_force_history(force_file)
+            ftail = ft >= t_start - 1.0e-12
+            aoa = math.radians(
+                float(getattr(spec, "aoa_deg", getattr(spec, "inflow_angle_deg", 0.0)))
+            )
+            drag_dir = (math.cos(aoa), math.sin(aoa))
+            a_ref = length_ref * float(getattr(spec, "span", 1.0))
+            q_aref = 0.5 * RHO_INF * U_INF**2 * a_ref
+            fd = decompose_drag(
+                pressure_force=(float(fp[ftail, 0].mean()), float(fp[ftail, 1].mean())),
+                viscous_force=(float(fv[ftail, 0].mean()), float(fv[ftail, 1].mean())),
+                direction=drag_dir,
+                q_aref=q_aref,
+                total=float(cd[tail].mean()),
+            )
+            cd_pressure, cd_viscous = fd.pressure, fd.viscous
+
+            # A plunging airfoil (has chord, no diameter) is a propulsor: report thrust,
+            # input power, and propulsive efficiency over the converged cycles.
+            is_foil = getattr(spec, "chord", None) is not None and not hasattr(spec, "diameter")
+            if is_foil:
+                metrics = propulsive_metrics(
+                    fx=Signal.from_arrays(ft[ftail], fp[ftail, 0] + fv[ftail, 0], name="fx"),
+                    fy=Signal.from_arrays(ft[ftail], fp[ftail, 1] + fv[ftail, 1], name="fy"),
+                    kin=MotionKinematics(amplitude=float(motion.amplitude), omega=motion.omega),
+                    rho=RHO_INF,
+                    u_inf=U_INF,
+                    ref_area=a_ref,
+                )
+                scalars["thrust_coefficient"] = metrics.thrust_coefficient
+                scalars["power_coefficient"] = metrics.power_coefficient
+                scalars["strouhal_heave"] = metrics.strouhal
+                if metrics.propulsive_efficiency is not None:
+                    scalars["propulsive_efficiency"] = metrics.propulsive_efficiency
+
+        history = TimeHistory(
+            t=tuple(float(v) for v in t[tail]),
+            monitor=tuple(float(v) for v in cl[tail]),
+            monitor_name="lift_coefficient",
+        )
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=float(cd[tail].mean()),
+            cl=float(cl[tail].mean()),
+            cd_pressure=cd_pressure,
+            cd_viscous=cd_viscous,
+            iterations_to_convergence=len(t),
+            final_residual=float(cl[tail].std()),
+            history=history,
+            scalars=scalars,
             source=str(coeff_file),
         )
 
@@ -346,6 +484,65 @@ def _read_force_decomposition(
     return cd_pressure, cd_viscous
 
 
+def _strictly_increasing_mask(t: np.ndarray) -> np.ndarray:
+    """Boolean mask keeping only rows whose time strictly exceeds all earlier times.
+
+    OpenFOAM force/forceCoeffs FO output can carry **duplicate timestamps**: with
+    ``adjustTimeStep`` + ``adjustableRunTime`` writes the solver takes a sub-step to land
+    exactly on a write time, and the FO records both at the same (written-precision) time
+    (a restart can also re-append). A ``Signal`` needs strictly-ascending time, so dedupe
+    by keeping the first row at each new maximum time. (Frequent writes — e.g. the foil's
+    0.02 interval — trigger this; the cylinder's 0.1 interval did not.)
+    """
+    if len(t) == 0:
+        return np.zeros(0, dtype=bool)
+    run_max = np.maximum.accumulate(t)
+    keep = np.empty(len(t), dtype=bool)
+    keep[0] = True
+    keep[1:] = t[1:] > run_max[:-1]
+    return keep
+
+
+def _read_force_history(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """(times, pressure_xy, viscous_xy) time series from a `forces` FO `force.dat`.
+
+    Handles both layouts (parenthesised vector form and the flat ESI columns) the
+    Stage-10 `_read_force_decomposition` parses, but for every row (a time series, not
+    just the last row) — the moving cases need the full history for cycle-mean forces and
+    the plunging-foil thrust/power integrals. Returns numpy arrays: ``t`` (N,),
+    ``pressure`` (N,2), ``viscous`` (N,2) — the in-plane (x, y) components.
+    """
+    times: list[float] = []
+    pressures: list[list[float]] = []
+    viscous: list[list[float]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        if "(" in s:
+            t = float(s.split("(", 1)[0].split()[0])
+            triples = re.findall(r"\(([^()]*)\)", s)
+            if len(triples) < 2:
+                raise ValueError(f"unexpected parenthesised forces layout in {path}: {s!r}")
+            fp = [float(v) for v in triples[0].split()]
+            fv = [float(v) for v in triples[1].split()]
+        else:
+            nums = [float(v) for v in s.split()]
+            if len(nums) < 10:
+                raise ValueError(f"unexpected flat forces layout in {path}: {s!r}")
+            t, fp, fv = nums[0], nums[4:7], nums[7:10]
+        times.append(t)
+        pressures.append(fp[:2])
+        viscous.append(fv[:2])
+    if not times:
+        raise ValueError(f"no data rows in forces file {path}")
+    t_arr = np.asarray(times, dtype=np.float64)
+    fp_arr = np.asarray(pressures, dtype=np.float64)
+    fv_arr = np.asarray(viscous, dtype=np.float64)
+    keep = _strictly_increasing_mask(t_arr)  # dedupe duplicate FO timestamps
+    return t_arr[keep], fp_arr[keep], fv_arr[keep]
+
+
 def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
     """Return (column names, data array) from an OpenFOAM coefficient file."""
     header: list[str] = []
@@ -369,26 +566,14 @@ def _p_residuals(solver_log: str) -> list[float]:
 def _strouhal_from_signal(t: np.ndarray, cl: np.ndarray, *, diameter: float, u_inf: float) -> float:
     """Strouhal number from a lift-coefficient time series via FFT.
 
-    Detrends Cl, takes the real FFT over the (near-uniform, from the FO's
-    adjustableRunTime writes) time samples, and returns St = f_peak * D / U for
-    the dominant non-DC frequency — the vortex-shedding frequency.
+    Stage 11 promoted the FFT + parabolic-peak-interpolation helper into the
+    solver-agnostic ``aero.postprocess.frequency`` toolkit (identical math, so the
+    Stage-10 cylinder result is preserved). This thin wrapper is kept so the
+    Stage-03/10 adapter unit tests keep importing it from this module.
     """
-    n = len(t)
-    cl = np.asarray(cl, dtype=np.float64)
-    cl = cl - cl.mean()
-    dt = float((t[-1] - t[0]) / (n - 1))  # mean sample spacing
-    freqs = np.fft.rfftfreq(n, d=dt)
-    amp = np.abs(np.fft.rfft(cl))
-    if len(amp) < 4:
-        raise ValueError("too few samples for a shedding-frequency FFT")
-    peak = int(np.argmax(amp[1:])) + 1  # skip the DC bin
-    df = float(freqs[1] - freqs[0])
-    # Parabolic interpolation around the peak bin -> sub-bin frequency accuracy
-    # (the FFT bin width 1/T would otherwise cap St precision at a few %).
-    f_peak = float(freqs[peak])
-    if 0 < peak < len(amp) - 1:
-        a0, a1, a2 = amp[peak - 1], amp[peak], amp[peak + 1]
-        denom = a0 - 2.0 * a1 + a2
-        if denom != 0.0:
-            f_peak += df * 0.5 * float((a0 - a2) / denom)
-    return f_peak * diameter / u_inf
+    est = _pp_strouhal(
+        Signal.from_arrays(t, cl, name="lift_coefficient"), length=diameter, velocity=u_inf
+    )
+    st = est.strouhal
+    assert st is not None  # strouhal() always populates it
+    return st

@@ -29,8 +29,15 @@ from aero.adapters.openfoam._foam_common import (
     flow_state,
     header,
     pt,
+    transient_fvschemes,
+    transient_fvsolution,
     transport_properties,
     turbulence_properties,
+)
+from aero.adapters.openfoam.motion import (
+    MotionSpec,
+    dynamic_mesh_dict,
+    point_displacement_field,
 )
 
 _STRICT = ConfigDict(
@@ -88,6 +95,14 @@ class CylinderSpec(BaseModel):
         default=0.25, gt=0, description="Cl sampling interval in convective times (FFT resolution)."
     )
     max_courant: float = Field(default=0.5, gt=0, description="Adjustable-timestep Courant cap.")
+
+    # Prescribed rigid-body motion (Stage 11). None -> the Stage-10 static shedding case;
+    # a MotionSpec -> a moving-mesh (morphing) case: the cylinder wall gets a
+    # movingWallVelocity BC, a dynamicMeshDict + pointDisplacement are written, and the
+    # controlDict adds a `forces` FO for the cycle-mean pressure/viscous split.
+    motion: MotionSpec | None = Field(
+        default=None, description="Prescribed heave motion; None => static shedding case."
+    )
 
 
 # --- O-grid blockMesh ---------------------------------------------------------
@@ -194,6 +209,22 @@ def _controldict(spec: CylinderSpec) -> str:
     end_time = spec.end_time_convective * d_over_u
     write_interval = spec.write_interval_convective * d_over_u
     a_ref = spec.diameter * spec.span  # frontal area per unit span
+    # Moving cases add a `forces` FO so the loader can report the cycle-mean
+    # pressure/viscous drag split (the static shedding case does not need it).
+    forces_fo = ""
+    if spec.motion is not None:
+        forces_fo = f"""
+    forces1
+    {{
+        type            forces;
+        libs            (forces);
+        writeControl    timeStep;
+        writeInterval   1;
+        patches         (cylinder);
+        rho             rhoInf;
+        rhoInf          {RHO_INF};
+        CofR            (0 0 0);
+    }}"""
     return (
         header("dictionary", "controlDict")
         + f"""
@@ -231,66 +262,8 @@ functions
         liftDir         (0 1 0);
         CofR            (0 0 0);
         pitchAxis       (0 0 1);
-    }}
+    }}{forces_fo}
 }}
-"""
-    )
-
-
-def _fvschemes() -> str:
-    """Transient laminar schemes — first-order Euler in time, second-order space."""
-    return (
-        header("dictionary", "fvSchemes")
-        + """
-ddtSchemes      { default Euler; }
-gradSchemes     { default Gauss linear; }
-divSchemes
-{
-    default         none;
-    div(phi,U)      Gauss linearUpwind grad(U);
-    div((nuEff*dev2(T(grad(U))))) Gauss linear;
-}
-laplacianSchemes  { default Gauss linear corrected; }
-interpolationSchemes { default linear; }
-snGradSchemes   { default corrected; }
-"""
-    )
-
-
-def _fvsolution() -> str:
-    """PIMPLE controls for the transient solve."""
-    return (
-        header("dictionary", "fvSolution")
-        + """
-solvers
-{
-    p
-    {
-        solver          GAMG;
-        smoother        GaussSeidel;
-        tolerance       1e-7;
-        relTol          0.01;
-    }
-    pFinal
-    {
-        $p;
-        relTol          0;
-    }
-    "(U|UFinal)"
-    {
-        solver          smoothSolver;
-        smoother        symGaussSeidel;
-        tolerance       1e-8;
-        relTol          0;
-    }
-}
-
-PIMPLE
-{
-    nOuterCorrectors    2;
-    nCorrectors         2;
-    nNonOrthogonalCorrectors 1;
-}
 """
     )
 
@@ -298,6 +271,13 @@ PIMPLE
 def _fields(spec: CylinderSpec) -> dict[str, str]:
     a = math.radians(spec.inflow_angle_deg)  # small tilt seeds shedding
     u_vec = f"({U_INF * math.cos(a):.8f} {U_INF * math.sin(a):.8f} 0)"
+    # A moving wall imposes no-slip in the moving frame (movingWallVelocity); a static
+    # wall is plain noSlip. Getting this wrong silently biases the forces (Stage-11 risk).
+    wall_u = (
+        "        type movingWallVelocity;\n        value uniform (0 0 0);"
+        if spec.motion is not None
+        else "        type noSlip;"
+    )
 
     def field(obj: str, cls: str, dims: str, internal: str, free: str, wall: str) -> str:
         return (
@@ -329,7 +309,7 @@ boundaryField
             "[0 1 -1 0 0 0 0]",
             u_vec,
             f"        type freestream;\n        freestreamValue uniform {u_vec};",
-            "        type noSlip;",
+            wall_u,
         ),
         "p": field(
             "p",
@@ -357,11 +337,29 @@ def write_cylinder_case(spec: CylinderSpec, dest: Path) -> None:
     )["nu"]
     (system / "blockMeshDict").write_text(_cylinder_blockmesh(spec), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
-    (system / "fvSchemes").write_text(_fvschemes(), encoding="utf-8")
-    (system / "fvSolution").write_text(_fvsolution(), encoding="utf-8")
+    (system / "fvSchemes").write_text(transient_fvschemes(), encoding="utf-8")
+    (system / "fvSolution").write_text(
+        transient_fvsolution(cell_displacement=spec.motion is not None), encoding="utf-8"
+    )
     (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(
         turbulence_properties(spec.turbulence_model), encoding="utf-8"
     )
     for name, text in _fields(spec).items():
         (zero / name).write_text(text, encoding="utf-8")
+
+    # Moving-mesh (morphing) case: the dynamicMeshDict + the pointDisplacement BC that
+    # drives the cylinder wall (the far field stays fixed, the mesh deforms in between).
+    if spec.motion is not None:
+        (constant / "dynamicMeshDict").write_text(
+            dynamic_mesh_dict(moving_patch="cylinder"), encoding="utf-8"
+        )
+        (zero / "pointDisplacement").write_text(
+            point_displacement_field(
+                moving_patch="cylinder",
+                motion=spec.motion,
+                fixed_patches=["farfield"],
+                empty_patches=["front", "back"],
+            ),
+            encoding="utf-8",
+        )
