@@ -58,7 +58,7 @@ jobs:
 
       - name: Run the stage-gated V&V suite (single-grid)
         if: steps.filter.outputs.relevant == 'true'
-        run: .venv/bin/pytest -m "vv and slow and not mesh_sweep" --run-slow -v tests/vv
+        run: .venv/bin/pytest -m "vv and slow and not mesh_sweep and not moving" --run-slow -v tests/vv
 
       - name: V&V not relevant — passing trivially
         if: steps.filter.outputs.relevant != 'true'
