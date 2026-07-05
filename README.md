@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.11  ·  **Status:** partial  ·  **Completed:** 2026-07-01
+**Latest tag:** v0.0.11  ·  **Status:** complete  ·  **Completed:** 2026-07-01
 
 **Stage 11 — Moving-Mesh + Unsteady Post-Processing Toolkit** — most recent stage.
 

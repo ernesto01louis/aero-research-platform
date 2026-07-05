@@ -2,7 +2,7 @@
 # Required frontmatter — scripts/check_handoff_exists.sh parses these.
 stage: 11
 stage_name: "Stage 11 — Moving-Mesh + Unsteady Post-Processing Toolkit"
-status: partial
+status: complete
 date_started: 2026-07-01
 date_completed: 2026-07-01
 session_duration_hours: 0
@@ -19,10 +19,14 @@ next_stage_name: "Stage 12 — Verification & UQ Core"
 
 > `git_sha_end` is provisional (reconcile to the squash-merge SHA at the `v0.0.11` tag —
 > the Stage-08/10 pattern). Work landed on branch `stage-11/moving-mesh-and-unsteady`.
-> **`status: partial`** — the stage GO gate is **MET** (the oscillating-cylinder lock-in GO,
-> St 0.63 %, is a clean pass and the prompt's gate is AND/OR), all machinery is complete +
-> tested, but the operator asked for **both** moving-body GOs and the **plunging-foil
-> resolved-GO is deferred** (a genuine multi-day 2-D-laminar-Re=1e4 moving-mesh solve — see §3).
+> **`status: complete`** (the Stage-10 sense — GO gate met + debts honestly documented, no
+> tolerance relaxed). The stage GO gate is **MET** (the oscillating-cylinder lock-in GO,
+> St 0.63 %, a clean pass; the prompt's gate is AND/OR). The **plunging foil ran to completion**
+> → a documented **CONCERN** (C_T≈0.96, converged + resolution-insensitive, but ~4.5× the
+> *unverified* digitized reference 0.21 — evidence points at the reference, not the solver;
+> verify/re-anchor in Stage 12). The **NACA-0012** transient-mean stays a documented **NO-GO**.
+> Operator approved tagging `v0.0.11` on this basis (mirrors v0.0.10, tagged with a NO-GO +
+> CONCERN). See §3/§7/§10.
 
 ## 0. Headline
 
