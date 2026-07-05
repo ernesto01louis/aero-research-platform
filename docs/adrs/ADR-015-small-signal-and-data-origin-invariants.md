@@ -1,16 +1,19 @@
 # ADR-015 — Constitution Invariants 10 (improvement-exceeds-uncertainty) + 11 (no foreign data)
 
-- **Status:** proposed
-- **Date:** 2026-06-10
-- **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 09)
-- **Stage:** 09
+- **Status:** accepted
+- **Date:** 2026-06-10 (proposed); 2026-07-05 (accepted)
+- **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 09 proposed,
+  Stage 12 ratified)
+- **Stage:** 09 (proposed) / 12 (accepted)
 - **Supersedes:** none
 
-> **Amendment in flight.** This ADR + the `CONSTITUTION.md` diff on this branch
-> (`adr-015-constitution-invariants-10-11`) are the Constitution amendment PR. Per the
-> amendment process they require **≥72 h review + operator approval + CI green** before
-> merge. CLAUDE.md already carries these as Hard Rules 12–13 at the hard-rule level (not
-> under the 72 h process); this ADR promotes the two that are machine-enforceable to
+> **Ratified (Stage 12, 2026-07-05).** The amendment process is complete: the ≥72 h review
+> window elapsed (proposed 2026-06-10, ~a month before ratification), the operator approved, and
+> CI is green. Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) + 11 (NO-SURROGATE-ON-FOREIGN-DATA)
+> are constitutional, and their machine enforcement **landed in Stage 12**: the full
+> `U95 = RSS(numerical, statistical, input)` composition + the required `small-signal-gate`
+> (Invariant 10) and `data-origin-fence` (Invariant 11) CI jobs (ADR-020). CLAUDE.md already
+> carried these as Hard Rules 12–13; this ADR promoted the two machine-enforceable ones to
 > constitutional invariants.
 
 ## Context and problem statement

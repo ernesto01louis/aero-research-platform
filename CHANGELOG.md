@@ -5,16 +5,51 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
 
-## [Unreleased]
+## [0.0.12] - 2026-07-05
 
-Post-`v0.0.9` work (optimizer-mission refocus continued + the Stage-10 output-validity
-bar), heading toward `v0.0.10`.
+### Added — Stage 12 (Verification & UQ Core — the `u95` machinery)
 
-### Added — CONSTITUTION
+- `aero/vv/statistical_uncertainty.py` — batch-means `u95_statistical` (NOBM primary + Sokal
+  integrated-autocorrelation-time cross-check → N_eff; Student-t committed table; relative
+  dead-signal guard; soft `reliable` flag). Consumes the Stage-11 `CycleSamples.per_cycle_mean`
+  converged-tail seam. Validated on the real cylinder run (Cd u95_stat=0.0131, reliable).
+- `aero/vv/reportable_compose.py` + `scripts/stage12_reportable.py` — full
+  `U95 = RSS(numerical, statistical, input)` composition into a live `ReportableResult`,
+  MLflow-logged; conservative tag policy (thesis-grade only with a positive + reliable
+  statistical U95 and a passing anchor).
+- `scripts/stage12_cylinder_gci.py` + `OscillatingCylinderLockin.refined_dt` — combined
+  space+time GCI (`u95_numerical`) for the oscillating cylinder (the thesis-grade GO vehicle).
+- **Required CI gates:** `small-signal-gate` (Invariant 10) + `data-origin-fence` (Invariant 11),
+  both ubuntu-latest (runner-independent). ADR-020.
+
+### Changed — CONSTITUTION (ADR-015 ratified)
 
 - **Invariants 10 (IMPROVEMENT-EXCEEDS-UNCERTAINTY) + 11 (NO-SURROGATE-ON-FOREIGN-DATA)
-  ratified** (ADR-015; the 72 h review window elapsed) — supersedes the "Proposed" note
-  under [0.0.9].
+  ratified** (ADR-015 → accepted; ≥72 h review elapsed + operator approval + CI green);
+  enforcement landed this stage (ADR-020). Invariant 11 adds `data_origin` to the Sample/cert
+  with a schema validator making a foreign + validated/production cert unconstructible.
+- **Invariant 8 doc-drift fixed:** descriptive `default 50.0` → `default 150.0` (ADR-014) — the
+  deferred constitution-touch from [0.0.10].
+
+### Fixed — Stage 12 (V&V debt)
+
+- HG rigid-foil reference corrected to primary-source values (Heathcote thesis: C_T ≈ 0.20–0.22
+  over St 0.2–0.3, not the digitized 0.04/0.11/0.21). Re-attributes the Stage-11 CONCERN: our
+  2-D laminar foil **over-predicts** (~2–4×), not the reference; root-cause → Stage 13.
+- `vv-required` selector excludes the multi-hour moving-mesh cases (`moving` marker) — they
+  exceed the 60-min CI budget and run via the driver.
+
+## [0.0.11] - 2026-07-01
+
+### Added — Stage 11 (Moving-Mesh + Unsteady Post-Processing Toolkit)
+
+- Moving-mesh (`dynamicMotionSolverFvMesh`, ADR-018) + `aero/postprocess/` unsteady toolkit
+  (ADR-019). Oscillating-cylinder lock-in GO (St 0.63 %, 35 converged cycles); plunging-foil
+  CONCERN. See `docs/handoffs/STAGE-11-moving-mesh-and-unsteady-DONE-2026-07-01.md`.
+
+## [0.0.10] - 2026-06-15
+
+Optimizer-mission refocus continued + the Stage-10 output-validity bar.
 
 ### Added — Stage 10 (output-validity bar)
 
