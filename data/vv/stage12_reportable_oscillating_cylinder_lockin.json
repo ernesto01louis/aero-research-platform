@@ -1,0 +1,33 @@
+{
+  "case_name": "oscillating_cylinder_lockin",
+  "quantities": [
+    {
+      "name": "cd",
+      "value": 1.9931465473474796,
+      "units": "",
+      "kind": "time_averaged",
+      "u95_numerical": 0.07747471258587287,
+      "u95_statistical": 0.013138954176770053,
+      "u95_input": 0.0,
+      "u95_total": 0.07858093411968879
+    }
+  ],
+  "provenance": {
+    "git_sha": "a5c759a252cf654a884a9f539348d04b8b59d655",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "config_hash": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92"
+  },
+  "anchors": [
+    {
+      "reference": "Wake lock-in: response frequency = forcing frequency (Placzek 2009; Koopmann 1967)",
+      "citation": "Wake lock-in: response frequency = forcing frequency (Placzek 2009; Koopmann 1967)",
+      "tolerance": 0.03,
+      "observed_error": 0.0030084060121843234,
+      "passed": true
+    }
+  ],
+  "improvement": null,
+  "optimization": null,
+  "validation_tag": "thesis-grade"
+}

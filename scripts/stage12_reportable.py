@@ -39,6 +39,10 @@ def _load_coeffs(run_dir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         p = s.split()
         rows.append((float(p[0]), float(p[1]), float(p[4])))
     a = np.asarray(rows, dtype=np.float64)
+    # Dedupe non-monotonic timestamps (frequent adjustableRunTime writes repeat FO times — the
+    # moving loader dedupes; the Signal requires strictly-increasing t). Keep the LAST row per time.
+    keep = np.concatenate([np.diff(a[:, 0]) > 0.0, [True]])
+    a = a[keep]
     return a[:, 0], a[:, 1], a[:, 2]
 
 
