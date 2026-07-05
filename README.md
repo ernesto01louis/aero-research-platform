@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.11  ·  **Status:** complete  ·  **Completed:** 2026-07-01
+**Latest tag:** v0.0.12  ·  **Status:** complete  ·  **Completed:** 2026-07-05
 
-**Stage 11 — Moving-Mesh + Unsteady Post-Processing Toolkit** — most recent stage.
+**Stage 12 — Verification & UQ Core** — most recent stage.
 
-**Next:** Stage 12 — Verification & UQ Core.
+**Next:** Stage 13 — Transition + Unsteady-Airfoil Validation.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

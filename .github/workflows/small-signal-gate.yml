@@ -1,0 +1,51 @@
+name: small-signal-gate
+
+# small-signal-gate — the *required* CONSTITUTION Invariant 10
+# (IMPROVEMENT-EXCEEDS-UNCERTAINTY) CI gate.
+#
+# A thesis-grade non-steady quantity must carry a positive statistical U95, and an
+# ImprovementClaim's delta must exceed k*U95 — else construction fails loud
+# (aero/vv/reportable.py). This job re-runs those assertions plus the batch-means
+# estimator (aero/vv/statistical_uncertainty.py) and the full-U95 composer
+# (aero/vv/reportable_compose.py) on a committed converged-cycle fixture, so a
+# regression that zeroed the statistical term turns the check red.
+#
+# Pure-host (numpy + pydantic + pytest), so it runs on ubuntu-latest and can be a
+# required status check with no self-hosted-runner dependency. Promote to required
+# via branch protection.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: small-signal-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  small-signal-gate:
+    name: small-signal-gate — Invariant 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ">=0.5"
+      - name: Install package + dev extras
+        run: uv pip install --system -e ".[dev]"
+      - name: Enforce Invariant 10 (u95_statistical present + small-signal)
+        run: >-
+          pytest -v
+          tests/vv/test_statistical_uncertainty.py
+          tests/vv/test_reportable_compose.py
+          tests/stage_12/test_small_signal_gate.py

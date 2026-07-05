@@ -99,7 +99,15 @@ class OscillatingCylinderLockin:
                 f"{self.name}: SolveResult.scalars['strouhal'] missing — the moving loader "
                 "did not recover a response frequency (did the wake lock in?)."
             )
-        return {"strouhal": st}
+        # `strouhal` is the validated quantity; also expose the cycle-mean drag/lift so a GCI
+        # mesh-sweep can use `cd` as a smooth Richardson target (Strouhal is frequency-locked,
+        # hence grid-insensitive by construction — a poor discretization-uncertainty metric).
+        out: dict[str, float | Series] = {"strouhal": st}
+        if solve.cd is not None:
+            out["cd"] = solve.cd
+        if solve.cl is not None:
+            out["cl"] = solve.cl
+        return out
 
     def refined(self, ratio: float) -> OscillatingCylinderLockin:
         s = self._spec
@@ -110,4 +118,20 @@ class OscillatingCylinderLockin:
                     "n_azimuthal": scaled_count(s.n_azimuthal, ratio),
                 }
             )
+        )
+
+    def refined_dt(self, ratio: float) -> OscillatingCylinderLockin:
+        """Return a copy with a COARSER timestep (``max_courant`` scaled by ``ratio``), fixed mesh.
+
+        The temporal analogue of :meth:`refined` for a combined space+time GCI (Stage 12): the
+        moving-cylinder timestep is Courant-driven (``max_courant``), which :meth:`refined` cannot
+        touch, so the temporal arm sweeps ``max_courant`` at fixed mesh. ``ratio == 1.0`` is the
+        base (finest) timestep; ``ratio > 1`` is coarser (a larger Courant cap -> larger dt). The
+        representative timestep scales ~linearly with ``max_courant``.
+        """
+        if ratio <= 0.0:
+            raise ValueError(f"refined_dt ratio must be > 0, got {ratio}")
+        s = self._spec
+        return OscillatingCylinderLockin(
+            s.model_copy(update={"max_courant": s.max_courant * ratio})
         )

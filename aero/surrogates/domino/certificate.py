@@ -63,6 +63,7 @@ def build_domino_certificate(
     held_out_metrics: Mapping[str, MetricQuantiles],
     applicability_envelope: ApplicabilityEnvelope,
     non_commercial: bool,
+    data_origin: Literal["platform-validated", "foreign"] = "foreign",
     license_id: str = "",
     attribution_required: tuple[str, ...] = (),
     upgrade_to_validated: bool = False,
@@ -88,6 +89,7 @@ def build_domino_certificate(
         applicability_envelope=applicability_envelope,
         cert_status=status,
         non_commercial=non_commercial,
+        data_origin=data_origin,
         license_id=license_id,
         attribution_required=attribution_required,
     )

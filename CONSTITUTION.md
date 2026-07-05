@@ -143,7 +143,8 @@ allocations — passes through a budget check *before* any spend is committed.
 The check sums the month-to-date estimated cost from a local append-only ledger
 (`/etc/aero/runpod-ledger.json` by default) plus the projected cost of the new
 launch and fails loud with a `CostCapExceeded` exception if the result exceeds
-the configured ceiling (`AERO_RUNPOD_MONTHLY_CAP_USD`, default `50.0`). Every
+the configured ceiling (`AERO_RUNPOD_MONTHLY_CAP_USD`, default `150.0`, raised from
+50.0 by ADR-014). Every
 launch records a ledger entry pre-execution and is amended with the actual
 hours and cost on termination (or marked `tag="ORPHANED"` if termination polling
 fails — further launches are then refused until the operator clears the entry
@@ -241,7 +242,7 @@ RSS of the two absolute uncertainties.
 Stage 10; full U95 composition Stage 12) is the only object that may carry an
 MLflow `validation_tag="thesis-grade"`; its validator asserts
 `abs(delta) > k * u95_total` (default `k = 2`, never `k < 1`) for any
-`ImprovementClaim`. CI job `small-signal-gate` (required, lands Stage 12)
+`ImprovementClaim`. CI job `small-signal-gate` (required, landed Stage 12; ADR-020)
 re-runs the assertion. The pattern mirrors Invariant 5's "enforcement tooling
 lands at a named stage."
 
@@ -259,9 +260,10 @@ validate) may seed `smoke`-tier experiments but **cannot produce a `validated`
 or `production` `CertificateOfValidity`**.
 
 **Enforcement:** the `Sample` / `TaintedSample` union and `CertificateOfValidity`
-carry `data_origin: Literal["platform-validated", "foreign"]` (lands Stage 12,
-reusing the Stage-08 CC-BY-NC taint machinery); `promote_to_validated(...)`
-raises on `data_origin == "foreign"`. CI extends the `non-commercial-fence`
+carry `data_origin: Literal["platform-validated", "foreign"]` (landed Stage 12;
+ADR-020; reuses the Stage-08 CC-BY-NC taint machinery); `promote_to_validated(...)`
+raises on `data_origin == "foreign"`, and a foreign + validated/production cert is
+unconstructible (schema validator). CI adds the `data-origin-fence` alongside `non-commercial-fence`
 workflow to assert that every loader under
 `aero/surrogates/_common/loaders/` emits `data_origin="foreign"` and that no
 `validated`/`production` cert is constructible from foreign-origin samples.

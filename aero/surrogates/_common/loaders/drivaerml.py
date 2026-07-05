@@ -106,6 +106,7 @@ class DrivAerMLDataset:
             targets=(c.cd, c.cl, c.clf, c.clr, c.cs),
             case_id=c.case_id,
             dataset_id=DATASET_ID,
+            data_origin="foreign",  # automotive corpus (Invariant 11) — not platform CFD
         )
 
     def __iter__(self) -> Iterator[Sample]:

@@ -186,6 +186,14 @@ class CertificateOfValidity(BaseModel):
         "once flipped to True by any source it cannot be reset to False (model_copy + the "
         "_non_commercial_is_write_once_true validator enforce this).",
     )
+    data_origin: Literal["platform-validated", "foreign"] = Field(
+        default="foreign",
+        description="Provenance of the training corpus (CONSTITUTION Invariant 11, "
+        "NO-SURROGATE-ON-FOREIGN-DATA). 'foreign' = automotive / transport-aircraft or any corpus "
+        "the platform did not generate and validate. A 'foreign'-origin cert CANNOT be 'validated' "
+        "or 'production' (the _foreign_cannot_be_validated validator refuses it). Auto-propagated "
+        "by Surrogate.set_certificate(); write-once toward 'foreign'.",
+    )
     attribution_required: tuple[str, ...] = Field(
         default=(),
         description="Citation strings every publication / artifact / public model description "
@@ -213,6 +221,23 @@ class CertificateOfValidity(BaseModel):
             )
         if not self.held_out_metrics:
             raise ValueError("held_out_metrics must contain at least one metric")
+        return self
+
+    @model_validator(mode="after")
+    def _foreign_cannot_be_validated(self) -> CertificateOfValidity:
+        """CONSTITUTION Invariant 11: a foreign-origin cert cannot be validated/production.
+
+        This is the load-bearing structural guard — it makes a publication-grade certificate on
+        foreign (automotive / aircraft) data *unconstructible* on any code path (promotion,
+        model_copy, direct construction). ``smoke`` is exempt (explicitly not for publication).
+        """
+        if self.data_origin == "foreign" and self.cert_status in ("validated", "production"):
+            raise ValueError(
+                f"cert_status={self.cert_status!r} is forbidden on data_origin='foreign' "
+                "(CONSTITUTION Invariant 11, NO-SURROGATE-ON-FOREIGN-DATA): a surrogate trained on "
+                "foreign (automotive/aircraft) data may seed 'smoke' experiments but cannot be "
+                "certified 'validated'/'production'. Retrain on the platform's own validated CFD."
+            )
         return self
 
     @model_validator(mode="after")
@@ -258,6 +283,17 @@ class CertificateOfValidity(BaseModel):
                 "If you genuinely need a commercial-clean model, retrain on "
                 "CC-BY-SA-only datasets and issue a fresh cert."
             )
+        if (
+            update
+            and self.data_origin == "foreign"
+            and update.get("data_origin") == "platform-validated"
+        ):
+            raise ValueError(
+                "refusing CertificateOfValidity.model_copy update that flips data_origin from "
+                "'foreign' → 'platform-validated' (CONSTITUTION Invariant 11): the foreign-data "
+                "taint is write-once and cannot be laundered. Retrain on the platform's own "
+                "validated CFD and issue a fresh cert."
+            )
         return super().model_copy(update=update, deep=deep)
 
     @classmethod
@@ -272,6 +308,7 @@ class CertificateOfValidity(BaseModel):
         applicability_envelope: ApplicabilityEnvelope,
         cert_status: Literal["smoke", "validated", "production"],
         non_commercial: bool,
+        data_origin: Literal["platform-validated", "foreign"] = "foreign",
         license_id: str = "",
         attribution_required: tuple[str, ...] = (),
         lifetime: timedelta = DEFAULT_CERT_LIFETIME,
@@ -295,6 +332,7 @@ class CertificateOfValidity(BaseModel):
             applicability_envelope=applicability_envelope,
             cert_status=cert_status,
             non_commercial=non_commercial,
+            data_origin=data_origin,
             license_id=license_id,
             attribution_required=attribution_required,
             issued_at=issued,
@@ -357,6 +395,7 @@ class CertificateOfValidity(BaseModel):
             "dataset_id": self.dataset_id,
             "cert_status": self.cert_status,
             "non_commercial": "true" if self.non_commercial else "false",
+            "data_origin": self.data_origin,
             "cert_issued_at": self.issued_at.isoformat(),
             "cert_expires_at": self.expires_at.isoformat(),
         }

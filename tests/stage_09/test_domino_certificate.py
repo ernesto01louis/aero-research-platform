@@ -23,13 +23,17 @@ def _metrics(cd_p95: float) -> dict[str, MetricQuantiles]:
 
 
 def _build(metrics: dict[str, MetricQuantiles], *, upgrade: bool):
+    # Synthetic PLATFORM-VALIDATED data to isolate the Cd-gate machinery from Invariant 11.
+    # DoMINO-on-DrivAerML is foreign and its promotion is REFUSED — see tests/stage_12/
+    # test_data_origin.py.
     return build_domino_certificate(
         surrogate_name="DominoSurrogate",
         training_dataset_dvc_hash=_HASH,
-        dataset_id="drivaerml",
+        dataset_id="platform_cfd_synth",
         held_out_metrics=metrics,
         applicability_envelope=DRIVAER_ENVELOPE,
         non_commercial=False,
+        data_origin="platform-validated",
         upgrade_to_validated=upgrade,
     )
 

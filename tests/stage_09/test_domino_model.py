@@ -28,12 +28,15 @@ _HASH = "a" * 64
 
 
 def _samples(n: int = 20) -> list[Sample]:
+    # Synthetic PLATFORM-VALIDATED samples to isolate the Cd-gate machinery from Invariant 11.
+    # DoMINO-on-DrivAerML (foreign) is refused promotion — see tests/stage_12/test_data_origin.py.
     return [
         Sample(
             features=tuple(float(i) for _ in range(16)),
             targets=(0.30 + 0.001 * i, 0.05, 0.02, 0.03, 0.0),
-            case_id=f"drivaerml-{i}",
-            dataset_id="drivaerml",
+            case_id=f"platform-cfd-{i}",
+            dataset_id="platform_cfd_synth",
+            data_origin="platform-validated",
         )
         for i in range(n)
     ]
