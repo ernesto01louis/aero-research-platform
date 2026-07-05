@@ -74,9 +74,14 @@ thesis) and **re-attributed**: the reference was ~right (~0.2), our 2-D laminar 
 
 - **Foil scope reduced to a light treatment** (operator-approved): HG verification (via the
   primary-source thesis) reversed the Stage-11 assumption — the reference is ~right (~0.2), our
-  2-D laminar C_T≈0.96 **over-predicts** ~2–4×. The foil is composed as a CONCERN (`validated`,
-  failing anchor, large `u95_input≈40 %`); a full foil GCI was **cut** (it can't be thesis-grade
-  regardless). Root-cause (2-D-vs-3-D / transitional; low-St re-anchor) → Stage 13.
+  2-D laminar solve **over-predicts** ~2–4× (cycle-mean Cd≈−1.26 → C_T≈1.26 vs corrected ref
+  ~0.30). A full foil GCI was **cut** (it can't be thesis-grade regardless). **The batch-means
+  estimator then CORRECTLY refused the foil** (`no converged tail`): St=0.4 is the deflected-jet /
+  **period-2 wake** regime, so the Cd per-cycle means don't cleanly cycle-converge — a good
+  demonstration of the NO-GO discipline, and a second reason to **re-anchor at a pre-bifurcation
+  St 0.2–0.3** in Stage 13. So the foil ships as a **documented CONCERN with no ReportableResult**
+  (the estimator's fail-loud is the honest outcome), not a forced `validated` object. Root-cause
+  (2-D-vs-3-D / transitional; low-St re-anchor) → Stage 13.
 - **`aero vv reportable` as a script, not a typer subcommand:** the run-dir → batch-means pipeline
   is solver-specific and derives from a multi-hour run (like `stage11_moving_vv.py`), so it ships
   as `scripts/stage12_reportable.py`. A thin CLI wrapper is a cheap follow-up.
@@ -117,12 +122,13 @@ thesis) and **re-attributed**: the reference was ~right (~0.2), our 2-D laminar 
 
 ## 7. Open items for the next stage (and beyond)
 
-- **Finalize the cylinder GO (this session's closing step):** when the space+time GCI
-  (`scripts/stage12_cylinder_gci.py`, bg run) completes, `scripts/stage12_reportable.py
-  oscillating_cylinder_lockin --run-dir <fine-grid dir> --gci-json data/vv/stage12_cylinder_gci.json`
-  → the thesis-grade cylinder `ReportableResult` (Cd, real u95_numerical) logged to MLflow; also
-  the foil CONCERN result (`--no-thesis-grade --u95-input-frac 0.4`). Reconcile the handoff numbers
-  + `git_sha_end` + tag `v0.0.12`.
+- **Cylinder GO — DONE ✅:** the 2-grid combined space+time GCI (base grid reused;
+  `data/vv/stage12_cylinder_gci.json`) gave `u95_numerical=0.0775` (gci_space 0.0224 ⊕ gci_time
+  0.0318). The composed thesis-grade cylinder `ReportableResult`
+  (`data/vv/stage12_reportable_oscillating_cylinder_lockin.json`): **Cd=1.9931 ± 0.0786** (num
+  0.0775 ⊕ **batch-means stat 0.0131** ⊕ input 0), reliable, lock-in-Strouhal anchor passing, 35
+  converged cycles — MLflow-logged (stage=12). Remaining: reconcile `git_sha_end` + tag `v0.0.12`
+  at the squash-merge.
 - **Stage 13 (Transition + Unsteady-Airfoil):** prompt written. **Resolve the foil over-prediction**
   (kOmegaSSTLM γ-Reθ + low-St re-anchor); pitching-airfoil dynamic stall vs McCroskey; the NACA-0012
   transient-mean debt (sharp-TE / SU2).
