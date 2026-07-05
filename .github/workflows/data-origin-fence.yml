@@ -1,0 +1,77 @@
+name: data-origin-fence
+
+# CONSTITUTION Invariant 11 (NO-SURROGATE-ON-FOREIGN-DATA) — the *required* fence.
+#
+# Two layers (mirrors the non-commercial-fence pattern):
+#   1. Every loader under aero/surrogates/_common/loaders/ that constructs a training
+#      Sample/TaintedSample MUST tag it `data_origin="foreign"` (or carry a
+#      `# data-origin: justified` pragma) and MUST NOT claim `data_origin="platform-validated"`:
+#      those loaders are the foreign automotive corpora, and a foreign-origin surrogate cannot
+#      be certified 'validated'/'production'.
+#   2. The runtime enforcement test — a foreign+validated CertificateOfValidity is
+#      unconstructible on any code path (aero/vv/... schema validator).
+#
+# Pure grep + pytest on ubuntu-latest -> required-safe (no self-hosted runner).
+
+on:
+  pull_request:
+    paths:
+      - 'aero/surrogates/**'
+      - 'tests/stage_12/test_data_origin.py'
+      - '.github/workflows/data-origin-fence.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every foreign loader tags data_origin="foreign" (and never "platform-validated")
+        run: |
+          set -euo pipefail
+          mapfile -t loaders < <(
+            grep -rlE 'return (Tainted)?Sample\(' aero/surrogates/_common/loaders/ \
+              --include='*.py' || true
+          )
+          failures=0
+          for f in "${loaders[@]}"; do
+            if grep -qE 'data_origin\s*=\s*"platform-validated"' "$f"; then
+              echo "  FAIL (foreign loader claims platform-validated): $f"
+              failures=$(( failures + 1 ))
+              continue
+            fi
+            if grep -qE 'data_origin\s*=\s*"foreign"' "$f" \
+               || grep -qE '#\s*data-origin:\s*justified' "$f"; then
+              echo "  ok: $f"
+              continue
+            fi
+            echo "  FAIL (no data_origin=\"foreign\"): $f"
+            failures=$(( failures + 1 ))
+          done
+          if [[ "$failures" -gt 0 ]]; then
+            echo "::error::$failures loader(s) under aero/surrogates/_common/loaders/ do not tag"
+            echo "data_origin=\"foreign\" (CONSTITUTION Invariant 11). A foreign automotive/aircraft"
+            echo "corpus must emit data_origin=\"foreign\" so no validated/production cert is issued on it."
+            exit 1
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: ">=0.5"
+
+      - name: Install package + dev extras
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Enforce Invariant 11 (foreign cannot be validated/production)
+        run: pytest -v tests/stage_12/test_data_origin.py

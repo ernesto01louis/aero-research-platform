@@ -87,16 +87,21 @@ class FakeSurrogate:
 
 
 def make_cert(*, status: str = "validated", non_commercial: bool = False) -> CertificateOfValidity:
-    """A ready-made DrivAerML cert for the compare tests."""
+    """A ready-made cert for the compare tests.
+
+    Synthetic PLATFORM-VALIDATED data to isolate the surrogate-vs-CFD comparison machinery from
+    Invariant 11 — a real DoMINO-on-DrivAerML (foreign) cert cannot be 'validated' (see
+    tests/stage_12/test_data_origin.py).
+    """
     name = "DominoSurrogate"
     return CertificateOfValidity.new(
         surrogate_name=name,
         model_architecture="domino",
         training_dataset_dvc_hash="0" * 64,
-        dataset_id="drivaerml",
+        dataset_id="platform_cfd_synth",
         held_out_metrics={"cd_mae": MetricQuantiles(p50=0.01, p95=0.03, p99=0.04, n_held_out=20)},
         applicability_envelope=DRIVAER_ENVELOPE,
         cert_status=status,  # type: ignore[arg-type]
         non_commercial=non_commercial,
-        license_id="CC-BY-SA-4.0",
+        data_origin="platform-validated",
     )

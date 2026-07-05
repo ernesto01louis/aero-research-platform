@@ -266,6 +266,7 @@ class DominoSurrogate(Surrogate):
             held_out_metrics=self._held_out,
             applicability_envelope=self._envelope,
             non_commercial=self._non_commercial,
+            data_origin=self._data_origin,
             license_id=self._license_id,
             attribution_required=self._attribution_required,
             upgrade_to_validated=False,
@@ -281,6 +282,12 @@ class DominoSurrogate(Surrogate):
         """
         if self._held_out is None:
             raise RuntimeError("promote_to_validated() called before fit()")
+        if self._data_origin == "foreign":
+            raise ValueError(
+                "CONSTITUTION Invariant 11 (NO-SURROGATE-ON-FOREIGN-DATA): cannot promote a "
+                "surrogate trained on foreign (automotive/aircraft) data to cert_status='validated'. "
+                "It may seed 'smoke' experiments only. Retrain on the platform's own validated CFD."
+            )
         cert = build_domino_certificate(
             surrogate_name=type(self).__name__,
             training_dataset_dvc_hash=self._training_dataset_dvc_hash,
@@ -288,6 +295,7 @@ class DominoSurrogate(Surrogate):
             held_out_metrics=self._held_out,
             applicability_envelope=self._envelope,
             non_commercial=self._non_commercial,
+            data_origin=self._data_origin,
             license_id=self._license_id,
             attribution_required=self._attribution_required,
             upgrade_to_validated=True,

@@ -72,6 +72,15 @@ class _SampleBase(BaseModel):
     targets: tuple[float, ...] = Field(..., description="Held-out scalar targets (e.g. Cd, Cl).")
     case_id: str = Field(..., min_length=1, description="Source case identifier.")
     dataset_id: str = Field(..., min_length=1, description="Source dataset name.")
+    data_origin: Literal["platform-validated", "foreign"] = Field(
+        default="foreign",
+        description="Provenance of this sample (CONSTITUTION Invariant 11, NO-SURROGATE-ON-"
+        "FOREIGN-DATA). 'foreign' = a corpus the platform did not generate and validate "
+        "(automotive / transport-aircraft); 'platform-validated' = the platform's own validated "
+        "CFD. A surrogate that ingests ANY 'foreign' sample cannot be issued a 'validated' or "
+        "'production' certificate. Defaults to 'foreign' (fail-closed): the platform's own CFD "
+        "must opt in explicitly; every foreign loader also sets it explicitly (data-origin fence).",
+    )
 
 
 class Sample(_SampleBase):
@@ -134,12 +143,22 @@ class Surrogate(ABC):
 
     def __init__(self) -> None:
         self._non_commercial: bool = False
+        self._data_origin: Literal["platform-validated", "foreign"] = "platform-validated"
         self._certificate: CertificateOfValidity | None = None
 
     @property
     def non_commercial(self) -> bool:
         """True iff at least one ``TaintedSample`` has crossed :meth:`ingest`."""
         return self._non_commercial
+
+    @property
+    def data_origin(self) -> Literal["platform-validated", "foreign"]:
+        """'foreign' iff any ingested sample was 'foreign' (write-once toward foreign).
+
+        CONSTITUTION Invariant 11: a 'foreign'-origin surrogate cannot be certified
+        'validated'/'production' — the certificate's schema validator refuses it.
+        """
+        return self._data_origin
 
     def ingest(self, sample: Sample | TaintedSample, /) -> None:
         """Update internal state from one training sample.
@@ -153,6 +172,9 @@ class Surrogate(ABC):
         """
         if isinstance(sample, TaintedSample):
             self._non_commercial = True
+        # Write-once toward 'foreign': one foreign sample taints the whole surrogate (Invariant 11).
+        if sample.data_origin == "foreign":
+            self._data_origin = "foreign"
 
     @abstractmethod
     def fit(self, data: Iterable[Sample | TaintedSample], /, **hparams: Any) -> None:
@@ -181,6 +203,11 @@ class Surrogate(ABC):
         cert = self._build_certificate()
         if self._non_commercial and not cert.non_commercial:
             cert = cert.model_copy(update={"non_commercial": True})
+        # Invariant 11: propagate a 'foreign' taint into the cert. If the cert is validated/
+        # production this raises in the cert validator — a foreign-origin surrogate must never
+        # have carried a publication-grade cert in the first place (fail-loud).
+        if self._data_origin == "foreign" and cert.data_origin != "foreign":
+            cert = cert.model_copy(update={"data_origin": "foreign"})
         self._certificate = cert
         return cert
 
