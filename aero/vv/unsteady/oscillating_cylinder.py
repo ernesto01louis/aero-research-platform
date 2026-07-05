@@ -111,3 +111,19 @@ class OscillatingCylinderLockin:
                 }
             )
         )
+
+    def refined_dt(self, ratio: float) -> OscillatingCylinderLockin:
+        """Return a copy with a COARSER timestep (``max_courant`` scaled by ``ratio``), fixed mesh.
+
+        The temporal analogue of :meth:`refined` for a combined space+time GCI (Stage 12): the
+        moving-cylinder timestep is Courant-driven (``max_courant``), which :meth:`refined` cannot
+        touch, so the temporal arm sweeps ``max_courant`` at fixed mesh. ``ratio == 1.0`` is the
+        base (finest) timestep; ``ratio > 1`` is coarser (a larger Courant cap -> larger dt). The
+        representative timestep scales ~linearly with ``max_courant``.
+        """
+        if ratio <= 0.0:
+            raise ValueError(f"refined_dt ratio must be > 0, got {ratio}")
+        s = self._spec
+        return OscillatingCylinderLockin(
+            s.model_copy(update={"max_courant": s.max_courant * ratio})
+        )
