@@ -99,7 +99,15 @@ class OscillatingCylinderLockin:
                 f"{self.name}: SolveResult.scalars['strouhal'] missing — the moving loader "
                 "did not recover a response frequency (did the wake lock in?)."
             )
-        return {"strouhal": st}
+        # `strouhal` is the validated quantity; also expose the cycle-mean drag/lift so a GCI
+        # mesh-sweep can use `cd` as a smooth Richardson target (Strouhal is frequency-locked,
+        # hence grid-insensitive by construction — a poor discretization-uncertainty metric).
+        out: dict[str, float | Series] = {"strouhal": st}
+        if solve.cd is not None:
+            out["cd"] = solve.cd
+        if solve.cl is not None:
+            out["cl"] = solve.cl
+        return out
 
     def refined(self, ratio: float) -> OscillatingCylinderLockin:
         s = self._spec

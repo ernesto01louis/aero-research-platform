@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 """Oscillating-cylinder combined space+time GCI for the Stage-12 ``u95_numerical`` (clean-SHA).
 
-Computes the discretization uncertainty of the cycle-mean drag ``Cd`` of the lock-in cylinder:
+Computes the discretization uncertainty of the cycle-mean drag ``Cd`` of the lock-in cylinder as
+``u95_numerical = RSS(gci_space, gci_time)``. To keep it tractable (each moving solve is ~30-84 min
+serial — MPI is blocked in the LXC) the **completed base grid is reused** (``--base-run-dir``) and
+only the coarser grids are solved:
 
-  * **spatial** — a 3-grid ASME V&V 20 GCI (mesh refinement 1.0/1.3/1.7 at fixed Courant), via
-    :class:`aero.vv.mesh_sweep.MeshSweep` on ``metric="cd"``;
-  * **temporal** — a 2-grid bound at the fine mesh (``max_courant`` 0.5 vs a coarser cap), since
-    the moving-cylinder timestep is Courant-driven and :meth:`refined` cannot touch it
-    (:meth:`OscillatingCylinderLockin.refined_dt`);
+  * **spatial** — a 2-grid GCI: base (fine) vs a coarser mesh (``refined(spatial_ratio)``);
+  * **temporal** — a 2-grid GCI: base vs a coarser Courant cap (``refined_dt(temporal_ratio)``,
+    since the moving timestep is Courant-driven and ``refined()`` cannot touch it).
 
-then RSS's the two into ``u95_numerical`` (a fraction of the fine-grid ``Cd``). Each moving solve
-is ~30-84 min serial (MPI is blocked in the LXC), so this is meant to be launched DETACHED and
-polled. Writes a JSON report and prints a single machine-parseable RESULT line.
+Each 2-grid GCI uses ASME V&V 20's 2-grid safety factor (Fs=3.0) with an assumed order ``p``
+(2 spatial / 1 temporal). ``Cd`` (not the frequency-locked Strouhal) is the Richardson target.
+Launch detached; writes a JSON report + a machine-parseable RESULT line.
 
-    python scripts/stage12_cylinder_gci.py --host aero-dev
-
-Clean-SHA provenance (``allow_dirty=False``): commit the tree before launching (the Stage-11
-runs used ``--allow-dirty``; Stage 12 reconciles to a clean SHA).
+    python scripts/stage12_cylinder_gci.py --host aero-dev \\
+        --base-run-dir /mnt/aero-nfs/runs/oscillating_cylinder_lockin-<ts>
 """
 
 from __future__ import annotations
@@ -27,26 +26,52 @@ import math
 import os
 from pathlib import Path
 
+import numpy as np
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# ASME V&V 20 safety factor for a 2-grid GCI estimate (3-grid would use 1.25); the temporal arm
-# is a conservative 2-level bound. pimpleFoam time integration is treated as ~1st order.
-_TEMPORAL_FS = 3.0
-_TEMPORAL_ORDER = 1.0
+_FS = 3.0  # ASME V&V 20 safety factor for a 2-grid GCI estimate
+_P_SPACE = 2.0  # assumed spatial order (2nd-order FV)
+_P_TIME = 1.0  # assumed temporal order (pimpleFoam ~1st order)
+_FORCING_ST = 1.1 * 0.165
+
+
+def _cycle_mean_cd(run_dir: Path) -> float:
+    """Cycle-mean Cd over the converged tail of a completed moving-cylinder run dir."""
+    from aero.postprocess._base import Signal
+    from aero.postprocess.cycle_detection import detect_cycle_convergence
+    from aero.postprocess.phase_averaging import segment_cycles
+
+    path = run_dir / "postProcessing" / "forceCoeffs1" / "0" / "coefficient.dat"
+    rows = [
+        (float(p[0]), float(p[1]))
+        for p in (s.split() for s in path.read_text().splitlines() if s.strip() and s[0] != "#")
+    ]
+    a = np.asarray(rows, dtype=np.float64)
+    samples = segment_cycles(
+        Signal.from_arrays(a[:, 0], a[:, 1], name="cd"), period=1.0 / _FORCING_ST
+    )
+    report = detect_cycle_convergence(samples)
+    return float(np.mean(samples.per_cycle_mean[report.converged_from_cycle :]))
+
+
+def _gci_2grid(cd_fine: float, cd_coarse: float, *, ratio: float, order: float) -> float:
+    """2-grid GCI on the fine grid, as a fraction of |cd_fine| (ASME V&V 20, Fs=3.0)."""
+    eps = abs(cd_coarse - cd_fine) / max(abs(cd_fine), 1.0e-12)
+    return _FS * eps / (ratio**order - 1.0)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--host", default="aero-dev", help="SSH host alias (default aero-dev)")
-    ap.add_argument("--timeout", type=int, default=14400, help="Per-solve poll ceiling, s (4h)")
+    ap.add_argument("--host", default="aero-dev")
+    ap.add_argument("--timeout", type=int, default=14400)
     ap.add_argument(
-        "--temporal-ratio", type=float, default=2.0, help="Coarse-dt Courant multiple (fine=1.0)"
+        "--base-run-dir", type=Path, required=True, help="Completed base (fine) grid dir"
     )
-    ap.add_argument(
-        "--out",
-        default=str(_REPO_ROOT / "data" / "vv" / "stage12_cylinder_gci.json"),
-        help="Where to write the GCI JSON report",
-    )
+    ap.add_argument("--spatial-ratio", type=float, default=1.7)
+    ap.add_argument("--temporal-ratio", type=float, default=2.0)
+    ap.add_argument("--skip-temporal", action="store_true")
+    ap.add_argument("--out", default=str(_REPO_ROOT / "data" / "vv" / "stage12_cylinder_gci.json"))
     ap.add_argument("--no-mlflow", action="store_true")
     args = ap.parse_args()
 
@@ -55,7 +80,6 @@ def main() -> None:
     from aero.provenance import compute_provenance
     from aero.provenance.db import resolve_dsn
     from aero.vv import BenchmarkRunner
-    from aero.vv.mesh_sweep import MeshSweep
     from aero.vv.unsteady import OscillatingCylinderLockin
 
     base = OscillatingCylinderLockin()
@@ -80,48 +104,42 @@ def main() -> None:
         allow_dirty=False,
     )
 
-    # --- spatial 3-grid GCI on cycle-mean Cd -------------------------------------------------
-    sweep = MeshSweep(base, metric="cd", refinement_ratios=(1.0, 1.3, 1.7))
-    report = sweep.run(runner, provenance=prov, repo_root=_REPO_ROOT)
-    cd_fine = report.grids[0].metric_value
-    gci_space = report.apparent_uncertainty  # fraction on the fine grid
+    cd_fine = _cycle_mean_cd(args.base_run_dir)  # reuse the completed base grid
 
-    # --- temporal 2-grid bound at the fine mesh ----------------------------------------------
-    coarse_dt_case = base.refined_dt(args.temporal_ratio)  # larger max_courant -> coarser dt
-    obs_t = runner.measure_scalar(coarse_dt_case, "cd", provenance=prov, repo_root=_REPO_ROOT)
-    cd_coarse_dt = obs_t.value
-    eps_t = abs(cd_coarse_dt - cd_fine) / max(abs(cd_fine), 1.0e-12)
-    gci_time = _TEMPORAL_FS * eps_t / (args.temporal_ratio**_TEMPORAL_ORDER - 1.0)
+    # spatial coarse grid
+    obs_s = runner.measure_scalar(
+        base.refined(args.spatial_ratio), "cd", provenance=prov, repo_root=_REPO_ROOT
+    )
+    gci_space = _gci_2grid(cd_fine, obs_s.value, ratio=args.spatial_ratio, order=_P_SPACE)
+
+    gci_time = 0.0
+    cd_coarse_dt = None
+    if not args.skip_temporal:
+        obs_t = runner.measure_scalar(
+            base.refined_dt(args.temporal_ratio), "cd", provenance=prov, repo_root=_REPO_ROOT
+        )
+        cd_coarse_dt = obs_t.value
+        gci_time = _gci_2grid(cd_fine, cd_coarse_dt, ratio=args.temporal_ratio, order=_P_TIME)
 
     u95_num_frac = math.sqrt(gci_space**2 + gci_time**2)
     out = {
         "case": "oscillating_cylinder_lockin",
         "metric": "cd",
+        "method": "2-grid space+time GCI (base reused), ASME V&V 20 Fs=3.0",
         "git_sha": prov.git_sha,
         "cd_fine": cd_fine,
+        "base_run_dir": str(args.base_run_dir),
         "spatial": {
+            "ratio": args.spatial_ratio,
+            "cd_coarse": obs_s.value,
+            "order": _P_SPACE,
             "gci_fraction": gci_space,
-            "gci_pct": report.gci_fine_pct,
-            "observed_order_p": report.observed_order_p,
-            "extrapolated_value": report.extrapolated_value,
-            "monotonic": report.monotonic,
-            "grids": [
-                {
-                    "ratio": g.refinement_ratio,
-                    "n_cells": g.n_cells,
-                    "cd": g.metric_value,
-                    "mlflow_run_id": g.mlflow_run_id,
-                }
-                for g in report.grids
-            ],
         },
         "temporal": {
             "ratio": args.temporal_ratio,
-            "cd_coarse_dt": cd_coarse_dt,
+            "cd_coarse": cd_coarse_dt,
+            "order": _P_TIME,
             "gci_fraction": gci_time,
-            "fs": _TEMPORAL_FS,
-            "assumed_order": _TEMPORAL_ORDER,
-            "mlflow_run_id": obs_t.mlflow_run_id,
         },
         "u95_numerical_fraction": u95_num_frac,
         "u95_numerical_abs": u95_num_frac * abs(cd_fine),
