@@ -243,8 +243,12 @@ Stage 10; full U95 composition Stage 12) is the only object that may carry an
 MLflow `validation_tag="thesis-grade"`; its validator asserts
 `abs(delta) > k * u95_total` (default `k = 2`, never `k < 1`) for any
 `ImprovementClaim`. CI job `small-signal-gate` (required, landed Stage 12; ADR-020)
-re-runs the assertion. The pattern mirrors Invariant 5's "enforcement tooling
-lands at a named stage."
+re-runs the assertion. `u95_delta` is *measured* by the paired-difference estimator
+(`aero/vv/paired_difference.py` — NOBM on the per-cycle difference series over the
+common converged window, with the empirical baseline↔candidate correlation recorded)
+and composed by `compose_improvement()`; a hand-entered `u95_delta` cannot reach
+`thesis-grade` (landed at the review-F1 remediation; ADR-023). The pattern mirrors
+Invariant 5's "enforcement tooling lands at a named stage."
 
 **Why:** the platform's product is *trustworthy improvements*. A claimed
 improvement smaller than the solver's own uncertainty is numerical noise, not a
