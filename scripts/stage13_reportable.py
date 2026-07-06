@@ -140,12 +140,12 @@ def main() -> None:
             tracking_uri="http://192.168.2.234:5000",
             experiment="aero-provenance",
             provenance=prov,
+            case_name=args.case,
             db_dsn=resolve_dsn(),
-            run_name=f"stage13-reportable-{args.case}",
+            stage="13",
             extra_tags={
-                "stage": "13",
                 "validation_tag": result.validation_tag,
-                "u95_reliable": str(stat.reliable),
+                "u95_reliable": "true" if stat.reliable else "false",
                 "n_converged_cycles": str(len(tail)),
             },
         ):
