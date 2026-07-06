@@ -279,7 +279,9 @@ class PyFRSolver(Solver):
         )
 
     # --- wall_distribution seam ----------------------------------------------
-    def wall_distribution(self, result: ResultHandle, *, patch: str) -> WallDistribution:
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str, u_inf: float = 1.0
+    ) -> WallDistribution:
         spec_name = result.case_dir.spec.name
         # Both PyFR cases this stage ships are periodic (TG) or use
         # internal-flow wall sampling (periodic hill — deferred to Stage 12).

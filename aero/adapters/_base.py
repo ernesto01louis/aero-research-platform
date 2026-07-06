@@ -395,8 +395,14 @@ class Solver(abc.ABC):
         """Parse a finished solve into a typed, solver-neutral `SolveResult`."""
 
     @abc.abstractmethod
-    def wall_distribution(self, result: ResultHandle, *, patch: str) -> WallDistribution:
-        """Extract the Cf/Cp distribution along wall `patch` from a finished solve."""
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str, u_inf: float = 1.0
+    ) -> WallDistribution:
+        """Extract the Cf/Cp distribution along wall `patch` from a finished solve.
+
+        `u_inf` is the reference speed for the Cp/Cf non-dimensionalisation (default
+        1.0, the platform's dimensionless convention; a dimensional case passes its own).
+        """
 
 
 @runtime_checkable
@@ -413,4 +419,6 @@ class SolverProtocol(Protocol):
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle: ...
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle: ...
     def load(self, result: ResultHandle) -> SolveResult: ...
-    def wall_distribution(self, result: ResultHandle, *, patch: str) -> WallDistribution: ...
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str, u_inf: float = 1.0
+    ) -> WallDistribution: ...

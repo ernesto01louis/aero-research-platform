@@ -80,12 +80,17 @@ def _read_raw(path: Path, *, n_value_cols: int) -> np.ndarray:
     return np.asarray(data, dtype=np.float64)
 
 
-def extract_wall_distributions(post_processing: Path, *, patch: str = "wall") -> WallDistribution:
+def extract_wall_distributions(
+    post_processing: Path, *, patch: str = "wall", u_inf: float = _U_INF
+) -> WallDistribution:
     """Build the Cf / Cp wall distribution from a finished TMR solve.
 
     `post_processing` is the case's `postProcessing/` directory. The pressure
     and wall-shear-stress raw files for `patch` are read, the streamwise
-    coordinate is sorted ascending, and the coefficients are formed.
+    coordinate is sorted ascending, and the coefficients are formed. `u_inf` is
+    the reference speed for the (kinematic) 1/(0.5 U^2) non-dimensionalisation —
+    1.0 for the platform's dimensionless cases, the dimensional value (e.g. the
+    T3A plate's 5.4 m/s) otherwise.
     """
     sample_root = Path(post_processing) / "sampleWall"
     time_dir = _latest_time_dir(sample_root)
@@ -95,7 +100,7 @@ def extract_wall_distributions(post_processing: Path, *, patch: str = "wall") ->
 
     order = np.argsort(p_raw[:, 0])
     x = p_raw[order, 0]
-    cp = 2.0 / (_U_INF**2) * p_raw[order, 3]
+    cp = 2.0 / (u_inf**2) * p_raw[order, 3]
 
     # The wall-shear file is sampled on the same patch; sort it the same way
     # and align on x (the two samplers visit the patch faces in the same order,
@@ -106,7 +111,7 @@ def extract_wall_distributions(post_processing: Path, *, patch: str = "wall") ->
         raise FieldExtractionError(
             f"p and wallShearStress samples for patch {patch!r} do not share an x-grid"
         )
-    cf = _CF_SIGN * 2.0 / (_U_INF**2) * tau_raw[tau_order, 3]
+    cf = _CF_SIGN * 2.0 / (u_inf**2) * tau_raw[tau_order, 3]
 
     return WallDistribution(
         patch=patch,

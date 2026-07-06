@@ -258,7 +258,9 @@ class NekRSSolver(Solver):
         )
 
     # --- wall_distribution seam ----------------------------------------------
-    def wall_distribution(self, result: ResultHandle, *, patch: str) -> WallDistribution:
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str, u_inf: float = 1.0
+    ) -> WallDistribution:
         spec_name = result.case_dir.spec.name
         raise NotImplementedError(
             f"NekRS case {spec_name!r} has no wall to sample at patch={patch!r}. "

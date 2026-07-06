@@ -354,7 +354,9 @@ class SU2Solver(Solver):
         )
 
     # --- wall-distribution seam ----------------------------------------------
-    def wall_distribution(self, result: ResultHandle, *, patch: str = "wall") -> WallDistribution:
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str = "wall", u_inf: float = 1.0
+    ) -> WallDistribution:
         """Parse SU2's `surface_flow.csv` into a `WallDistribution`.
 
         `MARKER_PLOTTING` is the no-slip wall, so `surface_flow.csv` is exactly

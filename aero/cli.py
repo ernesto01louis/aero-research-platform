@@ -479,6 +479,7 @@ def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
 @vv_app.command("list")
 def vv_list() -> None:
     """List the registered V&V benchmark cases (TMR + forward-regime + transonic + scale-resolving)."""
+    from aero.vv.ercoftac import ERCOFTAC_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
@@ -488,6 +489,7 @@ def vv_list() -> None:
     for header, cases in (
         ("V&V benchmark cases (NASA TMR):", TMR_CASES),
         ("V&V benchmark cases (forward-regime — Stage 10):", FORWARD_REGIME_CASES),
+        ("V&V benchmark cases (transition / ERCOFTAC — Stage 13):", ERCOFTAC_CASES),
         ("V&V benchmark cases (unsteady / moving-body — Stage 11):", UNSTEADY_CASES),
         ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
         ("V&V benchmark cases (scale-resolving — Stage 07):", SCALE_RESOLVING_CASES),
@@ -558,6 +560,7 @@ def vv_run(
             raise typer.Exit(code=3)
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
+    from aero.vv.ercoftac import ERCOFTAC_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
@@ -567,6 +570,7 @@ def vv_run(
     all_cases = {
         **TMR_CASES,
         **FORWARD_REGIME_CASES,
+        **ERCOFTAC_CASES,
         **UNSTEADY_CASES,
         **TRANSONIC_CASES,
         **SCALE_RESOLVING_CASES,
