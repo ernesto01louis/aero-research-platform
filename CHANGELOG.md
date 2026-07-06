@@ -5,6 +5,38 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
 
+## [0.0.13] - 2026-07-06
+
+### Added — Stage 13 (Transition + Unsteady-Airfoil Validation)
+
+- **`kOmegaSSTLM` (gamma-Re_theta Langtry-Menter) transition path** in the OpenFOAM adapter:
+  `gammaInt`/`ReThetat` field writers (steady airfoil + moving plunging), gated transport
+  schemes/solvers (laminar output byte-identical), and the Langtry-Menter `rethetat_freestream(Tu)`
+  correlation. `CaseSpec`/`PlungingAirfoilSpec` gain `"kOmegaSSTLM"`. ADR-021.
+- **ERCOFTAC T3A transition-onset V&V case** (`aero/vv/ercoftac/`, `ERCOFTAC_CASES`) — a faithful
+  port of the ESI v2412 `simpleFoam/T3A` tutorial (`aero/adapters/openfoam/t3a.py`). Cluster
+  **PASS**: transition-onset Re_x 18.4% (< 20%), Cf(x) 24.4% (< 25%) vs the Savill/ERCOFTAC data.
+  `wall_distribution` gains an optional `u_inf` (dimensional case). ADR-021.
+- **Plunging-foil re-anchor** (`PlungingAirfoilHG2007` parametrized by Strouhal + turbulence model):
+  variants at pre-bifurcation St 0.2/0.3 x {laminar, kOmegaSSTLM}; `refined_dt()` for a space+time
+  GCI. `scripts/stage13_{gci,reportable}.py` (generalized U95 drivers; thrust C_T = -mean(Cd)).
+
+### Changed / Findings — the plunging over-prediction resolved (documented NO-GO)
+
+- The Stage-11/12 plunging CONCERN is **resolved as a documented, root-caused NO-GO** (ADR-022):
+  the 2-D solve's C_T(St) slope is too steep vs the flat HG experiment (C_T 0.13/0.35 vs ref
+  0.20/0.22; crosses near St~0.23, misses both measured points); transition barely moves it (~5-11%,
+  near-laminar at Re=1e4/Tu=1%). **No rung clears the 15% contract — tolerance NOT relaxed.** Still a
+  massive improvement over Stage-12 (anchor error 320% -> 28-58%) with a validated trend. The
+  transition MODEL is verified (T3A) — the piece Stage 14 builds on — so the foil NO-GO does not
+  block the flagship.
+- Recorded the Stage-12 Invariant-10/11 required-check promotions in the deferred-work ledger.
+
+### Deferred (operator scope — tight GO path)
+
+- Pitching-airfoil dynamic stall (McCroskey) + the NACA-0012 transient-mean debt — ledgered
+  follow-ups; neither on the GO path.
+
 ## [0.0.12] - 2026-07-05
 
 ### Added — Stage 12 (Verification & UQ Core — the `u95` machinery)
