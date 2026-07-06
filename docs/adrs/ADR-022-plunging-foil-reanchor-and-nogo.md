@@ -43,7 +43,7 @@ Chose **Option 1**. The four re-anchored runs (each a dead-steady converged limi
 | St | laminar C_T | +`kOmegaSSTLM` C_T | corrected HG ref | best anchor error |
 |---|---|---|---|---|
 | 0.2 | 0.130 | 0.144 | 0.20 | **28% under** |
-| 0.3 | 0.348 | 0.363 | 0.22 | **58% over** |
+| 0.3 | 0.348 | 0.365 | 0.22 | **58% over** |
 | 0.4 (Stage-12) | ~1.26 | — | 0.30 | ~320% over |
 
 **Finding — the 2-D solve's C_T(St) slope is far too steep.** The experiment is nearly flat
@@ -54,7 +54,7 @@ low St and over-predicts at high St. **No re-anchored rung clears the 15% contra
 
 **Transition barely moves it.** At Re_c = 1e4 with a clean free stream (Tu = 1% -> Langtry-Menter
 Re_theta ~= 584), `kOmegaSSTLM` predicts near-laminar attached flow, so transition changes C_T by
-only ~5-11% (St=0.2: 0.130 -> 0.144, *toward* the reference; St=0.3: 0.348 -> 0.363, slightly
+only ~5-11% (St=0.2: 0.130 -> 0.144, *toward* the reference; St=0.3: 0.348 -> 0.365, slightly
 *away*). It does not close the gap at either point — a legitimate finding, not a tuning failure.
 
 **Determination: the plunging-foil unsteady rung is a documented NO-GO** (the stage prompt's
