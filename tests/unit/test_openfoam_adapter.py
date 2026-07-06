@@ -122,6 +122,54 @@ def test_turbulence_model_is_komega_sst(tmp_path: Path) -> None:
     assert "kOmegaSST" in text
 
 
+# --- kOmegaSSTLM (gamma-Re_theta) transition path (Stage 13) -------------------
+def test_komega_sstlm_writes_transition_fields(tmp_path: Path) -> None:
+    write_case(_spec(turbulence_model="kOmegaSSTLM"), tmp_path)
+    # The full kOmegaSST field set PLUS the two gamma-Re_theta transport fields.
+    for rel in ("0/U", "0/p", "0/k", "0/omega", "0/nut", "0/gammaInt", "0/ReThetat"):
+        assert (tmp_path / rel).is_file(), f"missing {rel}"
+    gamma = (tmp_path / "0" / "gammaInt").read_text(encoding="utf-8")
+    assert "dimensions      [0 0 0 0 0 0 0];" in gamma  # intermittency is dimensionless
+    assert "internalField   uniform 1;" in gamma  # freestream intermittency = 1
+    assert "type zeroGradient;" in gamma  # airfoil wall
+    rethetat = (tmp_path / "0" / "ReThetat").read_text(encoding="utf-8")
+    assert "dimensions      [0 0 0 0 0 0 0];" in rethetat
+    assert "inletOutlet" in rethetat  # freestream Re_θt from the correlation
+
+
+def test_komega_sstlm_turbulence_properties_and_schemes(tmp_path: Path) -> None:
+    write_case(_spec(turbulence_model="kOmegaSSTLM"), tmp_path)
+    tp = (tmp_path / "constant" / "turbulenceProperties").read_text(encoding="utf-8")
+    assert "RASModel        kOmegaSSTLM;" in tp
+    # divSchemes uses `default none`, so the two transport terms MUST be listed.
+    schemes = (tmp_path / "system" / "fvSchemes").read_text(encoding="utf-8")
+    assert "div(phi,gammaInt)" in schemes
+    assert "div(phi,ReThetat)" in schemes
+    solution = (tmp_path / "system" / "fvSolution").read_text(encoding="utf-8")
+    assert "gammaInt|ReThetat" in solution
+
+
+def test_komega_sst_does_not_write_transition_fields(tmp_path: Path) -> None:
+    # A plain kOmegaSST case is unchanged: no gammaInt/ReThetat, no transition schemes.
+    write_case(_spec(turbulence_model="kOmegaSST"), tmp_path)
+    assert not (tmp_path / "0" / "gammaInt").exists()
+    assert not (tmp_path / "0" / "ReThetat").exists()
+    schemes = (tmp_path / "system" / "fvSchemes").read_text(encoding="utf-8")
+    assert "gammaInt" not in schemes
+
+
+def test_rethetat_freestream_correlation() -> None:
+    from aero.adapters.openfoam._foam_common import rethetat_freestream
+
+    # High Tu (T3A ≈ 3.3%) → early bypass transition, Re_θt ~ O(170) (tutorial pins 160.99).
+    hi = rethetat_freestream(0.033)
+    assert 150.0 < hi < 200.0
+    # Low Tu → late transition → much larger Re_θt (monotone decreasing in Tu).
+    lo = rethetat_freestream(0.001)
+    assert lo > hi
+    assert rethetat_freestream(0.05) < hi  # still monotone at higher Tu
+
+
 # --- solver command construction (fake executor) ------------------------------
 class _FakeExecutor:
     """Records commands and returns a canned successful `ExecResult`."""

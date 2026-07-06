@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.12  ·  **Status:** complete  ·  **Completed:** 2026-07-05
+**Latest tag:** v0.0.13  ·  **Status:** complete  ·  **Completed:** 2026-07-06
 
-**Stage 12 — Verification & UQ Core** — most recent stage.
+**Stage 13 — Transition + Unsteady-Airfoil Validation** — most recent stage.
 
-**Next:** Stage 13 — Transition + Unsteady-Airfoil Validation.
+**Next:** Stage 14 — Rigid Flapping-Wing Validation.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

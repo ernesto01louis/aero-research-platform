@@ -66,7 +66,11 @@ class PlungingAirfoilSpec(BaseModel):
     mach: float = Field(default=0.1, gt=0, description="Reference Mach (recorded only).")
     chord: float = Field(default=1.0, gt=0)
     span: float = Field(default=1.0, gt=0, description="Spanwise extent (one cell, 2D).")
-    turbulence_model: Literal["laminar"] = Field(default="laminar")
+    turbulence_model: Literal["laminar", "kOmegaSSTLM"] = Field(
+        default="laminar",
+        description="'laminar' (2-D low-Re, the Stage-11 default) or 'kOmegaSSTLM' (gamma-Re_theta "
+        "transition — the Stage-13 probe of whether transitional losses close the over-prediction).",
+    )
     transient: Literal[True] = Field(default=True)
     motion: MotionSpec = Field(..., description="Prescribed heave (required).")
 
@@ -77,6 +81,13 @@ class PlungingAirfoilSpec(BaseModel):
     n_front: int = Field(default=50, gt=3)
     n_wake: int = Field(default=80, gt=3)
     first_cell_height: float = Field(default=5.0e-4, gt=0, description="Wall spacing (chords).")
+    turbulence_intensity: float = Field(
+        default=0.001,
+        gt=0,
+        description="Free-stream turbulence intensity (fraction) for the kOmegaSSTLM path; "
+        "sets k/omega and (via the Langtry-Menter correlation) the free-stream Re_theta. "
+        "Ignored when laminar.",
+    )
 
     # --- transient controls (convective times t* = t U / c) ---
     end_time_convective: float = Field(default=200.0, gt=0)
@@ -193,7 +204,7 @@ boundaryField
 """
         )
 
-    return {
+    fields = {
         "U": field(
             "U",
             "volVectorField",
@@ -212,6 +223,60 @@ boundaryField
             "        type zeroGradient;",
         ),
     }
+    if spec.turbulence_model == "laminar":
+        return fields
+
+    # kOmegaSSTLM (gamma-Re_theta) transition path: the full kOmegaSST field set + the two
+    # transition transport fields. Wall-resolved (y+<1) treatment; the moving wall keeps the
+    # movingWallVelocity BC on U (above) but the turbulence fields use the standard wall
+    # functions (same as the steady airfoil kOmegaSSTLM path in case_writer._fields).
+    st = flow_state(
+        reynolds=spec.reynolds,
+        ref_length=spec.chord,
+        turbulence_intensity=spec.turbulence_intensity,
+    )
+    k, omega, nut, re_theta_t = st["k"], st["omega"], st["nut"], st["re_theta_t"]
+    fields["nut"] = field(
+        "nut",
+        "volScalarField",
+        "[0 2 -1 0 0 0 0]",
+        f"{nut:.8g}",
+        f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
+        "        type nutLowReWallFunction;\n        value uniform 0;",
+    )
+    fields["k"] = field(
+        "k",
+        "volScalarField",
+        "[0 2 -2 0 0 0 0]",
+        f"{k:.8g}",
+        f"        type inletOutlet;\n        inletValue uniform {k:.8g};\n        value uniform {k:.8g};",
+        f"        type kqRWallFunction;\n        value uniform {k:.8g};",
+    )
+    fields["omega"] = field(
+        "omega",
+        "volScalarField",
+        "[0 0 -1 0 0 0 0]",
+        f"{omega:.8g}",
+        f"        type inletOutlet;\n        inletValue uniform {omega:.8g};\n        value uniform {omega:.8g};",
+        f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
+    )
+    fields["gammaInt"] = field(
+        "gammaInt",
+        "volScalarField",
+        "[0 0 0 0 0 0 0]",
+        "1",
+        "        type inletOutlet;\n        inletValue uniform 1;\n        value uniform 1;",
+        "        type zeroGradient;",
+    )
+    fields["ReThetat"] = field(
+        "ReThetat",
+        "volScalarField",
+        "[0 0 0 0 0 0 0]",
+        f"{re_theta_t:.8g}",
+        f"        type inletOutlet;\n        inletValue uniform {re_theta_t:.8g};\n        value uniform {re_theta_t:.8g};",
+        "        type zeroGradient;",
+    )
+    return fields
 
 
 def write_plunging_airfoil_case(spec: PlungingAirfoilSpec, dest: Path) -> None:
@@ -225,9 +290,12 @@ def write_plunging_airfoil_case(spec: PlungingAirfoilSpec, dest: Path) -> None:
     nu = flow_state(reynolds=spec.reynolds, ref_length=spec.chord, turbulence_intensity=0.001)["nu"]
     (system / "blockMeshDict").write_text(_blockmeshdict(_mesh_spec(spec)), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
-    (system / "fvSchemes").write_text(transient_fvschemes(), encoding="utf-8")
+    (system / "fvSchemes").write_text(
+        transient_fvschemes(turbulence_model=spec.turbulence_model), encoding="utf-8"
+    )
     (system / "fvSolution").write_text(
-        transient_fvsolution(cell_displacement=True), encoding="utf-8"
+        transient_fvsolution(cell_displacement=True, turbulence_model=spec.turbulence_model),
+        encoding="utf-8",
     )
     (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(

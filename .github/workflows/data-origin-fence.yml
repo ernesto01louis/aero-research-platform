@@ -14,11 +14,12 @@ name: data-origin-fence
 # Pure grep + pytest on ubuntu-latest -> required-safe (no self-hosted runner).
 
 on:
+  # Runs on EVERY pull request (no path filter): as a *required* status check, a
+  # path-filtered trigger leaves the context unreported on PRs that don't touch the
+  # filtered paths, which blocks the merge indefinitely (hit on the Stage-13 PR, the first
+  # non-surrogate PR after Invariant 11 became required). The fence is a fast pure-host
+  # grep + pytest, and a required constitutional invariant should verify on every change.
   pull_request:
-    paths:
-      - 'aero/surrogates/**'
-      - 'tests/stage_12/test_data_origin.py'
-      - '.github/workflows/data-origin-fence.yml'
   push:
     branches: [main]
 

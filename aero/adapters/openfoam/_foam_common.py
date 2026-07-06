@@ -27,6 +27,23 @@ _FREESTREAM_NUT_RATIO = 0.009
 
 
 # --- physical state -----------------------------------------------------------
+def rethetat_freestream(turbulence_intensity: float) -> float:
+    """Freestream transition-onset momentum-thickness Reynolds number Re_theta_t(Tu).
+
+    The Langtry-Menter (2009) empirical correlation used to set the freestream/inlet
+    `ReThetat` for the gamma-Re_theta (`kOmegaSSTLM`) transition model. `Tu` is the freestream
+    turbulence intensity in **percent** (so `turbulence_intensity` fraction x 100). Low Tu
+    → high Re_theta_t → late/no transition; high Tu → early bypass transition. Verified against
+    the ESI v2412 T3A tutorial (Tu≈3.3% → ~169, tutorial pins 160.99).
+
+    Ref: Langtry & Menter (2009), AIAA J 47(12):2894; Menter et al. (2006).
+    """
+    tu = max(turbulence_intensity * 100.0, 0.027)  # percent; guard tiny/zero Tu
+    if tu <= 1.3:
+        return 1173.51 - 589.428 * tu + 0.2196 / (tu * tu)
+    return float(331.50 * (tu - 0.5658) ** -0.671)
+
+
 def flow_state(
     *,
     reynolds: float,
@@ -38,13 +55,21 @@ def flow_state(
     `ref_length` is the Reynolds-number length scale (chord for an airfoil,
     plate length for the flat plate). Freestream `k` comes from the intensity;
     `omega` from a low eddy-viscosity ratio so the freestream stays nearly
-    laminar — standard practice for external aerodynamics.
+    laminar — standard practice for external aerodynamics. `re_theta_t` is the
+    Langtry-Menter freestream Re_theta_t for the `kOmegaSSTLM` transition path (only
+    consumed when that model is selected).
     """
     nu = U_INF * ref_length / reynolds
     k = 1.5 * (turbulence_intensity * U_INF) ** 2
     nut = _FREESTREAM_NUT_RATIO * nu
     omega = k / nut
-    return {"nu": nu, "k": k, "omega": omega, "nut": nut}
+    return {
+        "nu": nu,
+        "k": k,
+        "omega": omega,
+        "nut": nut,
+        "re_theta_t": rethetat_freestream(turbulence_intensity),
+    }
 
 
 # --- grading ------------------------------------------------------------------
@@ -100,8 +125,18 @@ def pt(x: float, y: float, z: float) -> str:
     return f"({x:.8f} {y:.8f} {z:.8f})"
 
 
-def fvschemes() -> str:
-    """Discretisation schemes — steady-state RANS, second-order-ish, bounded."""
+def fvschemes(*, transition: bool = False) -> str:
+    """Discretisation schemes — steady-state RANS, second-order-ish, bounded.
+
+    With ``transition=True`` the two gamma-Re_theta (`kOmegaSSTLM`) transport terms
+    ``div(phi,gammaInt)`` / ``div(phi,ReThetat)`` are added (required because
+    ``divSchemes`` uses ``default none``); off, the rendered dictionary is unchanged.
+    """
+    transition_div = (
+        "    div(phi,gammaInt) bounded Gauss upwind;\n    div(phi,ReThetat) bounded Gauss upwind;\n"
+        if transition
+        else ""
+    )
     return (
         header("dictionary", "fvSchemes")
         + """
@@ -113,7 +148,9 @@ divSchemes
     div(phi,U)      bounded Gauss linearUpwind grad(U);
     div(phi,k)      bounded Gauss upwind;
     div(phi,omega)  bounded Gauss upwind;
-    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+"""
+        + transition_div
+        + """    div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 laplacianSchemes  { default Gauss linear limited corrected 0.5; }
 interpolationSchemes { default linear; }
@@ -124,7 +161,11 @@ wallDist        { method meshWave; }
 
 
 def fvsolution(
-    *, pressure_solver: str = "GAMG", u_relax: float = 0.9, kw_relax: float = 0.7
+    *,
+    pressure_solver: str = "GAMG",
+    u_relax: float = 0.9,
+    kw_relax: float = 0.7,
+    transition: bool = False,
 ) -> str:
     """SIMPLE solver controls — pressure solver + smoothSolver for the rest.
 
@@ -154,6 +195,8 @@ def fvsolution(
         tolerance       1e-8;
         relTol          0.05;
     }"""
+    # gamma-Re_theta transport fields join the turbulence solver / residual / relaxation groups.
+    turb_fields = "k|omega|gammaInt|ReThetat" if transition else "k|omega"
     return (
         header("dictionary", "fvSolution")
         + """
@@ -161,40 +204,36 @@ solvers
 {
 """
         + p_block
-        + """
-    "(U|k|omega)"
-    {
+        + f"""
+    "(U|{turb_fields})"
+    {{
         solver          smoothSolver;
         smoother        symGaussSeidel;
         tolerance       1e-9;
         relTol          0.1;
-    }
-}
+    }}
+}}
 
 SIMPLE
-{
+{{
     consistent          yes;
     nNonOrthogonalCorrectors 2;
     residualControl
-    {
+    {{
         p               1e-6;
         U               1e-6;
-        "(k|omega)"     1e-6;
-    }
-}
+        "({turb_fields})"     1e-6;
+    }}
+}}
 
 relaxationFactors
-{
+{{
     equations
-    {
-        U               """
-        + f"{u_relax:.8g};"
-        + """
-        "(k|omega)"     """
-        + f"{kw_relax:.8g};"
-        + """
-    }
-}
+    {{
+        U               {u_relax:.8g};
+        "({turb_fields})"     {kw_relax:.8g};
+    }}
+}}
 """
     )
 
@@ -240,13 +279,21 @@ RAS
 
 
 # --- transient (pimpleFoam) dictionaries --------------------------------------
-def transient_fvschemes() -> str:
-    """Transient laminar schemes — first-order Euler in time, second-order space.
+def transient_fvschemes(*, turbulence_model: str = "laminar") -> str:
+    """Transient schemes — first-order Euler in time, second-order space.
 
     Shared by the transient/moving cases (cylinder, plunging airfoil). Euler is the
     robust default for the low-Re unsteady cases; the div/laplacian schemes match the
-    Stage-10 cylinder path so the static cylinder renders identically.
+    Stage-10 cylinder path so the static cylinder renders identically. With a non-laminar
+    ``turbulence_model`` the RAS transport div schemes are added (``k``/``omega``, plus
+    ``gammaInt``/``ReThetat`` for ``kOmegaSSTLM``) — required because ``divSchemes`` uses
+    ``default none``. ``laminar`` (the default) is byte-identical to the Stage-10 cylinder.
     """
+    turb_div = ""
+    if turbulence_model != "laminar":
+        turb_div = "    div(phi,k)      Gauss upwind;\n    div(phi,omega)  Gauss upwind;\n"
+        if turbulence_model == "kOmegaSSTLM":
+            turb_div += "    div(phi,gammaInt) Gauss upwind;\n    div(phi,ReThetat) Gauss upwind;\n"
     return (
         header("dictionary", "fvSchemes")
         + """
@@ -256,7 +303,9 @@ divSchemes
 {
     default         none;
     div(phi,U)      Gauss linearUpwind grad(U);
-    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+"""
+        + turb_div
+        + """    div((nuEff*dev2(T(grad(U))))) Gauss linear;
 }
 laplacianSchemes  { default Gauss linear corrected; }
 interpolationSchemes { default linear; }
@@ -265,19 +314,36 @@ snGradSchemes   { default corrected; }
     )
 
 
-def transient_fvsolution(*, cell_displacement: bool = False) -> str:
+def transient_fvsolution(
+    *, cell_displacement: bool = False, turbulence_model: str = "laminar"
+) -> str:
     """PIMPLE controls for a transient solve, optionally with a mesh-motion solver.
 
     With ``cell_displacement=True`` the moving-mesh solvers are added: a ``"pcorr.*"``
     flux-correction solver (for ``correctPhi``, which makes the face fluxes consistent with
     the mesh motion — pimpleFoam aborts without it) and a ``cellDisplacement`` solver for the
-    ``displacementLaplacian`` mesh-motion equation, plus ``correctPhi yes`` in PIMPLE. With
-    the default ``False`` the rendered dictionary is byte-identical to the Stage-10 static
-    cylinder's ``fvSolution`` (no regression to the transient-cylinder GO).
+    ``displacementLaplacian`` mesh-motion equation, plus ``correctPhi yes`` in PIMPLE. With a
+    non-laminar ``turbulence_model`` a ``smoothSolver`` block for the RAS transport fields
+    (``k``/``omega`` and, for ``kOmegaSSTLM``, ``gammaInt``/``ReThetat``) + their ``Final``
+    variants is added. With ``cell_displacement=False`` and ``turbulence_model="laminar"`` the
+    rendered dictionary is byte-identical to the Stage-10 static cylinder's ``fvSolution``.
     """
     pcorr_block = ""
     cd_block = ""
     correct_phi = ""
+    turb_block = ""
+    if turbulence_model != "laminar":
+        turb_fields = (
+            "k|omega|gammaInt|ReThetat" if turbulence_model == "kOmegaSSTLM" else "k|omega"
+        )
+        turb_block = f"""    "({turb_fields})(|Final)"
+    {{
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-8;
+        relTol          0;
+    }}
+"""
     if cell_displacement:
         pcorr_block = """    "pcorr.*"
     {
@@ -320,7 +386,7 @@ solvers
         tolerance       1e-8;
         relTol          0;
     }}
-{cd_block}}}
+{turb_block}{cd_block}}}
 
 PIMPLE
 {{

@@ -236,7 +236,9 @@ class JaxFluidsSolver(Solver):
         )
 
     # --- wall_distribution seam -----------------------------------------------
-    def wall_distribution(self, result: ResultHandle, *, patch: str) -> WallDistribution:
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str, u_inf: float = 1.0
+    ) -> WallDistribution:
         raise NotImplementedError(
             f"JAX-Fluids case {result.case_dir.spec.name!r} has no airfoil wall "
             f"to sample at patch={patch!r}. Shock-tube + periodic cases have no "

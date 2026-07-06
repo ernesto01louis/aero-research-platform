@@ -1,0 +1,33 @@
+{
+  "case_name": "plunging_airfoil_hg2007_st03_lm",
+  "quantities": [
+    {
+      "name": "thrust_coefficient",
+      "value": 0.3653642814652026,
+      "units": "",
+      "kind": "time_averaged",
+      "u95_numerical": 0.0,
+      "u95_statistical": 0.0038094738041997223,
+      "u95_input": 0.05480464221978039,
+      "u95_total": 0.05493688105001065
+    }
+  ],
+  "provenance": {
+    "git_sha": "92d1825fce0ac7565ad1ec2945a766076ecd7012-dirty",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "config_hash": "3f47a7a79cd37a7952d196591c979a150db6e4d72e3f277984b48890a6f744b6"
+  },
+  "anchors": [
+    {
+      "reference": "Heathcote & Gursul 2007 (AIAA J 45(5):1066-1079), rigid-foil mean thrust",
+      "citation": "Heathcote & Gursul 2007 (AIAA J 45(5):1066-1079), rigid-foil mean thrust",
+      "tolerance": 0.15,
+      "observed_error": 0.6607467339327391,
+      "passed": false
+    }
+  ],
+  "improvement": null,
+  "optimization": null,
+  "validation_tag": "validated"
+}

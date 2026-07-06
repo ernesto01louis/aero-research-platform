@@ -51,6 +51,7 @@ from aero.adapters.openfoam.plunging_airfoil import (
     write_plunging_airfoil_case,
 )
 from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
+from aero.adapters.openfoam.t3a import T3ASpec, write_t3a_case
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
 from aero.orchestration._base import Executor
@@ -101,6 +102,8 @@ class OpenFOAMSolver(Solver):
             write_cylinder_case(case, host_path)
         elif isinstance(case, PlungingAirfoilSpec):
             write_plunging_airfoil_case(case, host_path)
+        elif isinstance(case, T3ASpec):
+            write_t3a_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -410,13 +413,17 @@ class OpenFOAMSolver(Solver):
             source=str(coeff_file),
         )
 
-    def wall_distribution(self, result: ResultHandle, *, patch: str = "wall") -> WallDistribution:
+    def wall_distribution(
+        self, result: ResultHandle, *, patch: str = "wall", u_inf: float = U_INF
+    ) -> WallDistribution:
         """Extract the Cf/Cp distribution along wall `patch` from a finished solve.
 
         Delegates to the OpenFOAM-specific `extract_wall_distributions` parser,
-        which reads the `surfaces` function-object `raw` output.
+        which reads the `surfaces` function-object `raw` output. `u_inf` is the
+        reference speed for the Cp/Cf non-dimensionalisation (default 1.0, the
+        platform convention); the dimensional T3A case passes its 5.4 m/s.
         """
-        return extract_wall_distributions(result.output_host_path, patch=patch)
+        return extract_wall_distributions(result.output_host_path, patch=patch, u_inf=u_inf)
 
 
 def _coefficient_file(post_processing: Path) -> Path:

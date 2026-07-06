@@ -422,6 +422,7 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
     te_omega = (
         f"        type omegaWallFunction;\n        value uniform {omega:.8g};" if blunt else None
     )
+    te_zg = "        type zeroGradient;" if blunt else None  # gammaInt/ReThetat base patch
     fields = {
         "U": _field(
             "U",
@@ -474,6 +475,29 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
         f"        type omegaWallFunction;\n        value uniform {omega:.8g};",
         te_base=te_omega,
     )
+    # gamma-Re_theta (kOmegaSSTLM) transition transport: intermittency + transition-onset Re_theta_t.
+    # Both dimensionless; wall zeroGradient; freestream inletOutlet (intermittency 1 in the
+    # free stream, Re_theta_t from the Langtry-Menter correlation on the freestream Tu).
+    if spec.turbulence_model == "kOmegaSSTLM":
+        re_theta_t = st["re_theta_t"]
+        fields["gammaInt"] = _field(
+            "gammaInt",
+            "volScalarField",
+            "[0 0 0 0 0 0 0]",
+            "1",
+            "        type inletOutlet;\n        inletValue uniform 1;\n        value uniform 1;",
+            "        type zeroGradient;",
+            te_base=te_zg,
+        )
+        fields["ReThetat"] = _field(
+            "ReThetat",
+            "volScalarField",
+            "[0 0 0 0 0 0 0]",
+            f"{re_theta_t:.8g}",
+            f"        type inletOutlet;\n        inletValue uniform {re_theta_t:.8g};\n        value uniform {re_theta_t:.8g};",
+            "        type zeroGradient;",
+            te_base=te_zg,
+        )
     return fields
 
 
@@ -497,14 +521,16 @@ def write_case(spec: CaseSpec, dest: Path) -> None:
     # SIMPLE stability. Neither changes the converged solution — only the path
     # to it. (The default-relaxation blunt solve diverged; Stage-10.)
     blunt = spec.trailing_edge_thickness > 0.0
+    transition = spec.turbulence_model == "kOmegaSSTLM"
     (system / "blockMeshDict").write_text(_blockmeshdict(spec), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
-    (system / "fvSchemes").write_text(fvschemes(), encoding="utf-8")
+    (system / "fvSchemes").write_text(fvschemes(transition=transition), encoding="utf-8")
     (system / "fvSolution").write_text(
         fvsolution(
             pressure_solver="PCG" if blunt else "GAMG",
             u_relax=0.7 if blunt else 0.9,
             kw_relax=0.5 if blunt else 0.7,
+            transition=transition,
         ),
         encoding="utf-8",
     )
