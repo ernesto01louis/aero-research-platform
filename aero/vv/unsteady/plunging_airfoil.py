@@ -38,6 +38,27 @@ from aero.vv._base import (
 
 _STROUHAL = 0.4  # anchor St = 2 f h0 / U (strong net thrust; the rigid-foil transition St)
 _AMP_RATIO = 0.175  # h0 / c (Heathcote-Gursul)
+_U_INF = 1.0  # dimensionless freestream (Re fixes nu)
+
+
+def _variant_name(strouhal: float, turbulence_model: str) -> str:
+    """Registry key for a plunging variant. St=0.4 laminar keeps the historical base name."""
+    if strouhal == _STROUHAL and turbulence_model == "laminar":
+        return "plunging_airfoil_hg2007"
+    suffix = f"_st{round(strouhal * 10):02d}"
+    if turbulence_model == "kOmegaSSTLM":
+        suffix += "_lm"
+    return "plunging_airfoil_hg2007" + suffix
+
+
+def _spec_strouhal(spec: PlungingAirfoilSpec) -> float:
+    """Recover St = 2 f h0 / U from a spec's motion (h0 = amplitude, U = _U_INF)."""
+    return 2.0 * spec.motion.frequency * spec.motion.amplitude / _U_INF
+
+
+def _end_time_for_strouhal(strouhal: float) -> float:
+    """~22 plunge periods (T = 2 h0 / St convective times) — settle + a >=8-cycle tail."""
+    return 8.0 / strouhal
 
 
 class PlungingAirfoilHG2007:
@@ -50,28 +71,41 @@ class PlungingAirfoilHG2007:
     )
     sweep_metric = "thrust_coefficient"
 
-    def __init__(self, spec: PlungingAirfoilSpec | None = None) -> None:
+    def __init__(
+        self,
+        spec: PlungingAirfoilSpec | None = None,
+        *,
+        strouhal: float = _STROUHAL,
+        turbulence_model: str = "laminar",
+    ) -> None:
+        self._strouhal = strouhal if spec is None else _spec_strouhal(spec)
+        tm = turbulence_model if spec is None else spec.turbulence_model
+        # Base case (St=0.4, laminar) keeps the historical name; re-anchored / transition
+        # variants get a distinct registry key so their run dirs + provenance don't collide.
+        self.name = _variant_name(self._strouhal, tm)
         if spec is None:
-            f = heave_frequency_for_strouhal(strouhal=_STROUHAL, amplitude=_AMP_RATIO)
+            f = heave_frequency_for_strouhal(strouhal=strouhal, amplitude=_AMP_RATIO)
+            transition = turbulence_model == "kOmegaSSTLM"
             spec = PlungingAirfoilSpec(
                 name=self.name,
                 reynolds=1.0e4,
                 motion=MotionSpec(amplitude=_AMP_RATIO, frequency=f),
-                # Cost-tuned for a tractable single-grid campaign. The thrust is
-                # pressure/vortex-dominated (added-mass + circulatory + LEV), NOT
-                # skin-friction, so a first cell of 2e-3 c (~4-5 cells in the Re=1e4 laminar
-                # BL, delta ~ c/sqrt(Re) ~ 0.01c) is adequate; the limit cycle is reached in
-                # ~10-15 plunge periods so ~18 periods (end_time 18) leaves a converged tail;
-                # maxCo=1.0 (2 outer + 2 inner PIMPLE correctors) keeps the moving-wall
-                # timestep affordable. A finer-grid / GCI confirmation is a Stage-12 follow-up.
-                first_cell_height=2.0e-3,
-                n_surface=90,
-                n_normal=70,
+                turbulence_model=turbulence_model,  # type: ignore[arg-type]
+                # Wall-resolved first cell (y+<1 at Re=1e4: y+ ~ 0.35) so the SAME mesh serves
+                # the laminar re-anchor AND the kOmegaSSTLM probe — a clean paired comparison
+                # where only the turbulence model differs. The Stage-11 base (St=0.4) used a
+                # coarser 2e-3 laminar cell; the re-anchor uses 5e-4 for transition-readiness.
+                first_cell_height=5.0e-4 if strouhal != _STROUHAL else 2.0e-3,
+                n_surface=100 if strouhal != _STROUHAL else 90,
+                n_normal=80 if strouhal != _STROUHAL else 70,
                 n_front=48,
                 n_wake=72,
-                end_time_convective=18.0,
+                # ~22 plunge periods: settle (~8-10) + a converged tail >= 8 cycles for
+                # batch-means. Period T = 2*h0/St convective times, so scale end time with 1/St.
+                end_time_convective=_end_time_for_strouhal(strouhal),
                 write_interval_convective=0.02,
                 max_courant=1.0,
+                turbulence_intensity=0.01 if transition else 0.001,
             )
         self._spec = spec
 
@@ -87,7 +121,7 @@ class PlungingAirfoilHG2007:
             / "plunging_airfoil_hg2007"
             / "thrust.csv",
             key_col="strouhal",
-            key=_STROUHAL,
+            key=self._strouhal,
             value_col="thrust_coefficient",
         )
         return ReferenceData(
@@ -127,3 +161,16 @@ class PlungingAirfoilHG2007:
                 }
             )
         )
+
+    def refined_dt(self, ratio: float) -> PlungingAirfoilHG2007:
+        """A copy with a COARSER timestep (``max_courant`` scaled by ``ratio``), fixed mesh.
+
+        The temporal analogue of :meth:`refined` for a combined space+time GCI (the Stage-12
+        cylinder pattern): the moving-mesh timestep is Courant-driven (``max_courant``), which
+        :meth:`refined` cannot touch. ``ratio == 1.0`` is the base (finest) dt; ``ratio > 1``
+        coarsens (a larger Courant cap -> larger dt).
+        """
+        if ratio <= 0.0:
+            raise ValueError(f"refined_dt ratio must be > 0, got {ratio}")
+        s = self._spec
+        return PlungingAirfoilHG2007(s.model_copy(update={"max_courant": s.max_courant * ratio}))

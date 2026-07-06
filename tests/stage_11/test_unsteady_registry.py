@@ -17,7 +17,9 @@ pytestmark = pytest.mark.stage_11
 
 
 def test_both_cases_registered() -> None:
-    assert set(UNSTEADY_CASES) == {"oscillating_cylinder_lockin", "plunging_airfoil_hg2007"}
+    # The Stage-11 base cases register (Stage 13 additively adds re-anchored plunging
+    # variants — plunging_airfoil_hg2007_st0{2,3}[_lm] — so this is a subset check).
+    assert {"oscillating_cylinder_lockin", "plunging_airfoil_hg2007"} <= set(UNSTEADY_CASES)
 
 
 def test_lockin_spec_forces_above_natural() -> None:
