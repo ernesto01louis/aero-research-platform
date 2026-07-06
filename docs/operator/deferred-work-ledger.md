@@ -46,6 +46,13 @@ at the Stage-13 start (10 required contexts):
 - [x] **`data-origin-fence — Invariant 11`** (NO-SURROGATE-ON-FOREIGN-DATA) — required,
   `ubuntu-latest`.
 
+**Fixed Stage 13:** `data-origin-fence` was **path-filtered** to `aero/surrogates/**`, so as a
+*required* check it left its context unreported on any PR not touching surrogate paths — blocking
+the merge indefinitely (hit on the Stage-13 PR, the first non-surrogate PR after Invariant 11
+became required). Removed the path filter so the fast pure-host fence runs on every PR (matching
+the un-filtered `small-signal-gate`). A required constitutional invariant should verify on every
+change regardless.
+
 ## 1. Phase 2 — build host / CPU cluster (aero-build, aero-vv; NO GPU/NAS)
 
 Critical path: SIF builds unblock Phase 3.
