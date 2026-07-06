@@ -10,6 +10,11 @@ name: small-signal-gate
 # (aero/vv/reportable_compose.py) on a committed converged-cycle fixture, so a
 # regression that zeroed the statistical term turns the check red.
 #
+# Since review finding F1 (ADR-023) the gate also asserts that u95_delta is COMPUTED,
+# never trusted: the paired-difference estimator (aero/vv/paired_difference.py) measures
+# the matched-condition cancellation on a committed paired fixture, and a hand-entered
+# u95_delta is structurally refused a thesis-grade tag.
+#
 # Pure-host (numpy + pydantic + pytest), so it runs on ubuntu-latest and can be a
 # required status check with no self-hosted-runner dependency. Promote to required
 # via branch protection.
@@ -43,9 +48,10 @@ jobs:
           version: ">=0.5"
       - name: Install package + dev extras
         run: uv pip install --system -e ".[dev]"
-      - name: Enforce Invariant 10 (u95_statistical present + small-signal)
+      - name: Enforce Invariant 10 (u95_statistical present + small-signal + computed u95_delta)
         run: >-
           pytest -v
           tests/vv/test_statistical_uncertainty.py
+          tests/vv/test_paired_difference.py
           tests/vv/test_reportable_compose.py
           tests/stage_12/test_small_signal_gate.py
