@@ -91,21 +91,24 @@ class PlungingAirfoilHG2007:
                 reynolds=1.0e4,
                 motion=MotionSpec(amplitude=_AMP_RATIO, frequency=f),
                 turbulence_model=turbulence_model,  # type: ignore[arg-type]
-                # Mesh keyed on the model, not St: the LAMINAR re-anchor reuses the
-                # Stage-11-proven moving-mesh resolution (2e-3 first cell, n=90/70) that runs
-                # stably; the kOmegaSSTLM probe needs a wall-resolved mesh (y+<1 -> 5e-4) and a
-                # gentler Courant cap for a stable moving-mesh startup. (The finer mesh under the
-                # impulsive heave start diverged the pressure solve — SIGFPE — at maxCo=1.0.)
-                first_cell_height=5.0e-4 if transition else 2.0e-3,
-                n_surface=100 if transition else 90,
-                n_normal=80 if transition else 70,
+                # Laminar AND kOmegaSSTLM share the Stage-11-proven moving-mesh resolution
+                # (2e-3 first cell, n=90/70, maxCo=1.0) — a clean paired comparison where ONLY
+                # the turbulence model differs. This costs the transition probe some wall
+                # resolution (y+ ~ 1.4 vs the textbook y+<1), which the kOmegaSSTLM wall
+                # functions (omegaWallFunction/nutkWallFunction) tolerate; documented as a
+                # qualitative probe, not a wall-resolved transition study. (A finer 5e-4 mesh
+                # both diverged the moving-mesh startup — SIGFPE — and drove dt ~ 1e-4, making
+                # the run serially infeasible at ~60 h.)
+                first_cell_height=2.0e-3,
+                n_surface=90,
+                n_normal=70,
                 n_front=48,
                 n_wake=72,
                 # ~22 plunge periods: settle (~8-10) + a converged tail >= 8 cycles for
                 # batch-means. Period T = 2*h0/St convective times, so scale end time with 1/St.
                 end_time_convective=_end_time_for_strouhal(strouhal),
                 write_interval_convective=0.02,
-                max_courant=0.6 if transition else 1.0,
+                max_courant=1.0,
                 turbulence_intensity=0.01 if transition else 0.001,
             )
         self._spec = spec
