@@ -18,13 +18,23 @@ U95 for a non-steady quantity, and a passing experiment anchor. Any shortfall do
 validation (e.g. an over-predicting case) is refused a publication tag — the "STOP" for
 CONSTITUTION Invariant 10 lives here, not as a hard crash in the estimator.
 
+:func:`compose_improvement` (review F1; ADR-023) is the delta-side sibling: it assembles a
+:class:`~aero.vv.reportable.ComposedDeltaU95` from the paired-difference measurement
+(:mod:`aero.vv.paired_difference`) plus the caller's GCI-on-the-delta, and constructs the
+:class:`~aero.vv.reportable.ImprovementClaim` — whose validators refuse an insignificant delta
+(``SmallSignalError``) at construction. The RSS itself lives in the schema's computed field.
+
 Strict pydantic all the way down; stdlib + numpy + pydantic only.
 """
 
 from __future__ import annotations
 
 from aero.provenance.four_fold import ProvenanceTuple
+from aero.vv.paired_difference import PairedDeltaUncertainty
 from aero.vv.reportable import (
+    DEFAULT_K,
+    ComposedDeltaU95,
+    ImprovementClaim,
     QuantityKind,
     ReportableQuantity,
     ReportableResult,
@@ -102,4 +112,94 @@ def compose_reportable(
         provenance=provenance,
         anchors=anchors,
         validation_tag=tag,
+    )
+
+
+def compose_improvement(
+    *,
+    quantity: str,
+    kind: QuantityKind,
+    higher_is_better: bool,
+    u95_delta_numerical: float,
+    paired: PairedDeltaUncertainty | None = None,
+    baseline: float | None = None,
+    improved: float | None = None,
+    u95_delta_input_frac: float = 0.0,
+    k: float = DEFAULT_K,
+    matched_conditions: bool = True,
+) -> ImprovementClaim:
+    """Assemble a composed :class:`ImprovementClaim` with its measured, RSS-combined ``u95_delta``.
+
+    The delta-side sibling of :func:`compose_reportable` (review F1; ADR-023), with the same
+    seam: ``u95_delta_numerical`` arrives ABSOLUTE (the caller forms the GCI-on-the-delta /
+    matched-grid-Richardson bound — this module stays free of runner imports); the statistical
+    term arrives as the typed paired-difference measurement; the input term arrives as a
+    fraction.
+
+    * **Non-steady** (``time_averaged`` / ``phase_averaged``): ``paired`` is REQUIRED and
+      ``baseline`` / ``improved`` are taken **from** the paired-window means — passing them
+      explicitly raises, so the claimed values and the measured uncertainty cannot come from
+      different windows.
+    * **Steady:** no per-cycle series exists, so ``paired`` must be omitted; ``baseline`` /
+      ``improved`` are required and ``u95_delta_numerical`` must be positive (a steady delta's
+      only measured term is the paired-numerical one).
+
+    ``u95_delta_input_frac`` is a fraction of ``|baseline|`` — NOT of the delta (that would
+    shrink the bar exactly as the claim shrinks — anti-conservative and circular). For a
+    matched pair the common-mode input error largely cancels: pass only the defensible
+    *residual* sensitivity-difference fraction, not the absolute-quantity input fraction used
+    for single-value results.
+
+    The RSS composition lives in :class:`ComposedDeltaU95.u95_delta` (a computed field — no
+    free total to mistype); ``SmallSignalError`` fires inside :class:`ImprovementClaim`'s own
+    validator if the delta does not clear ``k * u95_delta`` — constructing a claim IS the claim.
+    """
+    if kind == "steady":
+        if paired is not None:
+            raise ValueError(
+                "compose_improvement: a steady claim has no per-cycle series — omit `paired` "
+                "(or fix `kind` if the quantity is a time/phase-average)."
+            )
+        if baseline is None or improved is None:
+            raise ValueError(
+                "compose_improvement: a steady claim requires explicit `baseline` and "
+                "`improved` values (there is no paired window to take them from)."
+            )
+        if u95_delta_numerical <= 0.0:
+            raise ValueError(
+                "compose_improvement: a steady claim's only measured term is the paired-"
+                "numerical one — u95_delta_numerical must be positive (GCI on the delta / "
+                "matched-grid Richardson)."
+            )
+        baseline_value, improved_value = baseline, improved
+    else:
+        if paired is None:
+            raise ValueError(
+                f"compose_improvement: a {kind} claim requires the paired-difference "
+                "measurement (aero.vv.paired_difference.paired_delta_uncertainty) — the "
+                "statistical term of an unsteady delta is measured, never asserted "
+                "(Invariant 10, ADR-023)."
+            )
+        if baseline is not None or improved is not None:
+            raise ValueError(
+                "compose_improvement: for a non-steady claim, `baseline`/`improved` are taken "
+                "FROM the paired-window means — do not pass them explicitly (the value and its "
+                "uncertainty must come from the SAME window)."
+            )
+        baseline_value, improved_value = paired.mean_baseline, paired.mean_candidate
+
+    delta_uncertainty = ComposedDeltaU95(
+        u95_numerical=u95_delta_numerical,
+        paired=paired,
+        u95_input=abs(u95_delta_input_frac) * abs(baseline_value),
+    )
+    return ImprovementClaim(
+        quantity=quantity,
+        kind=kind,
+        baseline=baseline_value,
+        improved=improved_value,
+        higher_is_better=higher_is_better,
+        delta_uncertainty=delta_uncertainty,
+        k=k,
+        matched_conditions=matched_conditions,
     )

@@ -17,6 +17,12 @@ only if its CFD-verified delta exceeds ``k * U95`` (default ``k = 2``) — the
 **IMPROVEMENT-EXCEEDS-UNCERTAINTY** invariant. For a delta, baseline and candidate are
 evaluated at matched numerics/mesh-topology so correlated errors cancel; the delta's U95
 is then below the RSS of the two absolute U95s (paired-comparison / common-random-numbers).
+Since the 2026-07 review (finding F1; ADR-023) that cancellation is **measured, not
+assumed**: the delta's U95 is carried by a :class:`DeltaU95` discriminated union, and only
+the :class:`ComposedDeltaU95` arm — built from the paired-difference estimator
+(:mod:`aero.vv.paired_difference`) plus a caller-supplied GCI-on-the-delta — can reach
+``thesis-grade``. A :class:`HandEnteredDeltaU95` stays constructible for exploratory tiers
+but is structurally refused a publication tag.
 **CFD-VERIFIED-OPTIMUM-ONLY** (Hard Rule 14): an :class:`OptimizationResult` carries the
 four-tuple of the ground-truth-CFD run that verified the reported optimum, and best-of-N
 reporting records the pool size and requires held-out verification.
@@ -24,22 +30,23 @@ reporting records the pool size and requires held-out verification.
 Stage 10 ships this schema (the contract + the validators). Stage 12 wires the full U95
 composition (the batch-means statistical term) and the required ``small-signal-gate`` CI
 job; Stage 15 exercises :class:`OptimizationResult` in the first CFD-in-the-loop
-optimization. See ADR-013 / ADR-015, CONSTITUTION Invariants 10 (and CLAUDE.md Hard Rules
-12 + 14), ``docs/vv/output-validity-bar.md``, and
+optimization. See ADR-013 / ADR-015 / ADR-023, CONSTITUTION Invariant 10 (and CLAUDE.md
+Hard Rules 12 + 14), ``docs/vv/output-validity-bar.md``, and
 ``.claude/rules/optimization-integrity.md``.
 
 Strict pydantic, frozen, ``extra="forbid"``. PLATFORM-NOT-HUB: stdlib + numpy + pydantic
-only (imports only the core ``ProvenanceTuple``).
+only (imports the core ``ProvenanceTuple`` and the paired-difference estimator's model).
 """
 
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from aero.provenance.four_fold import ProvenanceTuple
+from aero.vv.paired_difference import PairedDeltaUncertainty
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -146,6 +153,80 @@ class ReportableQuantity(BaseModel):
         return math.sqrt(self.u95_numerical**2 + self.u95_statistical**2 + self.u95_input**2)
 
 
+class HandEnteredDeltaU95(BaseModel):
+    """A caller-asserted delta U95 — constructible, but NEVER thesis-grade (review F1).
+
+    Kept for exploratory / ``smoke`` / ``validated``-tier claims where a defensible bound is
+    known but not machine-measured. The thesis-grade gate on :class:`ReportableResult`
+    structurally refuses it: a publication claim's delta uncertainty must be *composed* from
+    the paired-difference measurement (:class:`ComposedDeltaU95`; ADR-023).
+    """
+
+    model_config = _STRICT
+
+    source: Literal["hand-entered"] = "hand-entered"
+    u95_delta: float = Field(
+        ...,
+        gt=0.0,
+        description="Asserted combined U95 of the DELTA. Strictly positive — a "
+        "zero-uncertainty delta would trivially clear any margin.",
+    )
+
+
+class ComposedDeltaU95(BaseModel):
+    """A measured delta U95: ``RSS(paired numerical, paired statistical, input)`` (ADR-023).
+
+    All terms are ABSOLUTE, in the delta's own units. ``u95_numerical`` is the paired
+    discretization term (GCI on the delta / matched-grid Richardson — caller-supplied, same
+    seam as :func:`aero.vv.reportable_compose.compose_reportable`); ``paired`` carries the
+    paired-difference measurement of the statistical term (REQUIRED for non-steady claims —
+    enforced by :class:`ImprovementClaim`); ``u95_input`` is the residual parametric term.
+    The RSS lives here as a computed field, so any composed claim combines correctly by
+    construction — there is no free total to mistype.
+    """
+
+    model_config = _STRICT
+
+    source: Literal["composed"] = "composed"
+    u95_numerical: float = Field(
+        ...,
+        ge=0.0,
+        description="Paired discretization U95 of the delta, ABSOLUTE (GCI on the delta / "
+        "matched-grid Richardson). Matched conditions reduce, never zero, this term.",
+    )
+    paired: PairedDeltaUncertainty | None = Field(
+        default=None,
+        description="The paired-difference measurement (statistical term + audit trail). "
+        "Required for non-steady claims; forbidden for steady ones (no per-cycle series).",
+    )
+    u95_input: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Residual parametric (input) U95 of the delta, ABSOLUTE.",
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def u95_delta(self) -> float:
+        """Combined delta U95: RSS of the paired numerical, paired statistical, input terms."""
+        stat = self.paired.u95_delta_statistical if self.paired is not None else 0.0
+        return math.sqrt(self.u95_numerical**2 + stat**2 + self.u95_input**2)
+
+    @model_validator(mode="after")
+    def _some_contribution(self) -> ComposedDeltaU95:
+        if self.u95_delta <= 0.0:
+            raise ValueError(
+                "a composed delta U95 must have at least one positive contribution — a "
+                "zero-uncertainty delta would trivially clear any margin."
+            )
+        return self
+
+
+# Discriminated union: WHERE a claim's u95_delta comes from is part of the claim itself.
+# Mirrors the platform's typed-union precedent (SolveResult.history, Sample/TaintedSample).
+DeltaU95 = Annotated[HandEnteredDeltaU95 | ComposedDeltaU95, Field(discriminator="source")]
+
+
 class ImprovementClaim(BaseModel):
     """A claimed improvement (delta) that clears ``k * U95`` by construction.
 
@@ -155,8 +236,11 @@ class ImprovementClaim(BaseModel):
     To record a measured-but-insignificant delta, report the two values as plain
     :class:`ReportableQuantity` objects instead — that is not a claim.
 
-    ``u95_delta`` is the combined U95 of the *delta*, which for a matched-condition
-    comparison is below the RSS of the two absolute U95s (correlated errors cancel).
+    ``delta_uncertainty`` states WHERE the delta's U95 comes from (review F1; ADR-023): a
+    :class:`ComposedDeltaU95` measured via the paired-difference estimator, or a
+    :class:`HandEnteredDeltaU95` (never thesis-grade). ``kind`` states what kind of delta
+    this is — REQUIRED with no default, because a defaulted "steady" would let an unsteady
+    delta silently skip the paired-measurement requirement (the F1 hole in new clothing).
     """
 
     model_config = _STRICT
@@ -164,14 +248,18 @@ class ImprovementClaim(BaseModel):
     quantity: str = Field(
         ..., min_length=1, description="Quantity improved, e.g. 'propulsive_efficiency'."
     )
+    kind: QuantityKind = Field(
+        ...,
+        description="Steady value or a time-/phase-average. Non-steady composed claims must "
+        "carry the paired-difference measurement (no default — state what you claim).",
+    )
     baseline: float = Field(..., description="Baseline value.")
     improved: float = Field(..., description="Improved (candidate) value.")
     higher_is_better: bool = Field(..., description="Direction of improvement for this quantity.")
-    u95_delta: float = Field(
+    delta_uncertainty: DeltaU95 = Field(
         ...,
-        gt=0.0,
-        description="Combined U95 of the DELTA (matched-condition; correlated errors cancelled). "
-        "Strictly positive — a zero-uncertainty delta would trivially clear any margin.",
+        description="The delta's U95 and its provenance (composed = measured; hand-entered = "
+        "asserted, never thesis-grade).",
     )
     k: float = Field(default=DEFAULT_K, ge=1.0, description="Safety margin; never < 1. Default 2.")
     matched_conditions: bool = Field(
@@ -189,9 +277,45 @@ class ImprovementClaim(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def u95_delta(self) -> float:
+        """Combined U95 of the DELTA (delegates to ``delta_uncertainty`` — key unchanged)."""
+        return self.delta_uncertainty.u95_delta
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def required_margin(self) -> float:
         """The bar the delta must exceed: ``k * u95_delta``."""
         return self.k * self.u95_delta
+
+    @model_validator(mode="after")
+    def _delta_uncertainty_consistent(self) -> ImprovementClaim:
+        du = self.delta_uncertainty
+        if isinstance(du, ComposedDeltaU95):
+            if self.kind != "steady" and du.paired is None:
+                raise ValueError(
+                    f"a composed {self.kind} claim requires the paired-difference measurement "
+                    "(ComposedDeltaU95.paired): the statistical term of an unsteady delta must "
+                    "be MEASURED on the difference series, not asserted (Invariant 10, ADR-023)."
+                )
+            if self.kind == "steady" and du.paired is not None:
+                raise ValueError(
+                    "a steady claim has no per-cycle series; supplying a paired-difference "
+                    "measurement is a category error — check the claim's `kind`."
+                )
+            if du.paired is not None:
+                scale = max(abs(self.baseline), abs(self.improved))
+                tol = max(1.0e-9 * scale, 1.0e-12)
+                if (
+                    abs(self.baseline - du.paired.mean_baseline) > tol
+                    or abs(self.improved - du.paired.mean_candidate) > tol
+                ):
+                    raise ValueError(
+                        f"claimed values (baseline={self.baseline}, improved={self.improved}) "
+                        f"disagree with the paired-window means ({du.paired.mean_baseline}, "
+                        f"{du.paired.mean_candidate}): the uncertainty and the value must come "
+                        "from the SAME window."
+                    )
+        return self
 
     @model_validator(mode="after")
     def _significant_and_matched(self) -> ImprovementClaim:
@@ -337,4 +461,35 @@ class ReportableResult(BaseModel):
                 "thesis-grade requires a passing validation anchor (VALIDATE-AGAINST-EXPERIMENT) "
                 "or a CFD-verified optimization outcome."
             )
+        # Review F1 / ADR-023: a thesis-grade claim's delta uncertainty must be COMPOSED from
+        # the paired-difference measurement — a hand-entered u95_delta is not publication
+        # evidence. Applies to a top-level claim and to one riding inside an OptimizationResult.
+        claim = self.improvement
+        if claim is None and self.optimization is not None:
+            claim = self.optimization.improvement
+        if claim is not None:
+            du = claim.delta_uncertainty
+            if not isinstance(du, ComposedDeltaU95):
+                raise ValueError(
+                    "thesis-grade requires a COMPOSED delta uncertainty (paired-difference "
+                    "measured + GCI-on-the-delta); a hand-entered u95_delta is not publication "
+                    "evidence (CONSTITUTION Invariant 10, review F1, ADR-023)."
+                )
+            if du.u95_numerical <= 0.0:
+                raise ValueError(
+                    "thesis-grade improvement requires a positive paired-numerical U95 (GCI on "
+                    "the delta / matched-grid Richardson): matched conditions reduce, never "
+                    "zero, the discretization error."
+                )
+            if claim.kind != "steady":
+                if du.paired is None:  # unreachable (claim validator) — fail-loud, not assert
+                    raise ValueError(
+                        f"composed {claim.kind} claim is missing its paired-difference measurement."
+                    )
+                if not du.paired.diff_stat.reliable:
+                    raise ValueError(
+                        "thesis-grade improvement requires a RELIABLE difference-series "
+                        "statistical estimate (NOBM/tau_int agreement and N_eff above the "
+                        "floor); extend the paired runs to tighten it."
+                    )
         return self
