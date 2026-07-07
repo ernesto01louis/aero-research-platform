@@ -12,10 +12,6 @@ name: data-origin-fence
 #      unconstructible on any code path (aero/vv/... schema validator).
 #
 # Pure grep + pytest on ubuntu-latest -> required-safe (no self-hosted runner).
-#
-# No path filter: this is a *required* status check, and a path-filtered required check
-# never reports on PRs outside its paths — which blocks their merge forever (first hit by
-# the review-F1 PR, which touches no surrogate code). The job costs ~1 min; run it always.
 
 on:
   # Runs on EVERY pull request (no path filter): as a *required* status check, a
