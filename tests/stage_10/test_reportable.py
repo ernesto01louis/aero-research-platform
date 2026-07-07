@@ -12,6 +12,7 @@ import math
 import pytest
 from aero.provenance.four_fold import ProvenanceTuple
 from aero.vv.reportable import (
+    HandEnteredDeltaU95,
     ImprovementClaim,
     OptimizationResult,
     ReportableQuantity,
@@ -67,13 +68,15 @@ def test_negative_u95_rejected() -> None:
 def test_significant_improvement_constructs() -> None:
     claim = ImprovementClaim(
         quantity="propulsive_efficiency",
+        kind="time_averaged",
         baseline=0.30,
         improved=0.40,
         higher_is_better=True,
-        u95_delta=0.02,  # k*U95 = 0.04 < delta 0.10
+        delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.02),  # k*U95 = 0.04 < delta 0.10
         matched_conditions=True,
     )
     assert claim.delta == pytest.approx(0.10)
+    assert claim.u95_delta == pytest.approx(0.02)
     assert claim.required_margin == pytest.approx(0.04)
 
 
@@ -82,10 +85,11 @@ def test_insignificant_improvement_rejected() -> None:
     with pytest.raises((SmallSignalError, ValidationError)):
         ImprovementClaim(
             quantity="propulsive_efficiency",
+            kind="time_averaged",
             baseline=0.30,
             improved=0.33,
             higher_is_better=True,
-            u95_delta=0.02,
+            delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.02),
             matched_conditions=True,
         )
 
@@ -94,10 +98,11 @@ def test_unmatched_conditions_rejected() -> None:
     with pytest.raises(ValidationError):
         ImprovementClaim(
             quantity="cd",
+            kind="steady",
             baseline=0.0100,
             improved=0.0080,
             higher_is_better=False,  # lower cd is better -> delta = +0.0020
-            u95_delta=0.0001,
+            delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.0001),
             matched_conditions=False,
         )
 
@@ -106,10 +111,11 @@ def test_lower_is_better_direction() -> None:
     # cd reduced 0.0100 -> 0.0080: delta should read as +0.0020 (an improvement)
     claim = ImprovementClaim(
         quantity="cd",
+        kind="steady",
         baseline=0.0100,
         improved=0.0080,
         higher_is_better=False,
-        u95_delta=0.0005,  # k*U95 = 0.0010 < 0.0020
+        delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.0005),  # k*U95 = 0.0010 < 0.0020
         matched_conditions=True,
     )
     assert claim.delta == pytest.approx(0.0020)
@@ -119,11 +125,25 @@ def test_k_below_one_rejected() -> None:
     with pytest.raises(ValidationError):
         ImprovementClaim(
             quantity="cd",
+            kind="steady",
             baseline=0.01,
             improved=0.02,
             higher_is_better=True,
-            u95_delta=0.001,
+            delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.001),
             k=0.5,
+            matched_conditions=True,
+        )
+
+
+def test_kind_is_required_no_default() -> None:
+    # a defaulted kind would let an unsteady delta silently skip the paired requirement
+    with pytest.raises(ValidationError, match="kind"):
+        ImprovementClaim(  # type: ignore[call-arg]
+            quantity="cd",
+            baseline=0.01,
+            improved=0.02,
+            higher_is_better=True,
+            delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.001),
             matched_conditions=True,
         )
 
@@ -134,10 +154,11 @@ def test_k_below_one_rejected() -> None:
 def _claim() -> ImprovementClaim:
     return ImprovementClaim(
         quantity="propulsive_efficiency",
+        kind="time_averaged",
         baseline=0.30,
         improved=0.40,
         higher_is_better=True,
-        u95_delta=0.02,
+        delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.02),
         matched_conditions=True,
     )
 
@@ -300,14 +321,17 @@ def test_steady_quantity_needs_no_statistical_u95() -> None:
 
 
 def test_zero_u95_delta_rejected() -> None:
-    # a zero-uncertainty delta would trivially clear any margin
+    # a zero-uncertainty delta would trivially clear any margin (gt=0 lives on the union arm)
+    with pytest.raises(ValidationError):
+        HandEnteredDeltaU95(u95_delta=0.0)
     with pytest.raises(ValidationError):
         ImprovementClaim(
             quantity="cd",
+            kind="steady",
             baseline=0.0100,
             improved=0.0080,
             higher_is_better=False,
-            u95_delta=0.0,
+            delta_uncertainty=HandEnteredDeltaU95(u95_delta=0.0),
             matched_conditions=True,
         )
 

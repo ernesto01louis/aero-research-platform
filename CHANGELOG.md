@@ -37,6 +37,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 - Pitching-airfoil dynamic stall (McCroskey) + the NACA-0012 transient-mean debt — ledgered
   follow-ups; neither on the GO path.
 
+### Added — paired-difference u95_delta (review finding F1; ADR-023)
+
+- **External review committed** at `docs/review/2026-07-external-review.md` (reviewed at
+  v0.0.12); finding **F1** — `ImprovementClaim.u95_delta` was a free input; Invariant 10's
+  matched-condition cancellation asserted, never measured — remediated in this release.
+- **`aero/vv/paired_difference.py`** — paired-difference estimator: the existing NOBM + tau_int
+  machinery runs on the per-cycle DIFFERENCE series over the common converged window
+  (`[max(converged_from), min(n_cycles))`); the empirical baseline<->candidate correlation and
+  `variance_reduction` vs the independent RSS are recorded — failed cancellation surfaces
+  (>= 1), never hides. Fail-loud: period mismatch, unconverged sides, short windows (< 8 pairs;
+  practical reliability bar ~16-20), self-comparison, diffs dead at signal scale, degenerate
+  batch means.
+- **`DeltaU95 = HandEnteredDeltaU95 | ComposedDeltaU95`** discriminated union replaces the free
+  float on `ImprovementClaim`; the RSS is a computed field; `kind` is required (no default); the
+  thesis-grade gate refuses hand-entered u95_delta / zero paired-numerical / unreliable diff
+  estimates — also through `OptimizationResult.improvement`. **BREAKING:**
+  `ImprovementClaim(u95_delta=...)` removed (all construction sites were test-only; updated).
+- **`compose_improvement()`** alongside `compose_reportable()` (same caller-supplies-absolute-GCI
+  seam; input fraction of |baseline|, anti-circular); known-answer tests (independent -> RSS;
+  correlated -> well below RSS — the Invariant-10 prose, measured; AR(1)-diff ESS) + the F1
+  tripwire on a committed paired fixture in the required `small-signal-gate`.
+- **CI:** `data-origin-fence` now runs on every PR (a path-filtered *required* check never
+  reports outside its paths and permanently blocks those merges).
+- **Constitution:** Invariant 10's Enforcement-paragraph amendment is PR #25 (ADR-023; 72 h
+  window from 2026-07-06T17:50Z — ratification pending).
+
 ## [0.0.12] - 2026-07-05
 
 ### Added — Stage 12 (Verification & UQ Core — the `u95` machinery)

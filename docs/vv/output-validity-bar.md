@@ -51,9 +51,22 @@ U95 = sqrt( u95_numerical**2 + u95_statistical**2 + u95_input**2 )
 No reported effect or claimed improvement is thesis-grade unless its CFD-verified delta
 exceeds `k · U95` (margin `k ≥ 1`, default **k = 2**) — the IMPROVEMENT-EXCEEDS-UNCERTAINTY
 invariant (Hard Rule 12). For an optimization **delta**, the baseline and the candidate are
-evaluated at **matched numerics / mesh-topology** so correlated errors cancel; the delta's
-U95 (`ImprovementClaim.u95_delta`, strictly > 0) is then far below the RSS of the two
-absolute U95s. A delta within its own uncertainty is numerical noise, not a result.
+evaluated at **matched numerics / mesh-topology** so correlated errors cancel. A delta within
+its own uncertainty is numerical noise, not a result.
+
+Since the 2026-07 review (finding F1; ADR-023) the delta's U95 is **measured, not asserted**:
+
+- the **paired-difference estimator** (`aero/vv/paired_difference.py`) runs the existing
+  NOBM + τ_int machinery on the per-cycle **difference series** over the common converged
+  window — the diff's half-width *is* the post-cancellation statistical term;
+- the empirical baseline↔candidate **correlation** and the **`variance_reduction`** ratio
+  against the independent RSS are recorded in the claim, so the cancellation is auditable —
+  a weakly/anti-correlated pair surfaces as `variance_reduction ≥ 1`, never hides;
+- `u95_delta = RSS(paired numerical [GCI on the delta], paired statistical, input)` is a
+  **computed field** of `ComposedDeltaU95` (`compose_improvement()` assembles it);
+- a hand-entered `u95_delta` (`HandEnteredDeltaU95`) stays constructible for exploratory
+  tiers but **structurally cannot reach thesis-grade**; thesis grade additionally requires a
+  positive paired-numerical term and a `reliable` difference-series estimate.
 
 ## 5. CFD-verified optima only, and reproducibility
 
@@ -73,4 +86,5 @@ absolute U95s. A delta within its own uncertainty is numerical noise, not a resu
 | Experiment anchor | `_thesis_grade_gate` requires a passing `ValidationAnchor` or CFD-verified optimization | Stage 10 |
 | `u95_numerical > 0` (all) + `u95_statistical > 0` (non-steady) | `_thesis_grade_gate` | Stage 10 (gate); batch-means compute Stage 12 |
 | `delta > k·U95`, matched-condition | `ImprovementClaim` validator (`SmallSignalError`) | Stage 10 (schema); `small-signal-gate` CI Stage 12 |
+| `u95_delta` computed, never trusted (cancellation measured) | `DeltaU95` union + `paired_difference.py` + thesis-grade gate | Stage 13 (review F1; ADR-023) |
 | CFD-verified optimum + selection-bias guard | `OptimizationResult` validators | Stage 10 (schema); exercised Stage 15 |
