@@ -143,7 +143,15 @@ class ReportableQuantity(BaseModel):
     u95_input: float = Field(
         default=0.0,
         ge=0.0,
-        description="Parametric (input) U95. 0 if no input-UQ was performed.",
+        description="Parametric (input) U95. 0 if input-UQ found it negligible OR was skipped — "
+        "which of those is recorded by u95_input_basis (review P1d).",
+    )
+    u95_input_basis: Literal["measured", "estimated", "skipped"] = Field(
+        default="skipped",
+        description="Provenance of u95_input, so 'performed and ~0' is distinguishable from "
+        "'not performed' (review P1d): 'measured' = propagated from a parametric UQ study; "
+        "'estimated' = a defensible bound (e.g. reference-digitization fraction); 'skipped' = "
+        "no input-UQ performed (requires u95_input == 0).",
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -151,6 +159,19 @@ class ReportableQuantity(BaseModel):
     def u95_total(self) -> float:
         """Combined 95% uncertainty: root-sum-square of the independent contributions."""
         return math.sqrt(self.u95_numerical**2 + self.u95_statistical**2 + self.u95_input**2)
+
+    @model_validator(mode="after")
+    def _input_basis_consistent(self) -> ReportableQuantity:
+        # 'skipped' asserts no input-UQ was performed, so the term must be exactly 0. A
+        # 'measured'/'estimated' basis with u95_input == 0 is legitimate ("performed, found
+        # negligible") — that is precisely the distinction P1d preserves.
+        if self.u95_input_basis == "skipped" and self.u95_input != 0.0:
+            raise ValueError(
+                f"u95_input_basis='skipped' means no input-UQ was performed, so u95_input must "
+                f"be 0; got {self.u95_input}. Use 'measured'/'estimated' for a performed "
+                "input-UQ (even one that found the contribution negligible)."
+            )
+        return self
 
 
 class HandEnteredDeltaU95(BaseModel):
@@ -441,6 +462,15 @@ class ReportableResult(BaseModel):
     def _thesis_grade_gate(self) -> ReportableResult:
         if self.validation_tag != "thesis-grade":
             return self
+        # Review P1b: a `-dirty` SHA means the recorded provenance does not describe what
+        # actually ran — the antithesis of thesis-grade. `git_sha(..., allow_dirty=True)`
+        # annotates the SHA with `-dirty`; that annotation must bar the publication tag.
+        if self.provenance.git_sha.endswith("-dirty"):
+            raise ValueError(
+                "thesis-grade forbids a dirty working tree: provenance.git_sha ends with "
+                "'-dirty', so the recorded SHA does not describe what actually ran (review P1b). "
+                "Commit the tree and re-run, or tag the result 'validated'."
+            )
         for q in self.quantities:
             if q.u95_numerical <= 0.0:
                 raise ValueError(
