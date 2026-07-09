@@ -17,13 +17,12 @@ name: non-commercial-fence
 # explicit signals risks producing artifacts that look CC-BY-SA-clean but
 # embed CC-BY-NC training data.
 
+# Runs on EVERY pull request (no path filter): `fence` is a *required* status check, and a
+# path-filtered required check never reports on PRs outside its paths — which blocks their
+# merge indefinitely (hit by the docs-only Constitution PR #25; same fix as data-origin-fence
+# in PR #26). The job is a fast pure-host grep; run it always.
 on:
   pull_request:
-    paths:
-      - 'aero/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - '.github/workflows/non-commercial-fence.yml'
   push:
     branches: [main]
 
