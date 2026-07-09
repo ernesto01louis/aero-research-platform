@@ -20,7 +20,7 @@ from aero.adapters.openfoam.solver import OpenFOAMSolver
 pytestmark = pytest.mark.stage_14
 
 
-def _spec(mesh_motion: str = "morph") -> FlappingWingSpec:
+def _spec(mesh_motion: str = "overset") -> FlappingWingSpec:
     return FlappingWingSpec(
         name="wbd_test",
         reynolds=75.0,
@@ -39,7 +39,7 @@ def _spec(mesh_motion: str = "morph") -> FlappingWingSpec:
 
 
 def test_hover_case_renders_transient_laminar(tmp_path: Path) -> None:
-    write_flapping_wing_case(_spec(), tmp_path)
+    write_flapping_wing_case(_spec("morph"), tmp_path)
     cd = (tmp_path / "system" / "controlDict").read_text()
     assert "application     pimpleFoam;" in cd
     # Dimensional forces FO only — hover has no freestream so forceCoeffs is meaningless.
@@ -61,8 +61,8 @@ def test_hover_boundary_conditions(tmp_path: Path) -> None:
     assert "totalPressure" in p
 
 
-def test_ellipse_ogrid_blockmesh(tmp_path: Path) -> None:
-    write_flapping_wing_case(_spec(), tmp_path)
+def test_morph_ellipse_ogrid_blockmesh(tmp_path: Path) -> None:
+    write_flapping_wing_case(_spec("morph"), tmp_path)
     bm = (tmp_path / "system" / "blockMeshDict").read_text()
     assert bm.count("hex (") == 4  # 4-block O-grid (one hex per 90-deg sector, like the cylinder)
     assert "spline" in bm  # inner ellipse edges (an arc cannot represent an ellipse)
@@ -86,17 +86,31 @@ def test_morph_variant_writes_point_displacement(tmp_path: Path) -> None:
     assert (tmp_path / "constant" / "flapping_motion.dat").exists()
 
 
-def test_solid_body_variant_no_point_displacement(tmp_path: Path) -> None:
-    write_flapping_wing_case(_spec("solid_body"), tmp_path)
+def test_overset_variant_writes_background_and_component(tmp_path: Path) -> None:
+    write_flapping_wing_case(_spec("overset"), tmp_path)
+    cd = (tmp_path / "system" / "controlDict").read_text()
+    assert "application     overPimpleDyMFoam;" in cd
+    # dynamicOversetFvMesh + a rigidly-moving component cellZone (multiSolidBodyMotionSolver).
     dm = (tmp_path / "constant" / "dynamicMeshDict").read_text()
-    assert "motionSolver     solidBody;" in dm
-    assert "tabulated6DoFMotion" in dm
-    # solid-body moves the whole mesh rigidly — no per-patch pointDisplacement.
-    assert not (tmp_path / "0" / "pointDisplacement").exists()
-    assert (tmp_path / "constant" / "flapping_motion.dat").exists()
+    assert "dynamicOversetFvMesh" in dm and "multiSolidBodyMotionSolver" in dm
+    assert "movingZone" in dm and "tabulated6DoFMotion" in dm
+    # background = Cartesian box (1 hex); component = the ellipse O-grid (4 hex, spline edges).
+    bg = (tmp_path / "system" / "blockMeshDict").read_text()
+    assert bg.count("hex (") == 1
+    comp = (tmp_path / "component" / "system" / "blockMeshDict").read_text()
+    assert comp.count("hex (") == 4 and "spline" in comp and "type overset;" in comp
+    # zone split + zoneID marker field + overset interpolation.
+    assert (tmp_path / "system" / "topoSetDict").read_text().count("movingZone") >= 1
+    assert "zoneID" in (tmp_path / "system" / "setFieldsDict").read_text()
+    assert "type overset;" in (tmp_path / "0" / "zoneID").read_text()
+    assert "oversetInterpolation" in (tmp_path / "system" / "fvSchemes").read_text()
+    # the overset far field stays open; the wing keeps the moving-frame no-slip.
+    u = (tmp_path / "0" / "U").read_text()
+    assert "type overset;" in u and "movingWallVelocity" in u
 
 
 def test_adapter_dispatches_flapping_spec(tmp_path: Path) -> None:
     OpenFOAMSolver()._write_case(_spec(), tmp_path)
     assert (tmp_path / "constant" / "dynamicMeshDict").exists()
     assert (tmp_path / "constant" / "flapping_motion.dat").exists()
+    assert (tmp_path / "component" / "system" / "blockMeshDict").exists()

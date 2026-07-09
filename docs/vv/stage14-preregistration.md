@@ -7,9 +7,10 @@
 > **investigated and documented as a NO-GO; the band is never relaxed to pass** (Hard Rule 15,
 > `optimization-integrity.md`).
 >
-> **Status:** proposed — **awaiting operator sign-off of the band** before the first campaign run
-> (operator decision 2026-07-09). The metric tolerance is encoded in
-> `aero/vv/flapping/wbd2004.py` (`_MEAN_CL_TOLERANCE`); this document records its derivation.
+> **Status:** RATIFIED — the operator signed off the 25 % band on 2026-07-09 (before any campaign
+> run). It is now immutable for the stage; a miss is a documented NO-GO, never a relaxation. The
+> metric tolerance is encoded in `aero/vv/flapping/wbd2004.py` (`_MEAN_CL_TOLERANCE`); this document
+> records its derivation.
 
 ## Case
 

@@ -120,11 +120,24 @@ class OpenFOAMSolver(Solver):
         `mesh` takes the `Executor` as an argument (like `run`); meshing
         executes inside the SIF on a remote host exactly as the solve does —
         the symmetry is recorded in ADR-003.
+
+        An overset flapping case (`FlappingWingSpec` with `mesh_motion="overset"`) needs a
+        multi-step assembly instead of a single `blockMesh`: build the background mesh, build
+        the component O-grid, merge them, split into `background`/`movingZone` cellZones, and
+        write the `zoneID` marker field (ADR-024).
         """
+        spec = case_dir.spec
+        if isinstance(spec, FlappingWingSpec) and spec.mesh_motion == "overset":
+            mesh_command = (
+                "blockMesh && blockMesh -case component && "
+                "mergeMeshes . component -overwrite && topoSet && setFields"
+            )
+        else:
+            mesh_command = "blockMesh"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            command="blockMesh",
+            command=mesh_command,
         )
         result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
@@ -142,9 +155,16 @@ class OpenFOAMSolver(Solver):
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
 
         Steady cases run `simpleFoam`; a transient case (`spec.transient`, e.g.
-        the vortex-shedding cylinder) runs `pimpleFoam`.
+        the vortex-shedding cylinder) runs `pimpleFoam`; an overset flapping case runs
+        `overPimpleDyMFoam` (ADR-024).
         """
-        app = "pimpleFoam" if getattr(case_dir.spec, "transient", False) else "simpleFoam"
+        spec = case_dir.spec
+        if isinstance(spec, FlappingWingSpec) and spec.mesh_motion == "overset":
+            app = "overPimpleDyMFoam"
+        elif getattr(spec, "transient", False):
+            app = "pimpleFoam"
+        else:
+            app = "simpleFoam"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),

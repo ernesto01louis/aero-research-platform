@@ -1,8 +1,8 @@
 # ADR-024 — Flapping kinematics primitive + motion-solver tiering (morph → solid-body → overset)
 
-- **Status:** proposed (the design + the SIF-grammar facts are settled; the morph-vs-solid-body
-  *tier of record* is confirmed by the Stage-14 R0/R1 cluster probe — the "Validation evidence"
-  section is filled at that point, then the ADR is accepted)
+- **Status:** accepted (the R0 cluster probe decided the tier of record: morph eliminated on mesh
+  failure, solid-body rejected on physics, **overset chosen** and validated end-to-end — see
+  "Validation evidence")
 - **Date:** 2026-07-09
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 14)
 - **Stage:** 14 (Rigid Flapping-Wing Validation)
@@ -70,56 +70,72 @@ option here.
 2. `multiMotion` of stock `oscillatingLinearMotion` + `oscillatingRotatingMotion` — rejected: the
    two stock sinusoids share a phase, so the advanced/delayed offset is inexpressible, and no ramp.
 
-### Mesh-motion solver (the tier of record)
-- **A — Morph (PRIMARY):** `dynamicMotionSolverFvMesh` + `displacementLaplacian` +
-  `solidBodyMotionDisplacement` on the wing patch. Far field genuinely fixed; reuses every ADR-018
-  asset; deformation bounded (±1.4c translation + 45° pitch absorbed across a 25c domain with the
-  near-wall layer frozen by `inverseDistance`). Risk: mesh quality at 8× the Stage-11 amplitude
-  with rotation.
-- **B — Whole-domain solid-body (FALLBACK-1):** `motionSolver solidBody` + the identical tabulated
-  function. Kinematically exact, zero deformation, zero `checkMesh` risk, same `pimpleFoam` binary.
-  ADR-018's solid-body rejection is freestream-specific and does not apply in quiescent hover;
-  residual concern is the far field sweeping ≤1.4c through still fluid (mitigated by the 25c domain
-  + a one-off domain-size sensitivity check if B becomes the tier of record).
-- **C — Overset (FALLBACK-2):** `overPimpleDyMFoam` + background/component meshes + `liboverset`
-  (in the SIF). Robust at any amplitude; largest build (dual-mesh topology, interpolation
-  dissipation). Only if A **and** B fail.
+### Mesh-motion solver (the tier of record — decided by the R0 probe, evidence below)
+- **A — Morph:** `dynamicMotionSolverFvMesh` + `displacementLaplacian` +
+  `solidBodyMotionDisplacement` on the wing patch. Far field fixed; reuses every ADR-018 asset.
+  **Tested (R0): FAILS at full stroke** — the ±1.4c translation of a thin body tears the
+  deforming O-grid (skewness 5503, 18145 inverted face-pyramids / negative volumes). Retained in
+  the code (`mesh_motion="morph"`) only as a documented small-amplitude alternative.
+- **B — Whole-domain solid-body:** `motionSolver solidBody` + the identical tabulated function.
+  **Rejected — physically inappropriate.** It moves the ENTIRE mesh (wing + far field) rigidly,
+  which is an accelerating reference frame *without* the fictitious (inertial) body forces
+  (OpenFOAM's `solidBody` adds none): there is no wing-relative-to-quiescent-fluid motion at the
+  boundary, so no aerodynamics develops. Fine for a gravity-driven sloshing tank; wrong for a body
+  oscillating in still fluid. (This corrects an earlier draft of this ADR that mistakenly claimed
+  hover reversed ADR-018's solid-body rejection — the deeper non-inertial-frame objection applies
+  in hover too. Corroboration: the ESI moving-wing tutorials use AMI/overset, never whole-mesh
+  solid-body; R0 confirmed the mesh stays perfect precisely *because nothing moves relative to the
+  fluid*.)
+- **C — Overset (CHOSEN, tier of record):** `overPimpleDyMFoam` + `dynamicOversetFvMesh`. The wing
+  sits on a small **component** O-grid (outer boundary type `overset`) that moves **rigidly** via
+  `multiSolidBodyMotionSolver` + `tabulated6DoFMotion` over a **fixed** Cartesian background mesh
+  (open `farfield`). Far field genuinely fixed, nothing deforms, any amplitude admissible — the
+  standard approach for large-amplitude flapping, and what the SIF's own moving-body overset
+  tutorials use. Cost: a dual-mesh build (background + component, `mergeMeshes`, `topoSet`
+  cellZones, `setFields` `zoneID`, overset interpolation) — implemented in
+  `aero/adapters/openfoam/flapping_wing.py` (the `mesh()` step runs the assembly sequence).
 
 ## Decision outcome
 
-**Kinematics:** the numpy `tabulated6DoFMotion` table (option 1). **Motion-solver tiering:** morph
-PRIMARY → solid-body FALLBACK-1 → overset FALLBACK-2, selected by a **pre-declared probe**:
+**Kinematics:** the numpy `tabulated6DoFMotion` table (option 1). **Motion solver: OVERSET
+(option C)** — chosen after the R0 probe eliminated morph (mesh failure) and solid-body (wrong
+physics). The tier is provenance-visible via `FlappingWingSpec.mesh_motion` (default `overset`;
+`morph` retained for small-amplitude cases). Hover forces are the dimensional `forces` FO with
+`CofR` at the pivot; coefficients use the WBD normalisation. The startup uses a C1 `(1-cos)` ramp
+over `ramp_cycles` (zero initial linear + angular velocity); the post-ramp limit cycle is
+ramp-independent. The `tabulated6DoFMotion` table is generated one period past `endTime` so the
+final solver step never queries beyond it.
 
-> **R0 probe (motion-only, minutes):** run `moveDynamicMesh` through ≥1 full stroke cycle (no
-> flow) and `checkMesh` at the four kinematic extremes (peak +/− translation, peak +/− rotation).
-> **Escalate morph → solid-body** iff any of: `max non-orthogonality > 70`, `max skewness > 4`,
-> negative cell volumes, or a mesh-motion solver failure at the target amplitude. **Escalate
-> solid-body → overset** iff the solid-body solve is unstable or a domain-size sensitivity check
-> shows far-field influence above the numerical-uncertainty floor.
+> **R0 probe (motion-only, cheap; the pre-declared escalation gate):** `moveDynamicMesh` +
+> `checkMesh` through a full ramped stroke. Escalate morph → overset iff `checkMesh` shows
+> `non-orthogonality > 70` / `skewness > 4` / negative volumes at the target amplitude. (Solid-body
+> is not a tier here — it is rejected on physics, not mesh quality.)
 
-The chosen tier is provenance-visible via the `FlappingWingSpec.mesh_motion` field. Hover forces
-are the dimensional `forces` FO with `CofR` at the pivot; coefficients use the WBD normalisation.
-The startup uses a C1 `(1-cos)` ramp over `ramp_cycles` (zero initial linear + angular velocity);
-the post-ramp limit cycle is ramp-independent.
+## Validation evidence (Stage-14 R0 probe + overset prototype, 2026-07-09)
 
-## Validation evidence (filled from the Stage-14 R0/R1 probe)
-
-- R0 `checkMesh` at the four kinematic extremes: **[pending cluster R0]**.
-- Tier of record (morph vs solid-body vs overset): **[pending]**.
-- R1 symmetry regression (mean C_D ≈ 0, mean C_L > 0 over a symmetric-rotation cycle) and, if run,
-  the morph-vs-solid-body trace cross-check: **[pending]**.
+- **R0 morph:** initial mesh OK (non-ortho 67, skew 1.78); at full stroke **skewness 5503, 18145
+  inverted face-pyramids** → morph eliminated (the ADR-018 escalation trigger, fired).
+- **R0 solid-body:** mesh quality constant/perfect — but only because the whole mesh moves
+  rigidly (no relative motion); rejected on physics, not mesh quality.
+- **Overset:** the assembled overset case (`overPimpleDyMFoam`, `dynamicOversetFvMesh`,
+  `multiSolidBodyMotionSolver`) **runs stably to completion** at Re = 75 (2.5-cycle prototype +
+  the adapter-generated case: `checkMesh` OK non-ortho 67 / skew 1.77; solve rc 0; dimensional
+  `forces` produced). Overset is the tier of record.
+- R1 symmetry regression (mean C_D ≈ 0, mean C_L > 0 over a symmetric-rotation cycle): **[from the
+  Stage-14 campaign, recorded in the handoff]**.
 
 ## Consequences
 
 - **Positive:** one motion primitive expresses the whole flapping family (incl. the Stage-15
-  optimizer's `pitch_phase_deg` design variable); the tier decision is made cheaply before flow
-  solves; ADR-018's assets are reused; the hover force frame is honest.
-- **Negative / risk:** morph mesh quality at large stroke is unproven until R0 (mitigated by the
-  cheap probe + the ~20-line switch to solid-body, provenance-visible); the `tabulated6DoFMotion`
-  rotation convention is settled from the SIF but is also visually re-confirmed by the R0 frame
-  dump (belt-and-braces).
-- **Ledgered:** a domain-size sensitivity study is required *iff* solid-body becomes the tier of
-  record (the far field then moves through the quiescent fluid).
+  optimizer's `pitch_phase_deg` design variable); the far field is genuinely fixed and nothing
+  deforms at any amplitude; the hover force frame is honest (dimensional `forces`, WBD normalised).
+- **Negative / cost:** overset is a dual-mesh build (background + component, hole-cutting via
+  `zoneID`, interpolation dissipation) — larger than the plan's assumed morph/solid-body switch;
+  the `mesh()` step is now motion-tier-aware (a compound assembly command for overset).
+- **Ledgered:** overset introduces interpolation dissipation and a background-vs-component
+  resolution match; the background cell size and component radius are tunable knobs
+  (`background_cells`, `component_radius_chords`) — a GCI/resolution sensitivity check on the
+  overlap is a follow-up if the anchor is marginal.
 
 ## Links
 

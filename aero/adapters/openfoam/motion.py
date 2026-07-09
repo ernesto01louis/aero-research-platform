@@ -256,34 +256,19 @@ def flapping_motion_table(
 
 
 def _solid_body_function_block(*, cofg: tuple[float, float, float], table_filename: str) -> str:
-    """The shared `solidBodyMotionFunction tabulated6DoFMotion` sub-dict (both mount paths)."""
+    """The `solidBodyMotionFunction tabulated6DoFMotion` sub-dict for the morph wing patch.
+
+    (Whole-domain solid-body motion — `motionSolver solidBody` — is deliberately NOT offered
+    for the flapping case: moving the entire mesh rigidly in quiescent hover is an accelerating
+    frame without fictitious forces, i.e. no wing-relative-to-fluid motion. The tier of record
+    is overset; see ADR-024.)
+    """
     return f"""solidBodyMotionFunction tabulated6DoFMotion;
 tabulated6DoFMotionCoeffs
 {{
     CofG              ({cofg[0]:.8g} {cofg[1]:.8g} {cofg[2]:.8g});
     timeDataFileName  "{table_filename}";
 }}"""
-
-
-def flapping_dynamic_mesh_dict_solid_body(
-    *, cofg: tuple[float, float, float], table_filename: str
-) -> str:
-    """`constant/dynamicMeshDict` for the SOLID-BODY path (whole mesh moves rigidly).
-
-    `motionSolver solidBody` transforms every point by the tabulated rigid-body motion —
-    kinematically exact, zero mesh deformation, no `checkMesh` risk. Used when the morph
-    path degrades at the target stroke amplitude (ADR-024 escalation). In quiescent hover
-    the far field sweeps through still fluid; a domain-size check guards it (ADR-024).
-    """
-    return (
-        header("dictionary", "dynamicMeshDict")
-        + f"""
-dynamicFvMesh    dynamicMotionSolverFvMesh;
-motionSolverLibs (fvMotionSolvers);
-motionSolver     solidBody;
-{_solid_body_function_block(cofg=cofg, table_filename=table_filename)}
-"""
-    )
 
 
 def flapping_point_displacement_field(

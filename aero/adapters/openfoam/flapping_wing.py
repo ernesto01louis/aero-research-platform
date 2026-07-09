@@ -4,22 +4,21 @@ A thin elliptic wing performs a prescribed flapping stroke (translation + pitch)
 quiescent domain at Re ~ 10^2, reproducing Wang, Birch & Dickinson (2004)'s 2-D robotic-wing
 computation. This is the last validated forward problem before the Stage-15 optimizer.
 
-Mesh: a 4-block **O-grid** around the ellipse (inner boundary = the wing, spline edges tracing
-the ellipse; outer boundary a circle at ``farfield_radius_chords`` chords), reusing the proven
-Stage-11 cylinder O-grid topology. **Hover has no freestream:** the far field is an open
-``pressureInletOutletVelocity`` / ``totalPressure`` boundary (not a ``freestream`` inlet), and
-the case writes only the *dimensional* ``forces`` FO — ``forceCoeffs`` divides by ``magUInf``,
-meaningless at zero freestream (the coefficients are formed in
-:mod:`aero.postprocess.flapping_forces` with the WBD normalisation). The wing wall uses
-``movingWallVelocity`` (no-slip in the moving frame — critical for unbiased forces).
+**Motion solver (ADR-024, revised after the Stage-14 R0 probe).** The large stroke
+(A0/c = 2.8, i.e. +/-1.4c translation) tears a deforming (morph) mesh (R0: skewness 5503,
+negative volumes), and whole-mesh solid-body motion is physically wrong for a body oscillating
+in still fluid (an accelerating frame with no fictitious forces). The tier of record is
+therefore **overset** (`overPimpleDyMFoam` + `dynamicOversetFvMesh`): the wing sits on a small
+**component** O-grid that moves rigidly (via `multiSolidBodyMotionSolver` +
+`tabulated6DoFMotion`) over a fixed Cartesian **background** mesh, so the far field is genuinely
+fixed, nothing deforms, and any amplitude is admissible. ``mesh_motion="morph"`` is retained as
+a documented small-amplitude alternative (single deforming mesh).
 
-Motion (ADR-024): the combined stroke is a numpy-generated ``tabulated6DoFMotion`` table
-(:mod:`aero.adapters.openfoam.motion`), mounted either on the **morph** path
-(``solidBodyMotionDisplacement`` on the wing + a ``displacementLaplacian`` deforming mesh,
-default) or the **solid-body** path (the whole mesh moves rigidly — exact, zero deformation).
-``vorticity`` and ``Q`` field function objects are written at each phase-locked write time for
-the leading-edge-vortex capture evidence.
-
+**Hover has no freestream:** the far field is an open ``pressureInletOutletVelocity`` /
+``totalPressure`` boundary, the case writes only the *dimensional* ``forces`` FO
+(``forceCoeffs`` divides by ``magUInf`` — meaningless), and the wing wall uses
+``movingWallVelocity`` (no-slip in the moving frame, for unbiased forces). ``vorticity`` and
+``Q`` fields are written at each phase-locked write time for the leading-edge-vortex evidence.
 Laminar only (Re ~ 100; no transition model this rung).
 """
 
@@ -44,7 +43,6 @@ from aero.adapters.openfoam._foam_common import (
 from aero.adapters.openfoam.motion import (
     FlappingMotionSpec,
     dynamic_mesh_dict,
-    flapping_dynamic_mesh_dict_solid_body,
     flapping_motion_table,
     flapping_point_displacement_field,
 )
@@ -82,17 +80,15 @@ class FlappingWingSpec(BaseModel):
     transient: Literal[True] = Field(default=True)
 
     motion: FlappingMotionSpec = Field(..., description="Prescribed flapping stroke (required).")
-    mesh_motion: Literal["morph", "solid_body"] = Field(
-        default="morph",
-        description="Mesh-motion strategy (ADR-024): 'morph' (displacementLaplacian, far field "
-        "fixed) or 'solid_body' (whole mesh moves rigidly). Provenance-visible.",
+    mesh_motion: Literal["overset", "morph"] = Field(
+        default="overset",
+        description="Mesh-motion strategy (ADR-024): 'overset' (rigid component over fixed "
+        "background — the tier of record) or 'morph' (single deforming mesh; small amplitude "
+        "only). Provenance-visible.",
     )
 
-    # --- O-grid resolution (chord-based) ---
-    farfield_radius_chords: float = Field(
-        default=25.0, gt=2.0, description="Outer-circle radius in chords (quiescent-hover box)."
-    )
-    n_radial: int = Field(default=120, gt=3, description="Radial cells (wing -> far field).")
+    # --- component O-grid resolution (chord-based; the near-wing mesh) ---
+    n_radial: int = Field(default=110, gt=3, description="Radial cells (wing -> component edge).")
     n_azimuthal: int = Field(
         default=64, gt=3, description="Azimuthal cells per 90-deg block (x4 around the wing)."
     )
@@ -101,6 +97,20 @@ class FlappingWingSpec(BaseModel):
     )
     spline_points_per_quadrant: int = Field(
         default=16, gt=1, description="Ellipse spline sampling per 90-deg block (mesh fidelity)."
+    )
+    component_radius_chords: float = Field(
+        default=5.0, gt=1.0, description="Overset component O-grid outer radius (chords)."
+    )
+
+    # --- background (overset) / far field (morph) ---
+    background_extent_chords: float = Field(
+        default=22.0, gt=5.0, description="Overset background box half-extent (chords)."
+    )
+    background_cells: int = Field(
+        default=120, gt=8, description="Overset background cells per side (uniform Cartesian box)."
+    )
+    farfield_radius_chords: float = Field(
+        default=25.0, gt=2.0, description="Morph single-mesh outer-circle radius (chords)."
     )
 
     # --- transient controls (in flapping periods) ---
@@ -113,61 +123,56 @@ class FlappingWingSpec(BaseModel):
     purge_write: int = Field(
         default=40, ge=0, description="Field time-dirs retained (0 = keep all); ~2.5 cycles at 16."
     )
-    max_courant: float = Field(default=0.8, gt=0, description="Adjustable-timestep Courant cap.")
+    max_courant: float = Field(default=2.0, gt=0, description="Courant cap (overset tolerates ~2).")
 
     @property
     def pivot(self) -> tuple[float, float, float]:
-        """The pitch pivot (CofG for the motion) — the O-grid is centred here (origin)."""
-        return (0.0, 0.0, 0.0)
+        """The pitch pivot (CofG for the motion).
+
+        The O-grid is built about the ellipse *centre* (the origin), so the pivot is the offset
+        of the pitch axis from the centre: ``(pivot_chord_fraction - 0.5)`` chords along the
+        chord direction (``pitch_mean_deg``). WBD pitch about the wing centre => 0.5 => origin.
+        """
+        off = (self.motion.pivot_chord_fraction - 0.5) * self.chord
+        th = math.radians(self.motion.pitch_mean_deg)
+        return (off * math.cos(th), off * math.sin(th), 0.0)
 
 
 # --- ellipse geometry ---------------------------------------------------------
-def _ellipse_point(
-    spec: FlappingWingSpec, param_deg: float, *, radius_scale: float = 1.0
-) -> tuple[float, float]:
-    """A point on the wing ellipse at parametric angle ``param_deg`` (ellipse frame -> world).
+def _ellipse_point(spec: FlappingWingSpec, geom_angle_deg: float) -> tuple[float, float]:
+    """The wing-ellipse boundary point along the ray at world angle ``geom_angle_deg``.
 
-    The ellipse has semi-major ``chord/2`` along the chord and semi-minor
-    ``thickness_ratio*chord/2``, is oriented at ``pitch_mean_deg`` (the built-in mid-stroke
-    angle — the motion table rotates relative to this), and is centred so the pitch pivot sits
-    at the origin. ``radius_scale`` is unused for the wing (kept 1.0); the outer ring is a
-    separate circle.
+    The ellipse (semi-major ``chord/2`` along the chord, semi-minor ``thickness_ratio*chord/2``)
+    is centred at the origin and oriented at ``pitch_mean_deg``. Placing the inner O-grid corners
+    at the SAME geometric angles as the outer ring keeps the radial edges untwisted (an ellipse
+    point at its own *parametric* angle would not line up with the circle after rotation,
+    inverting the blocks). Uses the ellipse polar radius in the rotated frame.
     """
-    a = 0.5 * spec.chord * radius_scale
-    b = 0.5 * spec.thickness_ratio * spec.chord * radius_scale
-    ph = math.radians(param_deg)
-    # ellipse-frame local coordinates (major axis = chord along local x)
-    lx = a * math.cos(ph)
-    ly = b * math.sin(ph)
-    # rotate into the mid-stroke orientation (chord at pitch_mean_deg from +x)
-    th = math.radians(spec.motion.pitch_mean_deg)
-    ct, st = math.cos(th), math.sin(th)
-    rx = lx * ct - ly * st
-    ry = lx * st + ly * ct
-    # centre offset so the pivot (fraction along the chord) lands at the origin
-    frac = spec.motion.pivot_chord_fraction
-    centre = (0.5 - frac) * spec.chord
-    cx, cy = centre * ct, centre * st
-    return rx + cx, ry + cy
+    a = 0.5 * spec.chord
+    b = 0.5 * spec.thickness_ratio * spec.chord
+    theta = math.radians(geom_angle_deg)
+    phi = theta - math.radians(spec.motion.pitch_mean_deg)
+    r = a * b / math.hypot(b * math.cos(phi), a * math.sin(phi))
+    return r * math.cos(theta), r * math.sin(theta)
 
 
-def _flapping_blockmesh(spec: FlappingWingSpec) -> str:
+def _ogrid_blockmesh(
+    spec: FlappingWingSpec, *, outer_radius: float, outer_patch: str, outer_type: str
+) -> str:
     """4-block O-grid: inner ellipse (spline edges) -> outer circle (arc edges).
 
-    Same winding as the Stage-11 cylinder O-grid (positive cell volumes, radial graded toward
-    the wall); the inner ring is the ellipse (spline edges sampled from :func:`_ellipse_point`)
-    instead of a circle, so a thin section is represented faithfully.
+    Same winding as the Stage-11 cylinder O-grid (positive cell volumes, radial graded toward the
+    wall). Parametrised on the outer boundary so it serves both the overset component
+    (outer_patch='overset', small radius) and the morph single mesh (outer_patch='farfield').
     """
-    rr = spec.farfield_radius_chords * spec.chord
+    rr = outer_radius
     span = spec.span
     angles = [45.0, 135.0, 225.0, 315.0]
     inner = [_ellipse_point(spec, a) for a in angles]
     outer = [(rr * math.cos(math.radians(a)), rr * math.sin(math.radians(a))) for a in angles]
-    base = inner + outer  # 0..3 inner (ellipse), 4..7 outer (circle)
-    nb = len(base)  # 8
+    base = inner + outer
+    nb = len(base)
     verts = [pt(x, y, 0.0) for x, y in base] + [pt(x, y, span) for x, y in base]
-
-    # Radial grading uses a representative inner->outer distance (semi-minor to far field).
     inner_ref = 0.5 * spec.thickness_ratio * spec.chord
     g_rad = expansion(rr - inner_ref, spec.n_radial, spec.radial_first_cell * spec.chord)
     na, nrad = spec.n_azimuthal, spec.n_radial
@@ -175,17 +180,12 @@ def _flapping_blockmesh(spec: FlappingWingSpec) -> str:
     def _verts(a: int, b: int, c: int, d: int) -> str:
         return " ".join(str(v) for v in (a, b, c, d, a + nb, b + nb, c + nb, d + nb))
 
-    blocks = []
-    for i in range(4):
-        j = (i + 1) % 4
-        # Bottom face (inner_i, outer_i, outer_j, inner_j) CCW from +z: v0->v1 RADIAL
-        # (n_radial, graded toward the wall), v1->v2 AZIMUTHAL (n_azimuthal).
-        blocks.append(
-            f"    hex ({_verts(i, 4 + i, 4 + j, j)}) ({nrad} {na} 1) "
-            f"simpleGrading ({g_rad:.8g} 1 1)"
-        )
+    blocks = [
+        f"    hex ({_verts(i, 4 + i, 4 + (i + 1) % 4, (i + 1) % 4)}) ({nrad} {na} 1) "
+        f"simpleGrading ({g_rad:.8g} 1 1)"
+        for i in range(4)
+    ]
 
-    # Inner spline edges trace the ellipse between the corner vertices; outer arc edges the circle.
     def arc(v1: int, v2: int, mid_angle: float, z: float) -> str:
         mx = rr * math.cos(math.radians(mid_angle))
         my = rr * math.sin(math.radians(mid_angle))
@@ -195,46 +195,38 @@ def _flapping_blockmesh(spec: FlappingWingSpec) -> str:
     for i in range(4):
         j = (i + 1) % 4
         a0, a1 = angles[i], angles[i] + 90.0
-        # inner ellipse spline (z=0 and z=span)
+        npq = spec.spline_points_per_quadrant
         pts0 = " ".join(
             f"({x:.8f} {y:.8f} 0.0)"
-            for x, y in (
-                _ellipse_point(spec, a0 + (a1 - a0) * k / spec.spline_points_per_quadrant)
-                for k in range(1, spec.spline_points_per_quadrant)
-            )
+            for x, y in (_ellipse_point(spec, a0 + (a1 - a0) * k / npq) for k in range(1, npq))
         )
         pts1 = " ".join(
             f"({x:.8f} {y:.8f} {span:.8f})"
-            for x, y in (
-                _ellipse_point(spec, a0 + (a1 - a0) * k / spec.spline_points_per_quadrant)
-                for k in range(1, spec.spline_points_per_quadrant)
-            )
+            for x, y in (_ellipse_point(spec, a0 + (a1 - a0) * k / npq) for k in range(1, npq))
         )
         edges.append(f"    spline {i} {j} ({pts0})")
         edges.append(f"    spline {i + nb} {j + nb} ({pts1})")
-        mid = angles[i] + 45.0
-        edges.append(arc(4 + i, 4 + j, mid, 0.0))
-        edges.append(arc(4 + i + nb, 4 + j + nb, mid, span))
+        edges.append(arc(4 + i, 4 + j, angles[i] + 45.0, 0.0))
+        edges.append(arc(4 + i + nb, 4 + j + nb, angles[i] + 45.0, span))
 
     def face(a: int, b: int) -> str:
         return f"({a} {b} {b + nb} {a + nb})"
 
     wing = " ".join(face(i, (i + 1) % 4) for i in range(4))
-    far = " ".join(face(4 + i, 4 + (i + 1) % 4) for i in range(4))
+    outer_faces = " ".join(face(4 + i, 4 + (i + 1) % 4) for i in range(4))
     z0 = " ".join(f"({i} {4 + i} {4 + (i + 1) % 4} {(i + 1) % 4})" for i in range(4))
     zspan = " ".join(
         f"({i + nb} {4 + i + nb} {4 + (i + 1) % 4 + nb} {(i + 1) % 4 + nb})" for i in range(4)
     )
-
     boundary = f"""    wing
     {{
         type wall;
         faces ( {wing} );
     }}
-    farfield
+    {outer_patch}
     {{
-        type patch;
-        faces ( {far} );
+        type {outer_type};
+        faces ( {outer_faces} );
     }}
     front
     {{
@@ -262,16 +254,54 @@ def _flapping_blockmesh(spec: FlappingWingSpec) -> str:
     )
 
 
+def _background_blockmesh(spec: FlappingWingSpec) -> str:
+    """A uniform Cartesian background box (overset donors); open ``farfield`` outer boundary."""
+    half = spec.background_extent_chords * spec.chord
+    n = spec.background_cells
+    span = spec.span
+    v = [
+        pt(-half, -half, 0.0),
+        pt(half, -half, 0.0),
+        pt(half, half, 0.0),
+        pt(-half, half, 0.0),
+        pt(-half, -half, span),
+        pt(half, -half, span),
+        pt(half, half, span),
+        pt(-half, half, span),
+    ]
+    verts_block = "\n".join(f"    {x}" for x in v)
+    return (
+        header("dictionary", "blockMeshDict")
+        + "\nscale 1;\n\n"
+        + f"vertices\n(\n{verts_block}\n);\n\n"
+        + f"blocks\n(\n    hex (0 1 2 3 4 5 6 7) ({n} {n} 1) simpleGrading (1 1 1)\n);\n\n"
+        + "edges ( );\n\n"
+        + """boundary
+(
+    farfield
+    { type patch; faces ( (0 4 7 3) (1 2 6 5) (0 1 5 4) (3 7 6 2) ); }
+    front
+    { type empty; faces ( (0 3 2 1) ); }
+    back
+    { type empty; faces ( (4 5 6 7) ); }
+);
+
+mergePatchPairs ( );
+"""
+    )
+
+
 # --- transient dictionaries ---------------------------------------------------
 def _controldict(spec: FlappingWingSpec) -> str:
     period = spec.motion.period
     end_time = spec.end_time_cycles * period
     write_interval = period / spec.write_phases_per_cycle
     px, py, pz = spec.pivot
+    application = "overPimpleDyMFoam" if spec.mesh_motion == "overset" else "pimpleFoam"
     return (
         header("dictionary", "controlDict")
         + f"""
-application     pimpleFoam;
+application     {application};
 startFrom       startTime;
 startTime       0;
 stopAt          endTime;
@@ -317,10 +347,126 @@ functions
     )
 
 
+def _overset_dynamic_mesh_dict(spec: FlappingWingSpec) -> str:
+    """`dynamicOversetFvMesh` + `multiSolidBodyMotionSolver`: fixed background, rigid component."""
+    px, py, pz = spec.pivot
+    return (
+        header("dictionary", "dynamicMeshDict")
+        + f"""
+dynamicFvMesh   dynamicOversetFvMesh;
+solver          multiSolidBodyMotionSolver;
+multiSolidBodyMotionSolverCoeffs
+{{
+    background
+    {{
+        solidBodyMotionFunction linearMotion;
+        linearMotionCoeffs {{ velocity (0 0 0); }}
+    }}
+    movingZone
+    {{
+        solidBodyMotionFunction tabulated6DoFMotion;
+        tabulated6DoFMotionCoeffs
+        {{
+            CofG              ({px:.8g} {py:.8g} {pz:.8g});
+            timeDataFileName  "{_MOTION_TABLE_REF}";
+        }}
+    }}
+}}
+"""
+    )
+
+
+def _overset_toposet_dict(spec: FlappingWingSpec) -> str:
+    """Split the merged mesh into `background` + `movingZone` cellZones by connectivity."""
+    corner = 0.9 * spec.background_extent_chords * spec.chord
+    return (
+        header("dictionary", "topoSetDict")
+        + f"""
+actions
+(
+    {{ name c0; type cellSet; action new; source regionToCell;
+       insidePoints (({corner:.8g} {corner:.8g} 0.0001)); }}
+    {{ name background; type cellZoneSet; action new; source setToCellZone; set c0; }}
+    {{ name c1; type cellSet; action new; source cellToCell; set c0; }}
+    {{ name c1; type cellSet; action invert; }}
+    {{ name movingZone; type cellZoneSet; action new; source setToCellZone; set c1; }}
+);
+"""
+    )
+
+
+def _overset_setfields_dict() -> str:
+    return (
+        header("dictionary", "setFieldsDict")
+        + """
+defaultFieldValues ( volScalarFieldValue zoneID 123 );
+regions
+(
+    cellToCell { set c0; fieldValues ( volScalarFieldValue zoneID 0 ); }
+    cellToCell { set c1; fieldValues ( volScalarFieldValue zoneID 1 ); }
+);
+"""
+    )
+
+
+def _overset_fvschemes() -> str:
+    return (
+        header("dictionary", "fvSchemes")
+        + """
+ddtSchemes      { default CrankNicolson 0.7; }
+gradSchemes     { default Gauss linear; }
+divSchemes
+{
+    default         none;
+    div(phi,U)      Gauss limitedLinearV 1;
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;
+}
+laplacianSchemes { default Gauss linear corrected; }
+interpolationSchemes { default linear; }
+snGradSchemes   { default corrected; }
+oversetInterpolation { method inverseDistance; }
+fluxRequired    { default no; pcorr; p; }
+"""
+    )
+
+
+def _overset_fvsolution() -> str:
+    return (
+        header("dictionary", "fvSolution")
+        + """
+solvers
+{
+    cellDisplacement { solver PCG; preconditioner DIC; tolerance 1e-06; relTol 0; maxIter 100; }
+    p       { solver PBiCGStab; preconditioner DILU; tolerance 1e-8; relTol 0; }
+    pFinal  { $p; relTol 0; }
+    pcorr   { $pFinal; solver PCG; preconditioner DIC; }
+    pcorrFinal { $pcorr; relTol 0; }
+    "(U)"      { solver smoothSolver; smoother symGaussSeidel; tolerance 1e-8; relTol 0; }
+    "(U)Final" { $U; relTol 0; }
+}
+PIMPLE
+{
+    momentumPredictor   false;
+    nOuterCorrectors    2;
+    nCorrectors         2;
+    nNonOrthogonalCorrectors 1;
+    oversetAdjustPhi    yes;
+}
+relaxationFactors { equations { ".*" 1; } }
+"""
+    )
+
+
 def _fields(spec: FlappingWingSpec) -> dict[str, str]:
-    # Quiescent hover: still fluid, open far field. movingWallVelocity keeps the no-slip in the
-    # moving frame (a plain fixedValue (0 0 0) would impose a wrong wall flux and bias forces).
-    def field(obj: str, cls: str, dims: str, internal: str, wing: str, far: str) -> str:
+    """0/ fields. Quiescent hover; movingWallVelocity wing; open far field. Overset adds the
+    ``overset`` interpolation patch + a ``zoneID`` marker field."""
+    overset = spec.mesh_motion == "overset"
+    outer = "farfield"  # both paths name the open outer boundary `farfield`
+    constraint = '    #includeEtc "caseDicts/setConstraintTypes"\n' if overset else ""
+    over_u = "    overset   { type overset; value uniform (0 0 0); }\n" if overset else ""
+    over_p = "    overset   { type overset; value uniform 0; }\n" if overset else ""
+
+    def field(obj: str, cls: str, dims: str, internal: str, over: str, wing: str, far: str) -> str:
         return (
             header(cls, obj)
             + f"""
@@ -329,11 +475,11 @@ internalField   uniform {internal};
 
 boundaryField
 {{
-    wing
+{constraint}{over}    wing
     {{
 {wing}
     }}
-    farfield
+    {outer}
     {{
 {far}
     }}
@@ -343,12 +489,13 @@ boundaryField
 """
         )
 
-    return {
+    fields = {
         "U": field(
             "U",
             "volVectorField",
             "[0 1 -1 0 0 0 0]",
             "(0 0 0)",
+            over_u,
             "        type movingWallVelocity;\n        value uniform (0 0 0);",
             "        type pressureInletOutletVelocity;\n        value uniform (0 0 0);",
         ),
@@ -357,30 +504,61 @@ boundaryField
             "volScalarField",
             "[0 2 -2 0 0 0 0]",
             "0",
+            over_p,
             "        type zeroGradient;",
             "        type totalPressure;\n        p0 uniform 0;\n        value uniform 0;",
         ),
     }
+    if overset:
+        fields["zoneID"] = (
+            header("volScalarField", "zoneID")
+            + """
+dimensions      [0 0 0 0 0 0 0];
+internalField   uniform 0;
+
+boundaryField
+{
+    #includeEtc "caseDicts/setConstraintTypes"
+    overset   { type overset; value uniform 0; }
+    ".*"      { type zeroGradient; }
+}
+"""
+        )
+    return fields
+
+
+def _write_component_stub(component: Path) -> None:
+    """A minimal but complete system/ so `blockMesh -case component` runs standalone."""
+    (component / "system").mkdir(parents=True, exist_ok=True)
+    (component / "constant").mkdir(parents=True, exist_ok=True)
+    (component / "system" / "controlDict").write_text(
+        header("dictionary", "controlDict")
+        + "\napplication blockMesh;\nstartFrom startTime;\nstartTime 0;\nstopAt endTime;\n"
+        "endTime 1;\ndeltaT 1;\nwriteControl timeStep;\nwriteInterval 1;\n",
+        encoding="utf-8",
+    )
+    for d in ("fvSchemes", "fvSolution"):
+        (component / "system" / d).write_text(header("dictionary", d) + "\n", encoding="utf-8")
 
 
 def write_flapping_wing_case(spec: FlappingWingSpec, dest: Path) -> None:
-    """Write a complete transient OpenFOAM case for the flapping wing under ``dest``."""
+    """Write a complete transient OpenFOAM case for the flapping wing under ``dest``.
+
+    For ``mesh_motion="overset"`` (default) this writes the background blockMeshDict in the case
+    root, the component O-grid in ``component/``, and the topoSet/setFields dicts; the mesh is
+    assembled by ``OpenFOAMSolver.mesh`` (blockMesh x2 -> mergeMeshes -> topoSet -> setFields).
+    For ``mesh_motion="morph"`` it writes a single deforming O-grid.
+    """
     system = dest / "system"
     constant = dest / "constant"
     zero = dest / "0"
     for d in (system, constant, zero):
         d.mkdir(parents=True, exist_ok=True)
 
-    # WBD Reynolds number is built on the maximum wing speed U_max (= u_ref), not a freestream,
-    # so nu is derived directly rather than via flow_state's freestream-U convention.
+    # WBD Reynolds number is built on the maximum wing speed U_max (= u_ref), not a freestream.
     nu = spec.motion.u_ref * spec.chord / spec.reynolds
 
-    (system / "blockMeshDict").write_text(_flapping_blockmesh(spec), encoding="utf-8")
     (system / "controlDict").write_text(_controldict(spec), encoding="utf-8")
-    (system / "fvSchemes").write_text(transient_fvschemes(), encoding="utf-8")
-    (system / "fvSolution").write_text(
-        transient_fvsolution(cell_displacement=True), encoding="utf-8"
-    )
     (constant / "transportProperties").write_text(transport_properties(nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(
         turbulence_properties(spec.turbulence_model), encoding="utf-8"
@@ -388,13 +566,49 @@ def write_flapping_wing_case(spec: FlappingWingSpec, dest: Path) -> None:
     for name, text in _fields(spec).items():
         (zero / name).write_text(text, encoding="utf-8")
 
-    # The prescribed motion: a tabulated6DoFMotion table covering the whole run, mounted either
-    # on the morph path (deforming mesh, wing patch driven) or the solid-body path (rigid mesh).
+    # The prescribed motion table, generated a full period past endTime so the final solver step
+    # never queries beyond the table (the tabulated6DoFMotion end-of-table error).
     end_time = spec.end_time_cycles * spec.motion.period
     (constant / _MOTION_TABLE_FILE).write_text(
-        flapping_motion_table(spec.motion, end_time=end_time), encoding="utf-8"
+        flapping_motion_table(spec.motion, end_time=end_time + spec.motion.period),
+        encoding="utf-8",
     )
-    if spec.mesh_motion == "morph":
+
+    if spec.mesh_motion == "overset":
+        (system / "fvSchemes").write_text(_overset_fvschemes(), encoding="utf-8")
+        (system / "fvSolution").write_text(_overset_fvsolution(), encoding="utf-8")
+        (system / "topoSetDict").write_text(_overset_toposet_dict(spec), encoding="utf-8")
+        (system / "setFieldsDict").write_text(_overset_setfields_dict(), encoding="utf-8")
+        (constant / "dynamicMeshDict").write_text(
+            _overset_dynamic_mesh_dict(spec), encoding="utf-8"
+        )
+        # background mesh in the case root; component O-grid in component/
+        (system / "blockMeshDict").write_text(_background_blockmesh(spec), encoding="utf-8")
+        component = dest / "component"
+        _write_component_stub(component)
+        (component / "system" / "blockMeshDict").write_text(
+            _ogrid_blockmesh(
+                spec,
+                outer_radius=spec.component_radius_chords * spec.chord,
+                outer_patch="overset",
+                outer_type="overset",
+            ),
+            encoding="utf-8",
+        )
+    else:  # morph — single deforming O-grid
+        (system / "fvSchemes").write_text(transient_fvschemes(), encoding="utf-8")
+        (system / "fvSolution").write_text(
+            transient_fvsolution(cell_displacement=True), encoding="utf-8"
+        )
+        (system / "blockMeshDict").write_text(
+            _ogrid_blockmesh(
+                spec,
+                outer_radius=spec.farfield_radius_chords * spec.chord,
+                outer_patch="farfield",
+                outer_type="patch",
+            ),
+            encoding="utf-8",
+        )
         (constant / "dynamicMeshDict").write_text(
             dynamic_mesh_dict(moving_patch="wing"), encoding="utf-8"
         )
@@ -405,13 +619,6 @@ def write_flapping_wing_case(spec: FlappingWingSpec, dest: Path) -> None:
                 table_filename=_MOTION_TABLE_REF,
                 fixed_patches=["farfield"],
                 empty_patches=["front", "back"],
-            ),
-            encoding="utf-8",
-        )
-    else:  # solid_body
-        (constant / "dynamicMeshDict").write_text(
-            flapping_dynamic_mesh_dict_solid_body(
-                cofg=spec.pivot, table_filename=_MOTION_TABLE_REF
             ),
             encoding="utf-8",
         )

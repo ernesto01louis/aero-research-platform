@@ -82,7 +82,7 @@ class FlappingWingWBD2004:
         spec: FlappingWingSpec | None = None,
         *,
         rotation_timing: RotationTiming = "symmetrical",
-        mesh_motion: Literal["morph", "solid_body"] = "morph",
+        mesh_motion: Literal["overset", "morph"] = "overset",
     ) -> None:
         self._timing = rotation_timing if spec is None else _timing_of(spec)
         self.name = _variant_name(self._timing)
