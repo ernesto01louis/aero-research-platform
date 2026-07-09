@@ -1,12 +1,16 @@
 # ADR-023 — Paired-difference `u95_delta`: Invariant 10 enforcement now COMPUTES the delta uncertainty
 
-- **Status:** accepted (the design); carries a **proposed** one-sentence CONSTITUTION amendment
-  (see "Constitution amendment" below — separate PR, 72 h window per the amendment process)
-- **Date:** 2026-07-06
+- **Status:** accepted
+- **Date:** 2026-07-06 (accepted); 2026-07-09 (amendment ratified)
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (review-F1 remediation,
   between Stages 13 and 14)
-- **Stage:** 13 (inter-stage; review remediation)
+- **Stage:** 13 (inter-stage; review remediation) / 14 (amendment ratified)
 - **Supersedes:** none (extends ADR-020's UQ core)
+
+> **Ratified (Stage 14, 2026-07-09).** The one-sentence CONSTITUTION Invariant-10 Enforcement
+> amendment carried by this ADR is complete: the ≥72 h review window elapsed (micro-PR opened
+> 2026-07-06), the operator approved, and PR #25 merged 2026-07-09 (squash `1dcd915`). The
+> "Constitution amendment" section below records the two-track process as decided.
 
 ## Context and problem statement
 
