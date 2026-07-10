@@ -19,6 +19,7 @@ Strict pydantic, frozen, ``extra="forbid"``. See
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -126,6 +127,72 @@ class ApplicabilityEnvelope(BaseModel):
         return self
 
 
+class UncertaintyCalibration(BaseModel):
+    """Held-out calibration evidence for a surrogate's epistemic uncertainty (ADR-025).
+
+    Records how well the surrogate's ``±k·std`` interval covers held-out truth:
+    a calibrated ensemble at ``interval_k=2`` should see
+    ``empirical_coverage ≈ erf(2/√2) ≈ 0.954`` and ``std_z ≈ 1``. Wildly
+    over-confident uncertainty (coverage ≪ nominal) is the collapsed-ensemble /
+    surrogate-exploitation symptom the Stage-16 loop gates on.
+
+    The model is evidence, not computation — the numbers are produced by
+    :func:`aero.surrogates._common.calibration.compute_uncertainty_calibration`
+    so this module stays numpy-free. Like the held-out quantiles, this evidence
+    is high-friction, not unforgeable (the ADR-023 honesty clause).
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_default=True,
+    )
+
+    basis: Literal["deep_ensemble", "mc_dropout"] = Field(
+        ..., description="How the epistemic std was produced ('mc_dropout' reserved, ADR-025)."
+    )
+    n_held_out: int = Field(
+        ..., ge=1, description="Held-out sample count behind this calibration evidence."
+    )
+    interval_k: float = Field(
+        default=2.0, gt=0.0, description="Half-width of the checked interval, in stds."
+    )
+    nominal_coverage: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Coverage a calibrated ±k·std interval should achieve: erf(k/sqrt(2)).",
+    )
+    empirical_coverage: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Observed fraction of held-out targets inside mean ± k·std.",
+    )
+    mean_abs_z: float = Field(
+        ...,
+        ge=0.0,
+        description="Mean |z| of held-out standardized residuals (~0.798 when calibrated).",
+    )
+    std_z: float = Field(
+        ...,
+        ge=0.0,
+        description="Std (ddof=1) of held-out standardized residuals (~1.0 when calibrated).",
+    )
+
+    @model_validator(mode="after")
+    def _nominal_matches_k(self) -> UncertaintyCalibration:
+        expected = math.erf(self.interval_k / math.sqrt(2.0))
+        if abs(self.nominal_coverage - expected) > 1e-9:
+            raise ValueError(
+                f"nominal_coverage ({self.nominal_coverage}) is inconsistent with "
+                f"interval_k={self.interval_k} (expected erf(k/sqrt(2)) = {expected}); "
+                "use compute_uncertainty_calibration() rather than hand-entering evidence"
+            )
+        return self
+
+
 class CertificateOfValidity(BaseModel):
     """A signed-by-construction proof a surrogate is fit for a bounded use.
 
@@ -210,6 +277,19 @@ class CertificateOfValidity(BaseModel):
     issued_at: datetime = Field(..., description="UTC timestamp the cert was issued.")
     expires_at: datetime = Field(
         ..., description="UTC timestamp after which validate() fails the time gate."
+    )
+    ensemble_size: int | None = Field(
+        default=None,
+        ge=2,
+        description="Member count when the surrogate is a deep ensemble (ADR-025); None for "
+        "single-model surrogates. Optional-with-default so pre-ADR-025 cert artifacts still "
+        "parse unchanged.",
+    )
+    uncertainty_calibration: UncertaintyCalibration | None = Field(
+        default=None,
+        description="Held-out epistemic-uncertainty calibration evidence (ADR-025); None when "
+        "the surrogate has no uncertainty model. Optional-with-default so pre-ADR-025 cert "
+        "artifacts still parse unchanged.",
     )
 
     @model_validator(mode="after")
@@ -313,6 +393,8 @@ class CertificateOfValidity(BaseModel):
         attribution_required: tuple[str, ...] = (),
         lifetime: timedelta = DEFAULT_CERT_LIFETIME,
         now: datetime | None = None,
+        ensemble_size: int | None = None,
+        uncertainty_calibration: UncertaintyCalibration | None = None,
     ) -> CertificateOfValidity:
         """Construct a cert with ``expires_at = issued_at + lifetime`` (default 180 d).
 
@@ -337,6 +419,8 @@ class CertificateOfValidity(BaseModel):
             attribution_required=attribution_required,
             issued_at=issued,
             expires_at=issued + lifetime,
+            ensemble_size=ensemble_size,
+            uncertainty_calibration=uncertainty_calibration,
         )
 
     def assert_current(
@@ -405,4 +489,13 @@ class CertificateOfValidity(BaseModel):
             # Pipe-separated keeps it readable in the MLflow UI; the cert JSON
             # artifact carries the structured list for programmatic access.
             tags["attribution_required"] = " | ".join(self.attribution_required)
+        if self.ensemble_size is not None:
+            tags["ensemble_size"] = str(self.ensemble_size)
+        if self.uncertainty_calibration is not None:
+            # Coverage as a fixed-point string for the MLflow UI; the cert JSON
+            # artifact carries the full structured evidence.
+            tags["uq_calibration_basis"] = self.uncertainty_calibration.basis
+            tags["uq_calibration_coverage"] = (
+                f"{self.uncertainty_calibration.empirical_coverage:.4f}"
+            )
         return tags
