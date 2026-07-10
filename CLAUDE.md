@@ -379,6 +379,23 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   surrogate-smoke re-signed); the signing key migrates into Vault, the escrow
   rides the NAS ZFS send.
 
+- **Anti-surrogate-exploitation stack** (Stage 14 inter-stage, ADR-025) — four
+  pure stdlib+numpy+pydantic modules in `aero/surrogates/_common/`, consumed by the
+  Stage-16 surrogate-in-the-loop optimizer: `ensemble.py` (`EnsembleSurrogate`, N≥2
+  members of any `Surrogate`, per-member seeds, mean/ddof-1 spread), `calibration.py`
+  (held-out ±k·std coverage evidence; refuses collapsed ensembles), `trust_region.py`
+  (stateless ratio-test policy on the CFD-verified outcome; `reject-floor` ⇒
+  `surrogate_distrusted` ⇒ route to infill), `infill.py` (Gaussian EI + reserved
+  explore-fraction routing; refuses all-zero-std batches). The predict path was
+  extended **additively**: `Surrogate.predict_with_uncertainty` default returns
+  `SurrogatePrediction(basis="none", epistemic_std=None)` — honest absence, never a
+  fabricated zero; `SurrogateProtocol` is untouched (new
+  `UncertaintyAwareSurrogateProtocol` instead). `CertificateOfValidity` gained two
+  OPTIONAL fields (`ensemble_size`, `uncertainty_calibration`) — pre-ADR-025 cert
+  artifacts parse unchanged. The Stage-16 prompt exists as a **DRAFT** whose
+  ratify-or-amend is a Stage-15 handoff obligation (ADR-025). Audit disposition table:
+  `docs/review/2026-07-audit-reconciliation.md`.
+
 - **Optimizer-mission refocus** (Stage 09 close-out, ADR-013/014/016; governing scope
   `docs/handoff-bundle/00-MISSION-AND-SCOPE.md`) — the platform is an **aerodynamic
   shape optimizer**; flapping-wing is the single flagship; the optimization loop is the
