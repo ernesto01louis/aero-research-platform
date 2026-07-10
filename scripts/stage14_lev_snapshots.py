@@ -31,30 +31,39 @@ _SIF = "/opt/aero/containers/openfoam-esi.sif"
 
 
 def _run_foamtovtk(host: str, remote_run: str, t0: float, t1: float) -> None:
-    """Run foamToVTK on the cluster for the [t0, t1] write-time window."""
+    """Run foamToVTK for the [t0, t1] window, extracting ONLY the moving component cellZone.
+
+    ``-cellZone movingZone`` writes just the fine wing mesh (the overset background overlaps it
+    in space and would otherwise double-plot); ``zoneID`` is static so it is not written
+    per-timestep, hence the cellZone selection instead of a field filter.
+    """
     inner = (
         f"cd {remote_run} && apptainer exec {_SIF} bash -lc "
-        f"\"foamToVTK -ascii -legacy -fields '(vorticity zoneID)' "
+        f"\"foamToVTK -ascii -legacy -fields '(vorticity)' -cellZone movingZone "
         f"-time '{t0:.6g}:{t1:.6g}' > log.foamToVTK 2>&1\""
     )
     subprocess.run(["ssh", host, inner], check=True, timeout=1200)
 
 
 def _read_legacy_vtk(path: Path) -> dict[str, np.ndarray]:
-    """Parse a legacy ASCII VTK UNSTRUCTURED_GRID: cell centroids + cell-data fields.
+    """Parse a legacy ASCII VTK UNSTRUCTURED_GRID: cell centroids + CELL_DATA fields.
 
-    Returns ``{"centroids": (nc,3), "vorticity": (nc,3), "zoneID": (nc,)}`` (fields present).
+    foamToVTK writes fields as ``FIELD FieldData`` blocks (``<name> <ncomp> <ntuples> <type>``),
+    under both ``CELL_DATA`` and ``POINT_DATA`` sections. Only the cell-data arrays (ntuples ==
+    ncells) are kept, keyed by name. Returns ``{"centroids": (nc,3), <field>: (nc,ncomp)|(nc,)}``.
     """
     txt = path.read_text().split("\n")
-    i = 0
+    i, n = 0, len(txt)
     points: np.ndarray | None = None
     cells: list[list[int]] = []
-    fields: dict[str, np.ndarray] = {}
-    n = len(txt)
+    ncells = 0
+    section: str | None = None
+    cell_fields: dict[str, np.ndarray] = {}
     while i < n:
-        line = txt[i].strip()
-        if line.startswith("POINTS"):
-            npts = int(line.split()[1])
+        s = txt[i].strip()
+        parts = s.split()
+        if s.startswith("POINTS"):
+            npts = int(parts[1])
             vals: list[float] = []
             i += 1
             while len(vals) < npts * 3:
@@ -62,44 +71,45 @@ def _read_legacy_vtk(path: Path) -> dict[str, np.ndarray]:
                 i += 1
             points = np.asarray(vals, dtype=np.float64).reshape(npts, 3)
             continue
-        if line.startswith("CELLS"):
-            ncells = int(line.split()[1])
+        if s.startswith("CELLS"):
+            ncells = int(parts[1])
             i += 1
             read = 0
             while read < ncells:
-                parts = [int(v) for v in txt[i].split()]
-                if parts:
-                    cells.append(parts[1:])  # drop the leading count
+                row = txt[i].split()
+                if row:
+                    cells.append([int(v) for v in row][1:])  # drop the leading point-count
                     read += 1
                 i += 1
             continue
-        if line.startswith("CELL_DATA"):
+        if s.startswith("CELL_DATA"):
+            section, ncells = "CELL", int(parts[1])
             i += 1
             continue
-        m = re.match(r"(SCALARS|VECTORS)\s+(\S+)", line)
-        if m and points is not None:
-            kind, name = m.group(1), m.group(2)
-            width = 1 if kind == "SCALARS" else 3
+        if s.startswith("POINT_DATA"):
+            section = "POINT"
             i += 1
-            if kind == "SCALARS" and txt[i].strip().startswith("LOOKUP_TABLE"):
+            continue
+        if s.startswith("FIELD"):
+            narr = int(parts[2])
+            i += 1
+            for _ in range(narr):
+                hdr = txt[i].split()
+                name, ncomp, ntup = hdr[0], int(hdr[1]), int(hdr[2])
                 i += 1
-            ncells = len(cells)
-            vals = []
-            while len(vals) < ncells * width and i < n:
-                row = txt[i].split()
-                if row and not re.match(r"[A-Z_]{3,}", txt[i].strip()):
-                    vals.extend(float(v) for v in row)
+                vals = []
+                while len(vals) < ntup * ncomp:
+                    vals.extend(float(v) for v in txt[i].split())
                     i += 1
-                else:
-                    break
-            arr = np.asarray(vals, dtype=np.float64)
-            fields[name] = arr.reshape(ncells, width) if width == 3 else arr
+                arr = np.asarray(vals, dtype=np.float64)
+                if section == "CELL" and ntup == ncells:
+                    cell_fields[name] = arr.reshape(ntup, ncomp) if ncomp > 1 else arr
             continue
         i += 1
     assert points is not None, f"no POINTS in {path}"
     centroids = np.asarray([points[c].mean(axis=0) for c in cells], dtype=np.float64)
     out = {"centroids": centroids}
-    out.update(fields)
+    out.update(cell_fields)
     return out
 
 
@@ -113,18 +123,28 @@ def _render(vtks: list[Path], out_png: Path, *, window: float, case: str) -> Non
     ncol = min(4, n)
     nrow = (n + ncol - 1) // ncol
     fig, axes = plt.subplots(nrow, ncol, figsize=(3.2 * ncol, 3.0 * nrow), squeeze=False)
-    levels = np.linspace(-20, 20, 21)
-    for k, vtk in enumerate(vtks):
+    snaps = [_read_legacy_vtk(v) for v in vtks]
+    # A shared colour scale from the pooled 98th percentile of |omega_z| (robust to outliers).
+    pooled = np.concatenate(
+        [np.abs(d["vorticity"][:, 2]) for d in snaps if "vorticity" in d] or [np.array([1.0])]
+    )
+    vmax = float(np.percentile(pooled, 98)) or 1.0
+    levels = np.linspace(-vmax, vmax, 21)
+    for k, d in enumerate(snaps):
         ax = axes[k // ncol][k % ncol]
-        d = _read_legacy_vtk(vtk)
         c = d["centroids"]
         wz = d["vorticity"][:, 2] if "vorticity" in d else np.zeros(len(c))
-        keep = np.ones(len(c), dtype=bool)
-        if "zoneID" in d:  # component (moving) cells only — the near-wing field
-            keep = d["zoneID"] > 0.5
-        m = keep & (np.abs(c[:, 0]) < window) & (np.abs(c[:, 1]) < window)
+        # Centre the window on the wing's current (moved) position — the component translates.
+        cx, cy = float(np.median(c[:, 0])), float(np.median(c[:, 1]))
+        m = (np.abs(c[:, 0] - cx) < window) & (np.abs(c[:, 1] - cy) < window)
         if m.sum() > 10:
-            ax.tricontourf(c[m, 0], c[m, 1], np.clip(wz[m], -20, 20), levels=levels, cmap="RdBu_r")
+            ax.tricontourf(
+                c[m, 0] - cx,
+                c[m, 1] - cy,
+                np.clip(wz[m], -vmax, vmax),
+                levels=levels,
+                cmap="RdBu_r",
+            )
         ax.set_aspect("equal")
         ax.set_xlim(-window, window)
         ax.set_ylim(-window, window)
