@@ -86,6 +86,21 @@ class CaseSpec(BaseModel):
         "y+<1 mesh), or 'laminar' (no model) for the forward-regime low-Re airfoil.",
     )
 
+    # --- NACA-4 shape design variables (Stage 15 shape optimizer) ---
+    # Defaults recover the fixed NACA 0012 exactly (byte-identical mesh), so every pre-Stage-15
+    # case is unchanged. Off-baseline values select the NACA-4 camber+thickness section via
+    # `naca4_coordinates`, perturbing y on the SAME cosine x-stations (mesh topology invariant ->
+    # honest matched-condition optimization deltas). Frozen model -> config_hash stays faithful.
+    max_camber: float = Field(
+        default=0.0, ge=0.0, le=0.09, description="NACA-4 max camber m (fraction chord); 0 = 00xx."
+    )
+    camber_position: float = Field(
+        default=0.4, ge=0.1, le=0.9, description="NACA-4 max-camber chordwise position p."
+    )
+    max_thickness_frac: float = Field(
+        default=0.12, gt=0.05, le=0.20, description="Max thickness t/c; 0.12 = NACA 0012 baseline."
+    )
+
     # --- mesh resolution (2D multi-block C-grid) ---
     # The Stage-05 C-grid replaces the Stage-03 four-block O-grid: a rectangular
     # far field at `farfield_extent_chords`, an explicit wake cut downstream of

@@ -44,7 +44,7 @@ from aero.adapters.openfoam._foam_common import (
     transport_properties,
     turbulence_properties,
 )
-from aero.adapters.openfoam.geometry import naca0012_coordinates
+from aero.adapters.openfoam.geometry import naca0012_coordinates, naca4_coordinates
 from aero.adapters.openfoam.schemas import CaseSpec
 
 
@@ -54,9 +54,33 @@ def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
     points so index `n_surface` is the exact mid-chord split point."""
     n = spec.n_surface
     blunt = spec.trailing_edge_thickness > 0.0
-    upper = naca0012_coordinates(2 * n + 1, chord=spec.chord, blunt_te=blunt)  # LE -> TE, +y
-    lower = upper.copy()
-    lower[:, 1] *= -1.0
+    npts = 2 * n + 1
+    off_baseline = spec.max_camber != 0.0 or spec.max_thickness_frac != 0.12
+    if off_baseline:
+        # NACA-4 shape design variables (Stage 15): upper/lower differ once cambered.
+        upper = naca4_coordinates(
+            npts,
+            chord=spec.chord,
+            max_camber=spec.max_camber,
+            camber_position=spec.camber_position,
+            max_thickness_frac=spec.max_thickness_frac,
+            blunt_te=blunt,
+            surface="upper",
+        )
+        lower = naca4_coordinates(
+            npts,
+            chord=spec.chord,
+            max_camber=spec.max_camber,
+            camber_position=spec.camber_position,
+            max_thickness_frac=spec.max_thickness_frac,
+            blunt_te=blunt,
+            surface="lower",
+        )
+    else:
+        # Fixed NACA 0012 (the exact pre-Stage-15 path; lower = mirror).
+        upper = naca0012_coordinates(npts, chord=spec.chord, blunt_te=blunt)  # LE -> TE, +y
+        lower = upper.copy()
+        lower[:, 1] *= -1.0
     return {"upper": np.asarray(upper, np.float64), "lower": np.asarray(lower, np.float64)}
 
 
@@ -69,6 +93,8 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     n = spec.n_surface
     umid = surf["upper"][n]
     xm, ym = float(umid[0]), float(umid[1])
+    lmid = surf["lower"][n]
+    xlm, ylm = float(lmid[0]), float(lmid[1])  # == (xm, -ym) at the symmetric baseline
 
     # Trailing edge: sharp closes to the single vertex 3 = (c, 0); blunt
     # (trailing_edge_thickness>0) splits it into 3u=(c,+h) and a new 3l=(c,-h),
@@ -85,7 +111,7 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         (0.0, 0.0),  # 1  leading edge
         (xm, ym),  # 2  upper mid-chord
         (c, h),  # 3  trailing edge (upper corner 3u; h=0 when sharp)
-        (xm, -ym),  # 4  lower mid-chord
+        (xlm, ylm),  # 4  lower mid-chord (from the lower surface; == (xm,-ym) for symmetric)
         (ext, 0.0),  # 5  outlet point
         (-ext, ext),  # 6  far field, above inlet
         (0.0, ext),  # 7  far field, above LE

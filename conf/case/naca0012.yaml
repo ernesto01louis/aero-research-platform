@@ -28,3 +28,8 @@ turbulence_intensity: 0.001
 # 0.0025 / 8 once the blunt-TE mesh is cluster-validated (ADR-012).
 trailing_edge_thickness: 0.0
 n_te: 0
+# NACA-4 shape design variables (Stage 15 optimizer). Baseline values recover the
+# fixed NACA 0012 exactly (byte-identical mesh); the optimizer perturbs these.
+max_camber: 0.0
+camber_position: 0.4
+max_thickness_frac: 0.12
