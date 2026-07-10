@@ -85,7 +85,9 @@ def test_single_zero_std_raises() -> None:
 
 def test_negative_std_raises() -> None:
     with pytest.raises(CalibrationError, match=">= 0"):
-        compute_uncertainty_calibration([0.1], [0.1], [-0.01], basis="deep_ensemble")
+        compute_uncertainty_calibration(
+            [0.1, 0.2], [0.1, 0.2], [0.01, -0.01], basis="deep_ensemble"
+        )
 
 
 def test_length_mismatch_raises() -> None:
@@ -94,16 +96,19 @@ def test_length_mismatch_raises() -> None:
 
 
 def test_empty_raises() -> None:
-    with pytest.raises(CalibrationError, match="zero held-out"):
+    with pytest.raises(CalibrationError, match="0 held-out"):
         compute_uncertainty_calibration([], [], [], basis="deep_ensemble")
 
 
 def test_non_finite_raises() -> None:
     with pytest.raises(CalibrationError, match="non-finite"):
-        compute_uncertainty_calibration([float("nan")], [0.1], [0.01], basis="deep_ensemble")
+        compute_uncertainty_calibration(
+            [float("nan"), 0.2], [0.1, 0.2], [0.01, 0.01], basis="deep_ensemble"
+        )
 
 
-def test_single_point_has_zero_std_z() -> None:
-    cal = compute_uncertainty_calibration([0.1], [0.12], [0.05], basis="deep_ensemble")
-    assert cal.std_z == 0.0
-    assert cal.n_held_out == 1
+def test_single_point_refuses_to_certify() -> None:
+    # ADR-025 honest-absence / FAIL-LOUD: the ddof=1 std_z is undefined at n=1,
+    # so calibration refuses rather than fabricating a definite 0.0.
+    with pytest.raises(CalibrationError, match="held-out point"):
+        compute_uncertainty_calibration([0.1], [0.12], [0.05], basis="deep_ensemble")

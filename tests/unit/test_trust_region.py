@@ -221,12 +221,28 @@ def test_non_finite_objective_raises() -> None:
         )
 
 
-def test_accepted_center_is_clipped_into_region() -> None:
+def test_accepted_center_is_the_evaluated_point() -> None:
+    # The incumbent is recorded at the design CFD actually measured — NOT
+    # clipped to the region box — so center and cfd_objective stay in sync even
+    # for an out-of-region candidate (still inside the unit cube).
     update = _POLICY.update(
         _state(center=(0.5, 0.5), radius=0.1),
-        candidate=(0.9, 0.5),  # outside the region — clipped to 0.6
+        candidate=(0.9, 0.5),  # outside the region box but inside [0, 1]
         predicted_objective=2.0,
         cfd_objective=1.9,
         best_objective=1.0,
     )
-    assert update.state.center == (0.6, 0.5)
+    assert update.state.center == (0.9, 0.5)
+
+
+def test_accepted_out_of_unit_cube_candidate_fails_loud() -> None:
+    # A candidate outside [0, 1] cannot be a valid center — the state validator
+    # raises rather than silently laundering it into the region.
+    with pytest.raises(ValidationError, match="unit cube"):
+        _POLICY.update(
+            _state(center=(0.5, 0.5), radius=0.1),
+            candidate=(1.4, 0.5),
+            predicted_objective=2.0,
+            cfd_objective=1.9,
+            best_objective=1.0,
+        )

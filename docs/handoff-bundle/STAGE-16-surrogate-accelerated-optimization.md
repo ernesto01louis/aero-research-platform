@@ -46,9 +46,11 @@ outcomes (Hard Rule 14), and when the region collapses, spend the budget on
 
 ## Phase A — the own-data surrogate factory
 
-1. **Harvest the Stage-15 corpus** into a `Sample` stream: features = the normalized
-   design vector (the Stage-15 unit-cube mapping), targets = the objective + any gated
-   QoIs; `data_origin="platform-validated"`, `case_id` = the run's provenance pointer.
+1. **Harvest the Stage-15 corpus** into a `Sample` stream: features = the design vector,
+   normalized to the unit cube `[0, 1]^d` (the convention `trust_region.py` expects — the
+   caller owns the physical↔normalized mapping; Stage 15 defines the physical variables),
+   targets = the objective + any gated QoIs; `data_origin="platform-validated"`,
+   `case_id` = the run's provenance pointer.
    Every sample traces to a four-tuple-logged CFD run — the data-origin fence is
    satisfied by construction, and the corpus is DVC-tracked so the certificate data
    gate can see it drift.

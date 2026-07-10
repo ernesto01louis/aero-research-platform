@@ -158,7 +158,7 @@ explicitly-deferred remainders, each with its unblocking condition:
   coverage drifts outside the promotion band, rescale stds on the calibration split rather
   than discarding the ensemble. Unblocked by: observed miscalibration in a real campaign.
 - [ ] **Differentiable trilinear FFD (PyTorch)** — enables gradient-based optimization
-  through a differentiable surrogate (audit item 10). Premature for Stage 15's 5–10-var BO;
+  through a differentiable surrogate (audit item 10). Premature for Stage 15's ≈2–6-var BO;
   natural entry at Stage 16+ or with the post-v0.1.0 adjoint sequence (§5).
 - [ ] **Generic external-aero autogen template** (arbitrary-STL domain sizing, BCs,
   snappyHexMesh/cfMesh, k-ω SST, y+ strategy, forceCoeffs) — the audit's "self-generated

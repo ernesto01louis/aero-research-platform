@@ -50,6 +50,7 @@ class _AffineMember(Surrogate):
         self._width = width
         self.received_seed: int | None = None
         self.n_train_samples: int | None = None
+        self.trained_case_ids: frozenset[str] = frozenset()
 
     def fit(self, data: Iterable[Sample | TaintedSample], /, **hparams: Any) -> None:
         samples = list(data)
@@ -57,6 +58,7 @@ class _AffineMember(Surrogate):
             self.ingest(sample)
         self.received_seed = int(hparams.get("seed", -1))
         self.n_train_samples = len(samples)
+        self.trained_case_ids = frozenset(s.case_id for s in samples)
 
     def _build_certificate(self) -> CertificateOfValidity:
         return CertificateOfValidity.new(
@@ -145,13 +147,23 @@ def test_members_receive_shifted_seeds_and_certs() -> None:
         dataset_id="synthetic",
         applicability_envelope=_ENVELOPE,
     )
-    ensemble.fit([_sample(i) for i in range(10)], seed=100)
+    inputs = [_sample(i) for i in range(10)]
+    ensemble.fit(inputs, seed=100)
     assert [m.received_seed for m in members] == [100, 101, 102]
     # Every member was certified during fit — certificate() must not raise.
     for member in members:
         assert member.certificate().cert_status == "smoke"
-    # The holdout was actually held out of member training (default 20% of 10 = 2).
-    assert all(m.n_train_samples == 8 for m in members)
+    # The holdout was genuinely EXCLUDED from member training, not merely
+    # counted: all members share one 8-of-10 training set, and the 2 unseen
+    # case_ids are the calibration holdout the certificate's evidence is
+    # computed on (the anti-exploitation honesty property ADR-025 protects).
+    all_case_ids = frozenset(s.case_id for s in inputs)
+    train_sets = {m.trained_case_ids for m in members}
+    assert len(train_sets) == 1, "members trained on different splits"
+    train_ids = next(iter(train_sets))
+    assert len(train_ids) == 8
+    assert train_ids < all_case_ids  # strict subset — 2 held out
+    assert len(all_case_ids - train_ids) == 2
 
 
 def test_predict_before_certificate_raises() -> None:

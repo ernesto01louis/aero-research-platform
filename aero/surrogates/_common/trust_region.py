@@ -173,19 +173,26 @@ class TrustRegionPolicy:
         """Per-dimension (lo, hi) of the current region, intersected with [0, 1]."""
         return tuple((max(0.0, c - state.radius), min(1.0, c + state.radius)) for c in state.center)
 
-    def clip_step(self, state: TrustRegionState, candidate: Sequence[float]) -> tuple[float, ...]:
-        """Project a proposed candidate onto the current region (box ∩ unit cube)."""
+    def _validated(self, state: TrustRegionState, candidate: Sequence[float]) -> tuple[float, ...]:
+        """Dimension + finiteness check shared by clip_step and update (no clipping)."""
         if len(candidate) != len(state.center):
             raise TrustRegionError(
                 f"candidate dimension ({len(candidate)}) != center dimension ({len(state.center)})"
             )
-        clipped: list[float] = []
-        for value, (lo, hi) in zip(candidate, self.bounds(state), strict=True):
+        out: list[float] = []
+        for value in candidate:
             v = float(value)
             if not math.isfinite(v):
                 raise TrustRegionError(f"candidate contains a non-finite component ({v})")
-            clipped.append(min(hi, max(lo, v)))
-        return tuple(clipped)
+            out.append(v)
+        return tuple(out)
+
+    def clip_step(self, state: TrustRegionState, candidate: Sequence[float]) -> tuple[float, ...]:
+        """Project a proposed candidate onto the current region (box ∩ unit cube)."""
+        validated = self._validated(state, candidate)
+        return tuple(
+            min(hi, max(lo, v)) for v, (lo, hi) in zip(validated, self.bounds(state), strict=True)
+        )
 
     def update(
         self,
@@ -227,7 +234,13 @@ class TrustRegionPolicy:
 
         cfg = self._config
         if rho >= cfg.eta_accept:
-            new_center = self.clip_step(state, candidate)
+            # The new incumbent is the design CFD actually measured — recorded
+            # verbatim, never silently clipped, so the center and its objective
+            # always refer to the same point (the TrustRegionState validator
+            # still fails loud on a genuinely out-of-unit-cube candidate). The
+            # documented flow proposes in-region via bounds()/clip_step(), so
+            # this is the identity there.
+            new_center = self._validated(state, candidate)
             if rho >= cfg.eta_expand:
                 verdict: Literal[
                     "accept-expand", "accept-hold", "reject-shrink", "reject-floor"

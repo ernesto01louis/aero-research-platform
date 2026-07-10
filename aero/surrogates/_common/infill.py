@@ -110,7 +110,12 @@ def expected_improvement(
         ei_pos = gain[positive] * _standard_normal_cdf(z) + s[positive] * _standard_normal_pdf(z)
         ei = ei.copy()
         ei[positive] = ei_pos
-    return ei
+    # EI is analytically >= 0, but the closed form g*Phi(z)+std*phi(z) suffers
+    # float cancellation for strongly-negative z (~ -8.3), producing a tiny
+    # negative (~ -1e-16). Left unclamped it violates InfillCandidate.ei's ge=0
+    # and crashes ranking of a high-std far-worse candidate (the explore queue
+    # routes exactly those). Clamp to the analytic floor.
+    return np.maximum(ei, 0.0)
 
 
 def rank_infill_candidates(

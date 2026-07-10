@@ -61,6 +61,30 @@ def test_ei_never_negative() -> None:
     assert np.all(ei >= 0.0)
 
 
+def test_ei_clamped_at_float_cancellation_boundary() -> None:
+    # Around g/std ~ -8.3 the closed form g*Phi(z)+std*phi(z) cancels to a tiny
+    # NEGATIVE float; unclamped this violates InfillCandidate.ei's ge=0 and
+    # crashes ranking of a high-std far-worse candidate. Must clamp to >= 0.
+    means = np.linspace(5.0, 12.0, 20000)  # minimize, best=0 -> gain in [-12, -5]
+    ei = expected_improvement(means.tolist(), [1.0] * means.size, 0.0, maximize=False)
+    assert np.all(ei >= 0.0)
+
+
+def test_high_std_far_worse_candidate_ranks_without_crash() -> None:
+    # The explore queue routes high-std candidates regardless of value; a ~8-sigma
+    # worse one must not crash InfillCandidate construction (ge=0.0).
+    batch = rank_infill_candidates(
+        [(0.0,), (1.0,)],
+        [8.37, 0.5],
+        [1.0, 0.3],
+        current_best=0.0,
+        n_select=2,
+        maximize=False,
+    )
+    assert len(batch) == 2
+    assert all(c.ei >= 0.0 for c in batch)
+
+
 @pytest.mark.parametrize(
     ("means", "stds", "best", "xi", "match"),
     [

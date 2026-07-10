@@ -70,8 +70,13 @@ def compute_uncertainty_calibration(
         raise CalibrationError(
             f"targets/means/stds must have equal length; got ({t.size}, {m.size}, {s.size})"
         )
-    if t.size == 0:
-        raise CalibrationError("cannot compute calibration from zero held-out points")
+    if t.size < 2:
+        raise CalibrationError(
+            f"cannot compute calibration from {t.size} held-out point(s): the ddof=1 std_z "
+            "statistic is undefined below 2 points — fabricating a definite value (e.g. 0.0) "
+            "would bake a false statistic into permanent certificate evidence (FAIL-LOUD; "
+            "ADR-025 honest-absence doctrine). Supply >= 2 held-out points."
+        )
     for name, arr in (("targets", t), ("means", m), ("stds", s)):
         if not np.all(np.isfinite(arr)):
             raise CalibrationError(f"{name} contains non-finite values")
@@ -94,7 +99,8 @@ def compute_uncertainty_calibration(
 
     covered = np.abs(m - t) <= interval_k * s
     z = (m - t) / s
-    std_z = float(np.std(z, ddof=1)) if z.size >= 2 else 0.0
+    # z.size >= 2 is guaranteed by the n < 2 guard above, so std_z (ddof=1) is
+    # always well-defined — no fabricated fallback.
     return UncertaintyCalibration(
         basis=basis,
         n_held_out=int(t.size),
@@ -102,5 +108,5 @@ def compute_uncertainty_calibration(
         nominal_coverage=nominal_coverage(interval_k),
         empirical_coverage=float(np.mean(covered)),
         mean_abs_z=float(np.mean(np.abs(z))),
-        std_z=std_z,
+        std_z=float(np.std(z, ddof=1)),
     )
