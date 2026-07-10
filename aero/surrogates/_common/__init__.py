@@ -15,8 +15,10 @@ from __future__ import annotations
 from aero.surrogates._common.base import (
     Sample,
     Surrogate,
+    SurrogatePrediction,
     SurrogateProtocol,
     TaintedSample,
+    UncertaintyAwareSurrogateProtocol,
     UncertifiedSurrogate,
 )
 from aero.surrogates._common.certificate import (
@@ -36,8 +38,10 @@ __all__ = [
     "MetricQuantiles",
     "Sample",
     "Surrogate",
+    "SurrogatePrediction",
     "SurrogateProtocol",
     "SurrogateProvenanceTags",
     "TaintedSample",
+    "UncertaintyAwareSurrogateProtocol",
     "UncertifiedSurrogate",
 ]
