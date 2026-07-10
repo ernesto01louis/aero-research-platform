@@ -36,7 +36,20 @@ from aero.surrogates._common.certificate import (
     UncertaintyCalibration,
 )
 from aero.surrogates._common.ensemble import EnsembleSurrogate
+from aero.surrogates._common.infill import (
+    InfillCandidate,
+    InfillError,
+    expected_improvement,
+    rank_infill_candidates,
+)
 from aero.surrogates._common.provenance import SurrogateProvenanceTags
+from aero.surrogates._common.trust_region import (
+    TrustRegionConfig,
+    TrustRegionError,
+    TrustRegionPolicy,
+    TrustRegionState,
+    TrustRegionUpdate,
+)
 
 __all__ = [
     "ApplicabilityEnvelope",
@@ -44,6 +57,8 @@ __all__ = [
     "CertExpired",
     "CertificateOfValidity",
     "EnsembleSurrogate",
+    "InfillCandidate",
+    "InfillError",
     "LicenseAcknowledgmentRequired",
     "MetricQuantiles",
     "Sample",
@@ -52,9 +67,16 @@ __all__ = [
     "SurrogateProtocol",
     "SurrogateProvenanceTags",
     "TaintedSample",
+    "TrustRegionConfig",
+    "TrustRegionError",
+    "TrustRegionPolicy",
+    "TrustRegionState",
+    "TrustRegionUpdate",
     "UncertaintyAwareSurrogateProtocol",
     "UncertaintyCalibration",
     "UncertifiedSurrogate",
     "compute_uncertainty_calibration",
+    "expected_improvement",
     "nominal_coverage",
+    "rank_infill_candidates",
 ]
