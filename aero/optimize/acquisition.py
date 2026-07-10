@@ -14,7 +14,9 @@ import numpy as np
 
 _SQRT2 = math.sqrt(2.0)
 _SQRT2PI = math.sqrt(2.0 * math.pi)
-_erf_vec = np.vectorize(math.erf)
+_erf_vec = np.vectorize(
+    math.erf, otypes=[np.float64]
+)  # otypes -> handles size-0 (all-std=0) inputs
 
 
 def _normal_cdf(z: np.ndarray) -> np.ndarray:
