@@ -1,0 +1,60 @@
+{
+  "case_name": "airfoil_opt_naca4",
+  "quantities": [
+    {
+      "name": "lift_to_drag",
+      "value": 2.171746840244474,
+      "units": "",
+      "kind": "steady",
+      "u95_numerical": 0.14822137952133366,
+      "u95_statistical": 0.0,
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_total": 0.14822137952133366
+    }
+  ],
+  "provenance": {
+    "git_sha": "66fef600821caae47673d41db412507f487403b9",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "config_hash": "18041cfeeb85c58fbc309d3990735d9fc1cb4b55e198f59473841d03185fbf5f"
+  },
+  "anchors": [],
+  "improvement": null,
+  "optimization": {
+    "objective": "maximize lift_to_drag at AoA=4.0 deg (Re=1000 laminar NACA-4 camber)",
+    "design_variables": {
+      "max_camber": 0.07453532271696652,
+      "camber_position": 0.592640974765251
+    },
+    "improvement": {
+      "quantity": "lift_to_drag",
+      "kind": "steady",
+      "baseline": 1.4810892274817749,
+      "improved": 2.171746840244474,
+      "higher_is_better": true,
+      "delta_uncertainty": {
+        "source": "composed",
+        "u95_numerical": 0.18902971806735586,
+        "paired": null,
+        "u95_input": 0.0,
+        "u95_delta": 0.18902971806735586
+      },
+      "k": 2.0,
+      "matched_conditions": true,
+      "delta": 0.6906576127626993,
+      "u95_delta": 0.18902971806735586,
+      "required_margin": 0.3780594361347117
+    },
+    "cfd_verified": {
+      "git_sha": "66fef600821caae47673d41db412507f487403b9",
+      "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+      "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "config_hash": "18041cfeeb85c58fbc309d3990735d9fc1cb4b55e198f59473841d03185fbf5f"
+    },
+    "surrogate_predicted": true,
+    "n_candidates": 14,
+    "held_out_verification": true
+  },
+  "validation_tag": "thesis-grade"
+}

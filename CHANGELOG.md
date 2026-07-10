@@ -5,6 +5,32 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
 
+## [0.0.15] - 2026-07-11
+
+### Added — Stage 15 (CFD-in-the-Loop Airfoil Shape Optimization) — THESIS CHECKPOINT
+
+- **The platform's first CFD-verified improvement — the product.** A direct-CFD Bayesian optimizer
+  (`aero/optimize/`) optimized a 2-D airfoil's shape (NACA-4 camber) to maximize lift-to-drag on the
+  trusted laminar NACA-0012 (Re=1000, AoA 4°). Over 14 CFD-evaluated candidates it raised **L/D from
+  1.481 → 2.172 (+47%)**; the matched-condition, held-out-verified delta clears the thesis-grade bar
+  (`delta 0.691 > 2·U95 0.378`, clean SHA). Bundle: `data/vv/stage15_optimization.json`
+  (`validation_tag=thesis-grade`). Re-targeted from flapping per the operator's mission pivot.
+- **`aero/optimize/`** (core stdlib+numpy+pydantic, PLATFORM-NOT-HUB): `design_space` (bounded DVs,
+  unit-cube, seeded LHS), `gp` (numpy Matérn-5/2 + Cholesky GP), `acquisition` (Gaussian EI via erf),
+  `bo` (ask/tell, discrete-pool EI, best-of-N), `objective` (DV → ground-truth CFD → L/D,
+  clean-tree provenance), `airfoil_case`, `report` (matched-grid GCI-on-the-delta + GO/NO-GO
+  composition). Driver `scripts/stage15_airfoil_opt.py`. 27 host tests. ADR-026.
+- **Airfoil shape parametrization** — `geometry.py::naca4_coordinates` (camber+thickness as y-only
+  perturbations on the fixed x-stations → mesh topology invariant → honest matched deltas; recovers
+  NACA 0012 exactly at zero); `CaseSpec` gains bounded `max_camber`/`camber_position`/
+  `max_thickness_frac`; `case_writer` threads the shape (de-mirrored lower mid-chord vertex).
+- **`aero[bo]` extra reserved** for a future BoTorch/Ax backend (ADR-026).
+
+### Proposed — Constitution amendment (ADR-027)
+
+- Hard Rule 14 (CFD-VERIFIED-OPTIMUM-ONLY) promoted to **Invariant 12** (≥72 h window; the schedule
+  in ADR-013). `OptimizationResult` is the enforcing schema.
+
 ## [0.0.14] - 2026-07-10
 
 ### Added — Stage 14 (Rigid Flapping-Wing Validation)
