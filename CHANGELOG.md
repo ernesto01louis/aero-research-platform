@@ -5,6 +5,41 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
 
+## [0.0.14] - 2026-07-10
+
+### Added — Stage 14 (Rigid Flapping-Wing Validation)
+
+- **Rigid 2-D flapping-wing hover forward capability** on the mission geometry: `FlappingMotionSpec`
+  + `FlappingKinematics` (Wang-Birch-Dickinson 2004 Eqs 10-11, translation + pitch with C¹ startup
+  ramp), a numpy-generated `tabulated6DoFMotion` writer, the ellipse-O-grid case writer
+  (`aero/adapters/openfoam/flapping_wing.py`), WBD hover force normalisation
+  (`aero/postprocess/flapping_forces.py`), the `_load_flapping` loader, and the `FLAPPING_CASES`
+  V&V tier (`aero/vv/flapping/`, symmetric gated + advanced/delayed diagnostics) + CLI wiring.
+- **Overset moving-mesh motion path** (`overPimpleDyMFoam` + `dynamicOversetFvMesh` +
+  `multiSolidBodyMotionSolver`): a rigid component O-grid moves over a fixed Cartesian background
+  (`mesh()` runs the blockMesh×2 → `mergeMeshes` → `topoSet` → `setFields` assembly). ADR-024 (morph
+  fails at the ±1.4c stroke; whole-mesh solid-body is physically inappropriate; overset is the
+  validated tier of record — with the honest self-correction recorded).
+- **LEV capture pipeline** `scripts/stage14_lev_snapshots.py` (foamToVTK + numpy legacy-VTK reader +
+  matplotlib phase-locked spanwise-vorticity panels).
+- WBD 2004 reference data (`data/references/flapping/wbd2004_2d_ellipse/`, text-sourced).
+
+### Changed / Findings — documented NO-GO + validated trend
+
+- The symmetrical-rotation stroke-averaged mean lift **misses the WBD experiment anchor by ~46%**
+  (C̄_L 0.467 vs 0.86), outside the pre-registered ±25% band (band **not relaxed**, Hard Rule 15) —
+  a documented NO-GO, **robust to numerics** (reduced dissipation gave 0.463), **root-caused to
+  overset wake-capture dissipation**. The **rotation-timing trend is validated** (advanced 0.577 >
+  symmetrical 0.467 > delayed 0.137, the Dickinson signature) and LEV capture is textbook.
+  Records: `data/vv/stage14_flapping_nogo.json`, `data/vv/stage14_lev_flapping_wing_wbd2004.png`.
+- **Mission pivot (operator):** Stage 15 re-targets from flapping to a CFD-in-the-loop **airfoil
+  shape optimizer** (the product; validates cleanly, cheap steady solves).
+
+### Fixed — external-review hardening (P1b + P1d)
+
+- `ReportableResult` thesis-grade gate rejects a `-dirty` provenance SHA (P1b); `ReportableQuantity`
+  gains `u95_input_basis` so "input-UQ found negligible" is distinguishable from "skipped" (P1d).
+
 ## [0.0.13] - 2026-07-06
 
 ### Added — Stage 13 (Transition + Unsteady-Airfoil Validation)
