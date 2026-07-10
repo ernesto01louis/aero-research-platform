@@ -153,17 +153,20 @@ def test_members_receive_shifted_seeds_and_certs() -> None:
     # Every member was certified during fit — certificate() must not raise.
     for member in members:
         assert member.certificate().cert_status == "smoke"
-    # The holdout was genuinely EXCLUDED from member training, not merely
-    # counted: all members share one 8-of-10 training set, and the 2 unseen
-    # case_ids are the calibration holdout the certificate's evidence is
-    # computed on (the anti-exploitation honesty property ADR-025 protects).
+    # The calibration evidence was measured on cases NO member trained on —
+    # the anti-exploitation honesty property ADR-025 protects. Pin it directly
+    # against the calibration holdout ids (not merely inferred from the training
+    # set's complement), so a refactor that computes the holdout independently
+    # of the training split cannot leak silently.
     all_case_ids = frozenset(s.case_id for s in inputs)
     train_sets = {m.trained_case_ids for m in members}
     assert len(train_sets) == 1, "members trained on different splits"
     train_ids = next(iter(train_sets))
+    holdout_ids = frozenset(ensemble.calibration_case_ids)
     assert len(train_ids) == 8
-    assert train_ids < all_case_ids  # strict subset — 2 held out
-    assert len(all_case_ids - train_ids) == 2
+    assert len(holdout_ids) == 2
+    assert train_ids.isdisjoint(holdout_ids)  # calibration measured out-of-sample
+    assert train_ids | holdout_ids == all_case_ids  # exact partition, nothing dropped
 
 
 def test_predict_before_certificate_raises() -> None:

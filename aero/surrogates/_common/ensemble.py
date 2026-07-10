@@ -69,10 +69,21 @@ class EnsembleSurrogate(Surrogate):
         # Held-out evidence, populated by fit().
         self._errs: tuple[float, ...] | None = None
         self._calibration: UncertaintyCalibration | None = None
+        self._calibration_case_ids: tuple[str, ...] = ()
 
     @property
     def n_members(self) -> int:
         return len(self._members)
+
+    @property
+    def calibration_case_ids(self) -> tuple[str, ...]:
+        """The case_ids of the held-out split the calibration evidence was measured on.
+
+        Provenance for the certificate's ``uncertainty_calibration``: these are
+        the cases NO member trained on, so the coverage/z evidence is genuinely
+        out-of-sample. Empty until :meth:`fit` runs.
+        """
+        return self._calibration_case_ids
 
     # --- Surrogate seams ------------------------------------------------------
     def fit(self, data: Iterable[Sample | TaintedSample], /, **hparams: Any) -> None:
@@ -122,6 +133,7 @@ class EnsembleSurrogate(Surrogate):
         cal_idx = set(indices[:n_cal].tolist())
         train = [s for i, s in enumerate(samples) if i not in cal_idx]
         holdout = [s for i, s in enumerate(samples) if i in cal_idx]
+        self._calibration_case_ids = tuple(s.case_id for s in holdout)
 
         for i, member in enumerate(self._members):
             member.fit(train, **{**hparams, "seed": seed + i})
