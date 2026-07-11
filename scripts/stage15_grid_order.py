@@ -76,8 +76,11 @@ def main() -> None:
         stage="15",
     )
 
-    # Three grids at a constant ratio r: fine (h=base/r), medium (base), coarse (h=base*r).
-    grid_mult = {"fine": 1.0 / args.ratio, "medium": 1.0, "coarse": args.ratio}
+    # Three grids at a constant ratio r, reported on the finest: fine (base = the grid of record,
+    # the finest that solves without divergence at Re=1000 laminar), medium (base*r), coarse
+    # (base*r^2). Going finer than the base grid diverges (SIGFPE) at this first-cell height, so the
+    # observed order is measured across [base, base*r^2] and the GCI is reported on the base grid.
+    grid_mult = {"fine": 1.0, "medium": args.ratio, "coarse": args.ratio**2}
 
     def make_case(m: float, name: str, mult: float) -> ShapedLaminarAirfoil:
         case = ShapedLaminarAirfoil(
@@ -140,8 +143,9 @@ def main() -> None:
         refinement_ratio=args.ratio,
     )
 
-    # cfd_verified = the FINEST optimum solve (a clean-SHA four-tuple, finer grid than the BO loop
-    # ever evaluated → a genuine held-out verification, not the design the optimizer selected on).
+    # cfd_verified = the finest optimum solve (a fresh clean-SHA four-tuple). "Held out" here means
+    # re-verified by an independent solve (not the BO loop's own eval); it is the SAME base grid the
+    # optimizer selected on (the finer grid diverges), so it re-confirms rather than adds resolution.
     heldout_prov = compute_provenance(
         repo_root=_REPO_ROOT,
         container_sif="openfoam-esi.sif",
