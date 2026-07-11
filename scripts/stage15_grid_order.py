@@ -39,6 +39,14 @@ def main() -> None:
     ap.add_argument("--host", default="aero-dev")
     ap.add_argument("--aoa", type=float, default=4.0)
     ap.add_argument("--ratio", type=float, default=1.7, help="Constant grid refinement ratio r.")
+    ap.add_argument(
+        "--finest-mult",
+        type=float,
+        default=1.0,
+        help="Coarsening multiplier of the FINEST grid of the family (1.0=base grid). Use >1 (e.g. "
+        "1.7) to report on the finest grid that CONVERGES a loaded design, when the base grid's "
+        "wake is mildly unsteady and floors the steady residual.",
+    )
     ap.add_argument("--opt-m", type=float, default=_OPT_M, help="Optimum max_camber.")
     ap.add_argument("--opt-p", type=float, default=_OPT_P, help="Optimum camber_position.")
     ap.add_argument("--k", type=float, default=2.0, help="Significance margin (delta > k*U95).")
@@ -83,11 +91,13 @@ def main() -> None:
         stage="15",
     )
 
-    # Three grids at a constant ratio r, reported on the finest: fine (base = the grid of record,
-    # the finest that solves without divergence at Re=1000 laminar), medium (base*r), coarse
-    # (base*r^2). Going finer than the base grid diverges (SIGFPE) at this first-cell height, so the
-    # observed order is measured across [base, base*r^2] and the GCI is reported on the base grid.
-    grid_mult = {"fine": 1.0, "medium": args.ratio, "coarse": args.ratio**2}
+    # Three grids at a constant ratio r, reported on the finest of the family: fine
+    # (base*finest_mult), medium (fine*r), coarse (fine*r^2). finest_mult=1.0 puts the finest at the
+    # base grid; finest_mult>1 shifts the whole family coarser so the finest grid is one that still
+    # CONVERGES a loaded (mildly-unsteady-wake) design — the base grid floors the steady residual for
+    # loaded airfoils, but the medium grid and coarser converge robustly.
+    f = args.finest_mult
+    grid_mult = {"fine": f, "medium": f * args.ratio, "coarse": f * args.ratio**2}
 
     def make_case(m: float, name: str, mult: float) -> ShapedLaminarAirfoil:
         base = ShapedLaminarAirfoil(
