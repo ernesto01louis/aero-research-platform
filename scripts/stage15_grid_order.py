@@ -43,6 +43,13 @@ def main() -> None:
     ap.add_argument("--opt-p", type=float, default=_OPT_P, help="Optimum camber_position.")
     ap.add_argument("--k", type=float, default=2.0, help="Significance margin (delta > k*U95).")
     ap.add_argument(
+        "--end-time",
+        type=int,
+        default=6000,
+        help="simpleFoam iterations; the base grid needs more than the case default to converge "
+        "the cambered optimum below the residual tolerance.",
+    )
+    ap.add_argument(
         "--resid-tol", type=float, default=1.0e-4, help="Converged if p-residual < tol."
     )
     ap.add_argument("--timeout", type=int, default=3600)
@@ -83,8 +90,13 @@ def main() -> None:
     grid_mult = {"fine": 1.0, "medium": args.ratio, "coarse": args.ratio**2}
 
     def make_case(m: float, name: str, mult: float) -> ShapedLaminarAirfoil:
-        case = ShapedLaminarAirfoil(
+        base = ShapedLaminarAirfoil(
             name=name, aoa_deg=args.aoa, max_camber=m, camber_position=args.opt_p
+        )
+        # Raise the iteration budget so the finer grids converge below --resid-tol (the case
+        # default under-converges the loaded cambered optimum on the base grid).
+        case = ShapedLaminarAirfoil(
+            spec=base.case_spec().model_copy(update={"end_time": args.end_time}), name=name
         )
         return case.refined(mult) if mult != 1.0 else case
 
