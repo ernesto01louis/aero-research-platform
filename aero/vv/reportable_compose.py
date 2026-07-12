@@ -29,6 +29,8 @@ Strict pydantic all the way down; stdlib + numpy + pydantic only.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from aero.provenance.four_fold import ProvenanceTuple
 from aero.vv.paired_difference import PairedDeltaUncertainty
 from aero.vv.reportable import (
@@ -83,6 +85,7 @@ def compose_reportable(
     u95_numerical: float = 0.0,
     stat: StatisticalUncertainty | None = None,
     u95_input_frac: float = 0.0,
+    u95_input_basis: Literal["measured", "estimated", "skipped"] | None = None,
     anchor: ValidationAnchor | None = None,
     allow_thesis_grade: bool = True,
 ) -> ReportableResult:
@@ -90,9 +93,17 @@ def compose_reportable(
 
     ``u95_numerical`` is an absolute value (GCI fraction already multiplied by ``|value|``);
     ``u95_input_frac`` is a fraction of ``|value|``; ``stat`` supplies the absolute statistical
-    U95. The tag is resolved by :func:`resolve_validation_tag`; the returned ``ReportableResult``
-    re-validates the thesis-grade contract on construction (fail-loud).
+    U95. ``u95_input_basis`` records whether input-UQ was ``measured`` / ``estimated`` / ``skipped``
+    (review P1d); when ``None`` it resolves to ``estimated`` if a nonzero ``u95_input_frac`` was
+    supplied, else ``skipped`` — so a nonzero input fraction is never silently recorded as
+    ``skipped``. The tag is resolved by :func:`resolve_validation_tag`; the returned
+    ``ReportableResult`` re-validates the thesis-grade contract on construction (fail-loud).
     """
+    resolved_basis = (
+        u95_input_basis
+        if u95_input_basis is not None
+        else ("estimated" if u95_input_frac != 0.0 else "skipped")
+    )
     quantity = ReportableQuantity(
         name=name,
         value=value,
@@ -101,6 +112,7 @@ def compose_reportable(
         u95_numerical=u95_numerical,
         u95_statistical=stat.u95_statistical if stat is not None else 0.0,
         u95_input=abs(u95_input_frac) * abs(value),
+        u95_input_basis=resolved_basis,
     )
     tag = resolve_validation_tag(
         quantity, stat=stat, anchor=anchor, allow_thesis_grade=allow_thesis_grade

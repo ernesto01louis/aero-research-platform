@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.13  ·  **Status:** complete  ·  **Completed:** 2026-07-06
+**Latest tag:** v0.0.14  ·  **Status:** complete  ·  **Completed:** 2026-07-10
 
-**Stage 13 — Transition + Unsteady-Airfoil Validation** — most recent stage.
+**Stage 14 — Rigid Flapping-Wing Validation** — most recent stage.
 
-**Next:** Stage 14 — Rigid Flapping-Wing Validation.
+**Next:** Stage 15 — CFD-in-the-Loop Airfoil Shape Optimization (mission pivot).
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

@@ -47,7 +47,12 @@ def _anchor(passed: bool = True) -> ValidationAnchor:
 
 def test_u95_total_is_root_sum_square() -> None:
     q = ReportableQuantity(
-        name="cd", value=0.01, u95_numerical=3.0, u95_statistical=4.0, u95_input=12.0
+        name="cd",
+        value=0.01,
+        u95_numerical=3.0,
+        u95_statistical=4.0,
+        u95_input=12.0,
+        u95_input_basis="estimated",
     )
     assert q.u95_total == pytest.approx(13.0)  # 3-4-... 3^2+4^2+12^2 = 169
 

@@ -46,6 +46,8 @@ from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
 from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.fields import extract_wall_distributions
+from aero.adapters.openfoam.flapping_wing import FlappingWingSpec, write_flapping_wing_case
+from aero.adapters.openfoam.motion import FlappingMotionSpec
 from aero.adapters.openfoam.plunging_airfoil import (
     PlungingAirfoilSpec,
     write_plunging_airfoil_case,
@@ -58,6 +60,7 @@ from aero.orchestration._base import Executor
 from aero.postprocess._base import Signal
 from aero.postprocess.cycle_detection import detect_cycle_convergence
 from aero.postprocess.efficiency import MotionKinematics, propulsive_metrics
+from aero.postprocess.flapping_forces import FlappingTrace, flapping_trace
 from aero.postprocess.forces import ForceDecomposition, decompose_drag
 from aero.postprocess.frequency import strouhal as _pp_strouhal
 from aero.postprocess.phase_averaging import segment_cycles
@@ -102,6 +105,8 @@ class OpenFOAMSolver(Solver):
             write_cylinder_case(case, host_path)
         elif isinstance(case, PlungingAirfoilSpec):
             write_plunging_airfoil_case(case, host_path)
+        elif isinstance(case, FlappingWingSpec):
+            write_flapping_wing_case(case, host_path)
         elif isinstance(case, T3ASpec):
             write_t3a_case(case, host_path)
         else:
@@ -115,11 +120,24 @@ class OpenFOAMSolver(Solver):
         `mesh` takes the `Executor` as an argument (like `run`); meshing
         executes inside the SIF on a remote host exactly as the solve does —
         the symmetry is recorded in ADR-003.
+
+        An overset flapping case (`FlappingWingSpec` with `mesh_motion="overset"`) needs a
+        multi-step assembly instead of a single `blockMesh`: build the background mesh, build
+        the component O-grid, merge them, split into `background`/`movingZone` cellZones, and
+        write the `zoneID` marker field (ADR-024).
         """
+        spec = case_dir.spec
+        if isinstance(spec, FlappingWingSpec) and spec.mesh_motion == "overset":
+            mesh_command = (
+                "blockMesh && blockMesh -case component && "
+                "mergeMeshes . component -overwrite && topoSet && setFields"
+            )
+        else:
+            mesh_command = "blockMesh"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
-            command="blockMesh",
+            command=mesh_command,
         )
         result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
@@ -137,9 +155,16 @@ class OpenFOAMSolver(Solver):
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
 
         Steady cases run `simpleFoam`; a transient case (`spec.transient`, e.g.
-        the vortex-shedding cylinder) runs `pimpleFoam`.
+        the vortex-shedding cylinder) runs `pimpleFoam`; an overset flapping case runs
+        `overPimpleDyMFoam` (ADR-024).
         """
-        app = "pimpleFoam" if getattr(case_dir.spec, "transient", False) else "simpleFoam"
+        spec = case_dir.spec
+        if isinstance(spec, FlappingWingSpec) and spec.mesh_motion == "overset":
+            app = "overPimpleDyMFoam"
+        elif getattr(spec, "transient", False):
+            app = "pimpleFoam"
+        else:
+            app = "simpleFoam"
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=str(case_dir.remote_path),
@@ -167,7 +192,10 @@ class OpenFOAMSolver(Solver):
         coefficient is a time series, and the result carries a `TimeHistory`
         plus the FFT-derived Strouhal number (vortex shedding).
         """
-        if getattr(result.case_dir.spec, "motion", None) is not None:
+        motion = getattr(result.case_dir.spec, "motion", None)
+        if isinstance(motion, FlappingMotionSpec):
+            return self._load_flapping(result)
+        if motion is not None:
             return self._load_moving(result)
         if getattr(result.case_dir.spec, "transient", False):
             return self._load_transient(result)
@@ -411,6 +439,102 @@ class OpenFOAMSolver(Solver):
             history=history,
             scalars=scalars,
             source=str(coeff_file),
+        )
+
+    def flapping_force_trace(self, result: ResultHandle) -> FlappingTrace:
+        """WBD-normalised lift/drag coefficient traces for a flapping-wing solve.
+
+        Reads the dimensional ``forces`` FO history and normalises it in
+        :mod:`aero.postprocess.flapping_forces` (hover has no freestream, so ``forceCoeffs``
+        is unusable). The V&V evaluator reuses this for the phase-resolved diagnostic trace;
+        :meth:`_load_flapping` uses it for the cycle-mean gated quantity — one definition,
+        no drift.
+        """
+        spec = result.case_dir.spec
+        if not isinstance(spec, FlappingWingSpec):
+            raise TypeError("flapping_force_trace requires a FlappingWingSpec")
+        motion = spec.motion
+        force_file = _maybe_force_file(result.output_host_path)
+        if force_file is None:
+            raise ValueError(
+                f"flapping case {result.case_dir.run_id} wrote no `forces` FO output — "
+                "did pimpleFoam run to endTime?"
+            )
+        ft, fp, fv = _read_force_history(force_file)
+        if len(ft) < 16:
+            raise ValueError(
+                f"flapping solve {result.case_dir.run_id} wrote only {len(ft)} force samples "
+                "— too few to segment cycles (did pimpleFoam run to endTime?)"
+            )
+        return flapping_trace(
+            ft,
+            fp,
+            fv,
+            motion=motion.kinematics,
+            rho=RHO_INF,
+            chord=float(spec.chord),
+            span=float(spec.span),
+        )
+
+    def _load_flapping(self, result: ResultHandle) -> SolveResult:
+        """Parse a flapping-wing hover solve into a `SolveResult` (WBD-normalised coefficients).
+
+        Cycle-segments the WBD lift-coefficient trace over the flapping period, FAIL-LOUD if
+        the limit cycle has not converged (the Stage-11 NO-GO discipline — a non-converged
+        hover mean is not reportable), and reports the stroke-averaged lift and drag
+        coefficients over the converged tail. ``cl``/``cd`` are the WBD-normalised
+        stroke-means; the raw quasi-steady normalisers ride in ``scalars`` for the audit trail.
+        """
+        spec = result.case_dir.spec
+        assert isinstance(spec, FlappingWingSpec)  # the load() dispatch guarantees this
+        period = spec.motion.period
+        trace = self.flapping_force_trace(result)
+
+        t = np.asarray(trace.t)
+        cl = np.asarray(trace.cl)
+        cd = np.asarray(trace.cd)
+        samples = segment_cycles(Signal.from_arrays(t, cl, name="lift_coefficient"), period=period)
+        conv = detect_cycle_convergence(samples)
+        if not conv.converged:
+            raise ValueError(
+                f"flapping case {result.case_dir.run_id} did not reach a periodic steady state "
+                f"(mean_drift={conv.mean_drift:.3g}, amplitude_drift={conv.amplitude_drift:.3g} "
+                f"over {conv.n_cycles} cycles) — not reportable (Stage-11 NO-GO discipline; "
+                "investigate motion/mesh/time-resolution, never relax)"
+            )
+
+        t_start = float(t[0]) + conv.converged_from_cycle * period
+        tail = t >= t_start - 1.0e-12
+        mean_cl = float(cl[tail].mean())
+        mean_cd = float(cd[tail].mean())
+        scalars = {
+            "mean_lift_coefficient": mean_cl,
+            "mean_drag_coefficient": mean_cd,
+            "cycle_converged": 1.0,
+            "n_converged_cycles": float(conv.n_converged_cycles),
+            "converged_from_cycle": float(conv.converged_from_cycle),
+            "mean_drift": conv.mean_drift,
+            "amplitude_drift": conv.amplitude_drift,
+            "forcing_period": period,
+            "u_ref": trace.u_ref,
+            "wbd_norm_lift": trace.n_l,
+            "wbd_norm_drag": trace.n_d,
+        }
+        history = TimeHistory(
+            t=tuple(float(v) for v in t[tail]),
+            monitor=tuple(float(v) for v in cl[tail]),
+            monitor_name="lift_coefficient",
+        )
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=mean_cd,
+            cl=mean_cl,
+            iterations_to_convergence=len(t),
+            final_residual=float(cl[tail].std()),  # cycle-to-cycle lift scatter
+            history=history,
+            scalars=scalars,
+            source=str(_maybe_force_file(result.output_host_path)),
         )
 
     def wall_distribution(

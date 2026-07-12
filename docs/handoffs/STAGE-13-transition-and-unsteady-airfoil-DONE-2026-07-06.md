@@ -8,7 +8,7 @@ session_duration_hours: 0
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-4-8
 git_sha_start: "cbfc75a0dde7845f40606a4a9f0e2c129fad82e2"
-git_sha_end: "82d1cf5615e872e983bd7f088f99fd7e443e75b3"
+git_sha_end: "db6ddf59656f654f3f7570f3dd978adb3e7fe351"
 stage_tag: v0.0.13
 next_stage: 14
 next_stage_name: "Stage 14 — Rigid Flapping-Wing Validation"
@@ -16,8 +16,11 @@ next_stage_name: "Stage 14 — Rigid Flapping-Wing Validation"
 
 # Stage 13 — Transition + Unsteady-Airfoil Validation — (2026-07-06)
 
-> `git_sha_end` is provisional (reconcile to the squash-merge SHA at the `v0.0.13` tag — the
-> Stage-08/10/11/12 pattern). Work landed on branch `stage-13` (PR #24). **`status: complete`:**
+> `git_sha_end` reconciled (Stage 14, 2026-07-09) to `db6ddf5` — the PR #24 squash-merge SHA,
+> i.e. where this stage's session work landed on `main` (the Stage-08 `8b2739f` precedent). Note
+> the `v0.0.13` tag itself sits one commit later at `6dbccce` (PR #26, the inter-stage review-F1
+> paired-difference remediation, merged before tagging per the F1 handoff's release train).
+> Work landed on branch `stage-13` (PR #24). **`status: complete`:**
 > the transition model is verified (T3A onset GREEN), the plunging-foil over-prediction is resolved
 > as a **documented, root-caused NO-GO** (tolerance not relaxed — operator-approved honest split),
 > both ADRs ratified, the Stage-14 prompt authored.
