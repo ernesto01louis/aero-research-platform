@@ -8,7 +8,7 @@ session_duration_hours: 0
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-fable-5
 git_sha_start: "1dcd915df279743fe93830c896a05bae40ed09d7"
-git_sha_end: "PENDING_PR_SQUASH"
+git_sha_end: "4cb68c0d322bf61a591de54822f2415e42d93511"
 stage_tag: v0.0.14
 next_stage: 15
 next_stage_name: "Stage 15 — CFD-in-the-Loop Airfoil Shape Optimization (mission pivot)"
