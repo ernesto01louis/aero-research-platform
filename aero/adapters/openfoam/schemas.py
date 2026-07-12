@@ -141,6 +141,18 @@ class CaseSpec(BaseModel):
     first_cell_height: float = Field(
         default=2.0e-6, gt=0, description="Wall-normal first-cell height, in chords."
     )
+    first_cell_front: float = Field(
+        default=0.01,
+        gt=0,
+        description="Front-block streamwise first-cell size at the LE, in chords "
+        "(hardcoded 0.01 pre-Stage-16; a graded mesh family scales it with refinement).",
+    )
+    first_cell_wake: float = Field(
+        default=0.01,
+        gt=0,
+        description="Wake-block streamwise first-cell size at the TE, in chords "
+        "(hardcoded 0.01 pre-Stage-16; a graded mesh family scales it with refinement).",
+    )
     turbulence_intensity: float = Field(
         default=0.001, gt=0, description="Freestream turbulence intensity (fraction)."
     )

@@ -27,6 +27,10 @@ n_normal: 120
 n_front: 48
 n_wake: 72
 first_cell_height: 2.0e-6
+# Front/wake streamwise first cells (chords) — hardcoded 0.01 pre-Stage-16; spec fields so a
+# graded mesh family can scale them with refinement (ADR-028).
+first_cell_front: 0.01
+first_cell_wake: 0.01
 turbulence_intensity: 0.001
 # Sharp TE for the `aero run` path (the verified Stage-05 mesh); the V&V
 # hardening case (aero/vv/tmr/naca0012.py) uses the blunt TE. Flip these to
