@@ -56,6 +56,10 @@ from aero.adapters.openfoam.schemas import DEFAULT_SIF_PATH, CaseSpec
 from aero.adapters.openfoam.t3a import T3ASpec, write_t3a_case
 from aero.adapters.openfoam.tmr_case_writer import write_tmr_case
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
+from aero.adapters.openfoam.transient_airfoil import (
+    TransientAirfoilSpec,
+    write_transient_airfoil_case,
+)
 from aero.orchestration._base import Executor
 from aero.postprocess._base import Signal
 from aero.postprocess.cycle_detection import detect_cycle_convergence
@@ -109,6 +113,8 @@ class OpenFOAMSolver(Solver):
             write_flapping_wing_case(case, host_path)
         elif isinstance(case, T3ASpec):
             write_t3a_case(case, host_path)
+        elif isinstance(case, TransientAirfoilSpec):
+            write_transient_airfoil_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -327,6 +333,34 @@ class OpenFOAMSolver(Solver):
                 f"{result.case_dir.run_id} — unexpected force.dat layout in {force_file}"
             ) from exc
         return fd.pressure, fd.viscous
+
+    def load_force_series(
+        self, result: ResultHandle
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """The raw `forceCoeffs` time series ``(t, cd, cl)`` of a transient solve.
+
+        The Stage-16 URANS certification path windows this series itself (time-weighted
+        window means + NOBM sampling uncertainty) — it must not depend on a shedding
+        frequency existing (`_load_transient` FFTs for Strouhal, which presumes an
+        oscillatory signal; a steady baseline has none). FAIL-LOUD on a missing/short file.
+        """
+        coeff_file = _coefficient_file(result.output_host_path)
+        columns, data = _read_coefficient_dat(coeff_file)
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        t = data[:, columns.index("Time")]
+        cd = data[:, columns.index("Cd")]
+        cl = data[:, columns.index("Cl")]
+        if len(t) < 16:
+            raise ValueError(
+                f"transient solve {result.case_dir.run_id} wrote only {len(t)} force samples "
+                "— did pimpleFoam run to endTime?"
+            )
+        return (
+            tuple(float(v) for v in t),
+            tuple(float(v) for v in cd),
+            tuple(float(v) for v in cl),
+        )
 
     def _load_transient(self, result: ResultHandle) -> SolveResult:
         """Parse a transient `forceCoeffs` time series into a `SolveResult`.
