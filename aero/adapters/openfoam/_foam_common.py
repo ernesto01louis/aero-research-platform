@@ -290,10 +290,15 @@ def transient_fvschemes(*, turbulence_model: str = "laminar") -> str:
     ``default none``. ``laminar`` (the default) is byte-identical to the Stage-10 cylinder.
     """
     turb_div = ""
+    turb_walldist = ""
     if turbulence_model != "laminar":
         turb_div = "    div(phi,k)      Gauss upwind;\n    div(phi,omega)  Gauss upwind;\n"
         if turbulence_model == "kOmegaSSTLM":
             turb_div += "    div(phi,gammaInt) Gauss upwind;\n    div(phi,ReThetat) Gauss upwind;\n"
+        # k-omega SST's blending functions need the wall distance; without a wallDist
+        # entry pimpleFoam exits before the first step (Stage-16 URANS probe). Laminar
+        # stays byte-identical to the Stage-10 cylinder (no entry).
+        turb_walldist = "wallDist        { method meshWave; }\n"
     return (
         header("dictionary", "fvSchemes")
         + """
@@ -311,6 +316,7 @@ laplacianSchemes  { default Gauss linear corrected; }
 interpolationSchemes { default linear; }
 snGradSchemes   { default corrected; }
 """
+        + turb_walldist
     )
 
 

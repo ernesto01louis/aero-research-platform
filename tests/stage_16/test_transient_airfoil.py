@@ -57,6 +57,8 @@ def test_written_case_mesh_and_fields_match_steady(tmp_path: Path) -> None:
     assert "kOmegaSST" in (tmp_path / "constant" / "turbulenceProperties").read_text()
     assert "pimpleFoam" in (tmp_path / "system" / "controlDict").read_text()
     assert "PIMPLE" in (tmp_path / "system" / "fvSolution").read_text()
+    # k-omega SST blending needs the wall distance; pimpleFoam exits without it (probe #1).
+    assert "wallDist" in (tmp_path / "system" / "fvSchemes").read_text()
 
 
 def test_solver_write_case_dispatches(tmp_path: Path) -> None:

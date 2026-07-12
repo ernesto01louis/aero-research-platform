@@ -1,0 +1,39 @@
+{
+  "purpose": "URANS cost probe (fine grid, optimum design) \u2014 no claim composed",
+  "end_time_convective": 2.0,
+  "wall_s": 9.318606630899012,
+  "wall_s_per_convective_time": 4.659303315449506,
+  "est_wall_s_full_run_100tc": 465.9303315449506,
+  "est_wall_h_campaign_6_solves": 0.3222609253116403,
+  "row": {
+    "design": "optimum",
+    "grid": "probe-fine",
+    "refine_mult": 0.5882352941176471,
+    "ld": null,
+    "cd": null,
+    "cl": null,
+    "u95_statistical": null,
+    "stat_reliable": null,
+    "drift": null,
+    "converged": false,
+    "n_elements": 120224,
+    "n_samples": null,
+    "wall_s": 9.318606630899012,
+    "checkmesh": {
+      "ok": false,
+      "failed_checks": 1,
+      "max_aspect_ratio": null,
+      "max_non_orthogonality": 83.645312,
+      "max_skewness": 2.568503
+    },
+    "error": "solver failed (rc=1)",
+    "solver_log_tail": "WARNING: user: unknown userid 0\nWARNING: user: unknown userid 0\n/*---------------------------------------------------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nBuild  : _45e7c4a0-20241224 OPENFOAM=2412 version=2412\nArch   : \"LSB;label=32;scalar=64\"\nExec   : pimpleFoam\nDate   : Jul 12 2026\nTime   : 21:47:48\nHost   : aero-dev\nPID    : 840777\nI/O    : uncollated\nCase   : /case\nnProcs : 1\ntrapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).\nfileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)\nallowSystemOperations : Allowing user-supplied system call operations\n\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n\nPIMPLE: no residual control data found. Calculations will employ 2 corrector loops\n\nReading field p\n\nReading field U\n\nReading/calculating face flux field phi\n\nSelecting incompressible transport model Newtonian\nSelecting turbulence model type RAS\nSelecting RAS turbulence model kOmegaSST\n\n\n--> FOAM FATAL IO ERROR: (openfoam-2412)\nEntry 'method' not found in dictionary \"/case/system/fvSchemes/wallDist\"\n\n\nfile: system/fvSchemes/wallDist\n\n    From bool Foam::dictionary::readEntry(const Foam::word&, T&, Foam::keyType::option, Foam::IOobjectOption::readOption) const [with T = Foam::word]\n    in file ./src/OpenFOAM/lnInclude/dictionaryTemplates.C at line 327.\n\nFOAM exiting",
+    "stat": null,
+    "provenance": {
+      "git_sha": "c8bd5d7d739fd227234bd1d805de25bb45e33128",
+      "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+      "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "config_hash": "c6c1ce3fd4d75c1fd9188070498c0193a5cfeb0fb01655b0cc91380f8f514d81"
+    }
+  }
+}
