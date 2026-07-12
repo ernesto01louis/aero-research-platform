@@ -78,6 +78,11 @@ def main() -> None:
         "extrapolate the campaign cost. Writes stage16_urans_probe.json; composes NO claim.",
     )
     ap.add_argument("--n-candidates", type=int, default=14)
+    ap.add_argument(
+        "--concurrent",
+        action="store_true",
+        help="Run all campaign solves concurrently (independent serial jobs; 16-core box).",
+    )
     ap.add_argument("--timeout", type=int, default=129600, help="Per-solve ceiling, s (36 h).")
     ap.add_argument("--allow-dirty", action="store_true")
     ap.add_argument("--out", default=None)
@@ -274,15 +279,22 @@ def main() -> None:
     # ------------------------------------------------------------- certification campaign
     labels = _GRID_LABELS[: args.n_grids]
     mults = {lab: args.finest_mult * args.ratio**i for i, lab in enumerate(labels)}
-    rows: list[dict[str, Any]] = []
-    base: dict[str, dict[str, Any]] = {}
-    opt: dict[str, dict[str, Any]] = {}
-    for grid in labels:
-        b = solve(0.0, "baseline", grid, mults[grid])
-        o = solve(args.opt_m, "optimum", grid, mults[grid])
-        rows.extend([b, o])
-        base[grid] = b
-        opt[grid] = o
+    jobs = [
+        (m, design, grid)
+        for grid in labels
+        for m, design in ((0.0, "baseline"), (args.opt_m, "optimum"))
+    ]
+    if args.concurrent:
+        # Independent SERIAL jobs on the 16-core box (the platform's sanctioned concurrency);
+        # each thread just blocks on its own detached remote job. Wall time ~= the fine solve.
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            rows = list(pool.map(lambda j: solve(j[0], j[1], j[2], mults[j[2]]), jobs))
+    else:
+        rows = [solve(m, d, g, mults[g]) for (m, d, g) in jobs]
+    base = {r["grid"]: r for r in rows if r["design"] == "baseline"}
+    opt = {r["grid"]: r for r in rows if r["design"] == "optimum"}
 
     claim_grids = labels[:3]
     claim_rows = [base[g] for g in claim_grids] + [opt[g] for g in claim_grids]
