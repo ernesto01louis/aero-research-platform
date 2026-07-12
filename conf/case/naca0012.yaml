@@ -16,6 +16,11 @@ chord: 1.0
 span: 1.0
 end_time: 1500
 turbulence_model: kOmegaSST
+# SIMPLE solver-robustness overrides (null = auto-derived GAMG/0.9/0.7 for this well-conditioned
+# sharp-TE reference mesh); the Stage-15 loaded turbulent optimizer case sets PCG + gentler values.
+pressure_solver: null
+u_relax: null
+kw_relax: null
 farfield_extent_chords: 100.0
 n_surface: 120
 n_normal: 120
@@ -28,3 +33,8 @@ turbulence_intensity: 0.001
 # 0.0025 / 8 once the blunt-TE mesh is cluster-validated (ADR-012).
 trailing_edge_thickness: 0.0
 n_te: 0
+# NACA-4 shape design variables (Stage 15 optimizer). Baseline values recover the
+# fixed NACA 0012 exactly (byte-identical mesh); the optimizer perturbs these.
+max_camber: 0.0
+camber_position: 0.4
+max_thickness_frac: 0.12

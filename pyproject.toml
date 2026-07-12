@@ -207,6 +207,11 @@ gpu-rental = [
 orchestration = [
     # populated in stage-13: prefect>=3.0, covalent
 ]
+bo = [
+    # Reserved (ADR-026) for a heavy Bayesian-optimization backend (BoTorch/Ax + torch/gpytorch)
+    # only when a higher-dimensional design space (FFD/SDF, Stage 17+) needs it. The Stage-15
+    # optimizer core (aero/optimize) is pure numpy — PLATFORM-NOT-HUB — and needs no extra.
+]
 
 # Development
 dev = [

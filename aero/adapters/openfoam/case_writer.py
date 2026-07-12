@@ -44,7 +44,7 @@ from aero.adapters.openfoam._foam_common import (
     transport_properties,
     turbulence_properties,
 )
-from aero.adapters.openfoam.geometry import naca0012_coordinates
+from aero.adapters.openfoam.geometry import naca0012_coordinates, naca4_coordinates
 from aero.adapters.openfoam.schemas import CaseSpec
 
 
@@ -54,9 +54,33 @@ def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
     points so index `n_surface` is the exact mid-chord split point."""
     n = spec.n_surface
     blunt = spec.trailing_edge_thickness > 0.0
-    upper = naca0012_coordinates(2 * n + 1, chord=spec.chord, blunt_te=blunt)  # LE -> TE, +y
-    lower = upper.copy()
-    lower[:, 1] *= -1.0
+    npts = 2 * n + 1
+    off_baseline = spec.max_camber != 0.0 or spec.max_thickness_frac != 0.12
+    if off_baseline:
+        # NACA-4 shape design variables (Stage 15): upper/lower differ once cambered.
+        upper = naca4_coordinates(
+            npts,
+            chord=spec.chord,
+            max_camber=spec.max_camber,
+            camber_position=spec.camber_position,
+            max_thickness_frac=spec.max_thickness_frac,
+            blunt_te=blunt,
+            surface="upper",
+        )
+        lower = naca4_coordinates(
+            npts,
+            chord=spec.chord,
+            max_camber=spec.max_camber,
+            camber_position=spec.camber_position,
+            max_thickness_frac=spec.max_thickness_frac,
+            blunt_te=blunt,
+            surface="lower",
+        )
+    else:
+        # Fixed NACA 0012 (the exact pre-Stage-15 path; lower = mirror).
+        upper = naca0012_coordinates(npts, chord=spec.chord, blunt_te=blunt)  # LE -> TE, +y
+        lower = upper.copy()
+        lower[:, 1] *= -1.0
     return {"upper": np.asarray(upper, np.float64), "lower": np.asarray(lower, np.float64)}
 
 
@@ -69,6 +93,8 @@ def _blockmeshdict(spec: CaseSpec) -> str:
     n = spec.n_surface
     umid = surf["upper"][n]
     xm, ym = float(umid[0]), float(umid[1])
+    lmid = surf["lower"][n]
+    xlm, ylm = float(lmid[0]), float(lmid[1])  # == (xm, -ym) at the symmetric baseline
 
     # Trailing edge: sharp closes to the single vertex 3 = (c, 0); blunt
     # (trailing_edge_thickness>0) splits it into 3u=(c,+h) and a new 3l=(c,-h),
@@ -85,7 +111,7 @@ def _blockmeshdict(spec: CaseSpec) -> str:
         (0.0, 0.0),  # 1  leading edge
         (xm, ym),  # 2  upper mid-chord
         (c, h),  # 3  trailing edge (upper corner 3u; h=0 when sharp)
-        (xm, -ym),  # 4  lower mid-chord
+        (xlm, ylm),  # 4  lower mid-chord (from the lower surface; == (xm,-ym) for symmetric)
         (ext, 0.0),  # 5  outlet point
         (-ext, ext),  # 6  far field, above inlet
         (0.0, ext),  # 7  far field, above LE
@@ -446,15 +472,23 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
     # Laminar (forward-regime low-Re airfoil): no k/omega/nut transport.
     if spec.turbulence_model == "laminar":
         return fields
+    # Wall treatment matches the near-wall resolution: a wall-resolved y+<1 mesh (fine first cell)
+    # uses the low-Re function; a coarse y+>>1 mesh uses the all-y+ Spalding wall function — robust,
+    # no near-wall stiffness (the tractable turbulent-optimizer path, Stage 15). nutkWallFunction
+    # biased Cd ~+20% and is rejected for ABSOLUTE V&V, but the matched-condition optimization delta
+    # cancels that systematic bias, so wall functions are admissible for the improvement product.
+    nut_wall = (
+        "        type nutLowReWallFunction;\n        value uniform 0;"
+        if spec.first_cell_height < 1.0e-4
+        else "        type nutUSpaldingWallFunction;\n        value uniform 0;"
+    )
     fields["nut"] = _field(
         "nut",
         "volScalarField",
         "[0 2 -1 0 0 0 0]",
         f"{nut:.8g}",
         f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-        # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
-        # wall function (using nutkWallFunction here biased Cd ~+20%).
-        "        type nutLowReWallFunction;\n        value uniform 0;",
+        nut_wall,
         te_base=te_nut,
     )
     fields["k"] = _field(
@@ -527,9 +561,10 @@ def write_case(spec: CaseSpec, dest: Path) -> None:
     (system / "fvSchemes").write_text(fvschemes(transition=transition), encoding="utf-8")
     (system / "fvSolution").write_text(
         fvsolution(
-            pressure_solver="PCG" if blunt else "GAMG",
-            u_relax=0.7 if blunt else 0.9,
-            kw_relax=0.5 if blunt else 0.7,
+            # spec overrides win; else the per-case auto-derivation (blunt-TE → PCG/0.7/0.5).
+            pressure_solver=spec.pressure_solver or ("PCG" if blunt else "GAMG"),
+            u_relax=spec.u_relax if spec.u_relax is not None else (0.7 if blunt else 0.9),
+            kw_relax=spec.kw_relax if spec.kw_relax is not None else (0.5 if blunt else 0.7),
             transition=transition,
         ),
         encoding="utf-8",

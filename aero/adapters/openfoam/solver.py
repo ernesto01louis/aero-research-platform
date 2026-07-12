@@ -240,6 +240,58 @@ class OpenFOAMSolver(Solver):
             source=str(coeff_file),
         )
 
+    def load_time_averaged(
+        self, result: ResultHandle, *, n_tail: int = 1000
+    ) -> tuple[SolveResult, tuple[float, ...], tuple[float, ...]]:
+        """Like :meth:`load`, but Cd/Cl are the MEAN over the last ``n_tail`` iterations.
+
+        A loaded (cambered) airfoil makes the steady SIMPLE iteration limit-cycle: the force
+        alternates per-iteration around a **relaxation-independent** mean (verified across
+        under-relaxation factors — Stage 15). ``cd[-1]`` catches a random phase; the tail mean is the
+        converged steady value. Returns the averaged ``SolveResult`` plus the raw Cd/Cl tail series
+        (for a paired statistical-uncertainty estimate). Only the turbulent optimizer case uses this
+        — the well-converged V&V cases are untouched (for them the tail mean equals the last value).
+        """
+        coeff_file = _coefficient_file(result.output_host_path)
+        columns, data = _read_coefficient_dat(coeff_file)
+        if data.ndim == 1:
+            data = data.reshape(1, -1)
+        iteration = data[:, columns.index("Time")].astype(int)
+        cd = data[:, columns.index("Cd")]
+        cl = data[:, columns.index("Cl")]
+        n = min(n_tail, len(cd))
+        cd_tail = cd[-n:]
+        cl_tail = cl[-n:]
+        cd_mean = float(cd_tail.mean())
+        cl_mean = float(cl_tail.mean())
+
+        residuals = _p_residuals(result.solver_log)
+        if not residuals:
+            raise ValueError(
+                f"no pressure-equation residuals in the simpleFoam log for "
+                f"{result.case_dir.run_id} — did the solve run?"
+            )
+        history = ConvergenceHistory(
+            iteration=tuple(range(1, len(residuals) + 1)),
+            residual=tuple(residuals),
+        )
+        # No pressure/viscous decomposition here: force.dat carries a single-iteration split that
+        # disagrees with the tail-MEAN cd for a limit-cycling loaded airfoil (the decomposition is a
+        # Stage-09 diagnostic, not needed for the L/D objective).
+        solve = SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=result.case_dir.spec.name,
+            cd=cd_mean,
+            cl=cl_mean,
+            cd_pressure=None,
+            cd_viscous=None,
+            iterations_to_convergence=int(iteration[-1]),
+            final_residual=residuals[-1],
+            history=history,
+            source=str(coeff_file),
+        )
+        return solve, tuple(float(x) for x in cd_tail), tuple(float(x) for x in cl_tail)
+
     def _drag_decomposition(
         self, result: ResultHandle, cd_total: float
     ) -> tuple[float | None, float | None]:

@@ -5,6 +5,42 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
 
+## [0.0.15] - 2026-07-12
+
+### Added — Stage 15 (CFD-in-the-Loop Airfoil Shape Optimization) — OPTIMIZER BUILT; certification deferred
+
+> **Retraction:** an earlier draft of this entry claimed a "+47% thesis-grade CFD-verified
+> improvement". That claim was **withdrawn** — a pre-merge adversarial audit + a rigorous 3-grid
+> observed-order, convergence-gated V&V refuted it (under-converged fine solve + assumed GCI order).
+> The honest outcome: the optimizer is built and finds real, large improvements, but a *thesis-grade*
+> (grid-converged, delta > 2·U95) certification was **not** achieved this stage. See the Stage-15
+> handoff §3 for the full account.
+
+- **The CFD-in-the-loop shape optimizer — the product — is built and works.** A direct-CFD Bayesian
+  optimizer (`aero/optimize/`) optimizes a 2-D airfoil's shape (NACA-4 camber, every candidate
+  CFD-evaluated) to maximize L/D. It reliably finds real, large improvements: **+113%** in the
+  turbulent regime (k-ω SST Re=5×10⁵, L/D 21.67 → 46.34), robustly positive at every grid resolution.
+  Reported honestly as **`validation_tag=validated`** (not thesis-grade) because the matched-delta is
+  not grid-converged on tractable meshes. Bundle: `data/vv/stage15_optimization.json` +
+  `data/vv/stage15_grid_convergence.json` (the auditable 3-grid derivation).
+- **`aero/optimize/`** (core stdlib+numpy+pydantic, PLATFORM-NOT-HUB): `design_space`, `gp` (numpy
+  Matérn-5/2 + Cholesky), `acquisition` (Gaussian EI via erf), `bo` (ask/tell, discrete-pool EI,
+  best-of-N), `objective`, `airfoil_case` (laminar) + **`turbulent_airfoil`** (k-ω SST wall-function),
+  `report` (3-grid observed-order GCI-on-the-delta + iterative-U95 + GO/NO-GO). 31 host tests. ADR-026.
+- **Airfoil shape parametrization** — `geometry.py::naca4_coordinates` (camber as y-only perturbations
+  on fixed x-stations → mesh topology invariant → honest matched deltas; recovers NACA 0012 exactly at
+  zero); `CaseSpec` gains bounded shape fields + optional solver-robustness overrides
+  (`pressure_solver`/`u_relax`/`kw_relax`, default None); `case_writer` threads the shape + a
+  resolution-matched `nut` wall BC (`nutLowReWallFunction` y+<1 / all-y+ `nutUSpaldingWallFunction`).
+- **Tail-averaging + adversarial-verification harness** — `solver.load_time_averaged` (tail-mean force
+  for a limit-cycling loaded airfoil); multi-lens skeptic panels that retracted the +47% and BLOCKed a
+  later +17% as coarsen-until-it-passes. **`aero[bo]`** extra reserved (ADR-026).
+
+### Proposed — Constitution amendment (ADR-027)
+
+- Hard Rule 14 (CFD-VERIFIED-OPTIMUM-ONLY) promoted to **Invariant 12** (≥72 h window; the schedule
+  in ADR-013). `OptimizationResult` is the enforcing schema.
+
 ## [0.0.14] - 2026-07-10
 
 ### Added — Stage 14 (Rigid Flapping-Wing Validation)

@@ -77,6 +77,77 @@ def naca0012_coordinates(
     return np.asarray(np.column_stack([x, y]), dtype=np.float64)
 
 
+# NACA-4 baseline: zero camber, 12% thickness. `naca4_coordinates(max_camber=0,
+# max_thickness_frac=0.12)` is byte-identical to `naca0012_coordinates` — the shape-optimizer's
+# baseline recovery, so a matched-condition delta against the NACA 0012 is exact (Stage 15).
+_BASELINE_THICKNESS_FRAC = _THICKNESS
+
+
+def naca4_coordinates(
+    n_points: int = 120,
+    *,
+    chord: float = 1.0,
+    max_camber: float = 0.0,
+    camber_position: float = 0.4,
+    max_thickness_frac: float = _BASELINE_THICKNESS_FRAC,
+    blunt_te: bool = False,
+    surface: str = "upper",
+) -> NDArray[np.float64]:
+    """NACA 4-digit (x, y) coordinates with camber + thickness as shape design variables.
+
+    The shape-optimization generalisation of :func:`naca0012_coordinates`. Thickness is applied
+    **normal to the chord line (y-only)** on the SAME cosine-spaced x-stations, so the mesh
+    topology (block/cell counts, LE/mid/TE corner x-positions) is invariant under a shape change —
+    exactly what a matched-condition optimization delta needs. Returns the ``"upper"`` or
+    ``"lower"`` surface, leading edge to trailing edge.
+
+    * ``max_camber`` (m) — max camber as a fraction of chord (0 = symmetric NACA-00xx).
+    * ``camber_position`` (p) — chordwise position of max camber, fraction of chord.
+    * ``max_thickness_frac`` (t) — max thickness / chord; 0.12 = NACA 0012.
+
+    At ``max_camber=0, max_thickness_frac=0.12`` the ``"upper"`` surface is byte-identical to
+    :func:`naca0012_coordinates` (and ``"lower"`` is its exact mirror). FAIL-LOUD if the camber
+    parameters would collapse the section (non-positive thickness anywhere).
+    """
+    if n_points < 2:
+        raise ValueError(f"n_points must be >= 2, got {n_points}")
+    if surface not in ("upper", "lower"):
+        raise ValueError(f"surface must be 'upper' or 'lower', got {surface!r}")
+    if not 0.0 < camber_position < 1.0:
+        raise ValueError(f"camber_position must be in (0,1), got {camber_position}")
+
+    a4 = _A4_OPEN_TE if blunt_te else _A4_CLOSED_TE
+    beta = np.linspace(0.0, np.pi, n_points)
+    x = 0.5 * (1.0 - np.cos(beta)) * chord  # SAME stations as naca0012_coordinates
+    # Half-thickness scaled from the 12% baseline quartic to the requested t/c.
+    yt = naca0012_half_thickness(x, chord=chord, a4=a4) * (max_thickness_frac / _THICKNESS)
+
+    xc = x / chord
+    m, p = max_camber, camber_position
+    if m == 0.0:
+        yc = np.zeros_like(x)
+    else:
+        yc = (
+            np.where(
+                xc < p,
+                (m / p**2) * (2.0 * p * xc - xc**2),
+                (m / (1.0 - p) ** 2) * ((1.0 - 2.0 * p) + 2.0 * p * xc - xc**2),
+            )
+            * chord
+        )
+
+    y = yc + yt if surface == "upper" else yc - yt
+    # Snap the LE onto the origin; snap the TE closed unless blunt (yc(0)=yc(1)=0, yt(1)=0 sharp).
+    y[0] = 0.0
+    if not blunt_te:
+        y[-1] = 0.0
+    # FAIL-LOUD: the section must keep positive half-thickness in the interior (0 only at LE/TE;
+    # a tiny negative float at the TE is numerically zero, hence the -1e-9 tolerance).
+    if float(np.min(yt)) < -1.0e-9:
+        raise ValueError(f"non-positive thickness (max_thickness_frac={max_thickness_frac})")
+    return np.asarray(np.column_stack([x, y]), dtype=np.float64)
+
+
 def write_coordinates_csv(path: str, coords: NDArray[np.float64]) -> None:
     """Write (x, y) surface coordinates to a CSV with an `x,y` header."""
     np.savetxt(path, coords, delimiter=",", header="x,y", comments="", fmt="%.10f")
