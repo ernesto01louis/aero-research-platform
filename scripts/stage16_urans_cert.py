@@ -83,6 +83,26 @@ def main() -> None:
         action="store_true",
         help="Run all campaign solves concurrently (independent serial jobs; 16-core box).",
     )
+    ap.add_argument(
+        "--extend",
+        action="store_true",
+        help="CONTINUATION mode: restart the existing g16u_* cases from latestTime, extend "
+        "endTime to --extend-to convective times, and re-window on the settled tail — the "
+        "honest remedy when the first segment's stationarity gates refuse a still-settling "
+        "flow (the paid-for segment is reused, never discarded selectively).",
+    )
+    ap.add_argument(
+        "--extend-to",
+        type=float,
+        default=100.0,
+        help="Extension mode: new total run length in convective times.",
+    )
+    ap.add_argument(
+        "--tail-start-convective",
+        type=float,
+        default=None,
+        help="Absolute averaging-tail start (t*); default 0.6*extend-to in extension mode.",
+    )
     ap.add_argument("--timeout", type=int, default=129600, help="Per-solve ceiling, s (36 h).")
     ap.add_argument("--allow-dirty", action="store_true")
     ap.add_argument("--out", default=None)
@@ -152,13 +172,53 @@ def main() -> None:
             "max_skewness": _f(r"[Mm]ax skewness = ([0-9.eE+*-]+)"),
         }
 
+    def analyze_series(
+        row: dict[str, Any],
+        t: tuple[float, ...],
+        cd: tuple[float, ...],
+        cl: tuple[float, ...],
+        tail_start: float,
+    ) -> None:
+        """Window the force series, measure the sampling stats, apply the stationarity gate.
+
+        Pre-registered gate: half-tail window-mean L/D averages agree within 2x the full-tail
+        sampling half-width, the NOBM estimate is `reliable`, every window-mean cd positive.
+        """
+        row["n_samples"] = len(t)
+        cd_w = time_weighted_window_means(t, cd, start_time=tail_start, n_windows=args.n_windows)
+        cl_w = time_weighted_window_means(t, cl, start_time=tail_start, n_windows=args.n_windows)
+        if min(cd_w) <= 0.0:
+            row["error"] = f"non-physical window-mean cd (min {min(cd_w):.4g})"
+            return
+        ld_w = tuple(c / d for c, d in zip(cl_w, cd_w, strict=True))
+        try:
+            stat = statistical_uncertainty_from_samples(
+                ld_w, amp_scale=max(ld_w) - min(ld_w), min_samples=8
+            )
+        except StatisticalUncertaintyError as exc:
+            row["error"] = f"StatisticalUncertaintyError: {exc}"
+            return
+        half = args.n_windows // 2
+        drift = abs(float(np.mean(ld_w[:half])) - float(np.mean(ld_w[half:])))
+        stationary = drift <= 2.0 * stat.u95_statistical
+        row.update(
+            ld=float(stat.mean),
+            cd=float(np.mean(cd_w)),
+            cl=float(np.mean(cl_w)),
+            u95_statistical=float(stat.u95_statistical),
+            stat_reliable=bool(stat.reliable),
+            drift=drift,
+            converged=bool(stationary and stat.reliable),
+            stat=stat.model_dump(mode="json"),
+            ld_windows=list(ld_w),
+            tail_start_convective=tail_start,
+        )
+
     def solve(m: float, design: str, grid: str, mult: float) -> dict[str, Any]:
         """One time-accurate solve → window-mean L/D + measured sampling stats + provenance.
 
         Never raises on a solver failure — the signature is campaign evidence; the composer
-        refuses an incomplete family. Stationarity gate (pre-registered): the two half-tail
-        window-mean L/D averages agree within 2x the full-tail sampling half-width, the NOBM
-        estimate is `reliable`, and every window's time-mean cd is positive.
+        refuses an incomplete family.
         """
         name = f"g16u_{design}_{grid}"
         spec = make_spec(m, name, mult)
@@ -191,6 +251,7 @@ def main() -> None:
         t0 = time.monotonic()
         try:
             case_dir = solver.prepare(spec)
+            row["run_id"] = case_dir.run_id
             mesh = solver.mesh(case_dir, executor)
             row["n_elements"] = getattr(mesh, "n_elements", None)
             if not getattr(mesh, "ok", False):
@@ -206,36 +267,11 @@ def main() -> None:
                 print(f"SOLVE {design}/{grid} !! SOLVER FAILED rc={result.returncode}", flush=True)
                 return row
             t, cd, cl = solver.load_force_series(result)
-            row["n_samples"] = len(t)
             start = t[0] + args.transient_fraction * (t[-1] - t[0])
-            cd_w = time_weighted_window_means(t, cd, start_time=start, n_windows=args.n_windows)
-            cl_w = time_weighted_window_means(t, cl, start_time=start, n_windows=args.n_windows)
-            if min(cd_w) <= 0.0:
-                row["error"] = f"non-physical window-mean cd (min {min(cd_w):.4g})"
+            analyze_series(row, t, cd, cl, tail_start=start)
+            if row["error"]:
                 print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
                 return row
-            ld_w = tuple(c / d for c, d in zip(cl_w, cd_w, strict=True))
-            try:
-                stat = statistical_uncertainty_from_samples(
-                    ld_w, amp_scale=max(ld_w) - min(ld_w), min_samples=8
-                )
-            except StatisticalUncertaintyError as exc:
-                row["error"] = f"StatisticalUncertaintyError: {exc}"
-                print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
-                return row
-            half = args.n_windows // 2
-            drift = abs(float(np.mean(ld_w[:half])) - float(np.mean(ld_w[half:])))
-            stationary = drift <= 2.0 * stat.u95_statistical
-            row.update(
-                ld=float(stat.mean),
-                cd=float(np.mean(cd_w)),
-                cl=float(np.mean(cl_w)),
-                u95_statistical=float(stat.u95_statistical),
-                stat_reliable=bool(stat.reliable),
-                drift=drift,
-                converged=bool(stationary and stat.reliable),
-                stat=stat.model_dump(mode="json"),
-            )
         except (BenchmarkError, ValueError, OSError) as exc:
             row["error"] = f"{type(exc).__name__}: {exc}"
             print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
@@ -276,6 +312,137 @@ def main() -> None:
         print(f"PROBE done -> {out}: {json.dumps({k: v for k, v in probe.items() if k != 'row'})}")
         return
 
+    # ---------------------------------------------------------------- continuation mode
+    def patch_controldict_for_restart(case_host: Path, end_time_s: float) -> None:
+        p = case_host / "system" / "controlDict"
+        txt = p.read_text(encoding="utf-8")
+        txt = re.sub(r"startFrom\s+\w+;", "startFrom       latestTime;", txt, count=1)
+        txt = re.sub(r"endTime\s+[0-9.eE+-]+;", f"endTime         {end_time_s:.8g};", txt, count=1)
+        # Only the controlDict write interval (first occurrence) — the forceCoeffs FO's
+        # per-timestep writeInterval further down must stay 1.
+        txt = re.sub(
+            r"writeInterval\s+[0-9.eE+-]+;", f"writeInterval   {end_time_s:.8g};", txt, count=1
+        )
+        p.write_text(txt, encoding="utf-8")
+
+    def read_concat_series(
+        case_host: Path,
+    ) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
+        """The forceCoeffs series concatenated across restart segments (duplicate times dropped)."""
+        from aero.adapters.openfoam.solver import _read_coefficient_dat
+
+        files = sorted(
+            (case_host / "postProcessing" / "forceCoeffs1").glob("*/coefficient.dat"),
+            key=lambda p: float(p.parent.name),
+        )
+        if not files:
+            raise ValueError(f"no coefficient.dat under {case_host}")
+        ts: list[Any] = []
+        cds: list[Any] = []
+        cls_: list[Any] = []
+        last_t = -1.0
+        for f in files:
+            columns, data = _read_coefficient_dat(f)
+            if data.ndim == 1:
+                data = data.reshape(1, -1)
+            t = data[:, columns.index("Time")]
+            keep = t > last_t
+            ts.append(t[keep])
+            cds.append(data[keep, columns.index("Cd")])
+            cls_.append(data[keep, columns.index("Cl")])
+            if len(t):
+                last_t = float(t[-1])
+        t_all = np.concatenate(ts)
+        cd_all = np.concatenate(cds)
+        cl_all = np.concatenate(cls_)
+        return (
+            tuple(float(v) for v in t_all),
+            tuple(float(v) for v in cd_all),
+            tuple(float(v) for v in cl_all),
+        )
+
+    def extend_one(m: float, design: str, grid: str, mult: float) -> dict[str, Any]:
+        """Restart an existing case from latestTime out to --extend-to; re-analyze the tail."""
+        name = f"g16u_{design}_{grid}"
+        spec = make_spec(m, name, mult)
+        prov = compute_provenance(
+            repo_root=_REPO_ROOT,
+            container_sif="openfoam-esi.sif",
+            resolved_config={
+                **spec.model_dump(mode="json"),
+                "end_time_convective": args.extend_to,
+                "restart_continuation": True,
+            },
+            allow_dirty=args.allow_dirty,
+        )
+        row: dict[str, Any] = {
+            "design": design,
+            "grid": grid,
+            "refine_mult": mult,
+            "ld": None,
+            "cd": None,
+            "cl": None,
+            "u95_statistical": None,
+            "stat_reliable": None,
+            "drift": None,
+            "converged": False,
+            "n_elements": None,
+            "n_samples": None,
+            "wall_s": None,
+            "checkmesh": None,
+            "error": None,
+            "solver_log_tail": None,
+            "stat": None,
+            "provenance": prov.model_dump(mode="json"),
+        }
+        t0 = time.monotonic()
+        try:
+            dirs = sorted((nfs / "runs").glob(f"{name}-*"))
+            if not dirs:
+                row["error"] = f"no existing case dir {name}-* to extend"
+                print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
+                return row
+            case_host = dirs[-1]
+            row["run_id"] = case_host.name
+            row["extended_to_convective"] = args.extend_to
+            patch_controldict_for_restart(case_host, args.extend_to)
+            remote = Path("/mnt/aero/runs") / case_host.name
+            cmd = build_apptainer_exec(
+                sif_path=solver.sif_path,
+                case_bind_source=str(remote),
+                command="pimpleFoam",
+            )
+            res = executor.run(cmd, long_running=True, session=f"ext-{case_host.name}")
+            row["wall_s"] = time.monotonic() - t0
+            if res.returncode != 0:
+                row["error"] = f"extension solve failed (rc={res.returncode})"
+                row["solver_log_tail"] = (res.stdout or "")[-4000:]
+                print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
+                return row
+            t, cd, cl = read_concat_series(case_host)
+            tail_start = (
+                args.tail_start_convective
+                if args.tail_start_convective is not None
+                else 0.6 * args.extend_to
+            )
+            analyze_series(row, t, cd, cl, tail_start=tail_start)
+            if row["error"]:
+                print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
+                return row
+        except (BenchmarkError, ValueError, OSError) as exc:
+            row["error"] = f"{type(exc).__name__}: {exc}"
+            print(f"SOLVE {design}/{grid} !! {row['error']}", flush=True)
+            return row
+        flag = "OK" if row["converged"] else "!! NOT STATIONARY"
+        print(
+            f"SOLVE {design}/{grid} EXT->{args.extend_to:g}t* n_samples={row['n_samples']} "
+            f"L/D={row['ld']:.5f} u95_stat={row['u95_statistical']:.4f} "
+            f"drift={row['drift']:.4f} reliable={row['stat_reliable']} "
+            f"wall={row['wall_s']:.0f}s {flag}",
+            flush=True,
+        )
+        return row
+
     # ------------------------------------------------------------- certification campaign
     labels = _GRID_LABELS[: args.n_grids]
     mults = {lab: args.finest_mult * args.ratio**i for i, lab in enumerate(labels)}
@@ -284,15 +451,16 @@ def main() -> None:
         for grid in labels
         for m, design in ((0.0, "baseline"), (args.opt_m, "optimum"))
     ]
+    worker = extend_one if args.extend else solve
     if args.concurrent:
         # Independent SERIAL jobs on the 16-core box (the platform's sanctioned concurrency);
         # each thread just blocks on its own detached remote job. Wall time ~= the fine solve.
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
-            rows = list(pool.map(lambda j: solve(j[0], j[1], j[2], mults[j[2]]), jobs))
+            rows = list(pool.map(lambda j: worker(j[0], j[1], j[2], mults[j[2]]), jobs))
     else:
-        rows = [solve(m, d, g, mults[g]) for (m, d, g) in jobs]
+        rows = [worker(m, d, g, mults[g]) for (m, d, g) in jobs]
     base = {r["grid"]: r for r in rows if r["design"] == "baseline"}
     opt = {r["grid"]: r for r in rows if r["design"] == "optimum"}
 
@@ -314,7 +482,9 @@ def main() -> None:
         "finest_mult": args.finest_mult,
         "aoa_deg": args.aoa,
         "reynolds": args.reynolds,
-        "end_time_convective": args.end_time_convective,
+        "end_time_convective": args.extend_to if args.extend else args.end_time_convective,
+        "continuation": bool(args.extend),
+        "tail_start_convective": args.tail_start_convective,
         "transient_fraction": args.transient_fraction,
         "n_windows": args.n_windows,
         "max_courant": args.max_courant,
