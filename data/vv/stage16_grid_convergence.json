@@ -1,0 +1,366 @@
+{
+  "case": "airfoil_opt_naca4",
+  "regime": "turbulent k-omega SST Re=5e+05 (wall-function, tail-averaged)",
+  "method": "ASME V&V 20 3-grid observed-order GCI on the matched-condition L/D delta, GRADED (fixed-mapping) family, finest grid included, hard-gated verdict; tail-averaged forces + batch-means iterative U95",
+  "graded_family": true,
+  "refinement_ratio": 1.7,
+  "finest_mult": 0.5882352941176471,
+  "aoa_deg": 4.0,
+  "reynolds": 500000.0,
+  "design_optimum": {
+    "max_camber": 0.07273510933006024,
+    "camber_position": 0.20448957451063046
+  },
+  "resid_tol": 0.0001,
+  "k": 2.0,
+  "solves": [
+    {
+      "design": "baseline",
+      "grid": "fine",
+      "refine_mult": 0.5882352941176471,
+      "graded": true,
+      "grading": {
+        "n_normal": 136,
+        "first_cell_height": 0.000599449843403119,
+        "r_wall": 1.071452164598945,
+        "g_eta": 11125.67030635192,
+        "e_front": 1742.4785407700738,
+        "e_wake": 1123.2596934698124,
+        "y_plus_estimate": 14.986246085077974
+      },
+      "ld": 23.47323914949767,
+      "cd": 0.0162830093353,
+      "cl": 0.382214972201,
+      "ld_sem": 0.08670332997315587,
+      "final_residual": 0.0012158509,
+      "converged": true,
+      "n_elements": 120224,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 83.006445,
+        "max_skewness": 2.4259442
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "8b70db3533676b8ed8481385f541683870677dee82150d5ea5cb462b85765b10"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "fine",
+      "refine_mult": 0.5882352941176471,
+      "graded": true,
+      "grading": {
+        "n_normal": 136,
+        "first_cell_height": 0.000599449843403119,
+        "r_wall": 1.071452164598945,
+        "g_eta": 11125.67030635192,
+        "e_front": 1742.4785407700738,
+        "e_wake": 1123.2596934698124,
+        "y_plus_estimate": 14.986246085077974
+      },
+      "ld": 46.613600563054455,
+      "cd": 0.0213674313685056,
+      "cl": 0.99601291087,
+      "ld_sem": 33.56062730039027,
+      "final_residual": 0.0030090291,
+      "converged": false,
+      "n_elements": 120224,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 83.645312,
+        "max_skewness": 2.568503
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "8a5488ea097bb76d644833f8f297c83928df0c81b0d3cc2ca7ae35902bb4ad29"
+      }
+    },
+    {
+      "design": "baseline",
+      "grid": "medium",
+      "refine_mult": 1.0,
+      "graded": true,
+      "grading": {
+        "n_normal": 80,
+        "first_cell_height": 0.001,
+        "r_wall": 1.1251730431576723,
+        "g_eta": 11125.670306352122,
+        "e_front": 1742.4785407700656,
+        "e_wake": 1123.2596934698247,
+        "y_plus_estimate": 25.0
+      },
+      "ld": 21.674197170375628,
+      "cd": 0.0170089975762,
+      "cl": 0.36865636713699995,
+      "ld_sem": 0.002100534141943545,
+      "final_residual": 0.00090872381,
+      "converged": true,
+      "n_elements": 41600,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 84.648251,
+        "max_skewness": 2.2533073
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "c0310fa1dc27c09cfdcabf26818ff2d0841bc96a7ed79704f6f8d46e629e39a7"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "medium",
+      "refine_mult": 1.0,
+      "graded": true,
+      "grading": {
+        "n_normal": 80,
+        "first_cell_height": 0.001,
+        "r_wall": 1.1251730431576723,
+        "g_eta": 11125.670306352122,
+        "e_front": 1742.4785407700656,
+        "e_wake": 1123.2596934698247,
+        "y_plus_estimate": 25.0
+      },
+      "ld": 46.333403513958366,
+      "cd": 0.0215266706346,
+      "cl": 0.997403916825,
+      "ld_sem": 0.011982127415262328,
+      "final_residual": 0.0022456343,
+      "converged": true,
+      "n_elements": 41600,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 84.802141,
+        "max_skewness": 2.4306641
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "4e618717f331f35962d8b6b9b264b49ae061fc5e0e427487464cfb20ac5f6040"
+      }
+    },
+    {
+      "design": "baseline",
+      "grid": "coarse",
+      "refine_mult": 1.7,
+      "graded": true,
+      "grading": {
+        "n_normal": 47,
+        "first_cell_height": 0.0016481044541691034,
+        "r_wall": 1.224513599388803,
+        "g_eta": 11125.670306352149,
+        "e_front": 1742.4785407700654,
+        "e_wake": 1123.2596934698238,
+        "y_plus_estimate": 41.202611354227585
+      },
+      "ld": 18.550132612280084,
+      "cd": 0.0190989867484,
+      "cl": 0.354288736943,
+      "ld_sem": 1.3767114550877085e-05,
+      "final_residual": 0.00060594798,
+      "converged": true,
+      "n_elements": 14382,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 86.274663,
+        "max_skewness": 2.0133074
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "18a96cf6b0be6ccc262bab0c534d5211ead797fdd8aa6bca89c87dc173e95803"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "coarse",
+      "refine_mult": 1.7,
+      "graded": true,
+      "grading": {
+        "n_normal": 47,
+        "first_cell_height": 0.0016481044541691034,
+        "r_wall": 1.224513599388803,
+        "g_eta": 11125.670306352149,
+        "e_front": 1742.4785407700654,
+        "e_wake": 1123.2596934698238,
+        "y_plus_estimate": 41.202611354227585
+      },
+      "ld": 40.31277383090615,
+      "cd": 0.024924894923,
+      "cl": 1.00479165179,
+      "ld_sem": 0.0014944994043567695,
+      "final_residual": 0.0012849713,
+      "converged": true,
+      "n_elements": 14382,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 86.621759,
+        "max_skewness": 2.2969756
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "8acd6453b82c1e665356acf555a1f94ec3932be639a69fbfc0a45ace3a1d43ac"
+      }
+    },
+    {
+      "design": "baseline",
+      "grid": "coarsest",
+      "refine_mult": 2.8899999999999997,
+      "graded": true,
+      "grading": {
+        "n_normal": 28,
+        "first_cell_height": 0.0026232213051819186,
+        "r_wall": 1.412095057081408,
+        "g_eta": 11125.670306352093,
+        "e_front": 1742.4785407700645,
+        "e_wake": 1123.2596934698245,
+        "y_plus_estimate": 65.58053262954796
+      },
+      "ld": 11.937191949207081,
+      "cd": 0.02726195083105727,
+      "cl": 0.32543113998017614,
+      "ld_sem": 0.6478040468106965,
+      "final_residual": 1.0446015e-06,
+      "converged": false,
+      "n_elements": 5096,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 87.004336,
+        "max_skewness": 1.6988408
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "60e00d8389310274719dbfca5bf003ca4904f3751adcfef6a9b61d051369be9a"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "coarsest",
+      "refine_mult": 2.8899999999999997,
+      "graded": true,
+      "grading": {
+        "n_normal": 28,
+        "first_cell_height": 0.0026232213051819186,
+        "r_wall": 1.412095057081408,
+        "g_eta": 11125.670306352093,
+        "e_front": 1742.4785407700645,
+        "e_wake": 1123.2596934698245,
+        "y_plus_estimate": 65.58053262954796
+      },
+      "ld": 31.151199520262733,
+      "cd": 0.0320317257104,
+      "cl": 0.9978266785829999,
+      "ld_sem": 0.0007912975752253752,
+      "final_residual": 1.8454286e-05,
+      "converged": true,
+      "n_elements": 5096,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 87.611855,
+        "max_skewness": 2.095936
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "provenance": {
+        "git_sha": "b0ea5d7ef9a121a43620cd512890be974f8717bc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "2b26945a5fd3a2fd13ec875366eb3a565ee90f8b81e4fc7c7d9c576c319b5f35"
+      }
+    }
+  ],
+  "family_complete": true,
+  "all_converged_claim_grids": false,
+  "delta_per_grid": {
+    "fine": 23.140361413556786,
+    "medium": 24.65920634358274,
+    "coarse": 21.76264121862607
+  },
+  "observed_order_delta": 0.0,
+  "delta_monotone": false,
+  "observed_order_optimum": [
+    5.780796674091395,
+    true
+  ],
+  "observed_order_baseline": [
+    1.040051309873362,
+    true
+  ],
+  "gci_delta_fraction": 0.2812979148451608,
+  "u95_delta_grid": 6.509335414396942,
+  "u95_delta_iterative": 33.56073929851858,
+  "u95_delta_numerical": 34.18617658937968,
+  "delta_fine": 23.140361413556786,
+  "required_margin": 68.37235317875935,
+  "gates": {
+    "significant": false,
+    "all_converged": false,
+    "delta_monotone": false,
+    "order_in_asymptotic_range": false
+  },
+  "demoted_by": [
+    "significant",
+    "all_converged",
+    "delta_monotone",
+    "order_in_asymptotic_range"
+  ],
+  "is_go": false,
+  "validation_tag": "validated",
+  "overlapping_triplet": {
+    "grids": [
+      "medium",
+      "coarse",
+      "coarsest"
+    ],
+    "delta_series": [
+      24.65920634358274,
+      21.76264121862607,
+      19.214007571055653
+    ],
+    "observed_order_delta": -0.2411635716345862,
+    "delta_monotone": true,
+    "note": "order-stability evidence only; the claim is the finest triplet"
+  }
+}
