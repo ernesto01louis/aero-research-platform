@@ -308,6 +308,31 @@ def compose_result(
     ), True
 
 
+def certification_gates(
+    delta: MatchedGridDeltaTriplet,
+    *,
+    all_converged: bool,
+    higher_is_better: bool,
+    k: float = 2.0,
+    min_order: float = 0.5,
+) -> dict[str, bool]:
+    """The Stage-16 hard GO gates — significance ALONE is not a GO.
+
+    A delta measured on non-converged solves, a non-monotone family, or an observed order
+    outside the asymptotic range (`[min_order, formal_order]`) is not a claim, however large it
+    is. The Stage-15 driver recorded `all_converged` but did not gate the verdict on it — the
+    audit gap this closes. The GO verdict is ``all(gates.values())``; a demotion never relaxes
+    `k`, never drops a grid, never hand-edits a U95 term.
+    """
+    p = delta.observed_order_delta
+    return {
+        "significant": delta.is_significant(higher_is_better=higher_is_better, k=k),
+        "all_converged": all_converged,
+        "delta_monotone": delta.delta_monotone,
+        "order_in_asymptotic_range": min_order <= p <= delta.formal_order,
+    }
+
+
 def nogo_result(
     *,
     case_name: str,
@@ -343,6 +368,7 @@ __all__ = [
     "MatchedGridDelta",
     "MatchedGridDeltaTriplet",
     "SmallSignalError",
+    "certification_gates",
     "compose_result",
     "gci_2grid_fraction",
     "gci_3grid_fraction",
