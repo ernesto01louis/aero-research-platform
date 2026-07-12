@@ -16,6 +16,11 @@ chord: 1.0
 span: 1.0
 end_time: 1500
 turbulence_model: kOmegaSST
+# SIMPLE solver-robustness overrides (null = auto-derived GAMG/0.9/0.7 for this well-conditioned
+# sharp-TE reference mesh); the Stage-15 loaded turbulent optimizer case sets PCG + gentler values.
+pressure_solver: null
+u_relax: null
+kw_relax: null
 farfield_extent_chords: 100.0
 n_surface: 120
 n_normal: 120

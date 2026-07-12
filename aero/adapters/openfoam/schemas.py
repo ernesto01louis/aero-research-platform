@@ -86,6 +86,26 @@ class CaseSpec(BaseModel):
         "y+<1 mesh), or 'laminar' (no model) for the forward-regime low-Re airfoil.",
     )
 
+    # --- optional SIMPLE solver-robustness overrides (Stage 15 turbulent optimizer) ---
+    # Default None = the per-case auto-derivation in write_case (blunt-TE → PCG/0.7/0.5, else
+    # GAMG/0.9/0.7). A loaded y+<1 turbulent airfoil has extreme near-wall aspect ratios that stall
+    # GAMG coarsening (the pressure residual floors ~5e-4 and never reaches residualControl); such a
+    # case sets pressure_solver="PCG" + gentler relaxation. Frozen → the override is faithful in
+    # config_hash. The converged solution is unchanged — only the path to it (ADR-005 precedent).
+    pressure_solver: Literal["GAMG", "PCG"] | None = Field(
+        default=None,
+        description="Override SIMPLE pressure solver; None = auto (GAMG, or PCG blunt).",
+    )
+    u_relax: float | None = Field(
+        default=None, gt=0.0, le=1.0, description="Override momentum under-relaxation; None = auto."
+    )
+    kw_relax: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=1.0,
+        description="Override turbulence under-relaxation; None = auto.",
+    )
+
     # --- NACA-4 shape design variables (Stage 15 shape optimizer) ---
     # Defaults recover the fixed NACA 0012 exactly (byte-identical mesh), so every pre-Stage-15
     # case is unchanged. Off-baseline values select the NACA-4 camber+thickness section via

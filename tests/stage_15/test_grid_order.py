@@ -150,6 +150,17 @@ def test_compose_result_triplet_nogo_within_uncertainty() -> None:
     assert result.optimization is None
 
 
+def test_iterative_term_rss_into_numerical() -> None:
+    # u95_delta_iterative (limit-cycle term) RSS's with the grid GCI into u95_delta_numerical.
+    d0 = _delta_triplet(a=0.68, c=0.01, p=1.5)  # iterative=0 by default
+    grid = d0.u95_delta_grid
+    assert d0.u95_delta_numerical == pytest.approx(grid, rel=1e-12)  # no iterative -> just grid
+    d1 = d0.model_copy(update={"u95_delta_iterative": 0.05})
+    assert d1.u95_delta_grid == pytest.approx(grid, rel=1e-12)  # grid arm unchanged
+    assert d1.u95_delta_numerical == pytest.approx((grid**2 + 0.05**2) ** 0.5, rel=1e-12)
+    assert d1.u95_delta_numerical > d0.u95_delta_numerical  # iterative strictly widens the band
+
+
 def test_observed_order_matches_hand_formula() -> None:
     # ln(r^p)/ln(r) == p, sanity on the closed form used above
     for p in (1.0, 1.3, 1.8, 2.0):

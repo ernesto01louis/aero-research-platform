@@ -472,15 +472,23 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
     # Laminar (forward-regime low-Re airfoil): no k/omega/nut transport.
     if spec.turbulence_model == "laminar":
         return fields
+    # Wall treatment matches the near-wall resolution: a wall-resolved y+<1 mesh (fine first cell)
+    # uses the low-Re function; a coarse y+>>1 mesh uses the all-y+ Spalding wall function — robust,
+    # no near-wall stiffness (the tractable turbulent-optimizer path, Stage 15). nutkWallFunction
+    # biased Cd ~+20% and is rejected for ABSOLUTE V&V, but the matched-condition optimization delta
+    # cancels that systematic bias, so wall functions are admissible for the improvement product.
+    nut_wall = (
+        "        type nutLowReWallFunction;\n        value uniform 0;"
+        if spec.first_cell_height < 1.0e-4
+        else "        type nutUSpaldingWallFunction;\n        value uniform 0;"
+    )
     fields["nut"] = _field(
         "nut",
         "volScalarField",
         "[0 2 -1 0 0 0 0]",
         f"{nut:.8g}",
         f"        type freestream;\n        freestreamValue uniform {nut:.8g};",
-        # Wall-resolved (y+ < 1) — low-Re wall treatment, not a log-law
-        # wall function (using nutkWallFunction here biased Cd ~+20%).
-        "        type nutLowReWallFunction;\n        value uniform 0;",
+        nut_wall,
         te_base=te_nut,
     )
     fields["k"] = _field(
@@ -553,9 +561,10 @@ def write_case(spec: CaseSpec, dest: Path) -> None:
     (system / "fvSchemes").write_text(fvschemes(transition=transition), encoding="utf-8")
     (system / "fvSolution").write_text(
         fvsolution(
-            pressure_solver="PCG" if blunt else "GAMG",
-            u_relax=0.7 if blunt else 0.9,
-            kw_relax=0.5 if blunt else 0.7,
+            # spec overrides win; else the per-case auto-derivation (blunt-TE → PCG/0.7/0.5).
+            pressure_solver=spec.pressure_solver or ("PCG" if blunt else "GAMG"),
+            u_relax=spec.u_relax if spec.u_relax is not None else (0.7 if blunt else 0.9),
+            kw_relax=spec.kw_relax if spec.kw_relax is not None else (0.5 if blunt else 0.7),
             transition=transition,
         ),
         encoding="utf-8",

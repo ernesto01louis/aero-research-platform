@@ -24,6 +24,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
+    ap.add_argument("--case", choices=("laminar", "turbulent"), default="laminar")
+    ap.add_argument("--reynolds", type=float, default=5.0e5, help="Re for the turbulent case.")
+    ap.add_argument("--end-time", type=int, default=3000, help="SIMPLE iterations per eval.")
     ap.add_argument("--n-init", type=int, default=6, help="Latin-hypercube initial design size.")
     ap.add_argument("--n-iter", type=int, default=10, help="EI-guided BO iterations.")
     ap.add_argument("--aoa", type=float, default=4.0, help="Fixed angle of attack (deg).")
@@ -43,6 +46,7 @@ def main() -> None:
     from aero.optimize import BayesianOptimizer, BOConfig, CFDObjective, DesignSpace, DesignVariable
     from aero.optimize.airfoil_case import ShapedLaminarAirfoil
     from aero.optimize.report import MatchedGridDelta, compose_result
+    from aero.optimize.turbulent_airfoil import ShapedTurbulentAirfoil
     from aero.orchestration import LocalSSHExecutor
     from aero.provenance import compute_provenance
     from aero.provenance.db import resolve_dsn
@@ -72,13 +76,23 @@ def main() -> None:
         )
     )
 
-    def make_case(dv: dict[str, float], *, name: str, ratio: float = 1.0) -> ShapedLaminarAirfoil:
-        case = ShapedLaminarAirfoil(
-            name=name,
-            aoa_deg=args.aoa,
-            max_camber=dv["max_camber"],
-            camber_position=dv["camber_position"],
-        )
+    def make_case(dv: dict[str, float], *, name: str, ratio: float = 1.0) -> object:
+        if args.case == "turbulent":
+            case: object = ShapedTurbulentAirfoil(
+                name=name,
+                aoa_deg=args.aoa,
+                reynolds=args.reynolds,
+                max_camber=dv["max_camber"],
+                camber_position=dv["camber_position"],
+                end_time=args.end_time,
+            )
+        else:
+            case = ShapedLaminarAirfoil(
+                name=name,
+                aoa_deg=args.aoa,
+                max_camber=dv["max_camber"],
+                camber_position=dv["camber_position"],
+            )
         return case.refined(ratio) if ratio != 1.0 else case
 
     objective = CFDObjective(

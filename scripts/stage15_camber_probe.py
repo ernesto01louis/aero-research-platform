@@ -25,6 +25,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
+    ap.add_argument("--case", choices=("laminar", "turbulent"), default="laminar")
+    ap.add_argument("--reynolds", type=float, default=3.0e6, help="Re for the turbulent case.")
     ap.add_argument("--aoa", type=float, default=4.0)
     ap.add_argument("--camber-position", type=float, default=0.592640974765251)
     ap.add_argument(
@@ -40,8 +42,26 @@ def main() -> None:
 
     from aero.adapters.openfoam.solver import OpenFOAMSolver
     from aero.optimize.airfoil_case import ShapedLaminarAirfoil
+    from aero.optimize.turbulent_airfoil import ShapedTurbulentAirfoil
     from aero.orchestration import LocalSSHExecutor
     from aero.vv._base import BenchmarkRunner
+
+    def build_case(m: float, name: str) -> object:
+        if args.case == "turbulent":
+            return ShapedTurbulentAirfoil(
+                name=name,
+                aoa_deg=args.aoa,
+                reynolds=args.reynolds,
+                max_camber=m,
+                camber_position=args.camber_position,
+                end_time=args.end_time,
+            )
+        base = ShapedLaminarAirfoil(
+            name=name, aoa_deg=args.aoa, max_camber=m, camber_position=args.camber_position
+        )
+        return ShapedLaminarAirfoil(
+            spec=base.case_spec().model_copy(update={"end_time": args.end_time}), name=name
+        )
 
     nfs = Path("/mnt/aero-nfs") if os.path.ismount("/mnt/aero-nfs") else Path("/mnt/aero")
     solver = OpenFOAMSolver(host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"))
@@ -61,13 +81,8 @@ def main() -> None:
     cambers = [float(x) for x in args.cambers.split(",")]
     rows = []
     for m in cambers:
-        name = f"cp_m{round(m * 1e4):04d}"
-        base = ShapedLaminarAirfoil(
-            name=name, aoa_deg=args.aoa, max_camber=m, camber_position=args.camber_position
-        )
-        case = ShapedLaminarAirfoil(
-            spec=base.case_spec().model_copy(update={"end_time": args.end_time}), name=name
-        )
+        name = f"cp{args.case[:3]}_m{round(m * 1e4):04d}"
+        case = build_case(m, name)
         try:
             measured, _mesh, result = runner._drive(case)
             solved = solver.load(result)

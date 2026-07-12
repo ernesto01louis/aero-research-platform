@@ -37,6 +37,8 @@ _OPT_P = 0.592640974765251
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
+    ap.add_argument("--case", choices=("laminar", "turbulent"), default="laminar")
+    ap.add_argument("--reynolds", type=float, default=5.0e5, help="Re for the turbulent case.")
     ap.add_argument("--aoa", type=float, default=4.0)
     ap.add_argument("--ratio", type=float, default=1.7, help="Constant grid refinement ratio r.")
     ap.add_argument(
@@ -67,13 +69,32 @@ def main() -> None:
     ap.add_argument("--diag-out", default=None)
     args = ap.parse_args()
 
+    import numpy as np
     from aero.adapters.openfoam.solver import OpenFOAMSolver
     from aero.optimize.airfoil_case import ShapedLaminarAirfoil
     from aero.optimize.report import MatchedGridDeltaTriplet, compose_result, observed_order
+    from aero.optimize.turbulent_airfoil import ShapedTurbulentAirfoil
     from aero.orchestration import LocalSSHExecutor
     from aero.provenance import compute_provenance
     from aero.provenance.db import resolve_dsn
     from aero.vv._base import BenchmarkRunner
+
+    def batch_means_sem(series: tuple[float, ...], n_batches: int = 20) -> float:
+        """95% batch-means standard error of the mean of a (limit-cycling) tail series.
+
+        Non-overlapping batch means decorrelate the per-iteration oscillation; the SEM of the batch
+        means (x2 for ~95%) is the iterative-convergence uncertainty of the tail-averaged value.
+        """
+        x = np.asarray(series, dtype=np.float64)
+        n = len(x)
+        if n < 2 * n_batches:
+            n_batches = max(2, n // 2)
+        batch = n // n_batches
+        if batch < 1:
+            return 0.0
+        trimmed = x[-batch * n_batches :].reshape(n_batches, batch)
+        means = trimmed.mean(axis=1)
+        return float(2.0 * means.std(ddof=1) / np.sqrt(n_batches))
 
     log_mlflow = not args.no_mlflow
     nfs = Path("/mnt/aero-nfs") if os.path.ismount("/mnt/aero-nfs") else Path("/mnt/aero")
@@ -99,19 +120,30 @@ def main() -> None:
     f = args.finest_mult
     grid_mult = {"fine": f, "medium": f * args.ratio, "coarse": f * args.ratio**2}
 
-    def make_case(m: float, name: str, mult: float) -> ShapedLaminarAirfoil:
-        base = ShapedLaminarAirfoil(
-            name=name, aoa_deg=args.aoa, max_camber=m, camber_position=args.opt_p
-        )
-        # Raise the iteration budget so the finer grids converge below --resid-tol (the case
-        # default under-converges the loaded cambered optimum on the base grid).
-        case = ShapedLaminarAirfoil(
-            spec=base.case_spec().model_copy(update={"end_time": args.end_time}), name=name
-        )
+    turbulent = args.case == "turbulent"
+
+    def make_case(m: float, name: str, mult: float) -> object:
+        if turbulent:
+            case: object = ShapedTurbulentAirfoil(
+                name=name,
+                aoa_deg=args.aoa,
+                reynolds=args.reynolds,
+                max_camber=m,
+                camber_position=args.opt_p,
+                end_time=args.end_time,
+            )
+        else:
+            base = ShapedLaminarAirfoil(
+                name=name, aoa_deg=args.aoa, max_camber=m, camber_position=args.opt_p
+            )
+            # Raise the iteration budget so the finer grids converge below --resid-tol.
+            case = ShapedLaminarAirfoil(
+                spec=base.case_spec().model_copy(update={"end_time": args.end_time}), name=name
+            )
         return case.refined(mult) if mult != 1.0 else case
 
     def solve(m: float, design: str, grid: str) -> dict:
-        """One solve → L/D, cd, cl, final pressure residual, cell count (+ provenance)."""
+        """One solve → tail-mean L/D (turbulent) or steady L/D (laminar) + convergence + provenance."""
         name = f"gm_{design}_{grid}"
         case = make_case(m, name, grid_mult[grid])
         prov = compute_provenance(
@@ -121,8 +153,18 @@ def main() -> None:
             allow_dirty=args.allow_dirty,
         )
         measured, mesh, result = runner._drive(case)  # prepare->mesh->solve->evaluate (fail-loud)
-        solved = solver.load(result)
-        resid = float(solved.final_residual)
+        resid = float(solver.load(result).final_residual)
+        # Turbulent: the steady SIMPLE iteration limit-cycles; the tail-averaged L/D is the value and
+        # its batch-means SEM is the iterative-convergence uncertainty. Convergence is judged on that
+        # SEM (the mean being well-determined), not the pressure residual (which floors ~1e-3).
+        ld_sem = 0.0
+        if turbulent:
+            _solve, cd_tail, cl_tail = solver.load_time_averaged(result)
+            ld_tail = tuple(cl / cd for cl, cd in zip(cl_tail, cd_tail, strict=True) if cd > 0.0)
+            ld_sem = batch_means_sem(ld_tail)
+            converged = ld_sem < 0.02 * abs(float(measured["ld"]))  # SEM < 2% of L/D
+        else:
+            converged = resid < args.resid_tol
         row = {
             "design": design,
             "grid": grid,
@@ -130,15 +172,16 @@ def main() -> None:
             "ld": float(measured["ld"]),
             "cd": float(measured["cd"]),
             "cl": float(measured["cl"]),
+            "ld_sem": ld_sem,
             "final_residual": resid,
-            "converged": resid < args.resid_tol,
+            "converged": converged,
             "n_elements": getattr(mesh, "n_elements", None),
             "provenance": prov.model_dump(mode="json"),
         }
-        flag = "OK" if row["converged"] else "!! NOT CONVERGED"
+        flag = "OK" if converged else "!! NOT CONVERGED"
         print(
             f"SOLVE {design}/{grid} mult={grid_mult[grid]:.4f} n_el={row['n_elements']} "
-            f"L/D={row['ld']:.5f} resid={resid:.2e} {flag}",
+            f"L/D={row['ld']:.5f} sem={ld_sem:.4f} resid={resid:.2e} {flag}",
             flush=True,
         )
         return row
@@ -154,6 +197,12 @@ def main() -> None:
         base[grid] = b
         opt[grid] = o
 
+    # Iterative-convergence uncertainty of the delta at the reported (finest) grid: RSS of the
+    # baseline and optimum tail-mean SEMs (independent solves). Zero for the cleanly-steady laminar
+    # case; the turbulent limit-cycle contributes here (folded into u95_delta_numerical, RSS'd with
+    # the grid GCI). This is the honest Hard-Rule-12 term for a non-perfectly-converged quantity.
+    u95_iter = float((base["fine"]["ld_sem"] ** 2 + opt["fine"]["ld_sem"] ** 2) ** 0.5)
+
     triplet = MatchedGridDeltaTriplet(
         quantity="lift_to_drag",
         baseline_fine=base["fine"]["ld"],
@@ -163,6 +212,7 @@ def main() -> None:
         optimum_medium=opt["medium"]["ld"],
         optimum_coarse=opt["coarse"]["ld"],
         refinement_ratio=args.ratio,
+        u95_delta_iterative=u95_iter,
     )
 
     # cfd_verified = the finest optimum solve (a fresh clean-SHA four-tuple). "Held out" here means
@@ -178,11 +228,16 @@ def main() -> None:
     )
 
     all_converged = all(r["converged"] for r in rows)
+    regime = (
+        f"turbulent k-omega SST Re={args.reynolds:.2g} (wall-function, tail-averaged)"
+        if turbulent
+        else "Re=1000 laminar"
+    )
     result, is_go = compose_result(
         case_name="airfoil_opt_naca4",
         objective=(
-            f"maximize lift_to_drag at AoA={args.aoa} deg (Re=1000 laminar NACA-4 camber); "
-            "3-grid observed-order GCI"
+            f"maximize lift_to_drag at AoA={args.aoa} deg ({regime} NACA-4 camber); "
+            "3-grid observed-order GCI on the matched delta"
         ),
         quantity="lift_to_drag",
         higher_is_better=True,
@@ -200,9 +255,15 @@ def main() -> None:
     # Full diagnostics bundle — every solve + residual + the observed-order derivation (audit gap).
     diag = {
         "case": "airfoil_opt_naca4",
-        "method": "ASME V&V 20 3-grid observed-order GCI on the matched-condition L/D delta",
+        "regime": regime,
+        "method": "ASME V&V 20 3-grid observed-order GCI on the matched-condition L/D delta"
+        + ("; tail-averaged forces + batch-means iterative U95" if turbulent else ""),
         "refinement_ratio": args.ratio,
         "aoa_deg": args.aoa,
+        "reynolds": args.reynolds if turbulent else 1000.0,
+        "u95_delta_grid": triplet.u95_delta_grid,
+        "u95_delta_iterative": triplet.u95_delta_iterative,
+        "u95_delta_numerical_total": triplet.u95_delta_numerical,
         "design_optimum": {"max_camber": args.opt_m, "camber_position": args.opt_p},
         "resid_tol": args.resid_tol,
         "all_converged": all_converged,

@@ -169,6 +169,12 @@ class MatchedGridDeltaTriplet(BaseModel):
     optimum_coarse: float
     refinement_ratio: float = Field(..., gt=1.0)
     formal_order: float = Field(default=2.0, gt=0.0)
+    # Absolute iterative-convergence uncertainty of the delta (RSS'd into u95_delta_numerical). For a
+    # turbulent airfoil whose steady SIMPLE iteration limit-cycles, this is the batch-means spread of
+    # the tail-averaged delta — an iterative (not physical/statistical) term, since the tail MEAN is
+    # relaxation-independent (the flow is steady; only the iteration oscillates). Default 0 (a
+    # cleanly-converged case adds nothing).
+    u95_delta_iterative: float = Field(default=0.0, ge=0.0)
 
     @property
     def delta_fine(self) -> float:
@@ -207,8 +213,14 @@ class MatchedGridDeltaTriplet(BaseModel):
         )
 
     @property
-    def u95_delta_numerical(self) -> float:
+    def u95_delta_grid(self) -> float:
+        """The grid-convergence (GCI-on-the-delta) arm of the numerical uncertainty."""
         return self.gci_delta_fraction * abs(self.delta_fine)
+
+    @property
+    def u95_delta_numerical(self) -> float:
+        """RSS of the grid (GCI) and iterative (limit-cycle) convergence uncertainties."""
+        return float((self.u95_delta_grid**2 + self.u95_delta_iterative**2) ** 0.5)
 
     @property
     def gci_optimum_fraction(self) -> float:
