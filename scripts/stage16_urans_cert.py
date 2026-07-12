@@ -103,11 +103,19 @@ def main() -> None:
         default=None,
         help="Absolute averaging-tail start (t*); default 0.6*extend-to in extension mode.",
     )
+    ap.add_argument(
+        "--grids",
+        default=None,
+        help="Comma-separated subset of grids to run (e.g. 'medium'); multipliers stay pinned "
+        "to each grid's position in the full family. Default: all --n-grids grids.",
+    )
     ap.add_argument("--timeout", type=int, default=129600, help="Per-solve ceiling, s (36 h).")
     ap.add_argument("--allow-dirty", action="store_true")
     ap.add_argument("--out", default=None)
     ap.add_argument("--diag-out", default=None)
     args = ap.parse_args()
+
+    import threading
 
     import numpy as np
     from aero.adapters._base import build_apptainer_exec
@@ -129,6 +137,7 @@ def main() -> None:
         statistical_uncertainty_from_samples,
     )
 
+    _prov_lock = threading.Lock()
     nfs = Path("/mnt/aero-nfs") if os.path.ismount("/mnt/aero-nfs") else Path("/mnt/aero")
     solver = OpenFOAMSolver(host_nfs_root=nfs, remote_nfs_root=Path("/mnt/aero"))
     executor = LocalSSHExecutor(
@@ -220,14 +229,6 @@ def main() -> None:
         Never raises on a solver failure — the signature is campaign evidence; the composer
         refuses an incomplete family.
         """
-        name = f"g16u_{design}_{grid}"
-        spec = make_spec(m, name, mult)
-        prov = compute_provenance(
-            repo_root=_REPO_ROOT,
-            container_sif="openfoam-esi.sif",
-            resolved_config=spec.model_dump(mode="json"),
-            allow_dirty=args.allow_dirty,
-        )
         row: dict[str, Any] = {
             "design": design,
             "grid": grid,
@@ -246,10 +247,20 @@ def main() -> None:
             "error": None,
             "solver_log_tail": None,
             "stat": None,
-            "provenance": prov.model_dump(mode="json"),
+            "provenance": None,
         }
         t0 = time.monotonic()
         try:
+            name = f"g16u_{design}_{grid}"
+            spec = make_spec(m, name, mult)
+            with _prov_lock:  # git reads race under 6-way concurrency (index.lock)
+                prov = compute_provenance(
+                    repo_root=_REPO_ROOT,
+                    container_sif="openfoam-esi.sif",
+                    resolved_config=spec.model_dump(mode="json"),
+                    allow_dirty=args.allow_dirty,
+                )
+            row["provenance"] = prov.model_dump(mode="json")
             case_dir = solver.prepare(spec)
             row["run_id"] = case_dir.run_id
             mesh = solver.mesh(case_dir, executor)
@@ -363,18 +374,6 @@ def main() -> None:
 
     def extend_one(m: float, design: str, grid: str, mult: float) -> dict[str, Any]:
         """Restart an existing case from latestTime out to --extend-to; re-analyze the tail."""
-        name = f"g16u_{design}_{grid}"
-        spec = make_spec(m, name, mult)
-        prov = compute_provenance(
-            repo_root=_REPO_ROOT,
-            container_sif="openfoam-esi.sif",
-            resolved_config={
-                **spec.model_dump(mode="json"),
-                "end_time_convective": args.extend_to,
-                "restart_continuation": True,
-            },
-            allow_dirty=args.allow_dirty,
-        )
         row: dict[str, Any] = {
             "design": design,
             "grid": grid,
@@ -393,10 +392,24 @@ def main() -> None:
             "error": None,
             "solver_log_tail": None,
             "stat": None,
-            "provenance": prov.model_dump(mode="json"),
+            "provenance": None,
         }
         t0 = time.monotonic()
         try:
+            name = f"g16u_{design}_{grid}"
+            spec = make_spec(m, name, mult)
+            with _prov_lock:
+                prov = compute_provenance(
+                    repo_root=_REPO_ROOT,
+                    container_sif="openfoam-esi.sif",
+                    resolved_config={
+                        **spec.model_dump(mode="json"),
+                        "end_time_convective": args.extend_to,
+                        "restart_continuation": True,
+                    },
+                    allow_dirty=args.allow_dirty,
+                )
+            row["provenance"] = prov.model_dump(mode="json")
             dirs = sorted((nfs / "runs").glob(f"{name}-*"))
             if not dirs:
                 row["error"] = f"no existing case dir {name}-* to extend"
@@ -446,27 +459,51 @@ def main() -> None:
     # ------------------------------------------------------------- certification campaign
     labels = _GRID_LABELS[: args.n_grids]
     mults = {lab: args.finest_mult * args.ratio**i for i, lab in enumerate(labels)}
+    run_labels = [g.strip() for g in args.grids.split(",")] if args.grids else list(labels)
+    unknown = [g for g in run_labels if g not in mults]
+    if unknown:
+        raise SystemExit(f"--grids: unknown grid label(s) {unknown}; family is {list(labels)}")
     jobs = [
         (m, design, grid)
-        for grid in labels
+        for grid in run_labels
         for m, design in ((0.0, "baseline"), (args.opt_m, "optimum"))
     ]
     worker = extend_one if args.extend else solve
+
+    def safe_worker(j: tuple[float, str, str]) -> dict[str, Any]:
+        """A per-solve failure must become an evidence row, never a hidden thread exception
+        that surfaces hours later at pool collection (the first campaign lost its medium pair
+        this way)."""
+        m, design, grid = j
+        try:
+            return worker(m, design, grid, mults[grid])
+        except Exception as exc:
+            print(f"SOLVE {design}/{grid} !! UNHANDLED {type(exc).__name__}: {exc}", flush=True)
+            return {
+                "design": design,
+                "grid": grid,
+                "refine_mult": mults[grid],
+                "ld": None,
+                "converged": False,
+                "error": f"UNHANDLED {type(exc).__name__}: {exc}",
+            }
+
     if args.concurrent:
         # Independent SERIAL jobs on the 16-core box (the platform's sanctioned concurrency);
         # each thread just blocks on its own detached remote job. Wall time ~= the fine solve.
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
-            rows = list(pool.map(lambda j: worker(j[0], j[1], j[2], mults[j[2]]), jobs))
+            rows = list(pool.map(safe_worker, jobs))
     else:
-        rows = [worker(m, d, g, mults[g]) for (m, d, g) in jobs]
+        rows = [safe_worker(j) for j in jobs]
     base = {r["grid"]: r for r in rows if r["design"] == "baseline"}
     opt = {r["grid"]: r for r in rows if r["design"] == "optimum"}
 
     claim_grids = labels[:3]
-    claim_rows = [base[g] for g in claim_grids] + [opt[g] for g in claim_grids]
-    family_complete = all(r["ld"] is not None for r in claim_rows)
+    maybe_rows = [base.get(g) for g in claim_grids] + [opt.get(g) for g in claim_grids]
+    family_complete = all(r is not None and r["ld"] is not None for r in maybe_rows)
+    claim_rows = [r for r in maybe_rows if r is not None]
     claim_converged = family_complete and all(r["converged"] for r in claim_rows)
 
     regime = (
