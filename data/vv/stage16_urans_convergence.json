@@ -1,0 +1,127 @@
+{
+  "case": "airfoil_opt_naca4",
+  "regime": "turbulent k-omega SST Re=5e+05 (URANS pimpleFoam, time-weighted window means)",
+  "method": "ASME V&V 20 3-grid observed-order GCI on the TIME-AVERAGED matched delta; ADR-029 independent-RSS sampling term (no cancellation claimed); hard-gated verdict",
+  "refinement_ratio": 1.7,
+  "finest_mult": 0.5882352941176471,
+  "aoa_deg": 4.0,
+  "reynolds": 500000.0,
+  "end_time_convective": 40.0,
+  "continuation": false,
+  "tail_start_convective": null,
+  "transient_fraction": 0.5,
+  "n_windows": 16,
+  "max_courant": 8.0,
+  "design_optimum": {
+    "max_camber": 0.07273510933006024,
+    "camber_position": 0.20448957451063046
+  },
+  "k": 2.0,
+  "solves": [
+    {
+      "design": "baseline",
+      "grid": "medium",
+      "refine_mult": 1.0,
+      "ld": 21.23890798324765,
+      "cd": 0.017192812270544026,
+      "cl": 0.3651484021062167,
+      "u95_statistical": 0.24095113473369925,
+      "stat_reliable": false,
+      "drift": 0.22938090496341346,
+      "converged": false,
+      "n_elements": 41600,
+      "n_samples": 8717,
+      "wall_s": 1613.802387892967,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 84.648251,
+        "max_skewness": 2.2533073
+      },
+      "error": null,
+      "solver_log_tail": null,
+      "stat": {
+        "method": "nobm",
+        "n_samples": 16,
+        "mean": 21.23890798324765,
+        "std": 0.1407255522526973,
+        "n_batches": 4,
+        "batch_size": 4,
+        "dof": 3,
+        "t_quantile": 3.182,
+        "se": 0.07572317244930837,
+        "u95_statistical": 0.24095113473369925,
+        "rel_half_width": 0.011344798655550055,
+        "autocorr_time": 1.5850425618117436,
+        "n_eff": 5.047183080595513,
+        "crosscheck_ratio": 1.385674043252916,
+        "reliable": false
+      },
+      "provenance": {
+        "git_sha": "b0ae3cce8dbf9dfeeb4f5a4c519bf2464193d5fc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "c3c7ea384be7a0cbff3bf7ca98c13f738e707a373c33d23935eadad235a836a8"
+      },
+      "run_id": "g16u_baseline_medium-20260712-232845",
+      "ld_windows": [
+        20.965131561742776,
+        21.021224805931556,
+        21.070982499084003,
+        21.115258147089207,
+        21.154888471130874,
+        21.190642348094006,
+        21.22305888866811,
+        21.252553524387,
+        21.27949162082114,
+        21.30416584719643,
+        21.326838988982953,
+        21.34773697296837,
+        21.36704858174405,
+        21.384939543081543,
+        21.401553263168857,
+        21.417012667871486
+      ],
+      "tail_start_convective": 20.000299998499997
+    },
+    {
+      "design": "optimum",
+      "grid": "medium",
+      "refine_mult": 1.0,
+      "ld": null,
+      "cd": null,
+      "cl": null,
+      "u95_statistical": null,
+      "stat_reliable": null,
+      "drift": null,
+      "converged": false,
+      "n_elements": 41600,
+      "n_samples": 9210,
+      "wall_s": 14985.577188202878,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_aspect_ratio": null,
+        "max_non_orthogonality": 84.802141,
+        "max_skewness": 2.4306641
+      },
+      "error": "non-physical window-mean cd (min -0.6455)",
+      "solver_log_tail": null,
+      "stat": null,
+      "provenance": {
+        "git_sha": "b0ae3cce8dbf9dfeeb4f5a4c519bf2464193d5fc",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "d78b5e98866fc47e8639a58322f97d5aa3c162de8e367ca06403bb17a1798303"
+      },
+      "run_id": "g16u_optimum_medium-20260712-232847"
+    }
+  ],
+  "family_complete": false,
+  "all_converged_claim_grids": false,
+  "verdict": "INCOMPLETE",
+  "failed_solves": [
+    "optimum/medium: non-physical window-mean cd (min -0.6455)"
+  ]
+}
