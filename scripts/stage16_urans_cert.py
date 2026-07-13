@@ -329,11 +329,11 @@ def main() -> None:
         txt = p.read_text(encoding="utf-8")
         txt = re.sub(r"startFrom\s+\w+;", "startFrom       latestTime;", txt, count=1)
         txt = re.sub(r"endTime\s+[0-9.eE+-]+;", f"endTime         {end_time_s:.8g};", txt, count=1)
-        # Only the controlDict write interval (first occurrence) — the forceCoeffs FO's
+        # Checkpoint every 10 t* (a SIGFPE mid-segment then costs <=10 t*, not the whole
+        # run — the fine baseline died in the start transient and lost its segment). Only
+        # the controlDict write interval (first occurrence) — the forceCoeffs FO's
         # per-timestep writeInterval further down must stay 1.
-        txt = re.sub(
-            r"writeInterval\s+[0-9.eE+-]+;", f"writeInterval   {end_time_s:.8g};", txt, count=1
-        )
+        txt = re.sub(r"writeInterval\s+[0-9.eE+-]+;", "writeInterval   10;", txt, count=1)
         p.write_text(txt, encoding="utf-8")
 
     def read_concat_series(
