@@ -136,14 +136,28 @@ def main() -> None:
             max_courant=args.max_courant,
         )
 
-    def steady_init(design: str, grid: str, case_host: Path) -> str:
+    def _field_size(time_dir: Path) -> int | None:
+        """The internalField length of `p` in a time directory (None if unparseable)."""
+        p = time_dir / "p"
+        if not p.exists():
+            return None
+        with p.open(encoding="utf-8") as fh:
+            for i, line in enumerate(fh):
+                s = line.strip()
+                if s.isdigit():
+                    return int(s)
+                if i > 60:
+                    return None
+        return None
+
+    def steady_init(design: str, grid: str, case_dir: Any, n_elements: int | None) -> str | None:
         """Copy the steady campaign's converged fields in as 0/ (standard RANS->URANS init).
 
-        Returns the init source label, or None when no steady run exists for this grid —
-        the caller then falls back to `mapfields_init` (interpolating the finest available
-        RELAXED solution onto the new, finer mesh — standard grid-continuation practice for
-        family rungs finer than any steady solve; the pre-registered drift/steadiness gates
-        still decide convergence on the new grid's own tail).
+        Returns the init source label, or None when no SIZE-MATCHED steady run exists for
+        this grid — grid labels are positional within a family, so the same label can name a
+        different resolution across campaigns (the 231² extension's 'fine' vs the steady
+        campaign's 136² 'fine'); only an exact cell-count match is a valid direct copy. The
+        caller then falls back to `mapfields_init` (grid continuation).
         """
         dirs = sorted((nfs / "runs").glob(f"g16_{design}_{grid}-*"))
         if not dirs:
@@ -156,9 +170,11 @@ def main() -> None:
         if not times or float(times[-1].name) <= 0.0:
             raise ValueError(f"steady run {src_case.name} has no converged field directory")
         src = times[-1]
+        if n_elements is None or _field_size(src) != n_elements:
+            return None  # different resolution behind the same label -> mapFields instead
         for f in _INIT_FIELDS:
             if (src / f).exists():
-                shutil.copy(src / f, case_host / "0" / f)
+                shutil.copy(src / f, case_dir.host_path / "0" / f)
         return f"{src_case.name}/{src.name}"
 
     def mapfields_init(design: str, case_dir: Any) -> str:
@@ -255,14 +271,14 @@ def main() -> None:
             row["provenance"] = prov.model_dump(mode="json")
             case_dir = solver.prepare(spec)
             row["run_id"] = case_dir.run_id
-            init_label = steady_init(design, grid, case_dir.host_path)
             mesh = solver.mesh(case_dir, executor)
             row["n_elements"] = getattr(mesh, "n_elements", None)
             if not getattr(mesh, "ok", False):
                 row["error"] = "blockMesh failed"
                 print(f"SOLVE {design}/{grid} !! MESH FAILED", flush=True)
                 return row
-            if init_label is None:  # no steady run at this grid: grid-continuation init
+            init_label = steady_init(design, grid, case_dir, row["n_elements"])
+            if init_label is None:  # no size-matched steady run: grid-continuation init
                 init_label = mapfields_init(design, case_dir)
             row["init_from"] = init_label
             row["checkmesh"] = run_checkmesh(case_dir)

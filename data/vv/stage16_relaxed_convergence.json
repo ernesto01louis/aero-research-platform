@@ -3,7 +3,7 @@
   "regime": "turbulent k-omega SST Re=5e+05 (time-accurate relaxation from steady-RANS init, maxCo 4)",
   "method": "ASME V&V 20 3-grid observed-order GCI on the matched STEADY delta; values from URANS-stabilized relaxation (last-5-t* time means); pre-registered drift + steadiness + physicality gates; hard-gated verdict",
   "refinement_ratio": 1.7,
-  "finest_mult": 0.5882352941176471,
+  "finest_mult": 0.3460207612456747,
   "aoa_deg": 4.0,
   "reynolds": 500000.0,
   "max_courant": 4.0,
@@ -18,6 +18,68 @@
     {
       "design": "baseline",
       "grid": "fine",
+      "refine_mult": 0.3460207612456747,
+      "ld": null,
+      "cd": null,
+      "cl": null,
+      "ld_prev5": null,
+      "relax_drift": null,
+      "osc_spread": null,
+      "converged": false,
+      "n_elements": 346962,
+      "n_samples": null,
+      "wall_s": 12.933294800110161,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_non_orthogonality": 85.875277,
+        "max_skewness": 2.541334
+      },
+      "init_from": "g16_baseline_fine-20260712-202803/6000",
+      "error": "solver failed (rc=1)",
+      "solver_log_tail": "WARNING: user: unknown userid 0\nWARNING: user: unknown userid 0\n/*---------------------------------------------------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nBuild  : _45e7c4a0-20241224 OPENFOAM=2412 version=2412\nArch   : \"LSB;label=32;scalar=64\"\nExec   : pimpleFoam\nDate   : Jul 13 2026\nTime   : 19:23:42\nHost   : aero-dev\nPID    : 1546365\nI/O    : uncollated\nCase   : /case\nnProcs : 1\ntrapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).\nfileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)\nallowSystemOperations : Allowing user-supplied system call operations\n\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n\nPIMPLE: no residual control data found. Calculations will employ 2 corrector loops\n\nReading field p\n\n\n\n--> FOAM FATAL IO ERROR: (openfoam-2412)\nSize 120224 is not equal to the expected length 346962\n\nfile: 0/p/internalField at line 21.\n\n    From void Foam::Field<Type>::assign(const Foam::entry&, Foam::label) [with Type = double; Foam::label = int]\n    in file ./src/OpenFOAM/lnInclude/Field.C at line 253.\n\nFOAM exiting",
+      "provenance": {
+        "git_sha": "86a671a95a20c07d5a9723b67730c2ddbe3900aa",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1"
+      },
+      "run_id": "g16r_baseline_fine-20260713-192335"
+    },
+    {
+      "design": "optimum",
+      "grid": "fine",
+      "refine_mult": 0.3460207612456747,
+      "ld": null,
+      "cd": null,
+      "cl": null,
+      "ld_prev5": null,
+      "relax_drift": null,
+      "osc_spread": null,
+      "converged": false,
+      "n_elements": 346962,
+      "n_samples": null,
+      "wall_s": 14.346299381926656,
+      "checkmesh": {
+        "ok": false,
+        "failed_checks": 1,
+        "max_non_orthogonality": 86.02993,
+        "max_skewness": 2.6620879
+      },
+      "init_from": "g16_optimum_fine-20260712-210305/6000",
+      "error": "solver failed (rc=1)",
+      "solver_log_tail": "WARNING: user: unknown userid 0\nWARNING: user: unknown userid 0\n/*---------------------------------------------------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nBuild  : _45e7c4a0-20241224 OPENFOAM=2412 version=2412\nArch   : \"LSB;label=32;scalar=64\"\nExec   : pimpleFoam\nDate   : Jul 13 2026\nTime   : 19:23:43\nHost   : aero-dev\nPID    : 1546775\nI/O    : uncollated\nCase   : /case\nnProcs : 1\ntrapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).\nfileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)\nallowSystemOperations : Allowing user-supplied system call operations\n\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n\nPIMPLE: no residual control data found. Calculations will employ 2 corrector loops\n\nReading field p\n\n\n\n--> FOAM FATAL IO ERROR: (openfoam-2412)\nSize 120224 is not equal to the expected length 346962\n\nfile: 0/p/internalField at line 21.\n\n    From void Foam::Field<Type>::assign(const Foam::entry&, Foam::label) [with Type = double; Foam::label = int]\n    in file ./src/OpenFOAM/lnInclude/Field.C at line 253.\n\nFOAM exiting",
+      "provenance": {
+        "git_sha": "86a671a95a20c07d5a9723b67730c2ddbe3900aa",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f"
+      },
+      "run_id": "g16r_optimum_fine-20260713-192336"
+    },
+    {
+      "design": "baseline",
+      "grid": "medium",
       "refine_mult": 0.5882352941176471,
       "ld": 24.316999345607424,
       "cd": 0.01599981541491686,
@@ -44,11 +106,12 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe"
       },
-      "run_id": "g16r_baseline_fine-20260713-111645"
+      "run_id": "g16r_baseline_fine-20260713-111645",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     },
     {
       "design": "optimum",
-      "grid": "fine",
+      "grid": "medium",
       "refine_mult": 0.5882352941176471,
       "ld": 47.79883885881643,
       "cd": 0.0208597219488875,
@@ -75,11 +138,12 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c"
       },
-      "run_id": "g16r_optimum_fine-20260713-111647"
+      "run_id": "g16r_optimum_fine-20260713-111647",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     },
     {
       "design": "baseline",
-      "grid": "medium",
+      "grid": "coarse",
       "refine_mult": 1.0,
       "ld": 21.79621080780269,
       "cd": 0.017009695169415348,
@@ -106,11 +170,12 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2"
       },
-      "run_id": "g16r_baseline_medium-20260713-111649"
+      "run_id": "g16r_baseline_medium-20260713-111649",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     },
     {
       "design": "optimum",
-      "grid": "medium",
+      "grid": "coarse",
       "refine_mult": 1.0,
       "ld": 47.534402934228325,
       "cd": 0.021105207541460873,
@@ -137,11 +202,12 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d"
       },
-      "run_id": "g16r_optimum_medium-20260713-111650"
+      "run_id": "g16r_optimum_medium-20260713-111650",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     },
     {
       "design": "baseline",
-      "grid": "coarse",
+      "grid": "coarsest",
       "refine_mult": 1.7,
       "ld": 18.272278349872963,
       "cd": 0.019275924566921714,
@@ -168,11 +234,12 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e"
       },
-      "run_id": "g16r_baseline_coarse-20260713-111652"
+      "run_id": "g16r_baseline_coarse-20260713-111652",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     },
     {
       "design": "optimum",
-      "grid": "coarse",
+      "grid": "coarsest",
       "refine_mult": 1.7,
       "ld": 42.5021125702673,
       "cd": 0.02390308500231785,
@@ -199,42 +266,15 @@
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488"
       },
-      "run_id": "g16r_optimum_coarse-20260713-111654"
+      "run_id": "g16r_optimum_coarse-20260713-111654",
+      "reused_from": "data/vv/stage16_relaxed_convergence.json"
     }
   ],
-  "family_complete": true,
-  "all_converged_claim_grids": true,
-  "delta_per_grid": {
-    "fine": 23.481839513209007,
-    "medium": 25.738192126425634,
-    "coarse": 24.229834220394338
-  },
-  "observed_order_delta": 0.0,
-  "delta_monotone": false,
-  "observed_order_optimum": [
-    5.551968866041473,
-    true
-  ],
-  "observed_order_baseline": [
-    0.6313379970016807,
-    true
-  ],
-  "gci_delta_fraction": 0.411811119935116,
-  "u95_delta_grid": 9.67008262807126,
-  "u95_delta_iterative": 0.009306595200399366,
-  "u95_delta_numerical": 9.67008710645565,
-  "delta_fine": 23.481839513209007,
-  "required_margin": 19.3401742129113,
-  "gates": {
-    "significant": true,
-    "all_converged": true,
-    "delta_monotone": false,
-    "order_in_asymptotic_range": false
-  },
-  "demoted_by": [
-    "delta_monotone",
-    "order_in_asymptotic_range"
-  ],
-  "is_go": false,
-  "validation_tag": "validated"
+  "family_complete": false,
+  "all_converged_claim_grids": false,
+  "verdict": "INCOMPLETE",
+  "failed_solves": [
+    "baseline/fine: solver failed (rc=1)",
+    "optimum/fine: solver failed (rc=1)"
+  ]
 }
