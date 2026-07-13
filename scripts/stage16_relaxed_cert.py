@@ -75,6 +75,20 @@ def main() -> None:
         help="Pre-registered relaxation-drift gate as a fraction of |L/D|.",
     )
     ap.add_argument("--n-candidates", type=int, default=14)
+    ap.add_argument(
+        "--reuse-rows",
+        default=None,
+        help="Path to a previous relaxed-campaign diag JSON; converged rows matching a "
+        "grid's refine_mult + design are REUSED instead of re-solved (deterministic serial "
+        "solves; row-level provenance is preserved verbatim). Extends the family without "
+        "re-paying for finished rungs.",
+    )
+    ap.add_argument(
+        "--map-init-glob",
+        default="g16r_{design}_fine-*",
+        help="Fallback init source (mapFields grid-continuation) for a grid with no steady "
+        "run; {design} is substituted.",
+    )
     ap.add_argument("--concurrent", action="store_true")
     ap.add_argument("--timeout", type=int, default=259200, help="Per-solve ceiling, s (72 h).")
     ap.add_argument("--allow-dirty", action="store_true")
@@ -123,10 +137,17 @@ def main() -> None:
         )
 
     def steady_init(design: str, grid: str, case_host: Path) -> str:
-        """Copy the steady campaign's converged fields in as 0/ (standard RANS->URANS init)."""
+        """Copy the steady campaign's converged fields in as 0/ (standard RANS->URANS init).
+
+        Returns the init source label, or None when no steady run exists for this grid —
+        the caller then falls back to `mapfields_init` (interpolating the finest available
+        RELAXED solution onto the new, finer mesh — standard grid-continuation practice for
+        family rungs finer than any steady solve; the pre-registered drift/steadiness gates
+        still decide convergence on the new grid's own tail).
+        """
         dirs = sorted((nfs / "runs").glob(f"g16_{design}_{grid}-*"))
         if not dirs:
-            raise ValueError(f"no steady-campaign run dir g16_{design}_{grid}-* for init")
+            return None
         src_case = dirs[-1]
         times = sorted(
             (d for d in src_case.iterdir() if re.fullmatch(r"[0-9.]+", d.name)),
@@ -139,6 +160,41 @@ def main() -> None:
             if (src / f).exists():
                 shutil.copy(src / f, case_host / "0" / f)
         return f"{src_case.name}/{src.name}"
+
+    def mapfields_init(design: str, case_dir: Any) -> str:
+        """`mapFields -consistent` from the finest relaxed solution onto the (finer) target.
+
+        Both cases live under the shared runs root, so ONE bind of that root serves source
+        and target (same geometry + BCs -> -consistent). Runs AFTER blockMesh (mapFields
+        needs the target mesh)."""
+        if not args.map_init_glob:
+            raise ValueError("no steady init source and --map-init-glob not set")
+        pattern = args.map_init_glob.format(design=design)
+        target = case_dir.remote_path.name
+        # The target itself (and any sibling started this campaign) can match the glob —
+        # source only from cases that already contain a written time directory > 0.
+        dirs = [
+            d
+            for d in sorted((nfs / "runs").glob(pattern))
+            if d.name != target
+            and any(re.fullmatch(r"[0-9.]+", s.name) and float(s.name) > 0.0 for s in d.iterdir())
+        ]
+        if not dirs:
+            raise ValueError(f"no relaxed source case matching {pattern} for mapFields init")
+        src_case = dirs[-1]
+        target = case_dir.remote_path.name
+        cmd = build_apptainer_exec(
+            sif_path=solver.sif_path,
+            case_bind_source=str(case_dir.remote_path.parent),
+            command=(
+                f"cd /case/{target} && mapFields -consistent -sourceTime latestTime "
+                f"../{src_case.name}"
+            ),
+        )
+        res = executor.run(cmd, timeout_s=3600)
+        if not res.ok:
+            raise ValueError(f"mapFields failed (rc={res.returncode}): {res.stdout[-800:]}")
+        return f"mapFields:{src_case.name}@latestTime"
 
     def run_checkmesh(case_dir: Any) -> dict[str, Any]:
         cmd = build_apptainer_exec(
@@ -199,13 +255,16 @@ def main() -> None:
             row["provenance"] = prov.model_dump(mode="json")
             case_dir = solver.prepare(spec)
             row["run_id"] = case_dir.run_id
-            row["init_from"] = steady_init(design, grid, case_dir.host_path)
+            init_label = steady_init(design, grid, case_dir.host_path)
             mesh = solver.mesh(case_dir, executor)
             row["n_elements"] = getattr(mesh, "n_elements", None)
             if not getattr(mesh, "ok", False):
                 row["error"] = "blockMesh failed"
                 print(f"SOLVE {design}/{grid} !! MESH FAILED", flush=True)
                 return row
+            if init_label is None:  # no steady run at this grid: grid-continuation init
+                init_label = mapfields_init(design, case_dir)
+            row["init_from"] = init_label
             row["checkmesh"] = run_checkmesh(case_dir)
             result = solver.run(case_dir, executor)
             row["wall_s"] = time.monotonic() - t0
@@ -275,8 +334,25 @@ def main() -> None:
         for m, design in ((0.0, "baseline"), (args.opt_m, "optimum"))
     ]
 
+    reuse_index: dict[tuple[str, float], dict[str, Any]] = {}
+    if args.reuse_rows:
+        prev = json.loads(Path(args.reuse_rows).read_text())
+        for r in prev.get("solves", []):
+            if r.get("converged") and r.get("ld") is not None:
+                reuse_index[(r["design"], round(float(r["refine_mult"]), 9))] = r
+
     def safe_worker(j: tuple[float, str, str]) -> dict[str, Any]:
         m, design, grid = j
+        reused = reuse_index.get((design, round(mults[grid], 9)))
+        if reused is not None:
+            row = dict(reused)
+            row["grid"] = grid  # relabeled position in the extended family
+            row["reused_from"] = args.reuse_rows
+            print(
+                f"SOLVE {design}/{grid} REUSED {row.get('run_id')} L/D={row['ld']:.5f}",
+                flush=True,
+            )
+            return row
         try:
             return solve(m, design, grid, mults[grid])
         except Exception as exc:  # the campaign must survive any solve
