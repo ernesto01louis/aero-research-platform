@@ -30,7 +30,8 @@ stack is the **foundation that makes claimed improvements trustworthy**, not the
   **PyFR/NekRS/SU2/JAX-Fluids are frozen-optional** (kept, not deleted — SU2 is the
   post-v0.1.0 adjoint seed).
 
-The platform is built session-by-session against a staged plan of **20 stages**, one
+The platform is built session-by-session against a staged plan of **21 stages** (20 per
+ADR-013; the Stage-16 certification insertion made it 21 — operator-ratified 2026-07-15), one
 Claude Code session per stage (the re-aimed Stage 10–20 map is in
 `docs/handoff-bundle/README-handoff.md`). The current stage is named in `.aero-stage` at
 the repo root.
