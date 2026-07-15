@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.15  ·  **Status:** partial  ·  **Completed:** 2026-07-12
+**Latest tag:** v0.0.16  ·  **Status:** complete  ·  **Completed:** 2026-07-15
 
-**Stage 15 — CFD-in-the-Loop Airfoil Shape Optimization** — most recent stage.
+**Stage 16 — Grid-Converged Certification of the Airfoil Optimum** — most recent stage.
 
-**Next:** Stage 16 — Grid-Converged Certification of the Airfoil Optimum.
+**Next:** Stage 17 — Surrogate-Accelerated Optimization (own-data).
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

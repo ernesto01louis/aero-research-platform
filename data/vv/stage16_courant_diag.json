@@ -1,0 +1,93 @@
+{
+  "purpose": "Stage-16 Courant-threshold diagnostics: medium-grid (80\u00b2) loaded-optimum URANS initialized from the converged steady-RANS field, at three maxCo values. Derivation: 4-convective-time window sample means of Cd/Cl from coefficient.dat (cols Time/Cd/Cl); raw series on /mnt/aero/runs.",
+  "finding": "maxCo 8 departs the physical steady solution within 2 t* to the spurious high-circulation state; maxCo 2 and 4 stay on the physical solution (cd ~ +0.021, cl ~ +1.00) through their full runs -> the artifact threshold lies in (4, 8] for this family. Steady-RANS reference at this grid: cd 0.02163, cl 1.00203 (L/D 46.33).",
+  "runs": {
+    "maxCo8_steadyinit_10tc": {
+      "run_dir": "g16u_optmed_steadyinit-20260713",
+      "windows_4tc": [
+        {
+          "t0": 0.0,
+          "t1": 4.0,
+          "cd_mean": -0.6500600541965431,
+          "cl_mean": 4.080886944474949
+        },
+        {
+          "t0": 4.0,
+          "t1": 8.0,
+          "cd_mean": -0.6717299689522882,
+          "cl_mean": 4.063618049328141
+        }
+      ]
+    },
+    "maxCo2_steadyinit_20tc": {
+      "run_dir": "g16u_optmed_steadyinit_co2-20260713",
+      "windows_4tc": [
+        {
+          "t0": 0.0,
+          "t1": 4.0,
+          "cd_mean": 0.021286404187117296,
+          "cl_mean": 0.9997303579141154
+        },
+        {
+          "t0": 4.0,
+          "t1": 8.0,
+          "cd_mean": 0.02119483230027833,
+          "cl_mean": 1.0037992451530815
+        },
+        {
+          "t0": 8.0,
+          "t1": 12.0,
+          "cd_mean": 0.02110552171558648,
+          "cl_mean": 1.003858234751491
+        },
+        {
+          "t0": 12.0,
+          "t1": 16.0,
+          "cd_mean": 0.021083527484254475,
+          "cl_mean": 1.0039180693996024
+        },
+        {
+          "t0": 16.0,
+          "t1": 20.0,
+          "cd_mean": 0.021072090269383698,
+          "cl_mean": 1.0039639054950298
+        }
+      ]
+    },
+    "maxCo4_steadyinit_20tc": {
+      "run_dir": "g16u_optmed_steadyinit_co4-20260713",
+      "windows_4tc": [
+        {
+          "t0": 0.0,
+          "t1": 4.0,
+          "cd_mean": 0.02134718972363204,
+          "cl_mean": 0.999054695407613
+        },
+        {
+          "t0": 4.0,
+          "t1": 8.0,
+          "cd_mean": 0.021233041488473766,
+          "cl_mean": 1.0027648680206676
+        },
+        {
+          "t0": 8.0,
+          "t1": 12.0,
+          "cd_mean": 0.021148865620365952,
+          "cl_mean": 1.003078254884646
+        },
+        {
+          "t0": 12.0,
+          "t1": 16.0,
+          "cd_mean": 0.02112405134379968,
+          "cl_mean": 1.0031494982193958
+        },
+        {
+          "t0": 16.0,
+          "t1": 20.0,
+          "cd_mean": 0.021112582580111377,
+          "cl_mean": 1.003191766706444
+        }
+      ]
+    }
+  }
+}
