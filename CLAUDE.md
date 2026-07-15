@@ -134,8 +134,8 @@ Then begin work.
     before it is reported; no optimum is claimed on a surrogate prediction alone;
     best-of-N reporting is selection-bias-aware (held-out CFD verification). Guards the
     documented AI-scientist failure modes (Luo et al., arXiv:2509.08713). Pairs with
-    Invariants 9 + 10; constitutional promotion at Stage 15 when the `OptimizationResult`
-    schema lands.
+    Invariants 9 + 10; **promoted to CONSTITUTION Invariant 12** (ADR-027, ratified
+    2026-07-15).
 15. **VALIDATE-AGAINST-EXPERIMENT.** Forward capabilities validate against
     experimental/DNS reference data (the flapping ladder — `.claude/rules/flapping-
     validation-ladder.md`), not CFD-vs-CFD alone. Every physics-capability stage carries

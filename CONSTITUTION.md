@@ -278,6 +278,29 @@ cross-domain neural-operator transfer is unresolved in the literature. Training
 on own validated CFD (the data flywheel the optimization loop produces) keeps
 the certificate meaningful. Added at the optimizer-mission refocus (ADR-013/015).
 
+## Invariant 12 — CFD-VERIFIED-OPTIMUM-ONLY
+
+Every reported optimum is verified by a ground-truth CFD run before it is
+reported; no optimum is claimed on a surrogate prediction alone. Best-of-N
+reporting is selection-bias-aware: the reported optimum is verified on a
+**held-out** CFD evaluation not seen by the optimizer, and the pool size N
+(`n_candidates`) is recorded.
+
+**Enforcement:** `aero/vv/reportable.py::OptimizationResult` carries the
+four-fold provenance of the verifying ground-truth CFD run (`cfd_verified`) and
+refuses to construct a best-of-N result (`n_candidates > 1`) without
+`held_out_verification`; `aero/optimize` evaluates every candidate by direct
+CFD (ADR-026). Guards the documented AI-scientist failure modes (Luo,
+Kasirzadeh & Shah, arXiv:2509.08713: post-hoc selection bias, metric misuse,
+data leakage).
+
+**Why:** the optimizer's only product is a *trustworthy* improvement; a
+surrogate-predicted or selection-biased optimum is exactly the hallucinated
+result the platform exists to refuse. Pairs with Invariant 10 (the improvement
+must also exceed its uncertainty). Promoted from CLAUDE.md Hard Rule 14 per
+ADR-027 (proposed 2026-07-10; ≥72 h window elapsed 2026-07-13; ratified
+2026-07-15, operator-delegated).
+
 ## Amendment process
 
 To amend a Constitution invariant:
