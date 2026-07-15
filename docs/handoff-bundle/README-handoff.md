@@ -45,11 +45,12 @@ construction).
 | 20 | **Flexible Flapping Wing (FSI) [flagship capstone forward capability]** | OpenFOAM + CalculiX flexible-wing FSI; validate vs Heathcote-Gursul flexible-foil data (documented solid-solver caveats). | Flexible-vs-rigid propulsive efficiency, full thesis-grade `ReportableResult`. | burst |
 | 21 | **Flexible-Flapping Optimization + Portable Bundles + Hardening + v0.1.0** | Optimization over flexible-flapping (surrogate + FSI); RESULTS-MUST-TRAVEL self-describing bundle (+ RO-Crate/W3C-PROV; promote Hard Rule 16); license-scan CI; JOSS/Zenodo; release. | Bundle round-trips on a clean machine; all required CI green; v0.1.0 tagged. | burst |
 
-> **Renumbering note (Stage-16 insertion, 2026-07-12):** the certification stage was inserted
-> at 16 after the Stage-15 audit, sliding surrogate→17, geometry→18, FSI→19, flexible→20 and
-> the v0.1.0 release stage→21. Whether to keep 21 stages or compress one later stage back to a
-> 20-stage plan is an OPERATOR decision — flagged in the Stage-16 handoff, not decided here.
-> "v0.1.0 after Stage 20" statements elsewhere should be read as "after the release stage".
+> **Renumbering note (Stage-16 insertion, 2026-07-12; RATIFIED 2026-07-15):** the
+> certification stage was inserted at 16 after the Stage-15 audit, sliding surrogate→17,
+> geometry→18, FSI→19, flexible→20 and the v0.1.0 release stage→21. The operator ratified
+> KEEPING the 21-stage plan (stages are session-sized work units; compressing well-scoped
+> stages to preserve a round number serves nothing). "v0.1.0 after Stage 20" statements
+> elsewhere mean "after the release stage (21)".
 
 **Post-v0.1.0 (committed, named, further out):** adjoint shape/topology optimization
 (DAFoam v5 + SU2 adjoint — SU2 already built) → generative / true-topology proposers

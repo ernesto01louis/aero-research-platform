@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
-`v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
+`v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
 ## [0.0.16] - 2026-07-15
 
