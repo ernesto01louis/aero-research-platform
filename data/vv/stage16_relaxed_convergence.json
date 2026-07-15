@@ -19,63 +19,63 @@
       "design": "baseline",
       "grid": "fine",
       "refine_mult": 0.3460207612456747,
-      "ld": null,
-      "cd": null,
-      "cl": null,
-      "ld_prev5": null,
-      "relax_drift": null,
-      "osc_spread": null,
-      "converged": false,
+      "ld": 28.200729819577244,
+      "cd": 0.014255747891094,
+      "cl": 0.40202249465275,
+      "ld_prev5": 28.18540534482769,
+      "relax_drift": 0.015324474749554895,
+      "osc_spread": 0.016074779903654246,
+      "converged": true,
       "n_elements": 346962,
-      "n_samples": null,
-      "wall_s": 12.933294800110161,
+      "n_samples": 106885,
+      "wall_s": 169665.76528503,
       "checkmesh": {
         "ok": false,
         "failed_checks": 1,
         "max_non_orthogonality": 85.875277,
         "max_skewness": 2.541334
       },
-      "init_from": "g16_baseline_fine-20260712-202803/6000",
-      "error": "solver failed (rc=1)",
-      "solver_log_tail": "WARNING: user: unknown userid 0\nWARNING: user: unknown userid 0\n/*---------------------------------------------------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nBuild  : _45e7c4a0-20241224 OPENFOAM=2412 version=2412\nArch   : \"LSB;label=32;scalar=64\"\nExec   : pimpleFoam\nDate   : Jul 13 2026\nTime   : 19:23:42\nHost   : aero-dev\nPID    : 1546365\nI/O    : uncollated\nCase   : /case\nnProcs : 1\ntrapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).\nfileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)\nallowSystemOperations : Allowing user-supplied system call operations\n\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n\nPIMPLE: no residual control data found. Calculations will employ 2 corrector loops\n\nReading field p\n\n\n\n--> FOAM FATAL IO ERROR: (openfoam-2412)\nSize 120224 is not equal to the expected length 346962\n\nfile: 0/p/internalField at line 21.\n\n    From void Foam::Field<Type>::assign(const Foam::entry&, Foam::label) [with Type = double; Foam::label = int]\n    in file ./src/OpenFOAM/lnInclude/Field.C at line 253.\n\nFOAM exiting",
+      "init_from": "mapFields:g16r_baseline_fine-20260713-111645@latestTime",
+      "error": null,
+      "solver_log_tail": null,
       "provenance": {
-        "git_sha": "86a671a95a20c07d5a9723b67730c2ddbe3900aa",
+        "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
         "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1"
       },
-      "run_id": "g16r_baseline_fine-20260713-192335"
+      "run_id": "g16r_baseline_fine-20260713-192733"
     },
     {
       "design": "optimum",
       "grid": "fine",
       "refine_mult": 0.3460207612456747,
-      "ld": null,
-      "cd": null,
-      "cl": null,
-      "ld_prev5": null,
-      "relax_drift": null,
-      "osc_spread": null,
-      "converged": false,
+      "ld": 49.92001369026702,
+      "cd": 0.020282906911393332,
+      "cl": 1.0125229906951667,
+      "ld_prev5": 49.89482426913093,
+      "relax_drift": 0.025189421136090573,
+      "osc_spread": 0.06371956090792708,
+      "converged": true,
       "n_elements": 346962,
-      "n_samples": null,
-      "wall_s": 14.346299381926656,
+      "n_samples": 84516,
+      "wall_s": 74544.94462946989,
       "checkmesh": {
         "ok": false,
         "failed_checks": 1,
         "max_non_orthogonality": 86.02993,
         "max_skewness": 2.6620879
       },
-      "init_from": "g16_optimum_fine-20260712-210305/6000",
-      "error": "solver failed (rc=1)",
-      "solver_log_tail": "WARNING: user: unknown userid 0\nWARNING: user: unknown userid 0\n/*---------------------------------------------------------------------------*\\\n| =========                 |                                                 |\n| \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |\n|  \\\\    /   O peration     | Version:  2412                                  |\n|   \\\\  /    A nd           | Website:  www.openfoam.com                      |\n|    \\\\/     M anipulation  |                                                 |\n\\*---------------------------------------------------------------------------*/\nBuild  : _45e7c4a0-20241224 OPENFOAM=2412 version=2412\nArch   : \"LSB;label=32;scalar=64\"\nExec   : pimpleFoam\nDate   : Jul 13 2026\nTime   : 19:23:43\nHost   : aero-dev\nPID    : 1546775\nI/O    : uncollated\nCase   : /case\nnProcs : 1\ntrapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).\nfileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)\nallowSystemOperations : Allowing user-supplied system call operations\n\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\nCreate time\n\nCreate mesh for time = 0\n\n\nPIMPLE: no residual control data found. Calculations will employ 2 corrector loops\n\nReading field p\n\n\n\n--> FOAM FATAL IO ERROR: (openfoam-2412)\nSize 120224 is not equal to the expected length 346962\n\nfile: 0/p/internalField at line 21.\n\n    From void Foam::Field<Type>::assign(const Foam::entry&, Foam::label) [with Type = double; Foam::label = int]\n    in file ./src/OpenFOAM/lnInclude/Field.C at line 253.\n\nFOAM exiting",
+      "init_from": "mapFields:g16r_optimum_fine-20260713-111647@latestTime",
+      "error": null,
+      "solver_log_tail": null,
       "provenance": {
-        "git_sha": "86a671a95a20c07d5a9723b67730c2ddbe3900aa",
+        "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
         "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f"
       },
-      "run_id": "g16r_optimum_fine-20260713-192336"
+      "run_id": "g16r_optimum_fine-20260713-192734"
     },
     {
       "design": "baseline",
@@ -270,11 +270,38 @@
       "reused_from": "data/vv/stage16_relaxed_convergence.json"
     }
   ],
-  "family_complete": false,
-  "all_converged_claim_grids": false,
-  "verdict": "INCOMPLETE",
-  "failed_solves": [
-    "baseline/fine: solver failed (rc=1)",
-    "optimum/fine: solver failed (rc=1)"
-  ]
+  "family_complete": true,
+  "all_converged_claim_grids": true,
+  "delta_per_grid": {
+    "fine": 21.719283870689775,
+    "medium": 23.481839513209007,
+    "coarse": 25.738192126425634
+  },
+  "observed_order_delta": 0.4654573059064542,
+  "delta_monotone": true,
+  "observed_order_optimum": [
+    -3.923889097343559,
+    true
+  ],
+  "observed_order_baseline": [
+    -0.8145521630643355,
+    true
+  ],
+  "gci_delta_fraction": 0.3477927698484054,
+  "u95_delta_grid": 7.553809896510993,
+  "u95_delta_iterative": 0.02948468184534254,
+  "u95_delta_numerical": 7.553867439867537,
+  "delta_fine": 21.719283870689775,
+  "required_margin": 15.107734879735075,
+  "gates": {
+    "significant": true,
+    "all_converged": true,
+    "delta_monotone": true,
+    "order_in_asymptotic_range": false
+  },
+  "demoted_by": [
+    "order_in_asymptotic_range"
+  ],
+  "is_go": false,
+  "validation_tag": "validated"
 }
