@@ -1,0 +1,60 @@
+{
+  "arm": "direct",
+  "seed": 2,
+  "bar_delta": 22.2,
+  "baseline_value": 21.67403232277372,
+  "max_evals": 16,
+  "trace": {
+    "arm": "direct",
+    "seed": 2,
+    "baseline_value": 21.67403232277372,
+    "rows": [
+      {
+        "n": 1,
+        "design_named": {
+          "max_camber": 0.03752300987459041,
+          "camber_position": 0.3041510441853619
+        },
+        "value": 39.24953076133462,
+        "mlflow_run_id": "a3673addb2e44bd48eb1d9ac3562ac3a"
+      },
+      {
+        "n": 2,
+        "design_named": {
+          "max_camber": 0.07638080702415727,
+          "camber_position": 0.4288420527203191
+        },
+        "value": 42.4912666728962,
+        "mlflow_run_id": "e337e8879cc3455fbcf64d2fd8893496"
+      },
+      {
+        "n": 3,
+        "design_named": {
+          "max_camber": 0.0034881617899908852,
+          "camber_position": 0.5615189782180086
+        },
+        "value": 23.73179148155236,
+        "mlflow_run_id": "3629de56769943e9a8cba413e222d324"
+      },
+      {
+        "n": 4,
+        "design_named": {
+          "max_camber": 0.04122554589513462,
+          "camber_position": 0.5112864865716347
+        },
+        "value": 38.69549900246037,
+        "mlflow_run_id": "67dc567413e14e008fc34b8ad89bcc0b"
+      },
+      {
+        "n": 5,
+        "design_named": {
+          "max_camber": 0.06133467367954206,
+          "camber_position": 0.24382886765837286
+        },
+        "value": 45.55800571782338,
+        "mlflow_run_id": "dc1c81a5c7244e1fae7fb406c060f364"
+      }
+    ]
+  },
+  "accelerated": null
+}

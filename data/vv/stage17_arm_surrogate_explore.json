@@ -1,0 +1,812 @@
+{
+  "arm": "surrogate",
+  "seed": 0,
+  "bar_delta": 22.2,
+  "baseline_value": 21.67403232277372,
+  "max_evals": 16,
+  "trace": {
+    "arm": "surrogate",
+    "seed": 0,
+    "baseline_value": 21.67403232277372,
+    "rows": [
+      {
+        "n": 1,
+        "design_named": {
+          "max_camber": 0.07518811919636986,
+          "camber_position": 0.22178847753718486
+        },
+        "value": 46.35565200324356,
+        "mlflow_run_id": "5c16cfdd18674143b2166050392d1868"
+      },
+      {
+        "n": 2,
+        "design_named": {
+          "max_camber": 0.07451033525240879,
+          "camber_position": 0.2221210389367444
+        },
+        "value": 46.35472315252065,
+        "mlflow_run_id": "1c50cb37eaea4d868e72e92270e28b7d"
+      },
+      {
+        "n": 3,
+        "design_named": {
+          "max_camber": 0.07516885585633078,
+          "camber_position": 0.21871018403627693
+        },
+        "value": 46.34493858128311,
+        "mlflow_run_id": "e7da380a7b7e42cd8b71c98297bb6518"
+      },
+      {
+        "n": 4,
+        "design_named": {
+          "max_camber": 0.07949347191518047,
+          "camber_position": 0.20041349108593862
+        },
+        "value": 45.87378653244764,
+        "mlflow_run_id": "74fa213f7acf42a0a404bcffc642ef41"
+      },
+      {
+        "n": 5,
+        "design_named": {
+          "max_camber": 0.07142396440260919,
+          "camber_position": 0.21977148504550229
+        },
+        "value": 46.37208685252852,
+        "mlflow_run_id": "fd22b3c194b548aa85f83f5a60ccb635"
+      },
+      {
+        "n": 6,
+        "design_named": {
+          "max_camber": 0.0712730376157876,
+          "camber_position": 0.21822697476418312
+        },
+        "value": 46.36283864961281,
+        "mlflow_run_id": "b1d647b387714a27910542769f1d7875"
+      },
+      {
+        "n": 7,
+        "design_named": {
+          "max_camber": 0.07157154384696665,
+          "camber_position": 0.2201329312436494
+        },
+        "value": 46.362528405166266,
+        "mlflow_run_id": "d7766d17871b4ee3a7205b5cd2c8aae7"
+      },
+      {
+        "n": 8,
+        "design_named": {
+          "max_camber": 0.055974480150069436,
+          "camber_position": 0.2014783376507474
+        },
+        "value": 44.96851282708589,
+        "mlflow_run_id": "4281b9c158d540aba510615d252b83bf"
+      },
+      {
+        "n": 9,
+        "design_named": {
+          "max_camber": 0.07690044754389097,
+          "camber_position": 0.22915332313963144
+        },
+        "value": 46.282798747895086,
+        "mlflow_run_id": "cea41325ac3d4806b685cd0effc3b683"
+      },
+      {
+        "n": 10,
+        "design_named": {
+          "max_camber": 0.07689611024833704,
+          "camber_position": 0.22889489590815157
+        },
+        "value": 46.28697391778496,
+        "mlflow_run_id": "420887a4f0d34ea9a34e95a50200355d"
+      },
+      {
+        "n": 11,
+        "design_named": {
+          "max_camber": 0.07677091116250179,
+          "camber_position": 0.22701780611613406
+        },
+        "value": 46.29660777994782,
+        "mlflow_run_id": "33242c7d04904d579e3daba1d382bd6c"
+      },
+      {
+        "n": 12,
+        "design_named": {
+          "max_camber": 0.0799988022777046,
+          "camber_position": 0.23677864386137185
+        },
+        "value": 46.08912268591008,
+        "mlflow_run_id": "a8488907447d41bba1b067a80f985dd4"
+      },
+      {
+        "n": 13,
+        "design_named": {
+          "max_camber": 0.07976956960341873,
+          "camber_position": 0.24140930814459455
+        },
+        "value": 46.083751318619996,
+        "mlflow_run_id": "32ccadf5e2c249188caed84440a451e5"
+      },
+      {
+        "n": 14,
+        "design_named": {
+          "max_camber": 0.0798491594058979,
+          "camber_position": 0.24249746024064694
+        },
+        "value": 46.068562464539006,
+        "mlflow_run_id": "450a1238dccd41afbdc7b9e3471ee9cd"
+      },
+      {
+        "n": 15,
+        "design_named": {
+          "max_camber": 0.07950788279958798,
+          "camber_position": 0.2400895262058686
+        },
+        "value": 46.099794905340815,
+        "mlflow_run_id": "f21fb65ee19148a8ae1e9b5fac07d84d"
+      },
+      {
+        "n": 16,
+        "design_named": {
+          "max_camber": 0.07994518982939379,
+          "camber_position": 0.30303964356879615
+        },
+        "value": 45.62155629868658,
+        "mlflow_run_id": "24287b6e54dc49258727f08ebb63a8f5"
+      }
+    ]
+  },
+  "accelerated": {
+    "records": [
+      {
+        "iteration": 0,
+        "certificate": {
+          "surrogate_name": "stage17_ld_ensemble",
+          "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+          "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "dataset_id": "stage17-naca4-ld",
+          "held_out_metrics": {
+            "ld_mae": {
+              "p50": 0.29290865645241304,
+              "p95": 6.293293199702315,
+              "p99": 6.293293199702315,
+              "n_held_out": 10
+            }
+          },
+          "applicability_envelope": {
+            "re_range": [
+              500000.0,
+              500000.0
+            ],
+            "mach_range": [
+              0.0,
+              0.0
+            ],
+            "aoa_range_deg": [
+              4.0,
+              4.0
+            ],
+            "geometry_class": "naca-4digit"
+          },
+          "cert_status": "smoke",
+          "non_commercial": false,
+          "data_origin": "platform-validated",
+          "attribution_required": [],
+          "license_id": "",
+          "issued_at": "2026-07-24T13:02:11.040325Z",
+          "expires_at": "2027-01-20T13:02:11.040325Z",
+          "ensemble_size": 5,
+          "uncertainty_calibration": {
+            "basis": "gp_bootstrap",
+            "n_held_out": 10,
+            "interval_k": 2.0,
+            "nominal_coverage": 0.9544997361036416,
+            "empirical_coverage": 0.9,
+            "mean_abs_z": 0.6218876789446052,
+            "std_z": 0.8908489657180596
+          }
+        },
+        "candidates": [
+          {
+            "design": [
+              0.9398514899546232,
+              0.05447119384296211
+            ],
+            "mean": 45.70379129039034,
+            "epistemic_std": 1.3200929895261173,
+            "ei": 0.2695116119255144,
+            "route": "exploit",
+            "rank": 0
+          },
+          {
+            "design": [
+              0.9313791906551099,
+              0.055302597341860944
+            ],
+            "mean": 45.75072842806006,
+            "epistemic_std": 1.2768718528915493,
+            "ei": 0.2690586815237702,
+            "route": "exploit",
+            "rank": 1
+          },
+          {
+            "design": [
+              0.9396106982041347,
+              0.04677546009069229
+            ],
+            "mean": 45.65036135923281,
+            "epistemic_std": 1.3658341349114034,
+            "ei": 0.2690351147429696,
+            "route": "exploit",
+            "rank": 2
+          },
+          {
+            "design": [
+              0.9936683989397559,
+              0.0010337277148465163
+            ],
+            "mean": 44.73623529051582,
+            "epistemic_std": 1.7751886215915775,
+            "ei": 0.17772976876996927,
+            "route": "explore",
+            "rank": 3
+          }
+        ],
+        "results": [
+          {
+            "design": [
+              0.07518811919636986,
+              0.22178847753718486
+            ],
+            "value": 46.35565200324356,
+            "mlflow_run_id": "5c16cfdd18674143b2166050392d1868",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "e337db1ddf99dbb33708127aae7fc47bdf300acb6a387fde5ee665111562ea3b"
+            }
+          },
+          {
+            "design": [
+              0.07451033525240879,
+              0.2221210389367444
+            ],
+            "value": 46.35472315252065,
+            "mlflow_run_id": "1c50cb37eaea4d868e72e92270e28b7d",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "bb312a1121d0d838a5fbe2e284577abddc2a71be54e78cdfadde767a0b1f57fe"
+            }
+          },
+          {
+            "design": [
+              0.07516885585633078,
+              0.21871018403627693
+            ],
+            "value": 46.34493858128311,
+            "mlflow_run_id": "e7da380a7b7e42cd8b71c98297bb6518",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "45a3c147341903be90ccf67011c94db562b58bbaabaaae782be26771bff499c3"
+            }
+          },
+          {
+            "design": [
+              0.07949347191518047,
+              0.20041349108593862
+            ],
+            "value": 45.87378653244764,
+            "mlflow_run_id": "74fa213f7acf42a0a404bcffc642ef41",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "38330a28e925a9bc6c35c3656346ac52be7d403deada696400d44d75a6c5b520"
+            }
+          }
+        ],
+        "trust_update": null,
+        "trust_recentered": true,
+        "incumbent_design_unit": [
+          0.9398514899546232,
+          0.05447119384296211
+        ],
+        "incumbent_value": 46.35565200324356
+      },
+      {
+        "iteration": 1,
+        "certificate": {
+          "surrogate_name": "stage17_ld_ensemble",
+          "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+          "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "dataset_id": "stage17-naca4-ld+infill4",
+          "held_out_metrics": {
+            "ld_mae": {
+              "p50": 0.7047554292155276,
+              "p95": 8.212365396297887,
+              "p99": 10.603883289274393,
+              "n_held_out": 12
+            }
+          },
+          "applicability_envelope": {
+            "re_range": [
+              500000.0,
+              500000.0
+            ],
+            "mach_range": [
+              0.0,
+              0.0
+            ],
+            "aoa_range_deg": [
+              4.0,
+              4.0
+            ],
+            "geometry_class": "naca-4digit"
+          },
+          "cert_status": "smoke",
+          "non_commercial": false,
+          "data_origin": "platform-validated",
+          "attribution_required": [],
+          "license_id": "",
+          "issued_at": "2026-07-24T13:06:25.300716Z",
+          "expires_at": "2027-01-20T13:06:25.300716Z",
+          "ensemble_size": 5,
+          "uncertainty_calibration": {
+            "basis": "gp_bootstrap",
+            "n_held_out": 12,
+            "interval_k": 2.0,
+            "nominal_coverage": 0.9544997361036416,
+            "empirical_coverage": 0.75,
+            "mean_abs_z": 1.6934786576469998,
+            "std_z": 2.3808416945031516
+          }
+        },
+        "candidates": [
+          {
+            "design": [
+              0.8927995550326149,
+              0.04942871261375569
+            ],
+            "mean": 46.26648495592458,
+            "epistemic_std": 0.20487932243822002,
+            "ei": 0.04477247682250814,
+            "route": "exploit",
+            "rank": 0
+          },
+          {
+            "design": [
+              0.8909129701973449,
+              0.045567436910457775
+            ],
+            "mean": 46.250125990498375,
+            "epistemic_std": 0.21938136907123953,
+            "ei": 0.04469179816503643,
+            "route": "exploit",
+            "rank": 1
+          },
+          {
+            "design": [
+              0.8946442980870831,
+              0.0503323281091235
+            ],
+            "mean": 46.27500314344272,
+            "epistemic_std": 0.19677327508366876,
+            "ei": 0.04467939356124831,
+            "route": "exploit",
+            "rank": 2
+          },
+          {
+            "design": [
+              0.6996810018758679,
+              0.003695844126868516
+            ],
+            "mean": 43.60838844972351,
+            "epistemic_std": 0.9266431082680098,
+            "ei": 0.00040085991582614663,
+            "route": "explore",
+            "rank": 3
+          }
+        ],
+        "results": [
+          {
+            "design": [
+              0.07142396440260919,
+              0.21977148504550229
+            ],
+            "value": 46.37208685252852,
+            "mlflow_run_id": "fd22b3c194b548aa85f83f5a60ccb635",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "89936ad70c959ae6ac4ec41620a71d64407b1f2b6d4fcd8fb66f5910d1341354"
+            }
+          },
+          {
+            "design": [
+              0.0712730376157876,
+              0.21822697476418312
+            ],
+            "value": 46.36283864961281,
+            "mlflow_run_id": "b1d647b387714a27910542769f1d7875",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "bb59d0051ac48f5c42ebe213df4ab7c63c886e114e9b3acad5f2b382b3bfc9a6"
+            }
+          },
+          {
+            "design": [
+              0.07157154384696665,
+              0.2201329312436494
+            ],
+            "value": 46.362528405166266,
+            "mlflow_run_id": "d7766d17871b4ee3a7205b5cd2c8aae7",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "0747de145f156592779361dbb1e999db67925e573f2068c0258ee7cb3ba7a283"
+            }
+          },
+          {
+            "design": [
+              0.055974480150069436,
+              0.2014783376507474
+            ],
+            "value": 44.96851282708589,
+            "mlflow_run_id": "4281b9c158d540aba510615d252b83bf",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "50a6ed811aa11d23df5db6bc53ec27c5315250bac80bb70bf40bc48355f795d2"
+            }
+          }
+        ],
+        "trust_update": null,
+        "trust_recentered": true,
+        "incumbent_design_unit": [
+          0.8927995550326149,
+          0.04942871261375569
+        ],
+        "incumbent_value": 46.37208685252852
+      },
+      {
+        "iteration": 2,
+        "certificate": {
+          "surrogate_name": "stage17_ld_ensemble",
+          "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+          "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "dataset_id": "stage17-naca4-ld+infill8",
+          "held_out_metrics": {
+            "ld_mae": {
+              "p50": 0.717977646060266,
+              "p95": 1.6798472097236328,
+              "p99": 2.0728965324776176,
+              "n_held_out": 12
+            }
+          },
+          "applicability_envelope": {
+            "re_range": [
+              500000.0,
+              500000.0
+            ],
+            "mach_range": [
+              0.0,
+              0.0
+            ],
+            "aoa_range_deg": [
+              4.0,
+              4.0
+            ],
+            "geometry_class": "naca-4digit"
+          },
+          "cert_status": "smoke",
+          "non_commercial": false,
+          "data_origin": "platform-validated",
+          "attribution_required": [],
+          "license_id": "",
+          "issued_at": "2026-07-24T13:10:39.332211Z",
+          "expires_at": "2027-01-20T13:10:39.332211Z",
+          "ensemble_size": 5,
+          "uncertainty_calibration": {
+            "basis": "gp_bootstrap",
+            "n_held_out": 12,
+            "interval_k": 2.0,
+            "nominal_coverage": 0.9544997361036416,
+            "empirical_coverage": 1.0,
+            "mean_abs_z": 0.5824127306362884,
+            "std_z": 0.7698937646510757
+          }
+        },
+        "candidates": [
+          {
+            "design": [
+              0.9612555942986372,
+              0.07288330784907857
+            ],
+            "mean": 44.676386948375544,
+            "epistemic_std": 3.581809699019401,
+            "ei": 0.7382913418710443,
+            "route": "exploit",
+            "rank": 0
+          },
+          {
+            "design": [
+              0.9612013781042129,
+              0.07223723977037888
+            ],
+            "mean": 44.67788260367371,
+            "epistemic_std": 3.5804626884597037,
+            "ei": 0.7382865216782463,
+            "route": "exploit",
+            "rank": 1
+          },
+          {
+            "design": [
+              0.9596363895312723,
+              0.06754451529033512
+            ],
+            "mean": 44.69759725492024,
+            "epistemic_std": 3.5611171458593187,
+            "ei": 0.737661841666262,
+            "route": "exploit",
+            "rank": 2
+          },
+          {
+            "design": [
+              0.9999850284713074,
+              0.09194660965342957
+            ],
+            "mean": 44.24379940145449,
+            "epistemic_std": 3.822571441796806,
+            "ei": 0.691285870028548,
+            "route": "explore",
+            "rank": 3
+          }
+        ],
+        "results": [
+          {
+            "design": [
+              0.07690044754389097,
+              0.22915332313963144
+            ],
+            "value": 46.282798747895086,
+            "mlflow_run_id": "cea41325ac3d4806b685cd0effc3b683",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "f76c06a1df3b37fbd59ee12c6aca0e128e3b0d5b48d87199861fa694ad651a35"
+            }
+          },
+          {
+            "design": [
+              0.07689611024833704,
+              0.22889489590815157
+            ],
+            "value": 46.28697391778496,
+            "mlflow_run_id": "420887a4f0d34ea9a34e95a50200355d",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "8321fdab97dd133acc442c7ff0e56a03126fca2118d9bb39266cff0712fff7f3"
+            }
+          },
+          {
+            "design": [
+              0.07677091116250179,
+              0.22701780611613406
+            ],
+            "value": 46.29660777994782,
+            "mlflow_run_id": "33242c7d04904d579e3daba1d382bd6c",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "0c6bfaad926486a8daf1c2063eb84f41610cb528a7a06f209b721b4dd1df1ca7"
+            }
+          },
+          {
+            "design": [
+              0.0799988022777046,
+              0.23677864386137185
+            ],
+            "value": 46.08912268591008,
+            "mlflow_run_id": "a8488907447d41bba1b067a80f985dd4",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "4115bdfcdcba2e3faba4dd3bca3870c59ddda41251954c3ee9a10b11c7908724"
+            }
+          }
+        ],
+        "trust_update": null,
+        "trust_recentered": false,
+        "incumbent_design_unit": [
+          0.8927995550326149,
+          0.04942871261375569
+        ],
+        "incumbent_value": 46.37208685252852
+      },
+      {
+        "iteration": 3,
+        "certificate": {
+          "surrogate_name": "stage17_ld_ensemble",
+          "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+          "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "dataset_id": "stage17-naca4-ld+infill12",
+          "held_out_metrics": {
+            "ld_mae": {
+              "p50": 0.5013863253574868,
+              "p95": 5.7160847162389,
+              "p99": 11.926422573868258,
+              "n_held_out": 14
+            }
+          },
+          "applicability_envelope": {
+            "re_range": [
+              500000.0,
+              500000.0
+            ],
+            "mach_range": [
+              0.0,
+              0.0
+            ],
+            "aoa_range_deg": [
+              4.0,
+              4.0
+            ],
+            "geometry_class": "naca-4digit"
+          },
+          "cert_status": "smoke",
+          "non_commercial": false,
+          "data_origin": "platform-validated",
+          "attribution_required": [],
+          "license_id": "",
+          "issued_at": "2026-07-24T13:14:56.434222Z",
+          "expires_at": "2027-01-20T13:14:56.434222Z",
+          "ensemble_size": 5,
+          "uncertainty_calibration": {
+            "basis": "gp_bootstrap",
+            "n_held_out": 14,
+            "interval_k": 2.0,
+            "nominal_coverage": 0.9544997361036416,
+            "empirical_coverage": 0.7857142857142857,
+            "mean_abs_z": 1.492864887593042,
+            "std_z": 2.2537498460724623
+          }
+        },
+        "candidates": [
+          {
+            "design": [
+              0.9971196200427341,
+              0.10352327036148636
+            ],
+            "mean": 45.65276528051493,
+            "epistemic_std": 0.8684202372194153,
+            "ei": 0.09928190124744793,
+            "route": "exploit",
+            "rank": 0
+          },
+          {
+            "design": [
+              0.9981144925737238,
+              0.10624365060161733
+            ],
+            "mean": 45.62862069596006,
+            "epistemic_std": 0.8850558390056775,
+            "ei": 0.0990890181400306,
+            "route": "exploit",
+            "rank": 1
+          },
+          {
+            "design": [
+              0.9938485349948498,
+              0.10022381551467144
+            ],
+            "mean": 45.69983853715077,
+            "epistemic_std": 0.8330500584626217,
+            "ei": 0.09891398505979976,
+            "route": "exploit",
+            "rank": 2
+          },
+          {
+            "design": [
+              0.9993148728674224,
+              0.25759910892199034
+            ],
+            "mean": 44.232439434619394,
+            "epistemic_std": 1.1604751854185467,
+            "ei": 0.014826968311996092,
+            "route": "explore",
+            "rank": 3
+          }
+        ],
+        "results": [
+          {
+            "design": [
+              0.07976956960341873,
+              0.24140930814459455
+            ],
+            "value": 46.083751318619996,
+            "mlflow_run_id": "32ccadf5e2c249188caed84440a451e5",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "da94a5f82c9176c5fab8bb72661eba7a70d1030fac7f0b9430ee0a8956744c33"
+            }
+          },
+          {
+            "design": [
+              0.0798491594058979,
+              0.24249746024064694
+            ],
+            "value": 46.068562464539006,
+            "mlflow_run_id": "450a1238dccd41afbdc7b9e3471ee9cd",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "7770c495bd8af79c5d48f5453475340a3d50001f76e0ea583d0dde62513e325a"
+            }
+          },
+          {
+            "design": [
+              0.07950788279958798,
+              0.2400895262058686
+            ],
+            "value": 46.099794905340815,
+            "mlflow_run_id": "f21fb65ee19148a8ae1e9b5fac07d84d",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "c0b4c22bfecae5fa8ef3d2f7312159faeb48733382db9698d8a1ed57b904b2d7"
+            }
+          },
+          {
+            "design": [
+              0.07994518982939379,
+              0.30303964356879615
+            ],
+            "value": 45.62155629868658,
+            "mlflow_run_id": "24287b6e54dc49258727f08ebb63a8f5",
+            "provenance": {
+              "git_sha": "e2ec52bb2291907ea6a00f85790b0e8f0c717345",
+              "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+              "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+              "config_hash": "85c04e6871d623d334ba2ce1fa59e676ba788059fa2cc7251c25d8de9193d44e"
+            }
+          }
+        ],
+        "trust_update": null,
+        "trust_recentered": false,
+        "incumbent_design_unit": [
+          0.8927995550326149,
+          0.04942871261375569
+        ],
+        "incumbent_value": 46.37208685252852
+      }
+    ],
+    "n_cfd_evals": 16,
+    "n_corpus": 42,
+    "n_candidates": 58,
+    "incumbent_design_unit": [
+      0.8927995550326149,
+      0.04942871261375569
+    ],
+    "incumbent_value": 46.37208685252852,
+    "incumbent_from_corpus": false,
+    "stop_reason": "budget"
+  }
+}
