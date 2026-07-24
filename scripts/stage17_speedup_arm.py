@@ -90,6 +90,9 @@ DIRECT_N_INIT = 6
 DIRECT_N_ITER = 10
 MEMBER_LENGTH_SCALES = (0.20, 0.25, 0.30, 0.35, 0.40)
 CORPUS_DVC_PATH = "data/datasets/stage17_naca4_ld"
+# The Invariant-9 data gate targets the tracked corpus FILE (dvc tracks files, not the
+# dataset dir; `dvc status -c <dir>` errors — ADR-032 sync-state-hash note).
+CORPUS_HASH_PATH = f"{CORPUS_DVC_PATH}/corpus.json"
 BASELINE_CASE = "s17c_base"
 
 
@@ -243,7 +246,7 @@ def main() -> None:
         )
 
         def dataset_hash_fn() -> str:
-            return dataset_hash(_REPO_ROOT, CORPUS_DVC_PATH)
+            return dataset_hash(_REPO_ROOT, CORPUS_HASH_PATH)
 
         def member_factory(i: int) -> GPBootstrapMember:
             return GPBootstrapMember(

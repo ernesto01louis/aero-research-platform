@@ -66,7 +66,9 @@ def main() -> None:
         samples.extend(to_samples(load_corpus(f)))
     print(f"CORPUS files={[f.name for f in corpus_files]} n_samples={len(samples)}", flush=True)
 
-    dvc_hash = dataset_hash(_REPO_ROOT, corpus_dir.relative_to(_REPO_ROOT))
+    # The Invariant-9 data gate targets the tracked corpus FILE (dvc tracks files, not the
+    # dataset dir — `dvc status -c <dir>` errors; ADR-032 sync-state-hash note).
+    dvc_hash = dataset_hash(_REPO_ROOT, corpus_dir.relative_to(_REPO_ROOT) / "corpus.json")
     envelope = ApplicabilityEnvelope(
         re_range=(5.0e5, 5.0e5),
         mach_range=(0.0, 0.0),

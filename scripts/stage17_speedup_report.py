@@ -39,6 +39,8 @@ BAR_DELTA = 22.20
 MIN_WINS = 2
 SEEDS = (0, 1, 2)
 CORPUS_DVC_PATH = "data/datasets/stage17_naca4_ld"
+# Invariant-9 data-gate target: the tracked corpus FILE (ADR-032 sync-state-hash note).
+CORPUS_HASH_PATH = f"{CORPUS_DVC_PATH}/corpus.json"
 REFINE_RATIO = 1.7
 K_MARGIN = 2.0
 
@@ -143,7 +145,7 @@ def finalize(args: argparse.Namespace) -> None:
     cert_valid = cert_bundle["verdict"] == "PROMOTED" and cert.cert_status == "validated"
     cert_gate_error: str | None = None
     try:
-        cert.assert_current(current_dataset_hash=dataset_hash(_REPO_ROOT, CORPUS_DVC_PATH))
+        cert.assert_current(current_dataset_hash=dataset_hash(_REPO_ROOT, CORPUS_HASH_PATH))
     except Exception as exc:
         cert_valid = False
         cert_gate_error = f"{type(exc).__name__}: {exc}"
