@@ -11,9 +11,16 @@ the certificate carries.
 The ensemble is itself a ``Surrogate``: taint (CC-BY-NC) and data-origin
 (Invariant 11) propagate at the ensemble level through the inherited
 :meth:`~aero.surrogates._common.base.Surrogate.ingest`, exactly as they do for
-each member. The cert always ships ``cert_status="smoke"`` — promotion to
-``validated`` is a Stage-16 gate (held-out error AND calibration band), not a
+each member. The cert built by ``fit``/``set_certificate`` always ships
+``cert_status="smoke"``; the ONLY upgrade path is the gated
+:meth:`EnsembleSurrogate.promote_to_validated` (held-out error AND calibration
+band, own-data only — Stage-17 gates C1/C2/C4, ADR-031/032), never a
 constructor decision.
+
+``basis`` labels the member family honestly: ``"deep_ensemble"`` for NN
+members (ADR-025 default), ``"gp_bootstrap"`` for seeded bootstrap-resampled
+GP members (Stage 17, ADR-031). ``metric_name`` names the held-out MAE metric
+key in the cert (``"cd_mae"`` default; Stage 17 uses ``"ld_mae"``).
 
 Aggregation is pure numpy; torch/JAX only ever appear inside the members' own
 lazy imports (PLATFORM-NOT-HUB).
@@ -23,7 +30,7 @@ from __future__ import annotations
 
 import statistics
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -42,6 +49,15 @@ from aero.surrogates._common.certificate import (
 )
 
 
+class PromotionRefused(RuntimeError):  # noqa: N818 — domain-natural state name
+    """A gated ``promote_to_validated`` call failed one of its pre-registered gates.
+
+    Raised loud with the failing gate named — never a silent keep-smoke. The
+    caller (a stage driver) records the refusal as campaign evidence; the
+    NO-GO fallback is direct-CFD BO, not a quieter certificate.
+    """
+
+
 class EnsembleSurrogate(Surrogate):
     """N independently-seeded members; mean prediction + ddof=1 epistemic spread."""
 
@@ -53,6 +69,8 @@ class EnsembleSurrogate(Surrogate):
         training_dataset_dvc_hash: str,
         dataset_id: str,
         applicability_envelope: ApplicabilityEnvelope,
+        basis: Literal["deep_ensemble", "gp_bootstrap"] = "deep_ensemble",
+        metric_name: str = "cd_mae",
     ) -> None:
         super().__init__()
         member_tuple = tuple(members)
@@ -66,6 +84,8 @@ class EnsembleSurrogate(Surrogate):
         self._training_dataset_dvc_hash = training_dataset_dvc_hash
         self._dataset_id = dataset_id
         self._envelope = applicability_envelope
+        self._basis: Literal["deep_ensemble", "gp_bootstrap"] = basis
+        self._metric_name = metric_name
         # Held-out evidence, populated by fit().
         self._errs: tuple[float, ...] | None = None
         self._calibration: UncertaintyCalibration | None = None
@@ -153,7 +173,7 @@ class EnsembleSurrogate(Surrogate):
             means.tolist(),
             stds.tolist(),
             interval_k=interval_k,
-            basis="deep_ensemble",
+            basis=self._basis,
         )
         self._errs = tuple(float(e) for e in np.abs(means - targets).tolist())
 
@@ -182,7 +202,7 @@ class EnsembleSurrogate(Surrogate):
         return SurrogatePrediction(
             mean=tuple(float(v) for v in mean.tolist()),
             epistemic_std=tuple(float(v) for v in std.tolist()),
-            basis="deep_ensemble",
+            basis=self._basis,
             n_members=len(self._members),
         )
 
@@ -204,11 +224,11 @@ class EnsembleSurrogate(Surrogate):
         member_arch = "|".join(architectures)
         return CertificateOfValidity.new(
             surrogate_name=self._surrogate_name,
-            model_architecture=f"deep_ensemble({member_arch}, n={len(self._members)})",
+            model_architecture=f"{self._basis}({member_arch}, n={len(self._members)})",
             training_dataset_dvc_hash=self._training_dataset_dvc_hash,
             dataset_id=self._dataset_id,
             held_out_metrics={
-                "cd_mae": MetricQuantiles(p50=p50, p95=p95, p99=p99, n_held_out=n),
+                self._metric_name: MetricQuantiles(p50=p50, p95=p95, p99=p99, n_held_out=n),
             },
             applicability_envelope=self._envelope,
             cert_status="smoke",
@@ -217,3 +237,53 @@ class EnsembleSurrogate(Surrogate):
             ensemble_size=len(self._members),
             uncertainty_calibration=self._calibration,
         )
+
+    def promote_to_validated(
+        self,
+        *,
+        max_metric_p95: float,
+        coverage_min: float = 0.85,
+        coverage_max: float = 1.0,
+    ) -> CertificateOfValidity:
+        """Re-issue + cache the cert at ``cert_status="validated"`` IF every gate passes.
+
+        The only path to a ``"validated"`` ensemble cert (mirrors the DoMINO
+        pattern, ADR-010, but fail-loud): raises :class:`PromotionRefused`
+        naming the first failing gate instead of silently keeping ``"smoke"``.
+        Gates (pre-registered per campaign, ADR-032; never relaxed after data
+        exists):
+
+        * held-out ``|error|`` p95 <= ``max_metric_p95`` (accuracy gate, C2);
+        * calibration ``empirical_coverage`` in ``[coverage_min, coverage_max]``
+          (C1; the collapsed-ensemble refusal C3 already fired in ``fit``);
+        * ``data_origin == "platform-validated"`` (Invariant 11, C4 — also
+          structurally unconstructible via the cert validator).
+        """
+        if self._errs is None or self._calibration is None:
+            raise RuntimeError("promote_to_validated() called before fit()")
+        if self._data_origin == "foreign":
+            raise PromotionRefused(
+                "CONSTITUTION Invariant 11 (NO-SURROGATE-ON-FOREIGN-DATA): cannot promote an "
+                "ensemble trained on foreign data to cert_status='validated'. It may seed "
+                "'smoke' experiments only. Retrain on the platform's own validated CFD."
+            )
+        smoke = self.certificate()
+        quantiles = smoke.held_out_metrics[self._metric_name]
+        if quantiles.p95 > max_metric_p95:
+            raise PromotionRefused(
+                f"accuracy gate failed: held-out {self._metric_name} p95 = {quantiles.p95:.6g} "
+                f"> pre-registered bar {max_metric_p95:.6g} (n_held_out={quantiles.n_held_out})"
+            )
+        coverage = self._calibration.empirical_coverage
+        if not (coverage_min <= coverage <= coverage_max):
+            raise PromotionRefused(
+                f"calibration gate failed: empirical ±{self._calibration.interval_k:g}·std "
+                f"coverage = {coverage:.4f} outside pre-registered band "
+                f"[{coverage_min}, {coverage_max}] (n_held_out={self._calibration.n_held_out})"
+            )
+        cert = smoke.model_copy(update={"cert_status": "validated"})
+        # Frozen-model copy skips validators, so re-validate explicitly: the
+        # Invariant-11 foreign-cannot-be-validated guard must fire on every path.
+        cert = CertificateOfValidity.model_validate(cert.model_dump())
+        self._certificate = cert
+        return cert
