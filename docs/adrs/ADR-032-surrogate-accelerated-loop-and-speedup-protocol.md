@@ -59,7 +59,8 @@ ground-truth solve with four-fold clean-tree provenance, failures recorded as ev
 Samples assert `data_origin="platform-validated"` explicitly. The corpus builder lives in
 `aero/optimize/` because the `data-origin-fence` treats everything under
 `aero/surrogates/_common/loaders/` as foreign corpus loaders. Storage:
-`data/datasets/stage17_naca4_ld/` (DVC-tracked; the Invariant-9 data-gate path). MLflow
+`data/datasets/stage17_naca4_ld/` (DVC tracks the FILE `corpus.json`, not the dir — the
+Invariant-9 data gate targets `.../corpus.json`, since `dvc status -c <dir>` errors). MLflow
 campaign logging is ON (server + Postgres mirror verified reachable) — closing the
 Stage-15 ledger item; the committed JSON bundles remain the evidence of record.
 
