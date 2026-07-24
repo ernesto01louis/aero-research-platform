@@ -20,6 +20,8 @@
       "2": true
     },
     "literal_marginal_wins": 3,
+    "genuine_wins": 0,
+    "genuine_win_requires": "surrogate searched (>= 1 marginal eval) AND fewer than direct",
     "total_cost_surrogate_incl_corpus": 42,
     "total_cost_direct_from_scratch": 4,
     "corpus_past_bar_designs": 5
