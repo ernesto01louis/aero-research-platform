@@ -18,6 +18,7 @@
 - **Provenance:** every row carries a clean-tree four-tuple (git_sha, dvc_input_hash,
   container_sif_sha256, config_hash); MLflow experiment `aero-provenance`, stage 17.
 - **Use:** the training corpus for the Stage-17 surrogate (`gp_bootstrap` ensemble). The
-  Invariant-9 data gate targets `dataset_hash(repo_root, "data/datasets/stage17_naca4_ld")`.
+  Invariant-9 data gate targets `dataset_hash(repo_root,
+  "data/datasets/stage17_naca4_ld/corpus.json")` (DVC tracks the file, not the dir).
   `corpus_v2.json` (added in Phase 5) appends the surrogate arms' infill evaluations — the
   own-data flywheel growing.
