@@ -121,12 +121,11 @@ def finalize(args: argparse.Namespace) -> None:
                 raise SystemExit(f"{path} has no trace — zero-marginal-eval runs need review")
             trace = ArmTrace.model_validate(bundle["trace"])
             sink.append(trace)
-            best = max(
-                (r for r in trace.rows if r.value is not None),
-                key=lambda r: r.value if r.value is not None else float("-inf"),
-            )
-            if best.value is not None:
-                incumbents[arm].append((best.value, best.design_named))
+            converged = [(r.value, r.design_named) for r in trace.rows if r.value is not None]
+            if converged:  # an arm-seed with every solve failed contributes no incumbent
+                incumbents[arm].append(max(converged, key=lambda t: t[0]))
+            else:
+                print(f"WARN {path.name}: no converged solve — arm-seed contributes no incumbent")
 
     verdict = evaluate_speedup(
         tuple(direct),
