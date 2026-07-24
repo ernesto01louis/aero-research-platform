@@ -1,0 +1,78 @@
+{
+  "arm": "direct",
+  "seed": 1,
+  "bar_delta": 22.2,
+  "baseline_value": 21.67403232277372,
+  "max_evals": 16,
+  "trace": {
+    "arm": "direct",
+    "seed": 1,
+    "baseline_value": 21.67403232277372,
+    "rows": [
+      {
+        "n": 1,
+        "design_named": {
+          "max_camber": 0.026006182617679136,
+          "camber_position": 0.20183727421620457
+        },
+        "value": 35.38489939469507,
+        "mlflow_run_id": "27653725647b40a9b3d33ff5127ff20f"
+      },
+      {
+        "n": 2,
+        "design_named": {
+          "max_camber": 0.07231101931963434,
+          "camber_position": 0.5535463219527763
+        },
+        "value": 38.69480318858194,
+        "mlflow_run_id": "93a4d62311844fef98da38b0b9bb2e2a"
+      },
+      {
+        "n": 3,
+        "design_named": {
+          "max_camber": 0.006824288329336756,
+          "camber_position": 0.3169008739116538
+        },
+        "value": 25.580078059631063,
+        "mlflow_run_id": "49eb1df7d2ce40baa94038043da4b19b"
+      },
+      {
+        "n": 4,
+        "design_named": {
+          "max_camber": 0.028588794836261786,
+          "camber_position": 0.4219821144332728
+        },
+        "value": 35.557050218645855,
+        "mlflow_run_id": "56e490228c314017881752fd4b514d15"
+      },
+      {
+        "n": 5,
+        "design_named": {
+          "max_camber": 0.05264865929516325,
+          "camber_position": 0.5192285802285603
+        },
+        "value": 39.951222721610115,
+        "mlflow_run_id": "13455e98eb4b4633afa639ecf36b93ce"
+      },
+      {
+        "n": 6,
+        "design_named": {
+          "max_camber": 0.05749108602680647,
+          "camber_position": 0.36920955421461854
+        },
+        "value": 42.945589853679046,
+        "mlflow_run_id": "abc193497ca84b2ab9df1fb15f96acd8"
+      },
+      {
+        "n": 7,
+        "design_named": {
+          "max_camber": 0.07202585549232382,
+          "camber_position": 0.378184186282563
+        },
+        "value": 43.944705569752784,
+        "mlflow_run_id": "75729e19982348ec87cf5d19edfc9745"
+      }
+    ]
+  },
+  "accelerated": null
+}

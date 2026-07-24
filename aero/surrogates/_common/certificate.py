@@ -149,8 +149,10 @@ class UncertaintyCalibration(BaseModel):
         validate_default=True,
     )
 
-    basis: Literal["deep_ensemble", "mc_dropout"] = Field(
-        ..., description="How the epistemic std was produced ('mc_dropout' reserved, ADR-025)."
+    basis: Literal["deep_ensemble", "gp_bootstrap", "mc_dropout"] = Field(
+        ...,
+        description="How the epistemic std was produced ('gp_bootstrap' = seeded "
+        "bootstrap-resampled GP members, ADR-031; 'mc_dropout' reserved, ADR-025).",
     )
     n_held_out: int = Field(
         ..., ge=1, description="Held-out sample count behind this calibration evidence."

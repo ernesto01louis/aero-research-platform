@@ -132,6 +132,9 @@ class SurrogatePrediction(BaseModel):
       uncertainty-blind surrogate as perfectly certain.
     * ``"deep_ensemble"`` — ``epistemic_std`` is the ddof=1 population std
       over ``n_members`` independently-seeded members (ADR-025).
+    * ``"gp_bootstrap"`` — same member-spread estimator, but the members are
+      seeded bootstrap-resampled GP regressors (Stage 17, ADR-031). Additive
+      Literal extension; the validator branches only on ``"none"`` vs not.
     * ``"mc_dropout"`` — reserved; ledgered in ADR-025, no producer yet.
     """
 
@@ -149,7 +152,7 @@ class SurrogatePrediction(BaseModel):
         default=None,
         description="Per-target epistemic std (model uncertainty). None iff basis='none'.",
     )
-    basis: Literal["none", "deep_ensemble", "mc_dropout"] = Field(
+    basis: Literal["none", "deep_ensemble", "gp_bootstrap", "mc_dropout"] = Field(
         ..., description="How the uncertainty was produced. 'none' = no uncertainty model."
     )
     n_members: int = Field(

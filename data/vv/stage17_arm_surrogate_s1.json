@@ -1,0 +1,21 @@
+{
+  "arm": "surrogate",
+  "seed": 1,
+  "bar_delta": 22.2,
+  "baseline_value": 21.67403232277372,
+  "max_evals": 16,
+  "trace": null,
+  "accelerated": {
+    "records": [],
+    "n_cfd_evals": 0,
+    "n_corpus": 42,
+    "n_candidates": 42,
+    "incumbent_design_unit": [
+      0.9091888666257529,
+      0.011223936276576129
+    ],
+    "incumbent_value": 46.336921044931366,
+    "incumbent_from_corpus": true,
+    "stop_reason": "target"
+  }
+}

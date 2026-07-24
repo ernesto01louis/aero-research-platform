@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.16  ·  **Status:** complete  ·  **Completed:** 2026-07-15
+**Latest tag:** v0.0.17  ·  **Status:** complete  ·  **Completed:** 2026-07-24
 
-**Stage 16 — Grid-Converged Certification of the Airfoil Optimum** — most recent stage.
+**Stage 17 — Surrogate-Accelerated Optimization (own-data)** — most recent stage.
 
-**Next:** Stage 17 — Surrogate-Accelerated Optimization (own-data).
+**Next:** Stage 18 — Arbitrary-Geometry Ingestion + Robust Meshing.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
