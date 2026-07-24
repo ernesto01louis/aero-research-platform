@@ -1,0 +1,94 @@
+{
+  "verdict": "REFUSED",
+  "refusal": "accuracy gate failed: held-out ld_mae p95 = 2.62306 > pre-registered bar 2.5 (n_held_out=14)",
+  "gates": {
+    "C1_coverage_band": [
+      0.85,
+      1.0
+    ],
+    "C1_empirical_coverage": 0.7857142857142857,
+    "C2_p95_bar": 2.5,
+    "C2_p95": 2.6230585958447534,
+    "C3_non_collapsed": true,
+    "C4_data_origin": "platform-validated"
+  },
+  "member_length_scales": [
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4
+  ],
+  "fit": {
+    "seed": 17,
+    "calibration_fraction": 0.25,
+    "interval_k": 2.0,
+    "n_samples": 58
+  },
+  "corpus_files": [
+    "corpus.json",
+    "corpus_v2.json"
+  ],
+  "calibration_case_ids": [
+    "s17c_03",
+    "s17c_05",
+    "s17c_12",
+    "s17c_17",
+    "s17c_18",
+    "s17c_20",
+    "s17c_24",
+    "s17c_26",
+    "s17c_33",
+    "s17c_34",
+    "s17c_36",
+    "s17explore_it00_r1",
+    "s17explore_it02_r0",
+    "s17explore_it03_r1"
+  ],
+  "certificate": {
+    "surrogate_name": "stage17_ld_ensemble",
+    "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+    "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "dataset_id": "stage17-naca4-ld",
+    "held_out_metrics": {
+      "ld_mae": {
+        "p50": 0.04164374446911978,
+        "p95": 2.6230585958447534,
+        "p99": 5.980855712680562,
+        "n_held_out": 14
+      }
+    },
+    "applicability_envelope": {
+      "re_range": [
+        500000.0,
+        500000.0
+      ],
+      "mach_range": [
+        0.0,
+        0.0
+      ],
+      "aoa_range_deg": [
+        4.0,
+        4.0
+      ],
+      "geometry_class": "naca-4digit"
+    },
+    "cert_status": "smoke",
+    "non_commercial": false,
+    "data_origin": "platform-validated",
+    "attribution_required": [],
+    "license_id": "",
+    "issued_at": "2026-07-24T13:21:14.137895Z",
+    "expires_at": "2027-01-20T13:21:14.137895Z",
+    "ensemble_size": 5,
+    "uncertainty_calibration": {
+      "basis": "gp_bootstrap",
+      "n_held_out": 14,
+      "interval_k": 2.0,
+      "nominal_coverage": 0.9544997361036416,
+      "empirical_coverage": 0.7857142857142857,
+      "mean_abs_z": 0.9618463509970488,
+      "std_z": 1.3332649836418713
+    }
+  }
+}
