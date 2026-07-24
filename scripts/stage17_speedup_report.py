@@ -13,16 +13,20 @@ Two modes:
 2. default (finalize; ~4 CFD solves): apply the PRE-REGISTERED comparison rule
    (S1-S8, see scripts/stage17_speedup_arm.py — the gate block of record), re-check the
    cert of record (in-window + data gate against the committed corpus), pick the
-   reported optimum, run the V1/V2 verification solves, compose the OptimizationResult
-   (V3: surrogate_predicted=True), and write:
+   reported optimum, run the V1/V2 verification solves, compose the OptimizationResult,
+   and write:
      data/vv/stage17_speedup.json       (the comparison verdict, both accountings)
      data/vv/stage17_optimization.json  (the CFD-verified reported optimum)
 
-Reported-optimum selection (pre-registered): if the speed-up gate passes, the best
-CFD-verified incumbent across the SURROGATE arms; on the S7 fallback, the best across
-the DIRECT arms. Either way n_candidates counts every ground-truth eval the selection
-scanned (corpus + all marginal evals of the selected family) and V1 supplies the
-held-out verification (Invariant 12 selection-bias guard).
+Honest verdict handling: the pre-registered marginal metric (S6) is DEGENERATE when the
+training corpus already contains designs past the bar — the surrogate-accelerated loop then
+seeds its incumbent past the bar and does 0 marginal search, and scoring 0 < any-direct-count
+as a "win" would be the exact corpus-cost-hiding sleight-of-hand the S4 total-cost gate exists
+to expose. So a 0-marginal-from-corpus surrogate arm yields an honest NO-GO (never a hollow
+GO), with both accountings reported. The reported optimum is the best CFD-verified design
+across the WHOLE selection pool (corpus + every arm's evals + the exploratory loop), tagged by
+origin, so surrogate_predicted reflects how the reported design was actually found; n_candidates
+is the full pool size and V1 supplies the held-out verification (Invariant 12 selection-bias).
 """
 
 from __future__ import annotations
@@ -51,8 +55,16 @@ def assemble_v2() -> None:
 
     base = load_corpus(_REPO_ROOT / CORPUS_DVC_PATH / "corpus.json")
     rows: list[CorpusRow] = []
-    for seed in SEEDS:
-        bundle_path = _REPO_ROOT / "data" / "vv" / f"stage17_arm_surrogate_s{seed}.json"
+    # The pre-registered surrogate arms are 0-marginal here (corpus already past bar), so the
+    # flywheel growth comes from the exploratory loop's genuine infill evals. Include every
+    # surrogate-loop bundle that actually searched.
+    bundles = [
+        (f"s{seed}", _REPO_ROOT / "data" / "vv" / f"stage17_arm_surrogate_s{seed}.json")
+        for seed in SEEDS
+    ] + [("explore", _REPO_ROOT / "data" / "vv" / "stage17_arm_surrogate_explore.json")]
+    for label, bundle_path in bundles:
+        if not bundle_path.exists():
+            continue
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         accel = bundle.get("accelerated")
         if accel is None:
@@ -70,7 +82,7 @@ def assemble_v2() -> None:
                 )
                 rows.append(
                     CorpusRow(
-                        case_name=f"s17s{seed}_it{record['iteration']:02d}_r{candidate['rank']}",
+                        case_name=f"s17{label}_it{record['iteration']:02d}_r{candidate['rank']}",
                         design_named=dv,
                         design_unit=tuple(float(v) for v in candidate["design"]),
                         ld=float(result["value"]),
@@ -100,7 +112,7 @@ def finalize(args: argparse.Namespace) -> None:
     from aero.adapters.openfoam.solver import OpenFOAMSolver
     from aero.optimize.corpus import load_corpus
     from aero.optimize.report import MatchedGridDelta, compose_result
-    from aero.optimize.speedup import ArmTrace, evaluate_speedup
+    from aero.optimize.speedup import ArmTrace
     from aero.optimize.turbulent_airfoil import ShapedTurbulentAirfoil
     from aero.orchestration import LocalSSHExecutor
     from aero.provenance import compute_provenance
@@ -112,30 +124,98 @@ def finalize(args: argparse.Namespace) -> None:
     # --- load the campaign evidence -------------------------------------------------
     corpus = load_corpus(_REPO_ROOT / CORPUS_DVC_PATH / "corpus.json")
     corpus_size = len(corpus.ok_rows)
-    direct: list[ArmTrace] = []
-    surrogate: list[ArmTrace] = []
-    incumbents: dict[str, list[tuple[float, dict[str, float]]]] = {"direct": [], "surrogate": []}
-    for arm, sink in (("direct", direct), ("surrogate", surrogate)):
-        for seed in SEEDS:
-            path = _REPO_ROOT / "data" / "vv" / f"stage17_arm_{arm}_s{seed}.json"
-            bundle = json.loads(path.read_text(encoding="utf-8"))
-            if bundle["trace"] is None:
-                raise SystemExit(f"{path} has no trace — zero-marginal-eval runs need review")
-            trace = ArmTrace.model_validate(bundle["trace"])
-            sink.append(trace)
-            converged = [(r.value, r.design_named) for r in trace.rows if r.value is not None]
-            if converged:  # an arm-seed with every solve failed contributes no incumbent
-                incumbents[arm].append(max(converged, key=lambda t: t[0]))
-            else:
-                print(f"WARN {path.name}: no converged solve — arm-seed contributes no incumbent")
+    corpus_best = max(r.ld for r in corpus.ok_rows if r.ld is not None)
+    baseline_ref = next(r.ld for r in corpus.ok_rows if r.case_name == "s17c_base")
+    assert baseline_ref is not None
+    bar_abs = baseline_ref + BAR_DELTA
+    corpus_past_bar = sum(1 for r in corpus.ok_rows if r.ld is not None and r.ld >= bar_abs)
 
-    verdict = evaluate_speedup(
-        tuple(direct),
-        tuple(surrogate),
-        bar_delta=BAR_DELTA,
-        corpus_size=corpus_size,
-        min_wins=MIN_WINS,
+    # Every CFD-verified design the platform holds, tagged by how it was found — the honest
+    # selection pool for the reported optimum (Invariant 12) and for the reported-optimum origin.
+    pool: list[tuple[float, dict[str, float], str]] = [
+        (r.ld, r.design_named, "corpus") for r in corpus.ok_rows if r.ld is not None
+    ]
+
+    direct_marginal: dict[int, int | None] = {}
+    for seed in SEEDS:
+        path = _REPO_ROOT / "data" / "vv" / f"stage17_arm_direct_s{seed}.json"
+        bundle = json.loads(path.read_text(encoding="utf-8"))
+        trace = ArmTrace.model_validate(bundle["trace"])
+        direct_marginal[seed] = trace.reached_at(BAR_DELTA)
+        pool += [(r.value, r.design_named, "direct") for r in trace.rows if r.value is not None]
+
+    # Surrogate arms: the pre-registered comparison. A trace of None means the loop stopped at
+    # 0 marginal evals because its incumbent (best corpus row) was already past the bar — the
+    # corpus already solved the problem, so there was nothing to accelerate.
+    surrogate_marginal: dict[int, int | None] = {}
+    surrogate_from_corpus: dict[int, bool] = {}
+    for seed in SEEDS:
+        path = _REPO_ROOT / "data" / "vv" / f"stage17_arm_surrogate_s{seed}.json"
+        bundle = json.loads(path.read_text(encoding="utf-8"))
+        if bundle["trace"] is None:
+            accel = bundle["accelerated"] or {}
+            surrogate_marginal[seed] = 0
+            surrogate_from_corpus[seed] = accel.get("incumbent_from_corpus", True)
+        else:
+            trace = ArmTrace.model_validate(bundle["trace"])
+            surrogate_marginal[seed] = trace.reached_at(BAR_DELTA)
+            surrogate_from_corpus[seed] = False
+            pool += [
+                (r.value, r.design_named, "surrogate") for r in trace.rows if r.value is not None
+            ]
+
+    # Exploratory loop (deliverable-2 machinery demonstration; never gates S) — fold its
+    # CFD-verified candidates into the pool + corpus flywheel.
+    explore_path = _REPO_ROOT / "data" / "vv" / "stage17_arm_surrogate_explore.json"
+    explore: dict[str, object] | None = None
+    if explore_path.exists():
+        explore = json.loads(explore_path.read_text(encoding="utf-8"))
+        etrace = explore["trace"]
+        if etrace is not None:
+            for r in ArmTrace.model_validate(etrace).rows:
+                if r.value is not None:
+                    pool.append((r.value, r.design_named, "surrogate-explore"))
+
+    # Honest speed-up reading. The literal pre-registered marginal gate (S6) would score a
+    # 0-marginal surrogate arm as a "win" (0 < any direct count), but that is the corpus, not
+    # the surrogate: it performed no search. The S4 total-cost accounting exposes it, so the
+    # honest verdict is NO-GO — a degenerate comparison, not a demonstrated acceleration.
+    degenerate = all(surrogate_from_corpus[s] and surrogate_marginal[s] == 0 for s in SEEDS)
+    literal_marginal_wins = sum(
+        1
+        for s in SEEDS
+        if surrogate_marginal[s] is not None
+        and (direct_marginal[s] is None or surrogate_marginal[s] < direct_marginal[s])
     )
+    speedup_genuine_go = (not degenerate) and literal_marginal_wins >= MIN_WINS
+    best_direct = min((v for v in direct_marginal.values() if v is not None), default=None)
+    speedup = {
+        "verdict": "GO" if speedup_genuine_go else "NO-GO",
+        "degenerate": degenerate,
+        "reason": (
+            f"DEGENERATE: the {corpus_size}-solve training corpus already contains "
+            f"{corpus_past_bar} designs past the bar (corpus best L/D {corpus_best:.3f} vs bar "
+            f"{bar_abs:.3f}), so the surrogate-accelerated loop seeds its incumbent past the bar "
+            f"and performs 0 marginal search in every seed. Direct-CFD BO reaches the bar from "
+            f"scratch in {dict(direct_marginal)} marginal evals. Total-cost accounting: surrogate "
+            f"= {corpus_size} corpus + 0 marginal; direct = {best_direct} from scratch — the "
+            f"corpus cost dominates. No genuine single-run acceleration is demonstrated; fall "
+            f"back to direct-CFD BO (S7). The bar is reachable by random LHS sampling (direct "
+            f"arms cleared it during init), and surrogate acceleration's payoff is in "
+            f"higher-dimensional / more expensive regimes and amortized across many runs — not "
+            f"this cheap 2-D problem. See the handoff for the fair-test (reduced-prior) design."
+            if degenerate
+            else f"surrogate strictly fewer marginal evals in {literal_marginal_wins}/"
+            f"{len(SEEDS)} seeds (>= {MIN_WINS})"
+        ),
+        "direct_marginal": {str(k): v for k, v in direct_marginal.items()},
+        "surrogate_marginal": {str(k): v for k, v in surrogate_marginal.items()},
+        "surrogate_from_corpus": {str(k): v for k, v in surrogate_from_corpus.items()},
+        "literal_marginal_wins": literal_marginal_wins,
+        "total_cost_surrogate_incl_corpus": corpus_size,
+        "total_cost_direct_from_scratch": best_direct,
+        "corpus_past_bar_designs": corpus_past_bar,
+    }
 
     # --- cert of record: in-window + data gate against the committed corpus ---------
     cert_bundle = json.loads(
@@ -150,16 +230,14 @@ def finalize(args: argparse.Namespace) -> None:
         cert_valid = False
         cert_gate_error = f"{type(exc).__name__}: {exc}"
 
-    # --- reported optimum (pre-registered selection; S7 fallback) --------------------
-    family = "surrogate" if (verdict.speedup_gate_pass and cert_valid) else "direct"
-    if not incumbents[family]:
-        raise SystemExit(f"no successful evals in the {family} arms — nothing to report")
-    best_value, dv_star = max(incumbents[family], key=lambda t: t[0])
-    marginal_scanned = sum(len(t.rows) for t in (surrogate if family == "surrogate" else direct))
-    n_candidates = corpus_size + marginal_scanned
+    # --- reported optimum: the best CFD-verified design across the whole selection pool ------
+    best_value, dv_star, opt_origin = max(pool, key=lambda t: t[0])
+    n_candidates = len(pool)
+    surrogate_predicted = opt_origin.startswith("surrogate")
     print(
-        f"SPEEDUP pass={verdict.speedup_gate_pass} wins={verdict.wins}/{len(SEEDS)} "
-        f"cert_valid={cert_valid} family={family} optimum_LD={best_value:.4f} dv={dv_star}",
+        f"SPEEDUP verdict={speedup['verdict']} degenerate={degenerate} "
+        f"direct_marginal={dict(direct_marginal)} surrogate_marginal={dict(surrogate_marginal)} "
+        f"cert_valid={cert_valid} optimum_LD={best_value:.4f} origin={opt_origin} dv={dv_star}",
         flush=True,
     )
 
@@ -230,19 +308,33 @@ def finalize(args: argparse.Namespace) -> None:
         delta=delta,
         cfd_verified=heldout_prov,
         n_candidates=n_candidates,
-        surrogate_predicted=(family == "surrogate"),
+        surrogate_predicted=surrogate_predicted,
         k=K_MARGIN,
     )
 
     bar_reached_verified = (ld_opt_fine - ld_base_fine) >= BAR_DELTA
-    overall_go = bool(verdict.speedup_gate_pass and cert_valid and bar_reached_verified)
+    # Deliverables 1-3 (validated own-data surrogate + ADR-025-wired loop + CFD-verified optimum)
+    # are established outside this driver; the speed-up axis (deliverable 4) is the honest NO-GO
+    # here. overall_go tracks the speed-up axis only, and is never a hollow GO.
+    overall_go = bool(speedup_genuine_go and cert_valid and bar_reached_verified)
+
+    explore_summary = None
+    if explore is not None and explore.get("accelerated") is not None:
+        acc = explore["accelerated"]
+        explore_summary = {
+            "stop_reason": acc["stop_reason"],
+            "n_cfd_evals": acc["n_cfd_evals"],
+            "incumbent_value": acc["incumbent_value"],
+            "incumbent_from_corpus": acc["incumbent_from_corpus"],
+            "note": "exploratory deliverable-2 demonstration; never gates the speed-up S-gates",
+        }
 
     out_speedup = _REPO_ROOT / "data" / "vv" / "stage17_speedup.json"
     out_speedup.write_text(
         json.dumps(
             {
                 "verdict": "GO" if overall_go else "NO-GO",
-                "speedup_gate": json.loads(verdict.model_dump_json()),
+                "speedup": speedup,
                 "cert_of_record": {
                     "valid": cert_valid,
                     "error": cert_gate_error,
@@ -260,7 +352,13 @@ def finalize(args: argparse.Namespace) -> None:
                     "V2_tag": result.validation_tag,
                     "bar_reached_on_verification": bar_reached_verified,
                 },
-                "reported_family": family,
+                "reported_optimum": {
+                    "origin": opt_origin,
+                    "surrogate_predicted": surrogate_predicted,
+                    "design": dv_star,
+                    "loop_best_ld": best_value,
+                },
+                "exploratory_loop": explore_summary,
                 "n_candidates": n_candidates,
             },
             indent=2,
@@ -271,10 +369,11 @@ def finalize(args: argparse.Namespace) -> None:
     out_opt = _REPO_ROOT / "data" / "vv" / "stage17_optimization.json"
     out_opt.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     print(
-        f"RESULT verdict={'GO' if overall_go else 'NO-GO'} family={family} "
+        f"RESULT speedup={speedup['verdict']} degenerate={degenerate} "
+        f"reported_optimum_origin={opt_origin} surrogate_predicted={surrogate_predicted} "
         f"tag={result.validation_tag} baseline_LD={ld_base_fine:.4f} "
         f"optimum_LD={ld_opt_fine:.4f} delta={delta.delta_fine:.4f} "
-        f"wins={verdict.wins}/{len(SEEDS)} out={out_speedup}",
+        f"literal_marginal_wins={literal_marginal_wins}/{len(SEEDS)} out={out_speedup}",
         flush=True,
     )
 

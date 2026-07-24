@@ -106,10 +106,21 @@ def main() -> None:
     ap.add_argument("--aoa", type=float, default=4.0)
     ap.add_argument("--end-time", type=int, default=3000)
     ap.add_argument("--timeout", type=int, default=14400)
+    ap.add_argument(
+        "--explore",
+        action="store_true",
+        help="EXPLORATORY (not the pre-registered comparison): surrogate arm only, no target "
+        "bar (target_value=None) — run the ADR-025 propose/dispose loop to the full CFD budget "
+        "so it genuinely searches near the incumbent. Demonstrates the surrogate-in-the-loop "
+        "machinery against real CFD (deliverable 2) and grows corpus_v2. Never counts toward "
+        "the pre-registered speed-up gate (S-gates).",
+    )
     ap.add_argument("--allow-dirty", action="store_true")
     ap.add_argument("--no-mlflow", action="store_true")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    if args.explore and args.arm != "surrogate":
+        raise SystemExit("--explore applies to the surrogate arm only")
 
     import numpy as np
     from aero.adapters.openfoam.solver import OpenFOAMSolver
@@ -163,10 +174,12 @@ def main() -> None:
     ld_val = baseline_rows[0].ld
     assert ld_val is not None
     baseline_value: float = ld_val
-    target = baseline_value + BAR_DELTA
+    # Pre-registered comparison uses target = baseline + Δ*. --explore drops the target so the
+    # loop runs to the full CFD budget (deliverable-2 machinery demonstration; never gates S).
+    target: float | None = None if args.explore else baseline_value + BAR_DELTA
     print(
         f"ARM {args.arm} seed={args.seed} baseline={baseline_value:.4f} "
-        f"bar=+{BAR_DELTA} target={target:.4f}",
+        f"{'EXPLORE (no target, run-to-budget)' if args.explore else f'bar=+{BAR_DELTA} target={target:.4f}'}",
         flush=True,
     )
 
