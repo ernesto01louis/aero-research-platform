@@ -47,6 +47,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validat
 
 from aero.provenance.four_fold import ProvenanceTuple
 from aero.vv.paired_difference import PairedDeltaUncertainty
+from aero.vv.statistical_uncertainty import StatisticalUncertainty
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -243,9 +244,67 @@ class ComposedDeltaU95(BaseModel):
         return self
 
 
+class IndependentDeltaU95(BaseModel):
+    """A measured delta U95 with NO cancellation claimed: independent RSS (ADR-029).
+
+    For a matched-condition delta whose baseline and candidate are BOTH time-averaged but
+    share no common cycle basis (Stage 16: a steady baseline vs a candidate with resolved
+    unsteadiness — no common period, so the paired-difference estimator of ADR-023 is
+    category-inapplicable), the statistical term is the independent RSS of the two MEASURED
+    sampling uncertainties. This claims no correlation benefit — it is conservative relative
+    to any true paired estimate (matched runs correlate positively, and the paired estimator
+    would subtract that shared variance) — and every term is machine-measured (NOBM window
+    means), so it remains thesis-grade admissible, unlike :class:`HandEnteredDeltaU95`.
+    """
+
+    model_config = _STRICT
+
+    source: Literal["independent"] = "independent"
+    u95_numerical: float = Field(
+        ...,
+        ge=0.0,
+        description="Paired discretization U95 of the delta, ABSOLUTE (GCI on the "
+        "time-averaged delta over the matched grid family).",
+    )
+    baseline_stat: StatisticalUncertainty = Field(
+        ..., description="Measured sampling U95 of the baseline time-average (NOBM windows)."
+    )
+    candidate_stat: StatisticalUncertainty = Field(
+        ..., description="Measured sampling U95 of the candidate time-average (NOBM windows)."
+    )
+    u95_input: float = Field(
+        default=0.0, ge=0.0, description="Residual parametric (input) U95 of the delta, ABSOLUTE."
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def u95_delta_statistical(self) -> float:
+        """Independent RSS of the two measured sampling terms (no cancellation claimed)."""
+        return math.sqrt(
+            self.baseline_stat.u95_statistical**2 + self.candidate_stat.u95_statistical**2
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def u95_delta(self) -> float:
+        """Combined delta U95: RSS of the numerical, independent-statistical, input terms."""
+        return math.sqrt(self.u95_numerical**2 + self.u95_delta_statistical**2 + self.u95_input**2)
+
+    @model_validator(mode="after")
+    def _some_contribution(self) -> IndependentDeltaU95:
+        if self.u95_delta <= 0.0:
+            raise ValueError(
+                "an independent delta U95 must have at least one positive contribution — a "
+                "zero-uncertainty delta would trivially clear any margin."
+            )
+        return self
+
+
 # Discriminated union: WHERE a claim's u95_delta comes from is part of the claim itself.
 # Mirrors the platform's typed-union precedent (SolveResult.history, Sample/TaintedSample).
-DeltaU95 = Annotated[HandEnteredDeltaU95 | ComposedDeltaU95, Field(discriminator="source")]
+DeltaU95 = Annotated[
+    HandEnteredDeltaU95 | ComposedDeltaU95 | IndependentDeltaU95, Field(discriminator="source")
+]
 
 
 class ImprovementClaim(BaseModel):
@@ -311,6 +370,11 @@ class ImprovementClaim(BaseModel):
     @model_validator(mode="after")
     def _delta_uncertainty_consistent(self) -> ImprovementClaim:
         du = self.delta_uncertainty
+        if isinstance(du, IndependentDeltaU95) and self.kind == "steady":
+            raise ValueError(
+                "a steady claim has no sampling term; an independent (unsteady) delta U95 on "
+                "a steady claim is a category error — check the claim's `kind` (ADR-029)."
+            )
         if isinstance(du, ComposedDeltaU95):
             if self.kind != "steady" and du.paired is None:
                 raise ValueError(
@@ -499,11 +563,12 @@ class ReportableResult(BaseModel):
             claim = self.optimization.improvement
         if claim is not None:
             du = claim.delta_uncertainty
-            if not isinstance(du, ComposedDeltaU95):
+            if not isinstance(du, ComposedDeltaU95 | IndependentDeltaU95):
                 raise ValueError(
-                    "thesis-grade requires a COMPOSED delta uncertainty (paired-difference "
-                    "measured + GCI-on-the-delta); a hand-entered u95_delta is not publication "
-                    "evidence (CONSTITUTION Invariant 10, review F1, ADR-023)."
+                    "thesis-grade requires a MEASURED delta uncertainty (composed paired-"
+                    "difference per ADR-023, or independent-RSS per ADR-029); a hand-entered "
+                    "u95_delta is not publication evidence (CONSTITUTION Invariant 10, review "
+                    "F1)."
                 )
             if du.u95_numerical <= 0.0:
                 raise ValueError(
@@ -512,14 +577,23 @@ class ReportableResult(BaseModel):
                     "zero, the discretization error."
                 )
             if claim.kind != "steady":
-                if du.paired is None:  # unreachable (claim validator) — fail-loud, not assert
-                    raise ValueError(
-                        f"composed {claim.kind} claim is missing its paired-difference measurement."
-                    )
-                if not du.paired.diff_stat.reliable:
-                    raise ValueError(
-                        "thesis-grade improvement requires a RELIABLE difference-series "
-                        "statistical estimate (NOBM/tau_int agreement and N_eff above the "
-                        "floor); extend the paired runs to tighten it."
-                    )
+                if isinstance(du, ComposedDeltaU95):
+                    if du.paired is None:  # unreachable (claim validator) — fail-loud
+                        raise ValueError(
+                            f"composed {claim.kind} claim is missing its paired-difference "
+                            "measurement."
+                        )
+                    if not du.paired.diff_stat.reliable:
+                        raise ValueError(
+                            "thesis-grade improvement requires a RELIABLE difference-series "
+                            "statistical estimate (NOBM/tau_int agreement and N_eff above the "
+                            "floor); extend the paired runs to tighten it."
+                        )
+                else:  # IndependentDeltaU95
+                    if not (du.baseline_stat.reliable and du.candidate_stat.reliable):
+                        raise ValueError(
+                            "thesis-grade improvement requires RELIABLE sampling estimates on "
+                            "BOTH time-averages (NOBM/tau_int agreement and N_eff above the "
+                            "floor); extend the runs to tighten them (ADR-029)."
+                        )
         return self

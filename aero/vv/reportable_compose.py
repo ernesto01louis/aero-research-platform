@@ -37,6 +37,7 @@ from aero.vv.reportable import (
     DEFAULT_K,
     ComposedDeltaU95,
     ImprovementClaim,
+    IndependentDeltaU95,
     QuantityKind,
     ReportableQuantity,
     ReportableResult,
@@ -214,4 +215,50 @@ def compose_improvement(
         delta_uncertainty=delta_uncertainty,
         k=k,
         matched_conditions=matched_conditions,
+    )
+
+
+def compose_independent_improvement(
+    *,
+    quantity: str,
+    kind: QuantityKind,
+    higher_is_better: bool,
+    u95_delta_numerical: float,
+    baseline_stat: StatisticalUncertainty,
+    candidate_stat: StatisticalUncertainty,
+    baseline: float,
+    improved: float,
+    u95_delta_input_frac: float = 0.0,
+    k: float = DEFAULT_K,
+) -> ImprovementClaim:
+    """Assemble an `ImprovementClaim` whose statistical term is the INDEPENDENT RSS (ADR-029).
+
+    For a matched time-averaged delta with NO common cycle basis (Stage 16: a steady baseline
+    vs a candidate with resolved unsteadiness — no shared period), the ADR-023 paired-difference
+    estimator is category-inapplicable. This composition claims no cancellation of the sampling
+    terms — strictly conservative — while keeping every term MEASURED: `baseline_stat` /
+    `candidate_stat` are the NOBM window-mean estimates, and `baseline` / `improved` MUST be the
+    means of the same windows those estimates were measured on (the caller derives both from one
+    windowing pass; the value and its uncertainty come from the SAME data).
+    """
+    if kind == "steady":
+        raise ValueError(
+            "compose_independent_improvement: independent composition is for time/phase-"
+            "averaged claims — a steady claim has no sampling term (use compose_improvement)."
+        )
+    delta_uncertainty = IndependentDeltaU95(
+        u95_numerical=u95_delta_numerical,
+        baseline_stat=baseline_stat,
+        candidate_stat=candidate_stat,
+        u95_input=abs(u95_delta_input_frac) * abs(baseline),
+    )
+    return ImprovementClaim(
+        quantity=quantity,
+        kind=kind,
+        baseline=baseline,
+        improved=improved,
+        higher_is_better=higher_is_better,
+        delta_uncertainty=delta_uncertainty,
+        k=k,
+        matched_conditions=True,
     )

@@ -25,12 +25,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aero.provenance.four_fold import ProvenanceTuple
 from aero.vv.reportable import (
+    IndependentDeltaU95,
     OptimizationResult,
     ReportableQuantity,
     ReportableResult,
     SmallSignalError,
 )
-from aero.vv.reportable_compose import compose_improvement
+from aero.vv.reportable_compose import compose_improvement, compose_independent_improvement
+from aero.vv.statistical_uncertainty import StatisticalUncertainty
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, validate_assignment=True, validate_default=True)
 
@@ -308,6 +310,31 @@ def compose_result(
     ), True
 
 
+def certification_gates(
+    delta: MatchedGridDeltaTriplet,
+    *,
+    all_converged: bool,
+    higher_is_better: bool,
+    k: float = 2.0,
+    min_order: float = 0.5,
+) -> dict[str, bool]:
+    """The Stage-16 hard GO gates — significance ALONE is not a GO.
+
+    A delta measured on non-converged solves, a non-monotone family, or an observed order
+    outside the asymptotic range (`[min_order, formal_order]`) is not a claim, however large it
+    is. The Stage-15 driver recorded `all_converged` but did not gate the verdict on it — the
+    audit gap this closes. The GO verdict is ``all(gates.values())``; a demotion never relaxes
+    `k`, never drops a grid, never hand-edits a U95 term.
+    """
+    p = delta.observed_order_delta
+    return {
+        "significant": delta.is_significant(higher_is_better=higher_is_better, k=k),
+        "all_converged": all_converged,
+        "delta_monotone": delta.delta_monotone,
+        "order_in_asymptotic_range": min_order <= p <= delta.formal_order,
+    }
+
+
 def nogo_result(
     *,
     case_name: str,
@@ -339,10 +366,113 @@ def nogo_result(
     )
 
 
+def compose_independent_result(
+    *,
+    case_name: str,
+    objective: str,
+    quantity: str,
+    higher_is_better: bool,
+    design_variables: dict[str, float],
+    delta: MatchedGridDeltaTriplet,
+    baseline_stat: StatisticalUncertainty,
+    optimum_stat: StatisticalUncertainty,
+    family_gates_pass: bool,
+    cfd_verified: ProvenanceTuple,
+    n_candidates: int,
+    k: float = 2.0,
+) -> tuple[ReportableResult, bool]:
+    """The URANS (time-averaged) sibling of `compose_result` — ADR-029 composition.
+
+    The delta's numerical term is the observed-order GCI on the time-averaged delta
+    (`delta.u95_delta_grid`); the statistical term is the INDEPENDENT RSS of the two measured
+    window-mean sampling estimates (no cancellation claimed — the steady baseline and the
+    unsteady optimum share no cycle basis). GO requires the FULL RSS significance AND the
+    family gates (all solves stationary, monotone delta, bounded order) — passed in by the
+    caller from `certification_gates`, so a demotion is impossible to skip. The fine-grid
+    triplet values must BE the window means the stats were measured on (fail-loud).
+    """
+    tol = 1.0e-9 * max(abs(delta.baseline_fine), abs(delta.optimum_fine), 1.0)
+    if (
+        abs(delta.baseline_fine - baseline_stat.mean) > tol
+        or abs(delta.optimum_fine - optimum_stat.mean) > tol
+    ):
+        raise ValueError(
+            "compose_independent_result: the triplet's fine-grid values must be the window "
+            f"means the sampling stats were measured on (triplet {delta.baseline_fine}/"
+            f"{delta.optimum_fine} vs stats {baseline_stat.mean}/{optimum_stat.mean})."
+        )
+    du = IndependentDeltaU95(
+        u95_numerical=delta.u95_delta_grid,
+        baseline_stat=baseline_stat,
+        candidate_stat=optimum_stat,
+    )
+    signed = delta.delta_fine if higher_is_better else -delta.delta_fine
+    significant = signed > k * du.u95_delta
+    if significant and family_gates_pass:
+        claim = compose_independent_improvement(
+            quantity=quantity,
+            kind="time_averaged",
+            higher_is_better=higher_is_better,
+            u95_delta_numerical=delta.u95_delta_grid,
+            baseline_stat=baseline_stat,
+            candidate_stat=optimum_stat,
+            baseline=delta.baseline_fine,
+            improved=delta.optimum_fine,
+            k=k,
+        )
+        opt = OptimizationResult(
+            objective=objective,
+            design_variables=design_variables,
+            improvement=claim,
+            cfd_verified=cfd_verified,
+            surrogate_predicted=True,
+            n_candidates=n_candidates,
+            held_out_verification=True,
+        )
+        q = ReportableQuantity(
+            name=quantity,
+            value=delta.optimum_fine,
+            kind="time_averaged",
+            u95_numerical=delta.gci_optimum_fraction * abs(delta.optimum_fine),
+            u95_statistical=optimum_stat.u95_statistical,
+            u95_input=0.0,
+            u95_input_basis="skipped",
+        )
+        return ReportableResult(
+            case_name=case_name,
+            quantities=(q,),
+            provenance=cfd_verified,
+            optimization=opt,
+            validation_tag="thesis-grade",
+        ), True
+    base_q = ReportableQuantity(
+        name=f"{quantity}_baseline",
+        value=delta.baseline_fine,
+        kind="time_averaged",
+        u95_numerical=delta.gci_baseline_fraction * abs(delta.baseline_fine),
+        u95_statistical=baseline_stat.u95_statistical,
+    )
+    opt_q = ReportableQuantity(
+        name=f"{quantity}_optimum",
+        value=delta.optimum_fine,
+        kind="time_averaged",
+        u95_numerical=delta.gci_optimum_fraction * abs(delta.optimum_fine),
+        u95_statistical=optimum_stat.u95_statistical,
+    )
+    return ReportableResult(
+        case_name=case_name,
+        quantities=(base_q, opt_q),
+        provenance=cfd_verified,
+        validation_tag="validated",
+    ), False
+
+
 __all__ = [
     "MatchedGridDelta",
     "MatchedGridDeltaTriplet",
     "SmallSignalError",
+    "certification_gates",
+    "compose_independent_result",
     "compose_result",
     "gci_2grid_fraction",
     "gci_3grid_fraction",

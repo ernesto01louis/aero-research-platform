@@ -1,0 +1,39 @@
+{
+  "purpose": "URANS cost probe (fine grid, optimum design) \u2014 no claim composed",
+  "end_time_convective": 1.0,
+  "wall_s": 4592.457105364883,
+  "wall_s_per_convective_time": 4592.457105364883,
+  "est_wall_s_full_run_100tc": 459245.71053648833,
+  "est_wall_h_campaign_6_solves": 317.6375041568043,
+  "row": {
+    "design": "optimum",
+    "grid": "probe-fine",
+    "refine_mult": 0.5882352941176471,
+    "ld": null,
+    "cd": null,
+    "cl": null,
+    "u95_statistical": null,
+    "stat_reliable": null,
+    "drift": null,
+    "converged": false,
+    "n_elements": 120224,
+    "n_samples": 735,
+    "wall_s": 4592.457105364883,
+    "checkmesh": {
+      "ok": false,
+      "failed_checks": 1,
+      "max_aspect_ratio": null,
+      "max_non_orthogonality": 83.645312,
+      "max_skewness": 2.568503
+    },
+    "error": "non-physical window-mean cd (min -0.6825)",
+    "solver_log_tail": null,
+    "stat": null,
+    "provenance": {
+      "git_sha": "027d79b005d9f341556d258181bc802ba4a3539f",
+      "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+      "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "config_hash": "ed68a71c08fa8898c959cfa4fdaf7f9f8b1129895d9637e88317df6ce0bf0433"
+    }
+  }
+}

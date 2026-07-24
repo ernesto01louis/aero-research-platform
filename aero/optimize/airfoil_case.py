@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from aero.adapters.openfoam.schemas import CaseSpec
+from aero.optimize.mesh_family import graded_refined_spec
 from aero.vv._base import MetricSpec, ReferenceData, Series, SolverLike, scaled_count
 
 _BASE_AOA = (
@@ -84,8 +85,18 @@ class ShapedLaminarAirfoil:
             raise ValueError(f"{self.name}: non-positive cd ({solve.cd}); cannot form L/D.")
         return {"cd": solve.cd, "cl": solve.cl, "ld": solve.cl / solve.cd}
 
-    def refined(self, ratio: float) -> ShapedLaminarAirfoil:
+    def refined(self, ratio: float, *, graded: bool = True) -> ShapedLaminarAirfoil:
+        """A resolution-scaled copy: ratio > 1 coarsens, ratio < 1 refines.
+
+        ``graded=True`` (Stage-16 default) refines on the FIXED stretching mapping — each
+        direction's end-to-end expansion is pinned so first cells scale ~1/ratio and the
+        family nests (a valid observed-order-GCI geometry). ``graded=False`` reproduces the
+        Stage-15 count-only family (first cells pinned; the mapping drifts grid-to-grid) —
+        kept for diagnostics and reproduction of the Stage-15 artifacts.
+        """
         s = self._spec
+        if graded:
+            return ShapedLaminarAirfoil(graded_refined_spec(s, ratio), name=self.name)
         return ShapedLaminarAirfoil(
             s.model_copy(
                 update={

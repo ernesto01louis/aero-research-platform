@@ -47,6 +47,13 @@ from aero.adapters.openfoam._foam_common import (
 from aero.adapters.openfoam.geometry import naca0012_coordinates, naca4_coordinates
 from aero.adapters.openfoam.schemas import CaseSpec
 
+# Wall-treatment branch point (chords): below this first-cell height the mesh is treated as
+# wall-resolved (y+ < 1 -> nutLowReWallFunction); at/above it the all-y+ Spalding wall function
+# is used. A graded mesh FAMILY must sit entirely on one side — flipping the wall model
+# mid-family changes the modelled physics between grids (aero/optimize/mesh_family.py fails
+# loud on a crossing).
+NUT_LOW_RE_FIRST_CELL_MAX = 1.0e-4
+
 
 # --- airfoil surface, split at mid-chord --------------------------------------
 def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
@@ -148,8 +155,8 @@ def _blockmeshdict(spec: CaseSpec) -> str:
 
     # --- grading ---
     g_eta = expansion(ext, spec.n_normal, spec.first_cell_height * c)
-    e_front = expansion(ext, spec.n_front, 0.01 * c)
-    e_wake = expansion(ext, spec.n_wake, 0.01 * c)
+    e_front = expansion(ext, spec.n_front, spec.first_cell_front * c)
+    e_wake = expansion(ext, spec.n_wake, spec.first_cell_wake * c)
     ns, nn, nf, nw = spec.n_surface, spec.n_normal, spec.n_front, spec.n_wake
 
     # --- 8 blocks: z=0 face wound CCW-from-above, +16 for the z=span face ---
@@ -479,7 +486,7 @@ def _fields(spec: CaseSpec) -> dict[str, str]:
     # cancels that systematic bias, so wall functions are admissible for the improvement product.
     nut_wall = (
         "        type nutLowReWallFunction;\n        value uniform 0;"
-        if spec.first_cell_height < 1.0e-4
+        if spec.first_cell_height < NUT_LOW_RE_FIRST_CELL_MAX
         else "        type nutUSpaldingWallFunction;\n        value uniform 0;"
     )
     fields["nut"] = _field(

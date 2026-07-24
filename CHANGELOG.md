@@ -3,7 +3,46 @@
 All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
-`v0.0.NN` are pre-alpha; v0.1.0 ships after Stage 16.
+`v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
+
+## [0.0.16] - 2026-07-15
+
+### Added — Stage 16 (Grid-Converged Certification) — HONEST NO-GO by one gate; certification machinery hardened
+
+> **Verdict:** on the 4-grid graded family (claim triplet {231², 136², 80²}, finest
+> included, all eight solves converged inside pre-registered gates at 1.6×–46× margin) the
+> matched L/D delta is **monotone** (25.74 → 23.48 → 21.72) and clears the bar under the
+> Fs=3, assumed-first-order fallback GCI (21.72 vs required 15.11) — but its **observed
+> order is 0.465 vs the pre-registered 0.5 asymptotic-range floor** (at which measured order
+> the delta would NOT clear the bar) → NO-GO, `validation_tag=validated`. The floor was
+> committed before any campaign ran and was not adjusted after the fact. The certification
+> gap is one order estimate wide (the 393² rung is costed + ledgered).
+
+- **Graded (fixed-mapping) mesh families** (`aero/optimize/mesh_family.py`, ADR-028): pinned
+  end-to-end expansion so first cells scale ~1/ratio and grids NEST — the geometry an
+  observed-order GCI is valid on; `refined(ratio, graded=True)`; front/wake first cells as
+  `CaseSpec` fields; fail-loud wall-BC-branch guard. **Corrected mechanism recorded:**
+  refinement at fixed first cell makes near-wall grading GENTLER (the Stage-15 "steepening"
+  diagnosis was directionally wrong); the old 136² SIGFPE was resolved unsteadiness.
+- **Hard-gated verdicts** (`certification_gates`): GO requires significance AND all claim
+  solves converged AND monotone delta AND bounded observed order — significance alone is
+  never a GO (closes a Stage-15 driver gap).
+- **The spurious-attractor finding** (ADR-030, `data/vv/stage16_urans_pathology.json`):
+  impulsive/large-Co URANS of the loaded optimum locks onto a stable non-physical
+  high-circulation state (cl≈+3.9, cd≈−0.65 at 80²) at maxCo 8, even initialized from the
+  converged steady field; at maxCo 2–4 the physical solution is stable. Threshold measured in
+  (4, 8]. Certification therefore runs as **time-accurate relaxation** (steady-RANS init,
+  Co 4, flat-tail values, pre-registered drift/steadiness/physicality gates) — the URANS
+  path's degenerate steady case.
+- **`IndependentDeltaU95`** (ADR-029): measured, no-cancellation RSS composition for matched
+  time-averaged deltas with no common cycle basis; thesis-grade admissible (both sampling
+  estimates must be `reliable`); hand-entered totals stay structurally barred.
+- URANS substrate: `TransientAirfoilSpec` (mesh/fields byte-identical to the steady case;
+  pimpleFoam controls), `OpenFOAMSolver.load_force_series`, time-weighted window means
+  (`aero/postprocess/window_means.py`), `wallDist` for transient SST. Drivers:
+  `stage16_grid_cert.py`, `stage16_urans_cert.py` (probe/extend/concurrent),
+  `stage16_relaxed_cert.py` (steady-init relaxation, row reuse, mapFields continuation).
+  33 new tests (suite 502); nine committed evidence bundles under `data/vv/`.
 
 ## [0.0.15] - 2026-07-12
 
