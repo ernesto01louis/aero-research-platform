@@ -141,6 +141,32 @@ agent layer, literature miner, MoE, DPW/HLPW, riblet DNS.
   optimization (DAFoam v5 + SU2 adjoint — SU2 frozen-optional, re-activated here) →
   generative / true-topology proposers.
 
+## 6. NEW — audit-ledgered items (2026-07-10, ADR-025)
+
+From the 2026-07 external-audit reconciliation (`docs/review/2026-07-audit-reconciliation.md`);
+the adopted-now items landed as the ADR-025 anti-surrogate-exploitation stack. These are the
+explicitly-deferred remainders, each with its unblocking condition:
+
+- [ ] **MC-dropout uncertainty basis** — the `basis` Literal in `SurrogatePrediction` /
+  `UncertaintyCalibration` reserves `"mc_dropout"`; a producer needs member-internal dropout
+  support (torch-side). Unblocked by: a Stage-16+ member architecture that wants it (deep
+  ensembles are the default; ADR-025 option c).
+- [ ] **Anisotropic (per-dimension) trust-region radii** — `TrustRegionState.radius` is a
+  scalar L-infinity half-width. Unblocked by: Stage-16 evidence that design variables have
+  wildly different objective sensitivities.
+- [ ] **Std recalibration (temperature scaling)** — if a Stage-16 ensemble's held-out
+  coverage drifts outside the promotion band, rescale stds on the calibration split rather
+  than discarding the ensemble. Unblocked by: observed miscalibration in a real campaign.
+- [ ] **Differentiable trilinear FFD (PyTorch)** — enables gradient-based optimization
+  through a differentiable surrogate (audit item 10). Premature for Stage 15's ≈2–6-var BO;
+  natural entry at Stage 16+ or with the post-v0.1.0 adjoint sequence (§5).
+- [ ] **Generic external-aero autogen template** (arbitrary-STL domain sizing, BCs,
+  snappyHexMesh/cfMesh, k-ω SST, y+ strategy, forceCoeffs) — the audit's "self-generated
+  CFD factory" for arbitrary geometry families. Owned by **Stage 17** (geometry ingestion);
+  recorded here so the Stage-17 prompt author inherits it explicitly.
+- [ ] **SU2 adjoint classical-ASO benchmark** — audit item 13; already the committed
+  post-v0.1.0 sequence in §5 (DAFoam v5 + SU2 adjoint). Cross-referenced, not duplicated.
+
 ## Optional / low-priority
 
 - Promote `provenance-completeness` to a required check **only** once the
