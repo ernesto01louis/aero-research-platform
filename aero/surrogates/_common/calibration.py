@@ -51,7 +51,7 @@ def compute_uncertainty_calibration(
     stds: Sequence[float],
     *,
     interval_k: float = 2.0,
-    basis: Literal["deep_ensemble", "mc_dropout"],
+    basis: Literal["deep_ensemble", "gp_bootstrap", "mc_dropout"],
 ) -> UncertaintyCalibration:
     """Compute held-out calibration evidence for an epistemic-uncertainty estimator.
 

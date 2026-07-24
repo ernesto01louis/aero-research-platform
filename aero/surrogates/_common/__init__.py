@@ -35,7 +35,7 @@ from aero.surrogates._common.certificate import (
     MetricQuantiles,
     UncertaintyCalibration,
 )
-from aero.surrogates._common.ensemble import EnsembleSurrogate
+from aero.surrogates._common.ensemble import EnsembleSurrogate, PromotionRefused
 from aero.surrogates._common.infill import (
     InfillCandidate,
     InfillError,
@@ -61,6 +61,7 @@ __all__ = [
     "InfillError",
     "LicenseAcknowledgmentRequired",
     "MetricQuantiles",
+    "PromotionRefused",
     "Sample",
     "Surrogate",
     "SurrogatePrediction",
