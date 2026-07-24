@@ -12,23 +12,44 @@ ADR-026 (optimizer pin) + ADR-027 (Hard Rule 14 constitutional promotion).
 
 from __future__ import annotations
 
+from aero.optimize.accelerated import (
+    AcceleratedConfig,
+    AcceleratedRun,
+    IterationRecord,
+    SurrogateAcceleratedOptimizer,
+)
 from aero.optimize.acquisition import expected_improvement
 from aero.optimize.airfoil_case import ShapedLaminarAirfoil
 from aero.optimize.bo import BayesianOptimizer, BOConfig, Observation
+from aero.optimize.corpus import CorpusRow, Stage17Corpus, load_corpus, save_corpus, to_samples
 from aero.optimize.design_space import DesignSpace, DesignVariable
 from aero.optimize.gp import GaussianProcess, GPConfig
 from aero.optimize.objective import CFDObjective, ObjectiveEval
+from aero.optimize.speedup import ArmTrace, EvalRow, SpeedupVerdict, evaluate_speedup
 
 __all__ = [
+    "AcceleratedConfig",
+    "AcceleratedRun",
+    "ArmTrace",
     "BOConfig",
     "BayesianOptimizer",
     "CFDObjective",
+    "CorpusRow",
     "DesignSpace",
     "DesignVariable",
+    "EvalRow",
     "GPConfig",
     "GaussianProcess",
+    "IterationRecord",
     "ObjectiveEval",
     "Observation",
     "ShapedLaminarAirfoil",
+    "SpeedupVerdict",
+    "Stage17Corpus",
+    "SurrogateAcceleratedOptimizer",
+    "evaluate_speedup",
     "expected_improvement",
+    "load_corpus",
+    "save_corpus",
+    "to_samples",
 ]
