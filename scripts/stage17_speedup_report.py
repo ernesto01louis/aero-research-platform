@@ -176,10 +176,21 @@ def finalize(args: argparse.Namespace) -> None:
                 if r.value is not None:
                     pool.append((r.value, r.design_named, "surrogate-explore"))
 
-    # Honest speed-up reading. The literal pre-registered marginal gate (S6) would score a
-    # 0-marginal surrogate arm as a "win" (0 < any direct count), but that is the corpus, not
-    # the surrogate: it performed no search. The S4 total-cost accounting exposes it, so the
-    # honest verdict is NO-GO — a degenerate comparison, not a demonstrated acceleration.
+    # Honest speed-up reading. The literal pre-registered marginal gate (S6) scores a 0-marginal
+    # surrogate arm as a "win" (0 < any direct count), but that is the corpus, not the surrogate:
+    # it performed no search. A GENUINE win requires the surrogate to have actually searched
+    # (>= 1 marginal eval) AND reached the bar in fewer marginal evals than direct. This guard is
+    # per-seed (not "all seeds degenerate"), so a future MIXED campaign cannot leak a hollow GO
+    # by pairing corpus-seeded 0-marginal seeds with a genuine win. The S4 total-cost accounting
+    # exposes the same thing; here every seed is degenerate, so the honest verdict is NO-GO.
+    def _searched(s: int) -> bool:
+        m = surrogate_marginal[s]
+        return m is not None and m >= 1 and not surrogate_from_corpus[s]
+
+    def _genuine_win(s: int) -> bool:
+        m = surrogate_marginal[s]
+        return _searched(s) and (direct_marginal[s] is None or m < direct_marginal[s])
+
     degenerate = all(surrogate_from_corpus[s] and surrogate_marginal[s] == 0 for s in SEEDS)
     literal_marginal_wins = sum(
         1
@@ -187,7 +198,9 @@ def finalize(args: argparse.Namespace) -> None:
         if surrogate_marginal[s] is not None
         and (direct_marginal[s] is None or surrogate_marginal[s] < direct_marginal[s])
     )
-    speedup_genuine_go = (not degenerate) and literal_marginal_wins >= MIN_WINS
+    genuine_wins = sum(1 for s in SEEDS if _genuine_win(s))
+    # GO requires GENUINE wins (real search), never the hollow literal count.
+    speedup_genuine_go = genuine_wins >= MIN_WINS
     best_direct = min((v for v in direct_marginal.values() if v is not None), default=None)
     speedup = {
         "verdict": "GO" if speedup_genuine_go else "NO-GO",
@@ -205,13 +218,15 @@ def finalize(args: argparse.Namespace) -> None:
             f"higher-dimensional / more expensive regimes and amortized across many runs — not "
             f"this cheap 2-D problem. See the handoff for the fair-test (reduced-prior) design."
             if degenerate
-            else f"surrogate strictly fewer marginal evals in {literal_marginal_wins}/"
-            f"{len(SEEDS)} seeds (>= {MIN_WINS})"
+            else f"surrogate GENUINELY searched and reached the bar in fewer marginal evals in "
+            f"{genuine_wins}/{len(SEEDS)} seeds (>= {MIN_WINS})"
         ),
         "direct_marginal": {str(k): v for k, v in direct_marginal.items()},
         "surrogate_marginal": {str(k): v for k, v in surrogate_marginal.items()},
         "surrogate_from_corpus": {str(k): v for k, v in surrogate_from_corpus.items()},
         "literal_marginal_wins": literal_marginal_wins,
+        "genuine_wins": genuine_wins,
+        "genuine_win_requires": "surrogate searched (>= 1 marginal eval) AND fewer than direct",
         "total_cost_surrogate_incl_corpus": corpus_size,
         "total_cost_direct_from_scratch": best_direct,
         "corpus_past_bar_designs": corpus_past_bar,
