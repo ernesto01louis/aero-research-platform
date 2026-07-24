@@ -12,10 +12,11 @@ Every pydantic model in `aero/` must:
 ```python
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class CaseSpec(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",          # unknown keys raise ValidationError
-        frozen=True,             # immutable after construction (where reasonable)
+        extra="forbid",  # unknown keys raise ValidationError
+        frozen=True,  # immutable after construction (where reasonable)
         str_strip_whitespace=True,
         validate_assignment=True,
         validate_default=True,
@@ -50,6 +51,7 @@ typed world is exactly one place per CLI command:
 from omegaconf import OmegaConf
 from pydantic import ValidationError
 
+
 @app.command()
 def run(case_name: str) -> None:
     raw_cfg = hydra.compose(config_name=case_name)
@@ -71,6 +73,7 @@ When serializing a resolved config for the four-tuple's `config_hash`:
 ```python
 import json, hashlib
 from omegaconf import OmegaConf
+
 
 def config_hash(cfg) -> str:
     plain = OmegaConf.to_container(cfg, resolve=True)
