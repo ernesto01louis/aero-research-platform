@@ -5,6 +5,41 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
+## [0.0.17] - 2026-07-24
+
+### Added — Stage 17 (Surrogate-Accelerated Optimization, own-data) — deliverables 1-3 GO; speed-up an HONEST NO-GO
+
+> **Verdict:** a `gp_bootstrap` ensemble trained on a **42-solve own-CFD corpus** was PROMOTED
+> to a **`validated`** certificate (held-out ±2·std coverage 0.90 ∈ [0.85, 1.0]; ld_mae p95 1.31;
+> mean_abs_z 0.77 / std_z 1.15) and wired into a propose/dispose loop that CFD-verifies every
+> candidate. An exploratory run exercised the loop with **16 real-CFD evals** and found L/D 46.372
+> **> the best of the entire corpus (46.337)** — a surrogate-proposed, CFD-verified improvement.
+> The **pre-registered speed-up comparison is a documented DEGENERATE NO-GO**: the corpus already
+> contains 5 designs past the +22.2 bar, so all three surrogate arms do 0 marginal search while
+> direct-CFD BO reaches the bar from scratch in 4/7/5 evals; the honest total-cost accounting
+> (42 corpus solves vs ~5 direct) shows no single-run acceleration. Surrogate acceleration's
+> payoff is in higher-dimensional / more expensive regimes and amortized across many runs — not
+> this cheap 2-D problem. The gates held three times un-relaxed: the degenerate NO-GO, the
+> corpus_v2 cert refusal, and the thesis-grade→validated tier cap.
+
+- **Reconciled the ADR-025 anti-surrogate-exploitation stack to main** (PR #33, ADR-031):
+  `EnsembleSurrogate` / calibration / trust-region / uncertainty-routed infill; DRAFT prompt
+  ratified-with-amendments (calibration band [0.85, 0.99] → [0.85, 1.0]; GO-bar registered reading).
+- **`gp_bootstrap` ensemble member** (`aero/surrogates/gp_bootstrap.py`): seeded bootstrap-GP
+  members (torch-free) + additive `gp_bootstrap` basis Literal + `EnsembleSurrogate.promote_to_validated`
+  (fail-loud `PromotionRefused`).
+- **Surrogate-accelerated loop** (`aero/optimize/accelerated.py`, ADR-032): surrogate proposes via
+  uncertainty-routed infill inside a trust region, CFD disposes, incumbent from CFD values only
+  (Invariant 12). Own-CFD corpus (`aero/optimize/corpus.py`, `data/datasets/stage17_naca4_ld/`,
+  DVC) and the pre-registered speed-up protocol (`aero/optimize/speedup.py`).
+- **Pre-registered gate block** (C1-C4 / L1-L5 / S1-S8 / V1-V3) committed before any campaign solve
+  (`scripts/stage17_speedup_arm.py` docstring, ADR-032); never relaxed.
+- **Findings:** naive exploit-heavy flywheel growth degrades calibration (corpus_v2 cert REFUSED,
+  p95 2.62 > 2.5); a 2-grid fallback GCI can spuriously reach thesis-grade (capped to `validated`
+  by the Stage-16 3-grid sub-first-order finding); the marginal-evals-to-bar metric is degenerate
+  when the own-data corpus already contains past-bar designs.
+- MLflow campaign logging turned ON (Stage-15 ledger item closed).
+
 ## [0.0.16] - 2026-07-15
 
 ### Added — Stage 16 (Grid-Converged Certification) — HONEST NO-GO by one gate; certification machinery hardened

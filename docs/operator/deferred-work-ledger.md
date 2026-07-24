@@ -167,6 +167,32 @@ explicitly-deferred remainders, each with its unblocking condition:
 - [ ] **SU2 adjoint classical-ASO benchmark** — audit item 13; already the committed
   post-v0.1.0 sequence in §5 (DAFoam v5 + SU2 adjoint). Cross-referenced, not duplicated.
 
+## Stage 17 (surrogate-accelerated optimization) — carried forward
+
+- [ ] **Fair-test surrogate-speed-up experiment (reduced prior / higher-DV)** — the Stage-17
+  pre-registered speed-up comparison was DEGENERATE: the 42-solve own-CFD corpus already
+  contained designs past the +22.2 bar, so the surrogate arms did 0 marginal search while
+  direct-CFD BO reached the bar from scratch in 4–7 evals. The meaningful test trains the
+  surrogate on a prior that does NOT already solve the problem (exclude the past-bar region)
+  and/or moves to a higher-DV space where direct BO is not already ~5-eval-efficient, giving
+  the surrogate genuine acceleration headroom. Unblocked by: Stage 18 arbitrary-geometry /
+  higher-DV shape spaces.
+- [ ] **Balanced flywheel growth / corpus curation** — re-training on `corpus_v2` (base + 16
+  exploit-clustered exploratory infill points) REFUSED promotion (held-out ld_mae p95 2.62 >
+  2.5): exploit-heavy growth over-concentrates the training distribution and degrades global
+  calibration. A curation policy (explore/exploit ratio, coverage-preserving subsampling, or
+  down-weighting clustered near-optimum points) should govern how infill grows the certified
+  corpus. Unblocked by: a stage that runs the loop long enough to accumulate real infill.
+- [ ] **Content-addressed dataset hash** — `dataset_hash` is a DVC *sync-state* fingerprint
+  (`dvc status -c`), so it detects out-of-sync tracked state, not corpus content, and the
+  in-loop Invariant-9 data gate is near-tautological when the cert is re-issued every
+  iteration against the same file. A content hash (sha256 of the corpus bytes) would make the
+  data gate detect content tampering. Unblocked by: none — a small, self-contained change.
+- [ ] **Direct-arm evals into the corpus** — `EvalRow` (speed-up traces) does not carry the
+  four-fold provenance tuple, so only surrogate-loop evals flow into `corpus_v2`; the direct
+  arms' 16 own-CFD solves are stranded in their bundles. Thread the four-tuple through
+  `EvalRow` so every own-CFD eval can join the flywheel.
+
 ## Optional / low-priority
 
 - Promote `provenance-completeness` to a required check **only** once the
