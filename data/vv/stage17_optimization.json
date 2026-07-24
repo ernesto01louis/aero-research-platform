@@ -14,7 +14,7 @@
     }
   ],
   "provenance": {
-    "git_sha": "540bbf23afeffc6b330846b2e6d16cba4927b399",
+    "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134",
     "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
     "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
     "config_hash": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
@@ -47,7 +47,7 @@
       "required_margin": 4.15005727858274
     },
     "cfd_verified": {
-      "git_sha": "540bbf23afeffc6b330846b2e6d16cba4927b399",
+      "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134",
       "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
       "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
       "config_hash": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
