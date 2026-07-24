@@ -311,6 +311,20 @@ def finalize(args: argparse.Namespace) -> None:
         surrogate_predicted=surrogate_predicted,
         k=K_MARGIN,
     )
+    # TIER CAP (ADR-031/032): a 2-grid MatchedGridDelta with the fallback (assumed-first-order)
+    # GCI can clear k*U95 for this large delta and reach thesis-grade, but Stage 16's more
+    # rigorous 3-grid analysis established this optimum's L/D convergence is SUB-first-order
+    # (observed order 0.465 < 0.5 floor; thesis-grade certification NO-GO, 393^2 rung ledgered).
+    # A 2-grid fallback cannot upgrade the tier above what the 3-grid analysis found. Cap at
+    # 'validated' (the tier the substrate supports) — never ship an under-resolved thesis-grade.
+    tier_capped_from_thesis_grade = result.validation_tag == "thesis-grade"
+    if tier_capped_from_thesis_grade:
+        result = result.model_copy(update={"validation_tag": "validated"})
+    print(
+        f"TIER-CAP applied={tier_capped_from_thesis_grade} (2-grid fallback -> validated per "
+        f"Stage-16 sub-first-order finding); final tag={result.validation_tag}",
+        flush=True,
+    )
 
     bar_reached_verified = (ld_opt_fine - ld_base_fine) >= BAR_DELTA
     # Deliverables 1-3 (validated own-data surrogate + ADR-025-wired loop + CFD-verified optimum)
@@ -350,6 +364,14 @@ def finalize(args: argparse.Namespace) -> None:
                     "V2_delta_fine": delta.delta_fine,
                     "V2_significant_at_k2": delta_significant,
                     "V2_tag": result.validation_tag,
+                    "V2_tier_capped_from_thesis_grade": tier_capped_from_thesis_grade,
+                    "V2_tier_cap_reason": (
+                        "2-grid fallback GCI reached thesis-grade, but Stage-16 3-grid analysis "
+                        "found sub-first-order convergence (order 0.465 < 0.5); capped at "
+                        "validated (ADR-031/032). Thesis-grade rests on the ledgered 393^2 rung."
+                        if tier_capped_from_thesis_grade
+                        else None
+                    ),
                     "bar_reached_on_verification": bar_reached_verified,
                 },
                 "reported_optimum": {
