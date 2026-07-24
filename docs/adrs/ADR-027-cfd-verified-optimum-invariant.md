@@ -1,7 +1,7 @@
 # ADR-027 — Constitutional promotion of Hard Rule 14 (CFD-VERIFIED-OPTIMUM-ONLY) → Invariant 12
 
-- **Status:** proposed (carries a CONSTITUTION amendment — separate micro-PR, ≥72 h window per the
-  ADR-015 amendment process)
+- **Status:** accepted — ratified 2026-07-15 (≥72 h window elapsed 2026-07-13; decision
+  operator-delegated at Stage-16 close; CONSTITUTION Invariant 12 added in this micro-PR)
 - **Date:** 2026-07-10
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 15)
 - **Stage:** 15 (the scheduled promotion point — where `OptimizationResult` lands in a real loop)
