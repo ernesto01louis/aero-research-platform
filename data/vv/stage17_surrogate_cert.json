@@ -1,0 +1,89 @@
+{
+  "verdict": "PROMOTED",
+  "refusal": null,
+  "gates": {
+    "C1_coverage_band": [
+      0.85,
+      1.0
+    ],
+    "C1_empirical_coverage": 0.9,
+    "C2_p95_bar": 2.5,
+    "C2_p95": 1.3119185403823792,
+    "C3_non_collapsed": true,
+    "C4_data_origin": "platform-validated"
+  },
+  "member_length_scales": [
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4
+  ],
+  "fit": {
+    "seed": 17,
+    "calibration_fraction": 0.25,
+    "interval_k": 2.0,
+    "n_samples": 42
+  },
+  "corpus_files": [
+    "corpus.json"
+  ],
+  "calibration_case_ids": [
+    "s17c_00",
+    "s17c_11",
+    "s17c_12",
+    "s17c_14",
+    "s17c_17",
+    "s17c_20",
+    "s17c_22",
+    "s17c_23",
+    "s17c_30",
+    "s17c_39"
+  ],
+  "certificate": {
+    "surrogate_name": "stage17_ld_ensemble",
+    "model_architecture": "gp_bootstrap(gp(matern52, ls=0.2)|gp(matern52, ls=0.25)|gp(matern52, ls=0.3)|gp(matern52, ls=0.35)|gp(matern52, ls=0.4), n=5)",
+    "training_dataset_dvc_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "dataset_id": "stage17-naca4-ld",
+    "held_out_metrics": {
+      "ld_mae": {
+        "p50": 0.9371642389419179,
+        "p95": 1.3119185403823792,
+        "p99": 1.3119185403823792,
+        "n_held_out": 10
+      }
+    },
+    "applicability_envelope": {
+      "re_range": [
+        500000.0,
+        500000.0
+      ],
+      "mach_range": [
+        0.0,
+        0.0
+      ],
+      "aoa_range_deg": [
+        4.0,
+        4.0
+      ],
+      "geometry_class": "naca-4digit"
+    },
+    "cert_status": "validated",
+    "non_commercial": false,
+    "data_origin": "platform-validated",
+    "attribution_required": [],
+    "license_id": "",
+    "issued_at": "2026-07-24T12:31:12.529036Z",
+    "expires_at": "2027-01-20T12:31:12.529036Z",
+    "ensemble_size": 5,
+    "uncertainty_calibration": {
+      "basis": "gp_bootstrap",
+      "n_held_out": 10,
+      "interval_k": 2.0,
+      "nominal_coverage": 0.9544997361036416,
+      "empirical_coverage": 0.9,
+      "mean_abs_z": 0.7696769674156895,
+      "std_z": 1.147270019943264
+    }
+  }
+}
