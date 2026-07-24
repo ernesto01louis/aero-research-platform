@@ -215,7 +215,10 @@ bo = [
 
 # Development
 dev = [
-    "ruff>=0.13",
+    # Pinned to the pre-commit rev (mirrors-ruff v0.15.13): unpinned CI ruff drifted to a
+    # release that formats markdown code fences and broke the required lint check on a PR
+    # that touched no markdown (Stage 17). Bump together with .pre-commit-config.yaml.
+    "ruff==0.15.13",
     "mypy>=1.18",
     "pytest>=8.3",
     "pytest-cov>=6.0",
@@ -335,6 +338,7 @@ markers = [
     "stage_14: tests gated to stage 14 deliverables",
     "stage_15: tests gated to stage 15 deliverables",
     "stage_16: tests gated to stage 16 deliverables",
+    "stage_17: tests gated to stage 17 deliverables",
 ]
 
 [tool.uv]

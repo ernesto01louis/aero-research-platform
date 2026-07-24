@@ -25,6 +25,13 @@ Three concrete shapes ship here:
   path; ``SurrogateProtocol`` exists so a future plugin author can satisfy
   the contract without inheriting.
 
+* ``SurrogatePrediction`` / ``UncertaintyAwareSurrogateProtocol`` (ADR-025) —
+  the additive epistemic-uncertainty seam. ``Surrogate.predict_with_uncertainty``
+  ships a default that wraps ``predict`` and honestly reports "no uncertainty
+  model" (``basis="none"``, ``epistemic_std=None``); ensemble / MC-dropout
+  subclasses override it. The Stage-16 surrogate-in-the-loop optimizer consumes
+  this seam for trust-region bounding and uncertainty-routed infill.
+
 PLATFORM-NOT-HUB: only stdlib + pydantic are imported. Torch / JAX / numpy
 arrays appear inside ``Sample.features`` as ``tuple[float, ...]`` via the
 typed payload; baseline subclasses are responsible for converting at the
@@ -33,11 +40,12 @@ fit/predict boundary.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:
     from aero.surrogates._common.certificate import CertificateOfValidity
@@ -111,6 +119,77 @@ class TaintedSample(_SampleBase):
     )
 
 
+class SurrogatePrediction(BaseModel):
+    """One prediction, with epistemic uncertainty where the surrogate supports it.
+
+    ``basis`` is a discriminated evidence label (the ADR-023 pattern: typed
+    evidence over free floats):
+
+    * ``"none"`` — the surrogate has no uncertainty model. ``epistemic_std``
+      is ``None`` — honestly absent, NEVER a fabricated zero. Downstream
+      consumers (infill routing, trust-region bookkeeping) treat ``None`` as
+      "cannot uncertainty-route" and fail loud rather than treating an
+      uncertainty-blind surrogate as perfectly certain.
+    * ``"deep_ensemble"`` — ``epistemic_std`` is the ddof=1 population std
+      over ``n_members`` independently-seeded members (ADR-025).
+    * ``"mc_dropout"`` — reserved; ledgered in ADR-025, no producer yet.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_default=True,
+    )
+
+    mean: tuple[float, ...] = Field(
+        ..., min_length=1, description="Predicted target vector (same width as predict())."
+    )
+    epistemic_std: tuple[float, ...] | None = Field(
+        default=None,
+        description="Per-target epistemic std (model uncertainty). None iff basis='none'.",
+    )
+    basis: Literal["none", "deep_ensemble", "mc_dropout"] = Field(
+        ..., description="How the uncertainty was produced. 'none' = no uncertainty model."
+    )
+    n_members: int = Field(
+        default=1,
+        ge=1,
+        description="Ensemble members / MC samples behind the estimate; 1 iff basis='none'.",
+    )
+
+    @model_validator(mode="after")
+    def _uncertainty_consistent(self) -> SurrogatePrediction:
+        for v in self.mean:
+            if not math.isfinite(v):
+                raise ValueError(f"mean contains a non-finite value ({v})")
+        if self.basis == "none":
+            if self.epistemic_std is not None:
+                raise ValueError(
+                    "basis='none' forbids epistemic_std: a surrogate without an uncertainty "
+                    "model must report None, not a fabricated std"
+                )
+            if self.n_members != 1:
+                raise ValueError(f"basis='none' requires n_members=1; got {self.n_members}")
+            return self
+        if self.epistemic_std is None:
+            raise ValueError(f"basis={self.basis!r} requires epistemic_std; got None")
+        if self.n_members < 2:
+            raise ValueError(
+                f"basis={self.basis!r} requires n_members >= 2; got {self.n_members} — "
+                "a single member cannot estimate epistemic spread"
+            )
+        if len(self.epistemic_std) != len(self.mean):
+            raise ValueError(
+                f"epistemic_std width ({len(self.epistemic_std)}) must match mean width "
+                f"({len(self.mean)})"
+            )
+        for v in self.epistemic_std:
+            if not math.isfinite(v) or v < 0.0:
+                raise ValueError(f"epistemic_std must be finite and >= 0; got {v}")
+        return self
+
+
 @runtime_checkable
 class SurrogateProtocol(Protocol):
     """Structural protocol the Stage-14 agent layer types against.
@@ -125,6 +204,21 @@ class SurrogateProtocol(Protocol):
     def predict(self, features: tuple[float, ...], /) -> tuple[float, ...]: ...
 
     def certificate(self) -> CertificateOfValidity: ...
+
+
+@runtime_checkable
+class UncertaintyAwareSurrogateProtocol(SurrogateProtocol, Protocol):
+    """Structural protocol for surrogates that expose epistemic uncertainty (ADR-025).
+
+    A NEW protocol name rather than a method added to :class:`SurrogateProtocol`
+    — extending the existing runtime-checkable protocol would silently break
+    every structural (non-inheriting) implementer. ``Surrogate`` subclasses
+    satisfy this protocol automatically via the base-class default; the
+    distinction matters only for external plugins that implement the contract
+    structurally.
+    """
+
+    def predict_with_uncertainty(self, features: tuple[float, ...], /) -> SurrogatePrediction: ...
 
 
 class Surrogate(ABC):
@@ -234,3 +328,14 @@ class Surrogate(ABC):
         directly) at the top of every implementation so the
         :class:`UncertifiedSurrogate` guard fires before any GPU work.
         """
+
+    def predict_with_uncertainty(self, features: tuple[float, ...], /) -> SurrogatePrediction:
+        """Predict with epistemic uncertainty where the surrogate supports it (ADR-025).
+
+        Default implementation wraps :meth:`predict` and reports
+        ``basis="none"`` / ``epistemic_std=None`` — an honest "this surrogate
+        has no uncertainty model", never a fabricated zero std. The
+        :class:`UncertifiedSurrogate` guard fires through the wrapped
+        :meth:`predict` call. Ensemble / MC-dropout subclasses override.
+        """
+        return SurrogatePrediction(mean=self.predict(features), basis="none")

@@ -7,9 +7,10 @@ envelope, and expiry policy. Stage 14's NeMo Agent Toolkit refuses to call
 `Surrogate.predict(...)` without first calling `Surrogate.certificate().
 validate()` and routing on the result (CONSTITUTION Invariant 9).
 
-Only stdlib + pydantic names are imported eagerly. Torch / JAX / PyG live
-behind the `aero[surrogate-smoke]` extra and are lazy-imported inside
-``baselines/`` and ``_common/loaders/*``. PLATFORM-NOT-HUB.
+Only stdlib + numpy + pydantic names are imported eagerly (numpy arrived with
+the ADR-025 ensemble/calibration/infill aggregation in ``_common/``). Torch /
+JAX / PyG live behind the `aero[surrogate-smoke]` extra and are lazy-imported
+inside ``baselines/`` and ``_common/loaders/*``. PLATFORM-NOT-HUB.
 """
 
 from __future__ import annotations

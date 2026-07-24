@@ -1,0 +1,23 @@
+# aero-progress — daemon half of scripts/aero_progress.py (Proxmox host).
+# Samples sim-time every 30 s (feeds windowed ETAs shown by --once) and pushes
+# ntfy on run done/failed. Install (operator step, see docs/runbooks/aero-progress.md):
+#   cp scripts/systemd/aero-progress.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now aero-progress
+[Unit]
+Description=aero run progress sampler + ntfy notifier
+After=network-online.target remote-fs.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/aero-nfs
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 /root/projects/aero-research-platform/scripts/aero_progress.py \
+    --daemon --interval 30 \
+    --notify-url http://192.168.2.203:8090/aero-runs
+Restart=on-failure
+RestartSec=10
+StateDirectory=aero-progress
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
