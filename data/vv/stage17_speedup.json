@@ -1,0 +1,59 @@
+{
+  "verdict": "NO-GO",
+  "speedup": {
+    "verdict": "NO-GO",
+    "degenerate": true,
+    "reason": "DEGENERATE: the 42-solve training corpus already contains 5 designs past the bar (corpus best L/D 46.337 vs bar 43.874), so the surrogate-accelerated loop seeds its incumbent past the bar and performs 0 marginal search in every seed. Direct-CFD BO reaches the bar from scratch in {0: 4, 1: 7, 2: 5} marginal evals. Total-cost accounting: surrogate = 42 corpus + 0 marginal; direct = 4 from scratch \u2014 the corpus cost dominates. No genuine single-run acceleration is demonstrated; fall back to direct-CFD BO (S7). The bar is reachable by random LHS sampling (direct arms cleared it during init), and surrogate acceleration's payoff is in higher-dimensional / more expensive regimes and amortized across many runs \u2014 not this cheap 2-D problem. See the handoff for the fair-test (reduced-prior) design.",
+    "direct_marginal": {
+      "0": 4,
+      "1": 7,
+      "2": 5
+    },
+    "surrogate_marginal": {
+      "0": 0,
+      "1": 0,
+      "2": 0
+    },
+    "surrogate_from_corpus": {
+      "0": true,
+      "1": true,
+      "2": true
+    },
+    "literal_marginal_wins": 3,
+    "total_cost_surrogate_incl_corpus": 42,
+    "total_cost_direct_from_scratch": 4,
+    "corpus_past_bar_designs": 5
+  },
+  "cert_of_record": {
+    "valid": true,
+    "error": null,
+    "status": "validated",
+    "coverage": 0.9
+  },
+  "verification": {
+    "V1_held_out_ld": 46.37208685252852,
+    "V2_delta_fine": 24.6980545297548,
+    "V2_significant_at_k2": true,
+    "V2_tag": "validated",
+    "V2_tier_capped_from_thesis_grade": true,
+    "V2_tier_cap_reason": "2-grid fallback GCI reached thesis-grade, but Stage-16 3-grid analysis found sub-first-order convergence (order 0.465 < 0.5); capped at validated (ADR-031/032). Thesis-grade rests on the ledgered 393^2 rung.",
+    "bar_reached_on_verification": true
+  },
+  "reported_optimum": {
+    "origin": "surrogate-explore",
+    "surrogate_predicted": true,
+    "design": {
+      "max_camber": 0.07142396440260919,
+      "camber_position": 0.21977148504550229
+    },
+    "loop_best_ld": 46.37208685252852
+  },
+  "exploratory_loop": {
+    "stop_reason": "budget",
+    "n_cfd_evals": 16,
+    "incumbent_value": 46.37208685252852,
+    "incumbent_from_corpus": false,
+    "note": "exploratory deliverable-2 demonstration; never gates the speed-up S-gates"
+  },
+  "n_candidates": 74
+}
