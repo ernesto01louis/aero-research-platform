@@ -47,6 +47,7 @@ jobs:
             relevant:
               - 'aero/adapters/**'
               - 'aero/vv/**'
+              - 'aero/geometry/**'
               - 'conf/case/**'
               - 'pyproject.toml'
 

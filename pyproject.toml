@@ -213,6 +213,15 @@ bo = [
     # optimizer core (aero/optimize) is pure numpy — PLATFORM-NOT-HUB — and needs no extra.
 ]
 
+# Stage 18 (ADR-033): STEP ingestion via build123d (Apache-2.0, atop the OCP wheel
+# wrapping OCCT — LGPL-2.1 with the OCCT exception; license disposition in ADR-033).
+# Pinned exactly (Hard Rule 8). The aero/geometry core (STL/3MF, quality, repair) is
+# pure stdlib + numpy + pydantic and needs NO extra; only aero.geometry.cad.load_step
+# lazy-imports this.
+cad = [
+    "build123d==0.11.1",
+]
+
 # Development
 dev = [
     # Pinned to the pre-commit rev (mirrors-ruff v0.15.13): unpinned CI ruff drifted to a

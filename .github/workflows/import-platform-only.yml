@@ -46,13 +46,15 @@ jobs:
           import sys, importlib
           # Importing the public surface that V&V and the CLI touch must stay
           # within the platform-not-hub dependency set.
-          for mod in ("aero", "aero.adapters._base", "aero.vv", "aero.cli"):
+          for mod in ("aero", "aero.adapters._base", "aero.vv", "aero.cli", "aero.geometry"):
               importlib.import_module(mod)
 
           banned = (
               "xarray", "scipy", "mlflow", "pyfoam", "ofpp",
               "torch", "jax", "physicsnemo", "openfoam",
               "meshio", "mpi4py",
+              # Stage 18 (ADR-033): the CAD kernel rides behind aero[cad] only.
+              "build123d", "OCP", "cadquery",
           )
           loaded = sorted(m for m in banned if m in sys.modules)
           if loaded:
