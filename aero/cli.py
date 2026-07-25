@@ -480,6 +480,7 @@ def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
 def vv_list() -> None:
     """List the registered V&V benchmark cases (TMR + forward-regime + transonic + scale-resolving)."""
     from aero.vv.ercoftac import ERCOFTAC_CASES
+    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
@@ -495,6 +496,7 @@ def vv_list() -> None:
         ("V&V benchmark cases (flapping wing — Stage 14):", FLAPPING_CASES),
         ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
         ("V&V benchmark cases (scale-resolving — Stage 07):", SCALE_RESOLVING_CASES),
+        ("V&V benchmark cases (external geometry — Stage 18):", EXTERNAL_GEOMETRY_CASES),
     ):
         typer.echo(header + "\n")
         for name, case in cases.items():
@@ -563,6 +565,7 @@ def vv_run(
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
     from aero.vv.ercoftac import ERCOFTAC_CASES
+    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
@@ -578,6 +581,7 @@ def vv_run(
         **FLAPPING_CASES,
         **TRANSONIC_CASES,
         **SCALE_RESOLVING_CASES,
+        **EXTERNAL_GEOMETRY_CASES,
     }
     if case not in all_cases:
         known = ", ".join(all_cases)
