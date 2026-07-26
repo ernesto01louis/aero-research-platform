@@ -1,0 +1,4 @@
+test_id,u_mean,drag_force,lift_force,cd,cl,cd_amplitude,cl_amplitude,frequency,provenance
+1,0.2,14.2929,1.11905,7.146450,0.559525,0,0,0,text-sourced (featflow level 6+0)
+2,1.0,136.700,10.5343,2.734000,0.210686,0,0,0,text-sourced (featflow level 6+0)
+3,2.0,439.45,-11.893,2.197250,-0.059465,0.028092,2.189050,4.3956,text-sourced (featflow dt=0.005)
