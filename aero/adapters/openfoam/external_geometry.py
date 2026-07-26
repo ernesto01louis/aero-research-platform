@@ -251,7 +251,7 @@ def _snappy(spec: ExternalGeometrySpec) -> str:
     nSmoothThickness    10;
     maxFaceThicknessRatio 0.5;
     maxThicknessToMedialRatio 0.3;
-    minMedianAxisAngle  90;
+    minMedialAxisAngle  90;
     nBufferCellsNoExtrude 0;
     nLayerIter          50;
 """
