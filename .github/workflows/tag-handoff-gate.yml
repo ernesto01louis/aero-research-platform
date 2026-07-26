@@ -1,0 +1,31 @@
+name: tag-handoff-gate
+
+# Hard Rule 10 / handoff-discipline.md promise this check exists ("CI enforces it on
+# tag push") — Stage 18 makes the docs true. A `v0.0.NN` tag may only exist once
+# `docs/handoffs/STAGE-NN-*-DONE-*.md` is present with valid frontmatter; the same
+# validator as the local Stop hook (scripts/check_handoff_exists.sh) is the single
+# source of truth. On failure the tag exists but the workflow flags it loudly — the
+# operator deletes the tag and fixes the handoff (propose-first; CI cannot delete).
+
+on:
+  push:
+    tags:
+      - "v0.0.*"
+
+permissions:
+  contents: read
+
+jobs:
+  handoff-exists:
+    runs-on: ubuntu-latest
+    name: handoff exists for the tagged stage
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate the tagged stage's handoff frontmatter
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          stage="${tag##v0.0.}"
+          stage_padded=$(printf "%02d" "$stage")
+          echo "$stage_padded" > .aero-stage
+          bash scripts/check_handoff_exists.sh

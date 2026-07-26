@@ -21,7 +21,7 @@ alone. A tolerance is a contract — a failing case is investigated, never relax
 | Forward-regime credibility | Laminar flat plate (Blasius); low-Re cylinder Strouhal; transitional airfoil | Blasius; canonical cylinder St–Re; transition data | Stage 10 |
 | Unsteady machinery | Pitching / plunging airfoil | McCroskey dynamic stall (NASA TM-84245); Heathcote-Gursul (2007) | Stage 13 |
 | **Flapping (flagship)** | Revolving / flapping wing, rigid then flexible | Dickinson et al. (1999) Robofly; Wang-Birch-Dickinson (2004) | Stage 14 (rigid), 19 (flexible) |
-| FSI machinery | Turek-Hron FSI3 | Turek & Hron (2006), via the supported preCICE tutorial (ADR-016) | Stage 18 |
+| FSI machinery | Turek-Hron FSI3 | Turek & Hron (2006), via the supported preCICE tutorial (ADR-016) | Stage 19 (geometry + tabulated CFD data acquired at Stage 18) |
 | **Optimization delta (the mission)** | CFD-verified improvement on a parametric flapping case | held-out ground-truth CFD; delta > k·U95 | Stage 15 |
 
 ## Reference-data discipline

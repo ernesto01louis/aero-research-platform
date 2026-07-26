@@ -1,0 +1,5 @@
+outs:
+- md5: 3bcd781278f36f4d1640dc4665f71d23
+  size: 66684
+  hash: md5
+  path: cylinder_flag.stl

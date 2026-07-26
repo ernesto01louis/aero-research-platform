@@ -480,6 +480,7 @@ def _vv_settings(repo_root: Path) -> tuple[str, str, str]:
 def vv_list() -> None:
     """List the registered V&V benchmark cases (TMR + forward-regime + transonic + scale-resolving)."""
     from aero.vv.ercoftac import ERCOFTAC_CASES
+    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
@@ -495,6 +496,7 @@ def vv_list() -> None:
         ("V&V benchmark cases (flapping wing — Stage 14):", FLAPPING_CASES),
         ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
         ("V&V benchmark cases (scale-resolving — Stage 07):", SCALE_RESOLVING_CASES),
+        ("V&V benchmark cases (external geometry — Stage 18):", EXTERNAL_GEOMETRY_CASES),
     ):
         typer.echo(header + "\n")
         for name, case in cases.items():
@@ -563,6 +565,7 @@ def vv_run(
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
     from aero.vv.ercoftac import ERCOFTAC_CASES
+    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
@@ -578,6 +581,7 @@ def vv_run(
         **FLAPPING_CASES,
         **TRANSONIC_CASES,
         **SCALE_RESOLVING_CASES,
+        **EXTERNAL_GEOMETRY_CASES,
     }
     if case not in all_cases:
         known = ", ".join(all_cases)
@@ -1135,6 +1139,82 @@ def surrogate_train(
             f"cfg={provenance.config_hash[:12]} "
             f"train-data={train_dvc_hash[:12]} (issued {datetime.now(UTC).isoformat()})"
         )
+
+
+# =============================================================================
+# `aero geometry` — external-geometry ingestion + quality gate (Stage 18, ADR-033)
+# =============================================================================
+geometry_app = typer.Typer(
+    name="geometry",
+    help="Ingest external geometry (STL/3MF core; STEP via aero[cad]) through the quality gate.",
+    no_args_is_help=True,
+)
+app.add_typer(geometry_app, name="geometry")
+
+
+@geometry_app.command("ingest")
+def geometry_ingest(
+    path: str = typer.Argument(..., help="Geometry file (.stl, .3mf, .step/.stp)."),
+    do_repair: bool = typer.Option(
+        False,
+        "--repair/--no-repair",
+        help="Run the bounded declared repair pass (every action is ledgered).",
+    ),
+    json_out: str = typer.Option(
+        "", "--json", help="Write the IngestedGeometry record (sans surface) as JSON here."
+    ),
+    min_feature_size: float | None = typer.Option(
+        None,
+        "--min-feature-size",
+        help="Q5 floor on min(min_edge_length, min_altitude), absolute units.",
+    ),
+) -> None:
+    """Load, quality-check, optionally repair, and gate an external geometry.
+
+    Exit codes: 0 = passed the gate; 5 = GeometryError (malformed input, failed
+    quality gate, or repair bounds exceeded) — the message names every failed check.
+    """
+    import json
+
+    from aero.geometry import (
+        GeometryError,
+        IngestConfig,
+        QualityGateConfig,
+        RepairConfig,
+        ingest,
+    )
+
+    config = IngestConfig(
+        gate=QualityGateConfig(min_feature_size=min_feature_size),
+        repair=RepairConfig() if do_repair else None,
+    )
+    try:
+        record = ingest(Path(path), config=config)
+    except GeometryError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=5) from exc
+    q = record.quality
+    typer.echo(f"  ingested           {record.source} ({record.fmt})")
+    typer.echo(f"  surface sha256     {record.surface_sha256}")
+    typer.echo(f"  vertices / faces   {record.n_vertices} / {record.n_faces}")
+    typer.echo(f"  watertight         {q.watertight}")
+    typer.echo(f"  manifold           {q.manifold} (orientation ok: {q.orientation_consistent})")
+    typer.echo(
+        f"  intersections      {q.n_intersecting_pairs} (checked: {q.self_intersections_checked})"
+    )
+    typer.echo(f"  degenerate faces   {q.n_degenerate_faces}")
+    typer.echo(f"  min edge / alt     {q.min_edge_length:.4e} / {q.min_altitude:.4e}")
+    typer.echo(f"  bbox               {q.bbox_min} .. {q.bbox_max}")
+    typer.echo(f"  area / volume      {q.surface_area:.6e} / {q.signed_volume:.6e}")
+    if record.repairs:
+        typer.echo("  repairs applied:")
+        for action in record.repairs:
+            typer.echo(f"    - {action.kind} (x{action.count}): {action.detail}")
+    else:
+        typer.echo("  repairs applied    (none)")
+    if json_out:
+        Path(json_out).write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
+        typer.echo(f"  record written     {json_out}")
 
 
 if __name__ == "__main__":

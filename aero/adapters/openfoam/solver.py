@@ -45,6 +45,10 @@ from aero.adapters._base import (
 from aero.adapters.openfoam._foam_common import RHO_INF, U_INF
 from aero.adapters.openfoam.case_writer import write_case
 from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
+from aero.adapters.openfoam.external_geometry import (
+    ExternalGeometrySpec,
+    write_external_geometry_case,
+)
 from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.flapping_wing import FlappingWingSpec, write_flapping_wing_case
 from aero.adapters.openfoam.motion import FlappingMotionSpec
@@ -75,6 +79,10 @@ from aero.postprocess.phase_averaging import segment_cycles
 __all__ = ["OpenFOAMSolver", "build_apptainer_exec"]
 
 _CELL_COUNT_RE = re.compile(r"nCells:\s*(\d+)")
+# snappyHexMesh reports its stages as `<stage> : cells:NNNN` and never prints `nCells:`,
+# so an external-geometry mesh whose count came from `_CELL_COUNT_RE` would be the
+# PRE-SNAP blockMesh background count. Take the LAST snappy stage line instead.
+_SNAPPY_CELL_COUNT_RE = re.compile(r"\bcells:\s*(\d+)")
 _P_RESIDUAL_RE = re.compile(r"Solving for p,\s*Initial residual\s*=\s*([0-9.eE+-]+)")
 
 
@@ -115,6 +123,8 @@ class OpenFOAMSolver(Solver):
             write_t3a_case(case, host_path)
         elif isinstance(case, TransientAirfoilSpec):
             write_transient_airfoil_case(case, host_path)
+        elif isinstance(case, ExternalGeometrySpec):
+            write_external_geometry_case(case, host_path)
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"
@@ -138,6 +148,13 @@ class OpenFOAMSolver(Solver):
                 "blockMesh && blockMesh -case component && "
                 "mergeMeshes . component -overwrite && topoSet && setFields"
             )
+        elif isinstance(spec, ExternalGeometrySpec):
+            # snappyHexMesh pipeline on an ingested STL (Stage 18, ADR-034);
+            # flattenMesh restores front/back planarity after snapping so the
+            # `empty` patches stay valid (quasi-2D — external_geometry docstring).
+            mesh_command = (
+                "surfaceFeatureExtract && blockMesh && snappyHexMesh -overwrite && flattenMesh"
+            )
         else:
             mesh_command = "blockMesh"
         command = build_apptainer_exec(
@@ -145,17 +162,26 @@ class OpenFOAMSolver(Solver):
             case_bind_source=str(case_dir.remote_path),
             command=mesh_command,
         )
-        result = executor.run(command, timeout_s=900)
+        if isinstance(spec, ExternalGeometrySpec):
+            # snappy can exceed any fixed synchronous SSH window (the Stage-16
+            # scripts' 900 s cap was the single likeliest Stage-18 trap): run it
+            # detached through run_long.sh; the executor's long_timeout_s (driver
+            # `--timeout`) is the ceiling.
+            result = executor.run(command, long_running=True, session=f"mesh-{case_dir.run_id}")
+        else:
+            result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
         ok = result.ok and polymesh.is_file()
         if not ok:
             logger.error("blockMesh failed (rc={}):\n{}", result.returncode, result.stdout)
-        cells = _CELL_COUNT_RE.search(result.stdout)
-        return MeshHandle(
-            case_dir=case_dir,
-            ok=ok,
-            n_elements=int(cells.group(1)) if cells else None,
-        )
+        if isinstance(spec, ExternalGeometrySpec):
+            # Last snappy stage line = the final (post-snap, post-layer) cell count.
+            snappy_counts = _SNAPPY_CELL_COUNT_RE.findall(result.stdout)
+            n_elements = int(snappy_counts[-1]) if snappy_counts else None
+        else:
+            cells = _CELL_COUNT_RE.search(result.stdout)
+            n_elements = int(cells.group(1)) if cells else None
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements)
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).

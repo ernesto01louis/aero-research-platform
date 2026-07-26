@@ -5,6 +5,98 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
+## [0.0.18] - 2026-07-26
+
+### Added — Stage 18 (Arbitrary-Geometry Ingestion + Robust Meshing) — GO, all pre-registered gates passed
+
+> **Verdict:** an **external** geometry the platform did not analytically generate — the
+> Turek-Hron cylinder+flag surface, extracted from the pinned third-party preCICE tutorial
+> mesh — was ingested through a fail-loud quality gate (**zero repairs needed**), meshed by
+> snappyHexMesh behind a pre-registered `checkMesh` gate (rung R0 won: 40 800 cells,
+> max non-orthogonality 28.0 ≤ 65, max skewness 2.24 ≤ 4, `Mesh OK`), and evaluated by
+> ground-truth CFD against the published benchmark: **CFD2 cd err 1.03 %** (tol 5 %),
+> **cl err 5.21 %** (tol 10 %); the CFD3 stretch also passed — **mean cd 0.33 %**,
+> **shedding frequency 2.60 %** (tol 5 %), **lift amplitude 0.38 %** (tol 15 %). Every gate
+> (ingestion Q, repair bounds R, mesh M, ladder F, validation V) was committed in ADR-034
+> **before any campaign mesh or solve** and none was relaxed. Four-fold provenance on a clean
+> tree for both solves; the STL's SHA-256 rides in `config_hash` and the file is DVC-tracked.
+
+- **`aero/geometry/` (NEW core package** — stdlib + numpy + pydantic only, ADR-033): binary/ASCII
+  **STL** + single-mesh **3MF** loaders with exact-weld normalization (bitwise dedup only —
+  tolerance merging is a *declared repair*, never a silent loader convenience); typed
+  `QualityReport` (watertightness, edge-manifoldness, winding consistency, duplicate/degenerate
+  faces, non-adjacent self-intersection via sweep-and-prune AABB + vectorized Möller with a
+  coplanar SAT path); **bounded, declared repair** (`RepairAction` ledger: vertex merge, dedup,
+  BFS re-winding + outward flip, planar ear-clip hole filling) where anything outside the
+  pre-registered bounds is left broken for the gate to refuse; `ingest()` raising fail-loud
+  **`GeometryError`** that names every failed check and every repair applied.
+- **`aero geometry ingest` CLI** (exit code 5 on `GeometryError`) — quality report, repair ledger,
+  and JSON record output.
+- **`aero[cad]` extra (NEW):** STEP ingestion via `build123d==0.11.1` (Apache-2.0 atop OCP/OCCT
+  LGPL-2.1-with-exception; license disposition in ADR-033), lazy-imported so the core stays clean;
+  OCCT's per-face tessellation is exact-welded through the same path as STL.
+- **Robust meshing (ADR-034):** `mesh_quality.py` is the platform's first *typed, enforced*
+  `checkMesh` gate (the Stage-16 campaign scripts' closures parsed metrics but gated nothing);
+  `external_geometry.py` writes quasi-2D snappyHexMesh cases (one-cell background slab at target
+  resolution, castellate + snap with **no volumetric refinement**, `flattenMesh`, `empty`
+  front/back; `exprFixedValue` parabolic inlet with a discretized `timeVaryingMappedFixedValue`
+  fallback); `robust_mesh.py` walks the declared fallback ladder (R0 layers → R1 no layers →
+  R2 1.5× coarser) that degrades **cost, never thresholds** — the gate object is built once, and
+  an exhausted ladder raises with the full `MeshLadderReport` instead of shipping a bad mesh.
+  `OpenFOAMSolver.mesh()` runs external-geometry meshes **detached** (snappy exceeds the legacy
+  900 s synchronous cap).
+- **External geometry acquired with full provenance:** extracted from `precice/tutorials`
+  @ `98a78fe2` (LGPL-3.0) by running the *upstream* blockMeshDict and pulling the cylinder+flag
+  wall patches, then closing the prismatic band with a declared two-cap ear-clip transform (the
+  x-y profile stays 100 % upstream-authored); the shipped STL passes the strict gate with zero
+  repairs and its extents match the published spec to ~10 µm. DVC-tracked + git-tracked SHA-256
+  sidecar; published CFD1/2/3 values tabulated in `data/references/fsi/turek_hron_fsi3/`.
+- **V&V:** `aero/vv/external_geometry/` — `turek_hron_cfd2` (gated) and `turek_hron_cfd3`
+  (stretch) wired into `aero vv list` / `aero vv run`.
+- **Findings:** OpenFOAM-ESI v2412 spells the layer control `minMedialAxisAngle` (a writer typo
+  killed the first R0 attempt — the ladder correctly refused the half-written mesh rather than
+  meshing on); OCCT duplicates face-boundary vertices, so STEP needs the same exact weld as an
+  STL triangle soup; `pre-commit`'s ruff-format hook can roll back a commit silently, so every
+  commit must be verified with `git log`.
+
+### Fixed — post-implementation adversarial review (9 confirmed defects, 14 findings refuted)
+
+- **Self-intersection false negative in gate Q3's own machinery** — Möller's odd-vertex
+  selection dropped its two zero-distance branches, so a vertex lying exactly on the other
+  triangle's plane collapsed the overlap interval and a real intersection went undetected;
+  a self-intersecting surface could pass Q3. Fixed, with a corner-order-invariance property
+  test that structurally forbids the class of bug. The acquired geometry was re-verified
+  under the corrected gate (still 0 intersections, 0 repairs) and the fix differential-tested
+  against a brute-force reference over 3000 randomized pairs with zero real mismatches.
+- **Intersection epsilon had the wrong units** — plane distances were not normalized by
+  `|n|` (= 2·area), so the perpendicular tolerance scaled as 1/area and finely tessellated
+  non-touching sheets were reported as intersecting. Fixed; covered by tessellation-density
+  and coordinate-scale invariance tests.
+- **`n_elements` published blockMesh's pre-snap background count** (41 000) for
+  external-geometry cases while the gate's own checkMesh reported 40 800 — the wrong number
+  was in the provenance-bearing field. Now parses the final snappy stage line.
+- **checkMesh D1 diagnostics vanished exactly when a mesh was bad** — the regexes matched
+  only v2412's pass-branch wording, so a loud NO-GO lost the numbers explaining it.
+- **The mapped-inlet contingency was dead on arrival** — collinear boundaryData points,
+  which v2412's planar interpolation rejects outright. Now spans two z rows.
+- **The Q attestation was not bound to the meshed surface** — `--repair` (never written
+  back) or a `--stl` override could attest one surface while meshing another; the driver
+  now refuses unless the gated digest equals the meshed digest.
+- **The verdict stamped a V1-V4 rule while never evaluating V2** (solve converged). V2 is
+  now enforced fail-loud in the case evaluation and every clause is recorded in the bundle.
+  (The Stage-18 solve did converge at 265 iterations — the gate, not the result, was wrong.)
+
+The campaign was re-run end to end under the fixed code; all five gated quantities
+reproduced identically.
+
+### CI
+
+- **`tag-handoff-gate.yml` (NEW)** — a `v0.0.*` tag push now actually validates that the stage's
+  handoff exists with valid frontmatter, making CLAUDE.md Hard Rule 10's long-standing claim true
+  (it had been documented but never implemented).
+- `import-platform-only` imports `aero.geometry` and bans the CAD kernels; `vv-required`'s
+  paths-filter covers `aero/geometry/**`; `stage_18` pytest marker; `cad_extra_installed` fixture.
+
 ## [0.0.17] - 2026-07-24
 
 ### Added — Stage 17 (Surrogate-Accelerated Optimization, own-data) — deliverables 1-3 GO; speed-up an HONEST NO-GO

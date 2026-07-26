@@ -136,7 +136,9 @@ agent layer, literature miner, MoE, DPW/HLPW, riblet DNS.
   so there is real pressure, but removal touches `SHA256SUMS`/DVC and is not automatic.
 - [ ] **Flapping reference-data acquisition** (DVC-tracked under `data/reference/`, per
   owning stage): McCroskey + Heathcote-Gursul → Stage 13; Dickinson + Wang-Birch-Dickinson
-  → Stage 14; Turek-Hron tabulated → Stage 18; Blasius / low-Re cylinder Strouhal → Stage 10.
+  → Stage 14; **Turek-Hron tabulated → CLOSED at Stage 18** (geometry + CFD1/2/3 values,
+  `data/references/fsi/turek_hron_fsi3/`; the FSI3 *displacement* data is Stage 19's);
+  Blasius / low-Re cylinder Strouhal → Stage 10.
 - **Post-v0.1.0 named sequence (committed, further out):** adjoint shape/topology
   optimization (DAFoam v5 + SU2 adjoint — SU2 frozen-optional, re-activated here) →
   generative / true-topology proposers.
@@ -162,8 +164,11 @@ explicitly-deferred remainders, each with its unblocking condition:
   natural entry at Stage 16+ or with the post-v0.1.0 adjoint sequence (§5).
 - [ ] **Generic external-aero autogen template** (arbitrary-STL domain sizing, BCs,
   snappyHexMesh/cfMesh, k-ω SST, y+ strategy, forceCoeffs) — the audit's "self-generated
-  CFD factory" for arbitrary geometry families. Owned by **Stage 17** (geometry ingestion);
-  recorded here so the Stage-17 prompt author inherits it explicitly.
+  CFD factory" for arbitrary geometry families. Owned by **Stage 18 post-renumbering**.
+  **Progress (Stage 18):** the STL→ingestion-gate→snappy→checkMesh-gate→forceCoeffs
+  pipeline exists for quasi-2D channel cases (`ExternalGeometrySpec`, ADR-033/034).
+  Open remainder: 3D domain auto-sizing, external-aero BC templates, turbulence/y+
+  strategy selection (the Stage-18 anchor is laminar).
 - [ ] **SU2 adjoint classical-ASO benchmark** — audit item 13; already the committed
   post-v0.1.0 sequence in §5 (DAFoam v5 + SU2 adjoint). Cross-referenced, not duplicated.
 
@@ -192,6 +197,21 @@ explicitly-deferred remainders, each with its unblocking condition:
   four-fold provenance tuple, so only surrogate-loop evals flow into `corpus_v2`; the direct
   arms' 16 own-CFD solves are stranded in their bundles. Thread the four-tuple through
   `EvalRow` so every own-CFD eval can join the flywheel.
+
+## Stage 18 (arbitrary-geometry ingestion) — carried forward
+
+- [ ] **Promote the mesh fallback ladder into the V&V runner** — `aero vv run` executes
+  external-geometry cases single-shot (`OpenFOAMSolver.mesh`, no ladder, no checkMesh
+  gate); the ladder lives in the campaign driver (`mesh_with_ladder`). Promotion means
+  `BenchmarkRunner._drive` (or a mesh-strategy seam) gates every V&V mesh. ADR-034
+  Consequences. Unblocked by: none — a contained refactor.
+- [ ] **Vertex-manifoldness (bowtie) check** in `aero/geometry/quality.py` — v1 checks
+  edge-manifoldness + orientation + intersections (the mesher-relevant modes); a
+  bowtie vertex (two fans sharing only a vertex) passes. ADR-033 Consequences.
+- [ ] **3D (non-slab) external-geometry mode** — `ExternalGeometrySpec` is quasi-2D
+  (one-cell slab); 3D needs volumetric refinement levels (breaking the slab trick),
+  layer strategy, and a mesh-cost budget model. Needed by the flapping-wing geometry
+  on-ramp.
 
 ## Optional / low-priority
 

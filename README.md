@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.17  ·  **Status:** complete  ·  **Completed:** 2026-07-24
+**Latest tag:** v0.0.18  ·  **Status:** complete  ·  **Completed:** 2026-07-26
 
-**Stage 17 — Surrogate-Accelerated Optimization (own-data)** — most recent stage.
+**Stage 18 — Arbitrary-Geometry Ingestion + Robust Meshing** — most recent stage.
 
-**Next:** Stage 18 — Arbitrary-Geometry Ingestion + Robust Meshing.
+**Next:** Stage 19 — preCICE FSI Core (Turek-Hron FSI3).
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

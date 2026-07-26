@@ -136,3 +136,9 @@ def surrogate_smoke_extra_installed() -> bool:
         importlib.util.find_spec(m) is not None
         for m in ("torch", "torch_geometric", "mlflow", "numpy", "einops")
     )
+
+
+@pytest.fixture(scope="session")
+def cad_extra_installed() -> bool:
+    """True iff the `aero[cad]` CAD kernel (build123d, ADR-033) is importable (Stage 18)."""
+    return importlib.util.find_spec("build123d") is not None

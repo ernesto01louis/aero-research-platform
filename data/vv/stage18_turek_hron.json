@@ -1,0 +1,227 @@
+{
+  "stage": 18,
+  "adr": "ADR-034",
+  "ingestion": {
+    "source": "/root/projects/aero-research-platform/data/references/fsi/turek_hron_fsi3/cylinder_flag.stl",
+    "fmt": "stl",
+    "surface_sha256": "155b66892fb8564f100730eba3477aea0161e0ad38b3b79d0d453ee6f4990cf2",
+    "n_vertices": 668,
+    "n_faces": 1332,
+    "quality": {
+      "n_vertices": 668,
+      "n_faces": 1332,
+      "n_boundary_edges": 0,
+      "n_non_manifold_edges": 0,
+      "n_duplicate_faces": 0,
+      "n_degenerate_faces": 0,
+      "orientation_consistent": true,
+      "self_intersections_checked": true,
+      "n_intersecting_pairs": 0,
+      "watertight": true,
+      "manifold": true,
+      "min_edge_length": 0.001538008451461792,
+      "min_altitude": 5.0010621135628016e-05,
+      "bbox_min": [
+        0.15001200139522552,
+        0.15000399947166443,
+        -0.10000000149011612
+      ],
+      "bbox_max": [
+        0.6000000238418579,
+        0.24999600648880005,
+        0.10000000149011612
+      ],
+      "bbox_diagonal": 0.5024814653346318,
+      "surface_area": 0.23291908091865765,
+      "signed_volume": -0.0029716088334368323
+    },
+    "repairs": []
+  },
+  "v1_metrology": {
+    "passed": true,
+    "measured": {
+      "x_min": 0.15001200139522552,
+      "x_max": 0.6000000238418579,
+      "y_min": 0.15000399947166443,
+      "y_max": 0.24999600648880005
+    },
+    "expected": {
+      "x_min": 0.15,
+      "x_max": 0.6,
+      "y_min": 0.15,
+      "y_max": 0.25
+    }
+  },
+  "binding": {
+    "passed": true,
+    "sha256": "155b66892fb8564f100730eba3477aea0161e0ad38b3b79d0d453ee6f4990cf2"
+  },
+  "q5_feature_floor": {
+    "passed": true,
+    "flag_thickness": 0.02,
+    "base_cell_size": 0.005
+  },
+  "cfd2": {
+    "status": "pass",
+    "ladder": {
+      "attempts": [
+        {
+          "rung": {
+            "name": "R0",
+            "cell_size_factor": 1.0,
+            "n_surface_layers": 2
+          },
+          "run_id": "turek_hron_cfd2-r0-20260726-040325",
+          "base_cell_size": 0.005,
+          "mesh_completed": true,
+          "gate": {
+            "passed": true,
+            "failures": [],
+            "metrics": {
+              "mesh_ok": true,
+              "failed_checks": 0,
+              "n_cells": 40800,
+              "max_aspect_ratio": 3.7365538,
+              "max_non_orthogonality": 28.001409,
+              "max_skewness": 2.2442725,
+              "min_volume": 3.2407861e-08,
+              "negative_volumes": false
+            }
+          },
+          "passed": true
+        }
+      ],
+      "passed_rung": "R0"
+    },
+    "winning_rung": "R0",
+    "run_id": "turek_hron_cfd2-r0-20260726-040325",
+    "n_elements": 40800,
+    "benchmark": {
+      "case_name": "turek_hron_cfd2",
+      "status": "pass",
+      "metrics": [
+        {
+          "name": "cd",
+          "kind": "scalar",
+          "error": 0.01030009509875642,
+          "tolerance": 0.05,
+          "passed": true,
+          "measured": 2.70583954,
+          "reference": 2.734
+        },
+        {
+          "name": "cl",
+          "kind": "scalar",
+          "error": 0.05208026162155995,
+          "tolerance": 0.1,
+          "passed": true,
+          "measured": 0.221658582,
+          "reference": 0.210686
+        }
+      ],
+      "provenance": {
+        "git_sha": "6abf00f62f2b25f2769af9c956feb8628898983a",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "444eb919eb7c993a26a5ee42c430d322c2f303e9c7b0ee8f91ad4e6279ab526b"
+      },
+      "solver_version": "OpenFOAM-ESI v2412",
+      "validation_tag": "turek_hron_cfd2",
+      "mlflow_run_id": "c0dfea184dea497db9bc94050397e8c2",
+      "n_elements": 40800
+    }
+  },
+  "cfd3": {
+    "status": "pass",
+    "ladder": {
+      "attempts": [
+        {
+          "rung": {
+            "name": "R0",
+            "cell_size_factor": 1.0,
+            "n_surface_layers": 2
+          },
+          "run_id": "turek_hron_cfd3-r0-20260726-040629",
+          "base_cell_size": 0.005,
+          "mesh_completed": true,
+          "gate": {
+            "passed": true,
+            "failures": [],
+            "metrics": {
+              "mesh_ok": true,
+              "failed_checks": 0,
+              "n_cells": 40800,
+              "max_aspect_ratio": 3.7365538,
+              "max_non_orthogonality": 28.001409,
+              "max_skewness": 2.2442725,
+              "min_volume": 3.2407861e-08,
+              "negative_volumes": false
+            }
+          },
+          "passed": true
+        }
+      ],
+      "passed_rung": "R0"
+    },
+    "winning_rung": "R0",
+    "run_id": "turek_hron_cfd3-r0-20260726-040629",
+    "n_elements": 40800,
+    "benchmark": {
+      "case_name": "turek_hron_cfd3",
+      "status": "pass",
+      "metrics": [
+        {
+          "name": "cd",
+          "kind": "scalar",
+          "error": 0.003333904288902585,
+          "tolerance": 0.05,
+          "passed": true,
+          "measured": 2.204575421198791,
+          "reference": 2.19725
+        },
+        {
+          "name": "frequency",
+          "kind": "scalar",
+          "error": 0.02604505504488127,
+          "tolerance": 0.05,
+          "passed": true,
+          "measured": 4.51008364395528,
+          "reference": 4.3956
+        },
+        {
+          "name": "cl_amplitude",
+          "kind": "scalar",
+          "error": 0.003752678102373262,
+          "tolerance": 0.15,
+          "passed": true,
+          "measured": 2.1972648,
+          "reference": 2.18905
+        }
+      ],
+      "provenance": {
+        "git_sha": "6abf00f62f2b25f2769af9c956feb8628898983a",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "ffb1dfe6b051c261d7cc46125a66a3794fb7646ed10554a43b8ad144e97568bb"
+      },
+      "solver_version": "OpenFOAM-ESI v2412",
+      "validation_tag": "turek_hron_cfd3",
+      "mlflow_run_id": "650ac4358365468f9db9e067b4681bec",
+      "n_elements": 40800
+    }
+  },
+  "verdict": {
+    "go": true,
+    "rule": "GO <=> Q and (rung passes M under F) and V1-V4 (ADR-034)",
+    "clauses": {
+      "Q_ingestion": true,
+      "binding_gated_surface_is_meshed_surface": true,
+      "M_under_F_mesh_gate": true,
+      "V1_metrology": true,
+      "Q5_feature_floor": true,
+      "V2_converged_and_V3_tolerances": true,
+      "V4_provenance_logged": true
+    },
+    "cfd3_reported": true
+  }
+}
