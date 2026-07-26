@@ -87,7 +87,11 @@ premise does not hold; see §10).
   from scratch; no gate was touched.
 - The plan treated CFD3 as a budget-gated stretch that might be skipped. It ran and passed.
 - The first adversarial-review workflow was killed by a session usage limit (16/18 agents lost);
-  it was re-run to completion afterwards.
+  the re-run completed and **found 9 confirmed defects (14 further findings refuted)**, all
+  fixed with regression tests before the tag — see §6. Two were in the self-intersection
+  test itself, i.e. in gate Q3's own machinery. The campaign was then **re-run end to end
+  under the fixed code** so the shipped bundle is produced by the shipped gates; all five
+  gated quantities reproduced identically.
 
 ## 4. Environment / dependency / schema changes
 
@@ -113,6 +117,55 @@ premise does not hold; see §10).
   is still never path-filtered — the Stage-13 lesson).
 
 ## 6. Gotchas discovered
+
+**From the post-implementation adversarial review (9 confirmed, 14 refuted) — all fixed
+in `6abf00f`, with regression tests:**
+
+- **A self-intersection FALSE NEGATIVE in gate Q3's own machinery.** Möller's odd-vertex
+  selection was missing its two canonical zero-distance branches, so a vertex lying
+  *exactly* on the other triangle's plane — routine for axis-aligned or planar-faceted
+  CAD — made both interpolants collapse to a point, the interval degenerate, and a real
+  intersection invisible. A self-intersecting surface could pass Q3 and reach snappy.
+  Fixed; the regression suite now includes a **corner-order-invariance property test**
+  (rotating a face's corners is the same geometry, so the verdict may not change), which
+  structurally forbids the whole class of bug rather than the one instance.
+- **The intersection epsilon had the wrong units.** Plane distances were dotted with
+  un-normalized normals (|n| = 2·area) and compared against a length, so the effective
+  perpendicular tolerance scaled as 1/area: on a finely tessellated surface, distinct
+  sheets closer than ~1 mm were reported as intersecting (a false *positive* that would
+  have failed valid geometry at a gate that may not be relaxed). Now normalized; covered
+  by tessellation-density and coordinate-scale invariance tests.
+- **The acquired geometry was re-verified under the corrected gate** (still 0
+  self-intersections, 0 repairs), and the fixed code was differential-tested against a
+  brute-force reference over 3000 randomized triangle pairs with zero real mismatches —
+  so the campaign's Q attestation stands.
+- **`n_elements` published the wrong number.** snappy never prints `nCells:`, so the
+  external-geometry branch reported blockMesh's *pre-snap background* count (41 000)
+  while the gate's own checkMesh in the same record said 40 800 — two contradictory mesh
+  sizes in one bundle, with the wrong one in the provenance-bearing field. Now parses the
+  last snappy stage line.
+- **checkMesh diagnostics vanished exactly when the mesh was bad.** v2412 prints each
+  metric in two mutually exclusive branches; the regexes matched only the pass wording
+  (`Max aspect ratio = X OK.`), so a loud NO-GO report lost the D1 numbers that explain
+  it (the fail branch uses `Max aspect ratio: X`).
+- **The pre-registered mapped-inlet contingency was dead on arrival.** Every boundaryData
+  sample shared one z, i.e. the points were collinear, and v2412's planar-interpolation
+  basis FatalErrors on exactly that ("are all your points on a single line instead of a
+  plane?"). Now emits two z rows spanning the slab.
+- **The Q attestation was not bound to the meshed surface.** `ingest()` gated an
+  in-memory surface from `--stl` while the case spec independently took the repo STL, and
+  nothing compared the two digests — so `--repair` (which is never written back) or a
+  `--stl` override could have attested Q-gates for a surface snappy never saw. The driver
+  now refuses to proceed unless the gated digest equals the meshed digest.
+- **The verdict stamped a rule it did not evaluate.** The bundle claimed
+  `GO <=> Q and M-under-F and V1-V4` while V2 (the solve converged) was never checked
+  anywhere — a run that burned every iteration with the force still drifting would have
+  been reported if `cd[-1]` happened to land in tolerance. V2 is now enforced fail-loud in
+  `TurekHronCFD2.evaluate`, and every verdict clause is evaluated and recorded in the
+  bundle. (The Stage-18 solve did converge — simpleFoam exited at 265 iterations — so the
+  reported result was sound; the *gate* was the defect.)
+
+**From implementation:**
 
 - **OpenFOAM-ESI v2412 spells it `minMedialAxisAngle`** (medial, not median) in
   `addLayersControls`. A single wrong key aborts snappy after the castellate+snap work is done.
@@ -162,8 +215,8 @@ premise does not hold; see §10).
   benchmark results + verdict). MLflow runs `54e5983e5a92424d96cd31931c3feaa5` (CFD2),
   `a14e2cd34b1145b48b858a1b96fa0ac8` (CFD3) in `aero-provenance`.
 - The acquired external geometry + its reference data (DVC + git sidecars + provenance doc).
-- ADR-033, ADR-034; STAGE-19 prompt; `tag-handoff-gate.yml`; ~60 new unit tests (full suite
-  green, mypy strict clean, ruff clean).
+- ADR-033, ADR-034; STAGE-19 prompt; `tag-handoff-gate.yml`; ~80 new unit tests including the review regressions (full
+  suite green: 209 unit tests, mypy strict clean, ruff clean).
 
 ## 10. Confidence / risk note
 
@@ -180,6 +233,12 @@ premise does not hold; see §10).
   can still solve these cases single-shot without the ladder (the ladder is campaign-driver-side)
   — ledgered, and the M-gate is not bypassed in the campaign path; (iv) repair breadth is
   deliberately narrow (planar ear-clip holes, edge-manifoldness only — bowtie vertices pass).
+- **Reviewed:** a 4-dimension adversarial review (geometry math, OpenFOAM correctness,
+  gate integrity, docs/test honesty) with a per-finding refutation pass ran against the
+  finished diff; 9 of 23 findings survived refutation and were fixed before the tag. The
+  two most serious were in the self-intersection test that gate Q3 depends on — a
+  reminder that a gate is only as trustworthy as the code implementing it, and that the
+  campaign passing is not evidence the gate was correct.
 - **Bus factor:** every number in this handoff traces to the committed bundle JSON with run IDs
   and clean four-fold provenance; the acquisition is re-runnable from
   `scripts/stage18_acquire_geometry.py` plus the pinned upstream SHA in `reference.md`.

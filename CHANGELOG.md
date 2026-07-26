@@ -59,6 +59,36 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
   STL triangle soup; `pre-commit`'s ruff-format hook can roll back a commit silently, so every
   commit must be verified with `git log`.
 
+### Fixed — post-implementation adversarial review (9 confirmed defects, 14 findings refuted)
+
+- **Self-intersection false negative in gate Q3's own machinery** — Möller's odd-vertex
+  selection dropped its two zero-distance branches, so a vertex lying exactly on the other
+  triangle's plane collapsed the overlap interval and a real intersection went undetected;
+  a self-intersecting surface could pass Q3. Fixed, with a corner-order-invariance property
+  test that structurally forbids the class of bug. The acquired geometry was re-verified
+  under the corrected gate (still 0 intersections, 0 repairs) and the fix differential-tested
+  against a brute-force reference over 3000 randomized pairs with zero real mismatches.
+- **Intersection epsilon had the wrong units** — plane distances were not normalized by
+  `|n|` (= 2·area), so the perpendicular tolerance scaled as 1/area and finely tessellated
+  non-touching sheets were reported as intersecting. Fixed; covered by tessellation-density
+  and coordinate-scale invariance tests.
+- **`n_elements` published blockMesh's pre-snap background count** (41 000) for
+  external-geometry cases while the gate's own checkMesh reported 40 800 — the wrong number
+  was in the provenance-bearing field. Now parses the final snappy stage line.
+- **checkMesh D1 diagnostics vanished exactly when a mesh was bad** — the regexes matched
+  only v2412's pass-branch wording, so a loud NO-GO lost the numbers explaining it.
+- **The mapped-inlet contingency was dead on arrival** — collinear boundaryData points,
+  which v2412's planar interpolation rejects outright. Now spans two z rows.
+- **The Q attestation was not bound to the meshed surface** — `--repair` (never written
+  back) or a `--stl` override could attest one surface while meshing another; the driver
+  now refuses unless the gated digest equals the meshed digest.
+- **The verdict stamped a V1-V4 rule while never evaluating V2** (solve converged). V2 is
+  now enforced fail-loud in the case evaluation and every clause is recorded in the bundle.
+  (The Stage-18 solve did converge at 265 iterations — the gate, not the result, was wrong.)
+
+The campaign was re-run end to end under the fixed code; all five gated quantities
+reproduced identically.
+
 ### CI
 
 - **`tag-handoff-gate.yml` (NEW)** — a `v0.0.*` tag push now actually validates that the stage's
