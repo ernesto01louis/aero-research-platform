@@ -28,6 +28,13 @@ The platform did NOT analytically generate this shape. Acquisition chain, execut
    file `turek-hron-fsi3/fluid-openfoam/system/blockMeshDict`
    (sha256 `9d85bd3e3e6fd8d58eb3d7115c1ae2685abad8ac8918ba08661acd5c81816d7c`) —
    the third-party-authored body-fitted mesh of the benchmark fluid domain.
+   **Branch note (corrected post-tag):** that commit is the head of the repo's
+   `master` branch (2024-04-16); the repo's DEFAULT and actively maintained branch is
+   **`develop`** (head `cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e` at 2026-07-26). The
+   `blockMeshDict` is **byte-identical on both branches** (same sha256, verified by
+   direct diff), so the acquired geometry is unaffected by the branch choice; but
+   anything else read from this tutorial — notably `reference-results/`, `fluid-nutils`
+   and `solid-nutils` — exists **only on `develop`**, not at the pinned `master` commit.
 2. **Mesh + extract** (OpenFOAM-ESI v2412 SIF on aero-dev): the *upstream*
    blockMeshDict was run verbatim (`blockMesh`), then the body wall surface was
    extracted with `surfaceMeshExtract -patches '("cylinder" "flap")' band.stl` —
@@ -103,9 +110,10 @@ finest-level values stable to ~0.1 % (CFD2 drag) and ~1 % (CFD3 amplitudes). Car
 `cfd_reference.csv` is git-tracked (small scalar table — forward-regime tier
 convention). `cylinder_flag.stl` (65 KB binary) is DVC-tracked
 (`cylinder_flag.stl.dvc`, default remote `aero-minio`) with the git-tracked sha256
-sidecar; the upstream `reference-results/` FSI3 tarballs
-(`fluid-openfoam_solid-dealii.tar.gz` etc., same pinned commit) are NOT vendored here
-— Stage 19 acquires the displacement data it gates on.
+sidecar. The upstream `reference-results/` FSI3 tarballs
+(`fluid-openfoam_solid-dealii.tar.gz`, `fluid-nutils_solid-nutils.tar.gz`) are NOT
+vendored here — Stage 19 acquires the displacement data it gates on, and must fetch
+them from the **`develop`** branch (they do NOT exist at the `master` pin above).
 
 ## License
 
