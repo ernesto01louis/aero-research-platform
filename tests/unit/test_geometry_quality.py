@@ -137,3 +137,52 @@ def test_intersection_check_can_be_skipped_but_is_recorded() -> None:
     report = compute_quality(crossing_triangles(), check_self_intersections=False)
     assert not report.self_intersections_checked
     assert report.n_intersecting_pairs == 0
+
+
+# --- regressions: Stage-18 adversarial review (self-intersection false neg/pos) ------
+
+
+def test_on_plane_edge_intersection_is_detected() -> None:
+    """Vertices exactly on the other triangle's plane must not collapse the interval."""
+    from tests.unit.geometry_fixtures import on_plane_edge_triangles
+
+    assert compute_quality(on_plane_edge_triangles()).n_intersecting_pairs == 1
+
+
+def test_single_on_plane_vertex_intersection_is_detected() -> None:
+    from tests.unit.geometry_fixtures import single_on_plane_vertex_triangles
+
+    assert compute_quality(single_on_plane_vertex_triangles()).n_intersecting_pairs == 1
+
+
+@pytest.mark.parametrize("rot_a", [0, 1, 2])
+@pytest.mark.parametrize("rot_b", [0, 1, 2])
+def test_intersection_count_is_corner_order_invariant(rot_a: int, rot_b: int) -> None:
+    """The property that structurally forbids the odd-vertex class of bug: rotating a
+    face's corners is the same geometry, so the verdict may not change."""
+    from tests.unit.geometry_fixtures import on_plane_edge_triangles
+
+    surf = on_plane_edge_triangles()
+    faces = surf.faces.copy()
+    faces[0] = np.roll(faces[0], rot_a)
+    faces[1] = np.roll(faces[1], rot_b)
+    rotated = TriSurface(surf.vertices, faces)
+    assert compute_quality(rotated).n_intersecting_pairs == 1
+
+
+@pytest.mark.parametrize("subdiv", [1, 2, 4, 8])
+def test_close_but_separated_plates_never_intersect(subdiv: int) -> None:
+    """The coplanarity window is a length (1e-9 * bbox_diag), NOT 1/area: refining the
+    tessellation alone must not manufacture intersections."""
+    from tests.unit.geometry_fixtures import near_coplanar_plates
+
+    surf = near_coplanar_plates(gap=1e-4, extent=8e-3, subdiv=subdiv)
+    assert compute_quality(surf).n_intersecting_pairs == 0
+
+
+@pytest.mark.parametrize("scale", [1e-3, 1.0, 1e3])
+def test_intersection_classification_is_scale_invariant(scale: float) -> None:
+    from tests.unit.geometry_fixtures import near_coplanar_plates
+
+    surf = near_coplanar_plates(gap=1e-4, extent=8e-3, subdiv=8, scale=scale)
+    assert compute_quality(surf).n_intersecting_pairs == 0

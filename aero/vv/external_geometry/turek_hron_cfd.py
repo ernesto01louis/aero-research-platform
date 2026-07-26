@@ -23,6 +23,7 @@ formal observed-order GCI claim is out of scope for Stage 18 (single evaluation,
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,9 @@ from aero.vv._base import (
 )
 
 __all__ = ["TurekHronCFD2", "TurekHronCFD3"]
+
+# simpleFoam's early-exit banner — the machine-checkable form of ADR-034's V2.
+_SIMPLE_CONVERGED_RE = re.compile(r"SIMPLE solution converged in \d+ iterations")
 
 _REFERENCE_DIR = Path("data") / "references" / "fsi" / "turek_hron_fsi3"
 _STL_NAME = "cylinder_flag.stl"
@@ -155,6 +159,18 @@ class TurekHronCFD2:
         solve = solver.load(result)
         if solve.cd is None or solve.cl is None:
             raise BenchmarkError(f"{self.name}: solve reported no cd/cl — no forceCoeffs output?")
+        # ADR-034 gate V2 — the steady solve must actually have CONVERGED. simpleFoam
+        # exits early on residualControl and logs "SIMPLE solution converged in N
+        # iterations"; a run that burns every iteration while the force is still
+        # drifting must NOT be reported, however close cd[-1] happens to land (the
+        # `_load_moving` fail-loud precedent).
+        if not _SIMPLE_CONVERGED_RE.search(getattr(result, "solver_log", "") or ""):
+            raise BenchmarkError(
+                f"{self.name}: V2 FAILED — simpleFoam never reported convergence "
+                f"(final residual {solve.final_residual:.3e} after "
+                f"{solve.iterations_to_convergence} iterations). A non-converged solve "
+                "is not reportable; investigate, do not relax the gate."
+            )
         return {"cd": solve.cd, "cl": solve.cl}
 
     def refined(self, ratio: float) -> TurekHronCFD2:

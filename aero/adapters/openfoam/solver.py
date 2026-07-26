@@ -79,6 +79,10 @@ from aero.postprocess.phase_averaging import segment_cycles
 __all__ = ["OpenFOAMSolver", "build_apptainer_exec"]
 
 _CELL_COUNT_RE = re.compile(r"nCells:\s*(\d+)")
+# snappyHexMesh reports its stages as `<stage> : cells:NNNN` and never prints `nCells:`,
+# so an external-geometry mesh whose count came from `_CELL_COUNT_RE` would be the
+# PRE-SNAP blockMesh background count. Take the LAST snappy stage line instead.
+_SNAPPY_CELL_COUNT_RE = re.compile(r"\bcells:\s*(\d+)")
 _P_RESIDUAL_RE = re.compile(r"Solving for p,\s*Initial residual\s*=\s*([0-9.eE+-]+)")
 
 
@@ -170,12 +174,14 @@ class OpenFOAMSolver(Solver):
         ok = result.ok and polymesh.is_file()
         if not ok:
             logger.error("blockMesh failed (rc={}):\n{}", result.returncode, result.stdout)
-        cells = _CELL_COUNT_RE.search(result.stdout)
-        return MeshHandle(
-            case_dir=case_dir,
-            ok=ok,
-            n_elements=int(cells.group(1)) if cells else None,
-        )
+        if isinstance(spec, ExternalGeometrySpec):
+            # Last snappy stage line = the final (post-snap, post-layer) cell count.
+            snappy_counts = _SNAPPY_CELL_COUNT_RE.findall(result.stdout)
+            n_elements = int(snappy_counts[-1]) if snappy_counts else None
+        else:
+            cells = _CELL_COUNT_RE.search(result.stdout)
+            n_elements = int(cells.group(1)) if cells else None
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements)
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).

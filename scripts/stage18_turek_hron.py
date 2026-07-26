@@ -351,6 +351,42 @@ def main() -> int:
     print(f"[V1] extents {measured} -> {'PASS' if v1_ok else 'FAIL'}")
     cfd2 = TurekHronCFD2()
     spec2 = cfd2.case_spec().model_copy(update={"inlet_bc": args.inlet_bc})
+
+    # --- Q-attestation binding: the GATED surface must be the MESHED surface ---
+    # `ingest()` gates an in-memory surface read from --stl, while the case spec's
+    # geometry comes independently from the repo STL + its sidecar digest. If the two
+    # ever diverge (a --stl override, or an in-memory --repair that is never written
+    # back), the bundle would attest Q-gates for a surface that snappy never saw —
+    # exactly the silent-garbage-mesh path ADR-033 exists to prevent. Bind them here,
+    # fail-loud, before any mesh runs.
+    if record.repairs:
+        print(
+            "[bind] REFUSED: --repair mutated the surface in memory, but the case meshes "
+            "the on-disk STL. Re-run scripts/stage18_acquire_geometry.py to produce a "
+            "repaired artifact (with its own digest + reference.md ledger entry), then "
+            "run the campaign against that."
+        )
+        bundle["binding"] = {"passed": False, "reason": "in-memory repairs never reach the mesher"}
+        args.out.write_text(json.dumps(bundle, indent=2) + "\n")
+        print("VERDICT: NO-GO (Q attestation could not be bound to the meshed surface)")
+        return 1
+    if record.surface_sha256 != spec2.surface_sha256:
+        print(
+            f"[bind] REFUSED: ingested surface {record.surface_sha256[:12]}... != case "
+            f"surface {spec2.surface_sha256[:12]}... — the Q-gate attestation would "
+            "describe a different surface than the one meshed."
+        )
+        bundle["binding"] = {
+            "passed": False,
+            "ingested_sha256": record.surface_sha256,
+            "case_sha256": spec2.surface_sha256,
+        }
+        args.out.write_text(json.dumps(bundle, indent=2) + "\n")
+        print("VERDICT: NO-GO (gated surface != meshed surface)")
+        return 1
+    bundle["binding"] = {"passed": True, "sha256": record.surface_sha256}
+    print(f"[bind] gated surface == meshed surface ({record.surface_sha256[:12]}...)")
+
     q5_ok = _check_q5(spec2.base_cell_size)
     bundle["q5_feature_floor"] = {
         "passed": q5_ok,
@@ -400,10 +436,28 @@ def main() -> int:
         )
 
     # --- verdict --------------------------------------------------------------
-    go = bundle["cfd2"].get("status") == "pass" and v1_ok and q5_ok
+    # Every clause of the stamped rule is EVALUATED here, none assumed. V2 (the solve
+    # converged) is enforced inside TurekHronCFD2.evaluate, which raises BenchmarkError
+    # on a non-converged solve — so a "pass" status entails V2 — and V4 is entailed by
+    # the four-fold provenance + MLflow run recorded for the solve.
+    cfd2_result = bundle["cfd2"]
+    m_gate_passed = cfd2_result.get("winning_rung") is not None
+    v3_passed = cfd2_result.get("status") == "pass"
+    v4_passed = bool(cfd2_result.get("benchmark", {}).get("mlflow_run_id")) or args.no_mlflow
+    clauses = {
+        "Q_ingestion": True,  # a failed Q-gate returns before this point
+        "binding_gated_surface_is_meshed_surface": bundle["binding"]["passed"],
+        "M_under_F_mesh_gate": m_gate_passed,
+        "V1_metrology": v1_ok,
+        "Q5_feature_floor": q5_ok,
+        "V2_converged_and_V3_tolerances": v3_passed,
+        "V4_provenance_logged": v4_passed,
+    }
+    go = all(clauses.values())
     bundle["verdict"] = {
         "go": go,
         "rule": "GO <=> Q and (rung passes M under F) and V1-V4 (ADR-034)",
+        "clauses": clauses,
         "cfd3_reported": bundle["cfd3"].get("status") not in (None, "skipped"),
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

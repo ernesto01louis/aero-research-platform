@@ -149,3 +149,67 @@ def cube_with_split_seam() -> TriSurface:
     for i in range(4):  # remap the two top faces to the duplicated ring 8..11
         faces[2:4][faces[2:4] == 4 + i] = 8 + i
     return TriSurface(vertices, faces)
+
+
+def on_plane_edge_triangles() -> TriSurface:
+    """Two triangles sharing a real segment, with vertices EXACTLY on each other's
+    plane — the Möller zero-distance case (regression: Stage-18 review finding 1)."""
+    vertices = np.array(
+        [
+            (1.0, 4.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (1.0, 2.0, 1.0),  # triangle A, in the plane x = 1
+            (-1.0, -1.0, 0.0),
+            (3.0, -1.0, 0.0),
+            (1.0, 3.0, 0.0),  # triangle B, in the plane z = 0
+        ],
+        dtype=np.float64,
+    )
+    faces = np.array([(0, 1, 2), (3, 4, 5)], dtype=np.int64)
+    return TriSurface(vertices, faces)
+
+
+def single_on_plane_vertex_triangles() -> TriSurface:
+    """Triangles crossing with exactly ONE vertex on the other's plane
+    (dist = [0, +a, -b]) — the other zero-distance branch."""
+    vertices = np.array(
+        [
+            (0.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (1.0, 2.0, 0.0),  # triangle A in z = 0
+            (1.0, 0.5, 0.0),  # exactly on A's plane
+            (1.0, 0.5, 1.0),
+            (1.0, 2.5, -1.0),
+        ],
+        dtype=np.float64,
+    )
+    faces = np.array([(0, 1, 2), (3, 4, 5)], dtype=np.int64)
+    return TriSurface(vertices, faces)
+
+
+def near_coplanar_plates(
+    gap: float = 1e-4, extent: float = 8e-3, subdiv: int = 4, scale: float = 1.0
+) -> TriSurface:
+    """Two parallel, finely tessellated plates separated by `gap` — they never touch.
+
+    Regression for Stage-18 review finding 2: the coplanarity epsilon must be a LENGTH,
+    so refining the tessellation (smaller facets) must not manufacture intersections.
+    """
+    verts: list[tuple[float, float, float]] = []
+    faces: list[tuple[int, int, int]] = []
+    for plate, z in enumerate((0.0, gap)):
+        base = len(verts)
+        for i in range(subdiv + 1):
+            for j in range(subdiv + 1):
+                verts.append((extent * i / subdiv, extent * j / subdiv, z))
+        stride = subdiv + 1
+        for i in range(subdiv):
+            for j in range(subdiv):
+                a = base + i * stride + j
+                b, c, d = a + 1, a + stride, a + stride + 1
+                if plate == 0:
+                    faces += [(a, b, c), (b, d, c)]
+                else:
+                    faces += [(a, c, b), (b, c, d)]
+    v = np.array(verts, dtype=np.float64) * scale
+    return TriSurface(v, np.array(faces, dtype=np.int64))

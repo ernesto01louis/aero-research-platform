@@ -121,3 +121,37 @@ def test_gate_thresholds_are_the_preregistered_defaults() -> None:
     assert gate.require_mesh_ok
     assert gate.forbid_negative_volumes
     assert gate.min_cells == 1000
+
+
+# --- regression: v2412 fail-branch wording (Stage-18 review finding 5) ---------------
+
+_FAIL_BRANCH_WORDING = """
+Mesh stats
+    cells:            9000
+Checking geometry...
+ ***High aspect ratio cells found, Max aspect ratio: 1204.5, number of cells 37
+ ***Zero or negative cell volume detected.  Minimum negative volume: -2.1e-12, Number of negative volume cells: 5
+ ***Mesh non-orthogonality Max: 81.3 average: 22.4
+ ***Max skewness = 9.4, 12 highly skew faces detected
+Failed 4 mesh checks.
+End
+"""
+
+
+def test_fail_branch_diagnostics_are_still_parsed() -> None:
+    """D1 diagnostics must survive precisely when the mesh is BAD — otherwise the
+    loud-NO-GO record loses the numbers that explain it."""
+    m = parse_checkmesh(_FAIL_BRANCH_WORDING)
+    assert m.max_aspect_ratio == 1204.5  # colon wording, not "= X OK."
+    assert m.max_non_orthogonality == 81.3
+    assert m.max_skewness == 9.4
+    assert m.min_volume == -2.1e-12  # "Minimum negative volume:" branch
+    assert m.negative_volumes
+    assert not m.mesh_ok
+    result = MeshQualityGate().evaluate(m)
+    assert not result.passed
+    # The gate still names the real breaches (not "missing metric" placeholders).
+    text = " | ".join(result.failures)
+    assert "M2 max non-orthogonality 81.30" in text
+    assert "M3 max skewness 9.400" in text
+    assert "M4" in text

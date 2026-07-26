@@ -109,6 +109,15 @@ def test_mapped_inlet_writes_boundary_data(tmp_path: Path) -> None:
     assert points.splitlines()[0] == values.splitlines()[0]  # same sample count
     # Mid-channel sample must be ~1.5 * u_mean (parabolic peak).
     assert f"({1.5 * spec.u_mean:.10g} 0 0)" in values
+    # The samples must span a PLANE, not a line: v2412's planar-interpolation basis
+    # FatalErrors on collinear boundaryData ("all your points on a single line").
+    coords = [
+        tuple(float(v) for v in line.strip().strip("()").split())
+        for line in points.splitlines()[2:]
+        if line.startswith("(")
+    ]
+    assert len({c[2] for c in coords}) >= 2, "boundaryData points are collinear in z"
+    assert len({c[1] for c in coords}) >= 3
 
 
 def test_parabolic_expression_peaks_at_1p5_umean(tmp_path: Path) -> None:

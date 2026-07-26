@@ -153,7 +153,20 @@ def _interval_on_line(proj: np.ndarray, dist: np.ndarray) -> tuple[np.ndarray, n
     signed distances to the *other* triangle's plane (not all one strict sign).
     """
     d0, d1, d2 = dist[:, 0], dist[:, 1], dist[:, 2]
-    odd = np.where(d0 * d1 > 0.0, 2, np.where(d0 * d2 > 0.0, 1, 0))
+    # Möller's full odd-vertex selection. The two trailing branches matter whenever a
+    # vertex lies EXACTLY on the other triangle's plane (routine for axis-aligned or
+    # planar-faceted CAD): picking a zero-distance vertex as the odd one collapses both
+    # interpolants to a point, so the interval degenerates and a real intersection is
+    # missed. Zero distances are the common case, not an exotic one.
+    odd = np.where(
+        d0 * d1 > 0.0,
+        2,
+        np.where(
+            d0 * d2 > 0.0,
+            1,
+            np.where((d1 * d2 > 0.0) | (d0 != 0.0), 0, np.where(d1 != 0.0, 1, 2)),
+        ),
+    )
     rows = np.arange(dist.shape[0])
     others = np.stack([(odd + 1) % 3, (odd + 2) % 3], axis=1)
     p_odd = proj[rows, odd][:, None]
@@ -201,8 +214,13 @@ def _count_intersections(surface: TriSurface, active: np.ndarray) -> int:
     t2 = tri[pairs[:, 1]]
     n1 = np.cross(t1[:, 1] - t1[:, 0], t1[:, 2] - t1[:, 0])
     n2 = np.cross(t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0])
-    d1 = np.einsum("pki,pi->pk", t1 - t2[:, 0:1], n2)  # T1 verts vs T2 plane
-    d2 = np.einsum("pki,pi->pk", t2 - t1[:, 0:1], n1)  # T2 verts vs T1 plane
+    # |n| = 2*area, so a raw dot product with an un-normalized normal carries units of
+    # length*area and cannot be compared against `eps`, which is a LENGTH. Without this
+    # division the effective perpendicular tolerance scales as 1/area, so on a finely
+    # tessellated surface distinct-but-close sheets get classified coplanar and reported
+    # as intersecting. Both faces come from `active` (non-degenerate) => |n| > 0.
+    d1 = np.einsum("pki,pi->pk", t1 - t2[:, 0:1], n2) / np.linalg.norm(n2, axis=1)[:, None]
+    d2 = np.einsum("pki,pi->pk", t2 - t1[:, 0:1], n1) / np.linalg.norm(n1, axis=1)[:, None]
 
     strict_apart_1 = (d1 > eps).all(axis=1) | (d1 < -eps).all(axis=1)
     strict_apart_2 = (d2 > eps).all(axis=1) | (d2 < -eps).all(axis=1)

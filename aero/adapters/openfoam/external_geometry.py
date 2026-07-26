@@ -501,13 +501,19 @@ def _mapped_inlet_boundary_data(spec: ExternalGeometrySpec, constant: Path) -> N
     bd = constant / "boundaryData" / "inlet"
     t0 = bd / "0"
     t0.mkdir(parents=True, exist_ok=True)
-    zc = 0.5 * spec.slab_thickness
+    # The samples must define a PLANE, not a line: v2412's timeVaryingMappedFixedValue
+    # builds a planar interpolation basis (pointToPointPlanarInterpolation) and
+    # FatalErrors with "Are all your points on a single line instead of a plane?" if
+    # every sample shares one z. Emit two z rows spanning the slab. The profile is
+    # z-invariant, so both rows carry the same velocity.
+    z_rows = (0.0, spec.slab_thickness)
     pts, vals = [], []
-    for j in range(n_samples + 1):
-        y = y0 + h * j / n_samples
-        u = 6.0 * spec.u_mean * (y - y0) * (y1 - y) / (h * h)
-        pts.append(f"({x0:.10g} {y:.10g} {zc:.10g})")
-        vals.append(f"({u:.10g} 0 0)")
+    for z in z_rows:
+        for j in range(n_samples + 1):
+            y = y0 + h * j / n_samples
+            u = 6.0 * spec.u_mean * (y - y0) * (y1 - y) / (h * h)
+            pts.append(f"({x0:.10g} {y:.10g} {z:.10g})")
+            vals.append(f"({u:.10g} 0 0)")
     (bd / "points").write_text(f"{len(pts)}\n(\n" + "\n".join(pts) + "\n)\n", encoding="utf-8")
     (t0 / "U").write_text(f"{len(vals)}\n(\n" + "\n".join(vals) + "\n)\n", encoding="utf-8")
 

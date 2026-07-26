@@ -38,10 +38,16 @@ _FLOAT = r"(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)"
 _RE_MESH_OK = re.compile(r"Mesh OK")
 _RE_FAILED = re.compile(r"Failed (\d+) mesh checks")
 _RE_CELLS = re.compile(r"^\s*cells:\s+(\d+)\s*$", re.MULTILINE)
-_RE_ASPECT = re.compile(rf"Max aspect ratio = {_FLOAT}")
-_RE_NON_ORTHO = re.compile(rf"non-orthogonality Max: {_FLOAT}")
-_RE_SKEW = re.compile(rf"[Mm]ax skewness = {_FLOAT}")
-_RE_MIN_VOLUME = re.compile(rf"Min volume = {_FLOAT}")
+# v2412 prints each diagnostic in TWO mutually exclusive branches — the pass branch
+# ("Max aspect ratio = X OK.") and the fail branch ("***High aspect ratio cells found,
+# Max aspect ratio: X, ..."), which uses a colon. Matching only the pass wording would
+# drop the D1 diagnostics from the report exactly when the mesh is bad and the operator
+# needs them to explain a loud NO-GO. Both spellings are matched.
+_RE_ASPECT = re.compile(rf"Max aspect ratio[ =:]+{_FLOAT}")
+_RE_NON_ORTHO = re.compile(rf"non-orthogonality Max[ =:]+{_FLOAT}")
+_RE_SKEW = re.compile(rf"[Mm]ax skewness[ =:]+{_FLOAT}")
+# Fail branch reports the negative extreme instead: "Minimum negative volume: X".
+_RE_MIN_VOLUME = re.compile(rf"(?:Min volume|Minimum negative volume)[ =:]+{_FLOAT}")
 _RE_NEGATIVE = re.compile(r"[Zz]ero or negative cell volume|negative cell volumes")
 
 
