@@ -52,6 +52,10 @@
       "y_max": 0.25
     }
   },
+  "binding": {
+    "passed": true,
+    "sha256": "155b66892fb8564f100730eba3477aea0161e0ad38b3b79d0d453ee6f4990cf2"
+  },
   "q5_feature_floor": {
     "passed": true,
     "flag_thickness": 0.02,
@@ -67,7 +71,7 @@
             "cell_size_factor": 1.0,
             "n_surface_layers": 2
           },
-          "run_id": "turek_hron_cfd2-r0-20260726-001030",
+          "run_id": "turek_hron_cfd2-r0-20260726-040325",
           "base_cell_size": 0.005,
           "mesh_completed": true,
           "gate": {
@@ -90,8 +94,8 @@
       "passed_rung": "R0"
     },
     "winning_rung": "R0",
-    "run_id": "turek_hron_cfd2-r0-20260726-001030",
-    "n_elements": 41000,
+    "run_id": "turek_hron_cfd2-r0-20260726-040325",
+    "n_elements": 40800,
     "benchmark": {
       "case_name": "turek_hron_cfd2",
       "status": "pass",
@@ -116,15 +120,15 @@
         }
       ],
       "provenance": {
-        "git_sha": "8ce157cd769a388c0cebda630857cb7bab4dac70",
+        "git_sha": "6abf00f62f2b25f2769af9c956feb8628898983a",
         "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "444eb919eb7c993a26a5ee42c430d322c2f303e9c7b0ee8f91ad4e6279ab526b"
       },
       "solver_version": "OpenFOAM-ESI v2412",
       "validation_tag": "turek_hron_cfd2",
-      "mlflow_run_id": "54e5983e5a92424d96cd31931c3feaa5",
-      "n_elements": 41000
+      "mlflow_run_id": "c0dfea184dea497db9bc94050397e8c2",
+      "n_elements": 40800
     }
   },
   "cfd3": {
@@ -137,7 +141,7 @@
             "cell_size_factor": 1.0,
             "n_surface_layers": 2
           },
-          "run_id": "turek_hron_cfd3-r0-20260726-001334",
+          "run_id": "turek_hron_cfd3-r0-20260726-040629",
           "base_cell_size": 0.005,
           "mesh_completed": true,
           "gate": {
@@ -160,8 +164,8 @@
       "passed_rung": "R0"
     },
     "winning_rung": "R0",
-    "run_id": "turek_hron_cfd3-r0-20260726-001334",
-    "n_elements": 41000,
+    "run_id": "turek_hron_cfd3-r0-20260726-040629",
+    "n_elements": 40800,
     "benchmark": {
       "case_name": "turek_hron_cfd3",
       "status": "pass",
@@ -195,20 +199,29 @@
         }
       ],
       "provenance": {
-        "git_sha": "8ce157cd769a388c0cebda630857cb7bab4dac70",
+        "git_sha": "6abf00f62f2b25f2769af9c956feb8628898983a",
         "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
         "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
         "config_hash": "ffb1dfe6b051c261d7cc46125a66a3794fb7646ed10554a43b8ad144e97568bb"
       },
       "solver_version": "OpenFOAM-ESI v2412",
       "validation_tag": "turek_hron_cfd3",
-      "mlflow_run_id": "a14e2cd34b1145b48b858a1b96fa0ac8",
-      "n_elements": 41000
+      "mlflow_run_id": "650ac4358365468f9db9e067b4681bec",
+      "n_elements": 40800
     }
   },
   "verdict": {
     "go": true,
     "rule": "GO <=> Q and (rung passes M under F) and V1-V4 (ADR-034)",
+    "clauses": {
+      "Q_ingestion": true,
+      "binding_gated_surface_is_meshed_surface": true,
+      "M_under_F_mesh_gate": true,
+      "V1_metrology": true,
+      "Q5_feature_floor": true,
+      "V2_converged_and_V3_tolerances": true,
+      "V4_provenance_logged": true
+    },
     "cfd3_reported": true
   }
 }
