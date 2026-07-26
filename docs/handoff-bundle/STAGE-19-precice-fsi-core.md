@@ -14,11 +14,15 @@
 2. ADR-016 (FSI structural-solver strategy — the split decision this stage executes; it
    moves to `accepted` when the FSI3 gate passes). ADR-033/034 (the ingested Turek-Hron
    geometry + the pre-registered gate pattern to mirror for the FSI gates).
-3. `data/references/fsi/turek_hron_fsi3/reference.md` — the pinned upstream commit
-   (`precice/tutorials` @ `98a78fe2...`) whose `turek-hron-fsi3/` case IS the supported
-   tutorial this stage runs; its `reference-results/` tarballs
-   (`fluid-openfoam_solid-dealii.tar.gz`, `fluid-nutils_solid-nutils.tar.gz`) are the
-   upstream watchpoint data — acquire the FSI3 displacement reference DVC-tracked here.
+3. `data/references/fsi/turek_hron_fsi3/reference.md` — the Stage-18 geometry
+   provenance. **Branch caveat:** Stage 18 pinned `precice/tutorials` @ `98a78fe2` on the
+   `master` branch, but the repo's default/maintained branch is **`develop`** (head
+   `cd33e2db` at 2026-07-26). The `blockMeshDict` is byte-identical on both, so the
+   Stage-18 geometry is fine — but the FSI tutorial's `reference-results/` tarballs
+   (`fluid-openfoam_solid-dealii.tar.gz`, `fluid-nutils_solid-nutils.tar.gz`) and the
+   `solid-nutils` / `fluid-nutils` participants exist **only on `develop`**. Pin a
+   `develop` commit for this stage and record it; acquire the FSI3 displacement
+   reference DVC-tracked under `data/references/fsi/turek_hron_fsi3/`.
 4. `.claude/rules/flapping-validation-ladder.md` (FSI tier); `docs/vv/output-validity-bar.md`.
 
 ## Why this stage
@@ -34,7 +38,11 @@ application-fidelity are deliberately distinct claims).
 1. **`aero/adapters/precice/`** populated + `aero[precice]` extra (pyprecice, pinned; the
    preCICE 3.x OpenFOAM-adapter + solid-solver version pins confirmed in an ADR — Hard
    Rule 8). SIF/container strategy for the coupled pair documented (two SIFs + one
-   precice-config, or one combined SIF — ADR the choice).
+   precice-config, or one combined SIF — ADR the choice). **Solid-solver note:**
+   `solid-nutils` (pure-Python, pip-installable) is a far lighter first participant than
+   `solid-dealii` (C++ build) and is on `develop` with its own reference-results tarball;
+   ADR-016 named deal.II/Nutils interchangeably, so either satisfies the coupling-
+   verification claim. Consider Nutils first to de-risk, deal.II only if needed.
 2. **Turek-Hron FSI3 coupling verification** on the pinned upstream tutorial: run the
    supported OpenFOAM + deal.II (or Nutils) FSI3 case; gate on the flag-tip displacement
    amplitude + frequency within the published Turek & Hron (2006) bands
