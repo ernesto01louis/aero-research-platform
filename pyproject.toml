@@ -160,7 +160,7 @@ physicsnemo-cu12 = [
 
 # Stage 11 — preCICE 3 multi-physics coupling
 precice = [
-    # populated in stage-11: pyprecice
+    # populated in stage-19 (ADR-016, post-renumbering): pyprecice
 ]
 
 # Stage 04 — provenance backbone (version floors recorded in ADR-004)

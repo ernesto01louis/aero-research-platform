@@ -100,7 +100,7 @@ Then begin work.
 10. **POST-STAGE HANDOFF MANDATORY.** No `v0.0.NN` tag without
     `docs/handoffs/STAGE-NN-<slug>-DONE-YYYY-MM-DD.md` existing with
     valid frontmatter (the `Stop` hook in `.claude/settings.json`
-    enforces this in-session; CI enforces it on tag push).
+    enforces this in-session; CI enforces it on tag push via `tag-handoff-gate.yml`, Stage 18).
 11. **DO NOT TOUCH PRE-EXISTING NON-AERO INFRASTRUCTURE.** The Proxmox
     host runs many other workloads (LXCs 101-114, 200-207 except where
     explicitly listed below; VMs 100, 104, 111, 112). The aero stack
@@ -419,6 +419,40 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   **committed** from Stage 10 on (`docs/handoff-bundle/STAGE-NN-<slug>.md`); each handoff
   authors the next stage's prompt.
 
+- **Arbitrary-geometry ingestion + robust meshing** (Stage 18, ADR-033/034) —
+  `aero/geometry/` is the pure stdlib+numpy+pydantic ingestion core: STL (binary+ASCII)
+  + single-mesh 3MF loaders with **exact-weld normalization** (bitwise dedup only —
+  tolerance merging is a *declared repair*), a typed `QualityReport` (watertightness,
+  edge-manifoldness, winding consistency, duplicates, degenerates, pairwise
+  self-intersection via sweep-and-prune + Möller), **bounded declared repair** with a
+  typed `RepairAction` ledger, and `ingest()` raising fail-loud `GeometryError` (CLI
+  `aero geometry ingest`, exit code 5). STEP rides behind the **`aero[cad]` extra**
+  (`build123d==0.11.1`, Apache-2.0 atop OCP/OCCT LGPL-2.1+exception — disposition in
+  ADR-033); `load_step` lazy-imports and exact-welds OCCT's per-face tessellation.
+  `import-platform-only` imports `aero.geometry` and bans the CAD kernels.
+
+  The mesh side (`aero/adapters/openfoam/`): `mesh_quality.py` is the typed checkMesh
+  gate (M1 "Mesh OK", M2 non-ortho ≤ 65, M3 skew ≤ 4, M4 no negative volumes, M5 ≥ 1000
+  cells — missing metrics FAIL, never pass); `external_geometry.py` writes quasi-2D
+  snappy cases (**one-cell slab at target resolution, castellate+snap with NO volumetric
+  refinement** — snappy cannot refine anisotropically — then `flattenMesh` + `empty`;
+  `exprFixedValue` parabolic inlet, confirmed working in the v2412 SIF, with a
+  `timeVaryingMappedFixedValue` fallback); `robust_mesh.py` walks the pre-registered
+  fallback ladder (R0 layers → R1 no layers → R2 1.5× coarser) — the ladder degrades
+  COST, never thresholds (F4 structural), exhaustion raises `GeometryError` with the
+  full `MeshLadderReport`. `OpenFOAMSolver.mesh()` runs external-geometry meshes
+  **detached** (snappy exceeds the legacy 900 s sync cap). The spec's `surface_sha256`
+  rides in `config_hash`; the writer refuses byte-mismatched surfaces.
+
+  The Turek-Hron cylinder+flag geometry is EXTERNAL: extracted from the pinned
+  `precice/tutorials` blockMesh case (LGPL-3.0) with a declared two-cap closure, strict
+  gate zero-repair verified — full provenance + published CFD1/2/3 values in
+  `data/references/fsi/turek_hron_fsi3/reference.md` (STL DVC-tracked + sha256
+  sidecar the V&V cases verify). V&V: `aero/vv/external_geometry/` — `turek_hron_cfd2`
+  (gated: cd 5 %, cl 10 %) + `turek_hron_cfd3` (stretch: cd 5 %, f 5 %, amplitude
+  15 %; near-zero mean lift is a diagnostic). The `aero vv run` path is single-shot
+  (no ladder) — promoting the ladder into the runner is ledgered.
+
 ## Pointers (do not re-derive — read these)
 
 - `CONSTITUTION.md` — invariants in spec-kit form
@@ -445,4 +479,4 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 ---
 
-*Stage 01 (2026-05-17); updated through Stage 09 (2026-06-01) by each stage's post-stage handoff write.*
+*Stage 01 (2026-05-17); updated through Stage 18 (2026-07-26) by each stage's post-stage handoff write.*

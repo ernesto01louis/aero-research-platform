@@ -1,6 +1,6 @@
 # ADR-016 — FSI structural-solver strategy (verify on the supported tutorial; CalculiX for the application)
 
-- **Status:** proposed (decision recorded now; formalized + validated at Stage 18)
+- **Status:** proposed (decision recorded now; formalized + validated at the FSI stage — **Stage 19 post-renumbering**; body stage numbers predate the ratified Stage-16 insertion: read 18→19, 19→20. Editorial note added Stage 18; decision unchanged.)
 - **Date:** 2026-06-10
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 09)
 - **Stage:** 09 (decision); 18 (execution)

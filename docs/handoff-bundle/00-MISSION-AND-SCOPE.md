@@ -110,7 +110,7 @@ geometry is the dominant practical failure mode** (snappyHexMesh/gmsh/cfMesh all
 struggle). Required: watertightness/quality gating, repair, sandboxing with fallback.
 The pragmatic pattern is **optimize in a parametric or FFD/SDF space, then emit
 manufacturable CAD** via CadQuery / build123d (both production-ready, OCCT-backed,
-2026). *(Stage 17; this replaces the demoted riblet-meshing gap.)*
+2026). *(Stage 18 post-renumbering; this replaces the demoted riblet-meshing gap. The committed STAGE-18 prompt scoped the stage to ingestion + robust meshing + one validated evaluation; FFD/SDF-space optimization and CAD emission are ledgered follow-ons.)*
 
 ### 3.3 Transition modeling
 Bio Reynolds numbers are **transitional** (laminar separation bubbles, transition on
@@ -175,7 +175,7 @@ bio-relevant references validated against **experiment / DNS**, not CFD-vs-CFD a
 | Forward-regime credibility | Laminar flat plate (Blasius); low-Re cylinder vortex-shedding Strouhal; a laminar/transitional airfoil | Blasius; canonical cylinder Strouhal; transition data | Stage 10 (added — the mission's actual regime) |
 | Unsteady machinery | Pitching / plunging airfoil | McCroskey dynamic-stall (NASA TM-84245); Heathcote-Gursul flexible foil | Stage 13 |
 | **Flapping wing (flagship)** | Revolving/flapping wing, rigid then flexible | **Dickinson et al. (1999)** Robofly forces; Wang-Birch-Dickinson (2004) | Stage 14 (rigid), Stage 19 (flexible) |
-| FSI machinery | Turek-Hron FSI3 | Turek & Hron (2006) — verified on the supported preCICE tutorial (deal.II/Nutils), ADR-016 | Stage 18 |
+| FSI machinery | Turek-Hron FSI3 | Turek & Hron (2006) — verified on the supported preCICE tutorial (deal.II/Nutils), ADR-016 | Stage 19 (geometry + tabulated CFD data acquired at Stage 18) |
 | **Optimization delta (the mission)** | A CFD-verified improvement on a parametric flapping case | held-out ground-truth CFD; delta > k·U95 | Stage 15 (thesis checkpoint) |
 
 ---
