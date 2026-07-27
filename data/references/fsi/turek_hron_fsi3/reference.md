@@ -224,7 +224,7 @@ reference we do not understand is worse than no gate.
   git-tracked) — a deterministic re-tar (sorted paths, fixed mtime, numeric 0/0 owner,
   `gzip -n`) of `turek-hron-fsi3/` (minus the 351 KB of doc `images/`) and `tools/`
   from the codeload archive of that commit; 332 KB unpacked.
-- **`tutorials_pin_manifest.csv`** (git-tracked, 95 files) — per-file sha256. **This, not
+- **`tutorials_pin_manifest.csv`** (git-tracked, 94 files) — per-file sha256. **This, not
   the archive checksum, is the integrity contract**: GitHub codeload tarballs are not
   guaranteed byte-stable across time, so `aero.adapters.precice.materialize_tutorial`
   verifies every materialized file against this manifest (ADR-036 C5).
