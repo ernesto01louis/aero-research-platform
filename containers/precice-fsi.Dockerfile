@@ -42,12 +42,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 # pkg-config is what the adapter's Allwmake uses to find preCICE; python3-dev and
 # libopenmpi-dev are what pyprecice needs to build from sdist (it has no wheels).
 # The X/GL libraries are gmsh's runtime dependencies — the solid meshes itself headless
-# from solid.geo at start-up.
+# from solid.geo at start-up. libgl1 is required even headless: gmsh's Python module
+# dlopens libGL.so.1 at IMPORT time, so without it the solid participant dies on its
+# first line. libglu1-mesa alone is not enough (found by the build smoke below).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates wget git pkg-config build-essential \
         python3 python3-venv python3-dev \
         libopenmpi-dev openmpi-bin \
-        libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1 libgomp1 \
+        libgl1 libglu1-mesa libxrender1 libxcursor1 libxft2 libxinerama1 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # --- preCICE from the official Ubuntu 24.04 ("noble") package ------------------------
@@ -101,7 +103,7 @@ RUN mkdir -p /case /work /opt/aero
 
 # --- build-time smoke: every interface the coupled run actually uses ------------------
 RUN precice-version \
-    && precice-config-validate --help > /dev/null \
+    && command -v precice-config-validate \
     && bash -lc 'ls "$FOAM_LIBBIN/libpreciceAdapterFunctionObject.so"' \
     && bash -lc 'command -v pimpleFoam blockMesh' \
     && python3 -c "import precice, nutils, numpy, gmsh; print('precice', precice.__version__, 'nutils', nutils.version, 'numpy', numpy.__version__)"

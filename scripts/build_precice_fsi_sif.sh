@@ -54,10 +54,13 @@ buildah bud \
     "${REPO_ROOT}/containers"
 
 # Record what actually went in — for ADR-035 and the post-stage handoff.
+# `buildah run` needs a working CONTAINER, not an image, so make a throwaway one.
+INSPECT_CTR="$(buildah from --quiet "$OCI_TAG")"
 log "openfoam-adapter commit baked into the image:"
-buildah run "$OCI_TAG" cat /opt/aero/openfoam-adapter.commit
+buildah run "$INSPECT_CTR" cat /opt/aero/openfoam-adapter.commit
 log "solid participant stack:"
-buildah run "$OCI_TAG" cat /opt/aero/solid-venv-freeze.txt
+buildah run "$INSPECT_CTR" cat /opt/aero/solid-venv-freeze.txt
+buildah rm "$INSPECT_CTR" >/dev/null
 
 log "pushing OCI image to ${OCI_ARCHIVE_HOST}"
 rm -f "$OCI_ARCHIVE_HOST"
