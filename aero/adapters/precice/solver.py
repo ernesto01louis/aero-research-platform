@@ -217,13 +217,22 @@ class PreciceCoupledSolver(Solver):
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Launch every participant concurrently under the supervisor script."""
         spec = self._coupled_spec(case_dir.spec)
+        # Bind the tutorial ROOT, not the case directory: upstream's run.sh scripts source
+        # ../../tools/log.sh and call ../../tools/run-openfoam.sh, which resolve OUTSIDE
+        # the case directory. Binding only the case would leave those paths pointing at a
+        # /tools that does not exist inside the container.
         plan = CoupledLaunchPlan(
-            case_root_remote=f"{self._remote_case_root(case_dir)}/{spec.tutorial_case}",
-            participants=spec.participants,
+            case_root_remote=self._remote_case_root(case_dir),
+            participants=tuple(
+                p.model_copy(update={"workdir": f"{spec.tutorial_case}/{p.workdir}"})
+                for p in spec.participants
+            ),
             sif_paths={p.sif: f"{self.sif_dir}/{p.sif}" for p in spec.participants},
             wall_clock_ceiling_s=spec.wall_clock_ceiling_s,
+            # preCICE writes precice-run/ beside the config, one level in from the root.
+            exchange_dir=spec.tutorial_case,
         )
-        case_root_host = self._case_root(case_dir) / spec.tutorial_case
+        case_root_host = self._case_root(case_dir)
         outcome = launch_coupled(
             plan, executor, run_id=case_dir.run_id, case_root_host=case_root_host
         )
@@ -257,7 +266,7 @@ class PreciceCoupledSolver(Solver):
         """Read a watch-point, verifying its header against the configuration (gate C4)."""
         spec = self._coupled_spec(result.case_dir.spec)
         config = self.config_for(result.case_dir)
-        workdir = spec.participant(participant).workdir
+        workdir = f"{spec.tutorial_case}/{spec.participant(participant).workdir}"
         path = watchpoint_path(result.output_host_path, workdir, participant, name)
         return read_watchpoint(
             path,

@@ -66,6 +66,16 @@ class CoupledLaunchPlan(BaseModel):
     # budget that makes no sense is caught on CoupledCaseSpec (ge=60), which is where the
     # pre-declared ceiling actually lives.
     wall_clock_ceiling_s: int = Field(..., ge=1)
+    exchange_dir: str = Field(
+        default=".",
+        min_length=1,
+        description=(
+            "preCICE exchange directory, relative to case_root_remote. The bind root is "
+            "the tutorial ROOT (so that ../../tools resolves), while preCICE creates "
+            "precice-run/ beside the config one level in -- these are not the same "
+            "directory and the stale-socket cleanup has to target the latter."
+        ),
+    )
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
         default=120,
@@ -175,6 +185,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
         "set -u",
         "",
         f"CASE_ROOT={shlex.quote(plan.case_root_remote)}",
+        f"EXCHANGE_DIR={shlex.quote(plan.exchange_dir)}",
         f"CEILING={plan.wall_clock_ceiling_s}",
         f"POLL={plan.poll_interval_s}",
         f"PEER_GRACE={plan.peer_grace_s}",
@@ -183,7 +194,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
         "",
         "# A stale exchange directory is the single most common preCICE hang: the",
         "# acceptor finds an old socket descriptor and both sides wait forever.",
-        'rm -rf "$CASE_ROOT/precice-run"',
+        'rm -rf "$CASE_ROOT/$EXCHANGE_DIR/precice-run"',
         "",
         "START=$(date +%s)",
         "declare -a NAMES PIDS LOGS RCS ENDED",

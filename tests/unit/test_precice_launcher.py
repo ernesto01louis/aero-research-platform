@@ -166,8 +166,20 @@ def test_env_is_exported_not_prefixed(shim_bin: Path, tmp_path: Path) -> None:
 
 
 def test_supervisor_removes_a_stale_exchange_directory() -> None:
-    plan = _plan(Path("/tmp/x"), "true", "true")
-    assert 'rm -rf "$CASE_ROOT/precice-run"' in render_supervisor_script(plan)
+    """A stale precice-run/ is the single most common preCICE hang.
+
+    It must be removed from the EXCHANGE directory, which is not the bind root: the bind
+    root is the tutorial root (so upstream's ../../tools paths resolve) while preCICE
+    creates precice-run/ beside the config, one level in.
+    """
+    script = render_supervisor_script(_plan(Path("/tmp/x"), "true", "true"))
+    assert 'rm -rf "$CASE_ROOT/$EXCHANGE_DIR/precice-run"' in script
+    assert "EXCHANGE_DIR=." in script
+
+    nested = _plan(Path("/tmp/x"), "true", "true").model_copy(
+        update={"exchange_dir": "turek-hron-fsi3"}
+    )
+    assert "EXCHANGE_DIR=turek-hron-fsi3" in render_supervisor_script(nested)
 
 
 def test_executor_timeout_exceeds_the_supervisor_ceiling() -> None:
