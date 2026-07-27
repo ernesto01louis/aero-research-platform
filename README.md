@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.18  ·  **Status:** complete  ·  **Completed:** 2026-07-26
+**Latest tag:** v0.0.19  ·  **Status:** partial  ·  **Completed:** 2026-07-27
 
-**Stage 18 — Arbitrary-Geometry Ingestion + Robust Meshing** — most recent stage.
+**Stage 19 — preCICE FSI Core (Turek-Hron FSI3)** — most recent stage.
 
-**Next:** Stage 19 — preCICE FSI Core (Turek-Hron FSI3).
+**Next:** Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul).
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

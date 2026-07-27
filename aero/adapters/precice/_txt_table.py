@@ -85,7 +85,12 @@ class TxtTable(BaseModel):
             raise TxtTableError(f"{self.path}: column {name!r} is not integral — {exc}") from exc
 
 
-def read_txt_table(path: Path, *, expected_columns: tuple[str, ...] | None = None) -> TxtTable:
+def read_txt_table(
+    path: Path,
+    *,
+    expected_columns: tuple[str, ...] | None = None,
+    required_prefix: tuple[str, ...] | None = None,
+) -> TxtTable:
     """Parse a preCICE TXT table.
 
     `expected_columns`, when given, must match the file's header EXACTLY. Callers derive
@@ -93,6 +98,12 @@ def read_txt_table(path: Path, *, expected_columns: tuple[str, ...] | None = Non
     :meth:`aero.adapters.precice.config.PreciceConfig.watchpoint_columns`) so that an
     upstream reordering or an added data field is a loud failure rather than a silently
     transposed signal.
+
+    `required_prefix` is the weaker form, for files whose leading columns are fixed but
+    which legitimately carry extra trailing ones: the participant that runs a
+    quasi-Newton acceleration appends ``QNColumns DeletedQNColumns DroppedQNColumns`` to
+    its iterations log, while its peer does not. The leading columns must still match
+    exactly and in order, so a reordering is still loud.
     """
     if not path.is_file():
         raise TxtTableError(f"{path}: no such file — did the participant write it?")
@@ -105,6 +116,11 @@ def read_txt_table(path: Path, *, expected_columns: tuple[str, ...] | None = Non
     columns = tuple(non_empty[0].split())
     if not columns:
         raise TxtTableError(f"{path}: unreadable header line")
+    if required_prefix is not None and columns[: len(required_prefix)] != required_prefix:
+        raise TxtTableError(
+            f"{path}: header {columns} does not begin with the required columns "
+            f"{required_prefix}. Refusing to index columns by position."
+        )
     if expected_columns is not None and columns != expected_columns:
         raise TxtTableError(
             f"{path}: header {columns} does not match the header predicted from the "

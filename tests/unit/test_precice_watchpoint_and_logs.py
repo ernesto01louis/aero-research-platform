@@ -250,3 +250,43 @@ def test_blockmesh_regex_does_not_match_patch_sizes() -> None:
     from aero.adapters.precice.solver import _N_CELLS_RE
 
     assert len(_N_CELLS_RE.findall(_REAL_BLOCKMESH_TAIL)) == 1
+
+
+def test_the_quasi_newton_participant_writes_extra_columns(tmp_path: Path) -> None:
+    """Header captured verbatim from a real 200-window FSI3 calibration.
+
+    The participant that runs the IQN-ILS acceleration appends three columns its peer
+    does not. Demanding an exact 4-column header made a completed, fully-converged
+    calibration unreadable — and those extra columns are the filter behaviour gate K3
+    records as a diagnostic, so they are worth keeping rather than merely tolerating.
+    """
+    header = (
+        "  TimeWindow  TotalIterations  Iterations  Convergence  "
+        "QNColumns  DeletedQNColumns  DroppedQNColumns"
+    )
+    body = (
+        "\n   199     701       3       1      24       0       1"
+        "\n   200     705       4       1      25       1       1"
+    )
+    path = tmp_path / "precice-Solid-iterations.log"
+    path.write_text(header + body, encoding="utf-8")
+
+    report = read_iterations_log(path, participant="Solid", max_iterations_configured=100)
+    assert report.n_windows == 2
+    assert report.all_converged
+    assert report.quasi_newton_columns == (
+        "QNColumns",
+        "DeletedQNColumns",
+        "DroppedQNColumns",
+    )
+
+
+def test_a_reordered_iterations_header_is_still_loud(tmp_path: Path) -> None:
+    """Accepting extra TRAILING columns must not weaken the leading-column contract."""
+    path = tmp_path / "it.log"
+    path.write_text(
+        "  TimeWindow  Iterations  TotalIterations  Convergence\n     1       5       5       1",
+        encoding="utf-8",
+    )
+    with pytest.raises(CouplingConvergenceError, match="does not begin with"):
+        read_iterations_log(path, participant="Solid", max_iterations_configured=100)

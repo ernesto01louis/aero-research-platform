@@ -17,7 +17,10 @@ Written by ``BaseCouplingScheme`` (verified against preCICE v3.4.1 source):
 
 * ``precice-<Participant>-iterations.log`` — columns
   ``TimeWindow  TotalIterations  Iterations  Convergence`` (all integers;
-  ``Convergence`` is 1/0).
+  ``Convergence`` is 1/0). The participant that runs the quasi-Newton acceleration
+  appends ``QNColumns  DeletedQNColumns  DroppedQNColumns``; its peer does not. Those
+  extra columns are the IQN-ILS filter behaviour that gate K3 records as a diagnostic,
+  so they are read when present and never required.
 * ``precice-<Participant>-convergence.log`` — per-iteration residuals; written only by
   the participant that is *not* first in the scheme. Diagnostic only.
 """
@@ -66,6 +69,10 @@ class CouplingIterationReport(BaseModel):
     max_iterations_configured: int = Field(..., ge=1)
     windows: tuple[TimeWindowIterations, ...] = Field(..., min_length=1)
     n_dropped: int = Field(default=0, ge=0)
+    quasi_newton_columns: tuple[str, ...] = Field(
+        default=(),
+        description="Extra IQN-ILS diagnostic columns present, if this participant ran it.",
+    )
 
     @model_validator(mode="after")
     def _iterations_within_cap(self) -> CouplingIterationReport:
@@ -139,7 +146,7 @@ def read_iterations_log(
 ) -> CouplingIterationReport:
     """Parse ``precice-<Participant>-iterations.log``."""
     try:
-        table = read_txt_table(path, expected_columns=_ITERATIONS_COLUMNS)
+        table = read_txt_table(path, required_prefix=_ITERATIONS_COLUMNS)
     except TxtTableError as exc:
         raise CouplingConvergenceError(str(exc)) from exc
     if table.n_rows == 0:
@@ -161,6 +168,7 @@ def read_iterations_log(
         max_iterations_configured=max_iterations_configured,
         windows=windows,
         n_dropped=table.n_dropped,
+        quasi_newton_columns=table.columns[len(_ITERATIONS_COLUMNS) :],
     )
 
 
