@@ -51,12 +51,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
-from aero.postprocess import (
-    Signal,
-    detect_cycle_convergence,
-    dominant_frequency,
-    segment_cycles,
-)
+from aero.postprocess import analyse_limit_cycle
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _REFERENCE_DIR = _REPO_ROOT / "data" / "references" / "fsi" / "turek_hron_fsi3"
@@ -133,48 +128,42 @@ def _read_point(path: Path) -> dict[str, np.ndarray]:
 
 
 def recompute(cols: dict[str, np.ndarray]) -> Recomputed:
-    """Recompute the FSI3 statistics exactly as `aero/vv/fsi` will for a solve.
+    """Recompute the FSI3 statistics with the SAME function that measures a solve.
 
-    ADR-036 S1: every signal is segmented at the single fundamental period taken
-    from uy. See the SEGMENTATION note in the module docstring.
+    Not merely "the same estimators": `aero.postprocess.analyse_limit_cycle` is the one
+    entry point both this script and `aero.vv.fsi` call, so the reference of record and
+    every measured number are produced by identical code. That is what makes the
+    like-for-like claim in reference.md checkable rather than aspirational.
+
+    `discard_s=0` here because the published series already begins inside the
+    established limit cycle (t starts at 5.0 s); a solve starting from rest passes the
+    pre-registered discard instead. ADR-036 S1: every signal is segmented at the single
+    fundamental period taken from uy.
     """
-    t = cols["t"]
-    uy_signal = Signal.from_arrays(t, cols["uy"], name="flap_tip_uy")
-    f0 = dominant_frequency(uy_signal).frequency
-    period = 1.0 / f0
-
-    def stats(name: str) -> tuple[float, float, int]:
-        samples = segment_cycles(Signal.from_arrays(t, cols[name], name=name), period=period)
-        mean = float(np.mean(samples.per_cycle_mean))
-        amplitude = float(np.mean(samples.per_cycle_amplitude))
-        return mean, amplitude, samples.n_cycles
-
-    uy_mean, uy_amplitude, n_cycles = stats("uy")
-    ux_mean, ux_amplitude, _ = stats("ux")
-    drag_mean, drag_amplitude, _ = stats("drag")
-    lift_mean, lift_amplitude, _ = stats("lift")
-
-    uy_samples = segment_cycles(uy_signal, period=period)
-    convergence = detect_cycle_convergence(uy_samples)
-
-    # ux is the second harmonic; measured independently as a structural check (D5).
-    ux_frequency = dominant_frequency(
-        Signal.from_arrays(t, cols["ux"], name="flap_tip_ux")
-    ).frequency
-
+    analysis = analyse_limit_cycle(
+        cols["t"],
+        {"uy": cols["uy"], "ux": cols["ux"], "drag": cols["drag"], "lift": cols["lift"]},
+        fundamental="uy",
+        discard_s=0.0,
+        min_cycles=4,
+    )
+    uy = analysis.of("uy")
+    ux = analysis.of("ux")
+    drag = analysis.of("drag")
+    lift = analysis.of("lift")
     return Recomputed(
-        f0=f0,
-        n_cycles=n_cycles,
-        n_converged_cycles=convergence.n_converged_cycles,
-        ux_mean=ux_mean,
-        ux_amplitude=ux_amplitude,
-        ux_frequency=ux_frequency,
-        uy_mean=uy_mean,
-        uy_amplitude=uy_amplitude,
-        drag_mean=drag_mean,
-        drag_amplitude=drag_amplitude,
-        lift_mean=lift_mean,
-        lift_amplitude=lift_amplitude,
+        f0=analysis.fundamental_frequency,
+        n_cycles=analysis.n_cycles_after_discard,
+        n_converged_cycles=analysis.n_settled_cycles,
+        ux_mean=ux.mean,
+        ux_amplitude=ux.amplitude,
+        ux_frequency=ux.frequency,
+        uy_mean=uy.mean,
+        uy_amplitude=uy.amplitude,
+        drag_mean=drag.mean,
+        drag_amplitude=drag.amplitude,
+        lift_mean=lift.mean,
+        lift_amplitude=lift.amplitude,
     )
 
 

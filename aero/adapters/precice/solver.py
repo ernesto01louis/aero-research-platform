@@ -43,6 +43,7 @@ from aero.adapters._base import (
     WallDistribution,
     build_apptainer_exec,
 )
+from aero.adapters.precice.analysis import TIP_UX, TIP_UY, analyse_displacement_watchpoint
 from aero.adapters.precice.case import (
     CoupledCaseError,
     CoupledCaseSpec,
@@ -299,12 +300,29 @@ class PreciceCoupledSolver(Solver):
 
         trace = self.watchpoint(result)
         uy = trace.signal("Displacement1")
-        ux = trace.signal("Displacement0")
         t = uy.t_array
+        analysis = analyse_displacement_watchpoint(
+            trace,
+            discard_s=spec.analysis_discard_s,
+            min_cycles=spec.analysis_min_cycles,
+        )
+        tip_uy = analysis.of(TIP_UY)
+        tip_ux = analysis.of(TIP_UX)
 
         scalars: dict[str, float] = {
-            "tip_uy_last": float(uy.y_array[-1]),
-            "tip_ux_last": float(ux.y_array[-1]),
+            # Gated quantities (ADR-036 D1-D5), over the DERIVED analysis window.
+            "tip_uy_amplitude": tip_uy.amplitude,
+            "tip_uy_frequency": analysis.fundamental_frequency,
+            "tip_ux_amplitude": tip_ux.amplitude,
+            "tip_ux_mean": tip_ux.mean,
+            "tip_ux_frequency": tip_ux.frequency,
+            # Diagnostics (X) — reported, never gated.
+            "tip_uy_mean": tip_uy.mean,
+            "analysis_t_start": analysis.t_start,
+            "analysis_t_end": analysis.t_end,
+            "analysis_n_settled_cycles": float(analysis.n_settled_cycles),
+            "analysis_mean_drift": analysis.mean_drift,
+            "analysis_amplitude_drift": analysis.amplitude_drift,
             "t_end": float(t[-1]),
             "n_windows": float(trace.n_rows),
             "wall_clock_s": status.wall_clock_s,

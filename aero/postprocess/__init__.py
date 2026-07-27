@@ -19,6 +19,12 @@ from aero.postprocess.cycle_detection import CycleConvergenceReport, detect_cycl
 from aero.postprocess.efficiency import MotionKinematics, PropulsiveMetrics, propulsive_metrics
 from aero.postprocess.forces import ForceDecomposition, decompose_drag
 from aero.postprocess.frequency import FrequencyEstimate, dominant_frequency, strouhal
+from aero.postprocess.limit_cycle import (
+    LimitCycleAnalysis,
+    LimitCycleError,
+    SignalStatistics,
+    analyse_limit_cycle,
+)
 from aero.postprocess.phase_averaging import (
     CycleSamples,
     PhaseAverage,
@@ -31,10 +37,14 @@ __all__ = [
     "CycleSamples",
     "ForceDecomposition",
     "FrequencyEstimate",
+    "LimitCycleAnalysis",
+    "LimitCycleError",
     "MotionKinematics",
     "PhaseAverage",
     "PropulsiveMetrics",
     "Signal",
+    "SignalStatistics",
+    "analyse_limit_cycle",
     "decompose_drag",
     "detect_cycle_convergence",
     "dominant_frequency",

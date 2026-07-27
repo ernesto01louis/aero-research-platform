@@ -62,7 +62,10 @@ class CoupledLaunchPlan(BaseModel):
     case_root_remote: str = Field(..., min_length=1)
     participants: tuple[ParticipantSpec, ...] = Field(..., min_length=1)
     sif_paths: Mapping[str, str] = Field(..., description="SIF basename -> absolute remote path.")
-    wall_clock_ceiling_s: int = Field(..., ge=60)
+    # No lower bound worth defending here: the plan is a mechanical object. A campaign
+    # budget that makes no sense is caught on CoupledCaseSpec (ge=60), which is where the
+    # pre-declared ceiling actually lives.
+    wall_clock_ceiling_s: int = Field(..., ge=1)
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
         default=120,
@@ -143,13 +146,22 @@ def build_participant_command(
     The failure would appear only at run time, as ``controlDict``'s ``libs (...)`` line
     failing to load the adapter.
     """
-    inner = f"cd {shlex.quote(participant.workdir)} && {participant.command}"
+    # The environment is `export`ed INSIDE the compound command, not passed to
+    # build_apptainer_exec's `env=`. That helper emits `cd <target> && K=V <command>`,
+    # and a `K=V` prefix applies only to the single command that follows it — which,
+    # for a compound command, is our `cd`, not the participant's. The variable would
+    # silently fail to reach the participant, and the only symptom would be at run time
+    # (upstream's run.sh trying to build a venv from the network inside the SIF).
+    parts = [f"cd {shlex.quote(participant.workdir)}"]
+    if participant.env:
+        exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
+        parts.append(f"export {exports}")
+    parts.append(participant.command)
     command = build_apptainer_exec(
         sif_path=sif_path,
         case_bind_source=case_root_remote,
-        command=inner,
+        command=" && ".join(parts),
         writable_tmpfs=participant.writable_tmpfs,
-        env=dict(participant.env) or None,
     )
     return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)
 

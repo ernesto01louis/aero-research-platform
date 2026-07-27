@@ -46,7 +46,10 @@ jobs:
           import sys, importlib
           # Importing the public surface that V&V and the CLI touch must stay
           # within the platform-not-hub dependency set.
-          for mod in ("aero", "aero.adapters._base", "aero.vv", "aero.cli", "aero.geometry"):
+          for mod in (
+              "aero", "aero.adapters._base", "aero.vv", "aero.cli", "aero.geometry",
+              "aero.adapters.precice", "aero.vv.fsi",
+          ):
               importlib.import_module(mod)
 
           banned = (
@@ -55,6 +58,11 @@ jobs:
               "meshio", "mpi4py",
               # Stage 18 (ADR-033): the CAD kernel rides behind aero[cad] only.
               "build123d", "OCP", "cadquery",
+              # Stage 19 (ADR-035): the preCICE bindings ride behind aero[precice] only,
+              # and are imported solely by solverdummy INSIDE the SIF. `nutils` is the
+              # solid participant's stack and lives in the SIF's own venv -- it must
+              # never be reachable from the platform core.
+              "precice", "pyprecice", "nutils",
           )
           loaded = sorted(m for m in banned if m in sys.modules)
           if loaded:

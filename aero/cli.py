@@ -27,6 +27,7 @@ from aero.adapters.jax_fluids import JaxFluidsSolver
 from aero.adapters.nekrs import NekRSSolver
 from aero.adapters.openfoam import OpenFOAMSolver
 from aero.adapters.openfoam.schemas import CaseSpec
+from aero.adapters.precice import PreciceCoupledSolver
 from aero.adapters.pyfr import PyFRSolver
 from aero.adapters.su2 import SU2Solver
 from aero.orchestration import LocalSSHExecutor
@@ -46,6 +47,9 @@ _SOLVER_VERSIONS: dict[str, str] = {
     "pyfr": "PyFR 1.15.0",
     "nekrs": "NekRS v23.0",
     "jax-fluids": "JAX-Fluids v0.2.1+ac7c090f",  # pinned commit, not the broken v0.2.1 tag (ADR-008)
+    # The coupled stack, not a single solver: OpenFOAM v2412 fluid + Nutils solid,
+    # coupled by preCICE 3.4.1 with openfoam-adapter 2c3062c (ADR-035).
+    "precice": "preCICE 3.4.1 (OpenFOAM-ESI v2412 + Nutils 9.2)",
 }
 
 # Per-solver SIF basenames — looked up in containers/SHA256SUMS during
@@ -56,6 +60,7 @@ _SOLVER_SIF: dict[str, str] = {
     "pyfr": "pyfr.sif",
     "nekrs": "nekrs.sif",
     "jax-fluids": "jax-fluids.sif",
+    "precice": "precice-fsi.sif",
 }
 
 # Per-solver runtime imports, checked up front so the CLI fails fast rather
@@ -74,6 +79,9 @@ _REQUIRED_MODULES_BY_SOLVER: dict[str, tuple[str, ...]] = {
     # (or in-process on aero-dev for differentiable_run); not required for
     # the standard `aero run` CLI path.
     "jax-fluids": ("h5py", *_PROVENANCE_MODULES),
+    # Stage 19 — host-side the coupled path is stdlib file parsing only; pyprecice
+    # lives inside the SIF (see the `precice` extra comment in pyproject.toml).
+    "precice": _PROVENANCE_MODULES,
 }
 
 # Per-solver `aero[<extras>]` hint shown when a required module is missing.
@@ -83,6 +91,7 @@ _SOLVER_EXTRAS_HINT: dict[str, str] = {
     "pyfr": "pyfr,provenance",
     "nekrs": "nekrs,provenance",
     "jax-fluids": "jax-fluids,provenance",
+    "precice": "provenance",
 }
 
 
@@ -102,8 +111,17 @@ def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: P
         return JaxFluidsSolver(
             host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root
         )
+    if name == "precice":
+        from aero.vv.fsi import TUREK_HRON_FSI3_EXPECTATION
+
+        return PreciceCoupledSolver(
+            host_nfs_root=host_root,
+            remote_nfs_root=remote_root,
+            expectation=TUREK_HRON_FSI3_EXPECTATION,
+        )
     raise typer.BadParameter(
-        f"unknown solver {name!r} — choose one of 'openfoam', 'su2', 'pyfr', 'nekrs', 'jax-fluids'"
+        f"unknown solver {name!r} — choose one of 'openfoam', 'su2', 'pyfr', 'nekrs', "
+        "'jax-fluids', 'precice'"
     )
 
 
@@ -483,6 +501,7 @@ def vv_list() -> None:
     from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
+    from aero.vv.fsi import FSI_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
     from aero.vv.transonic import TRANSONIC_CASES
@@ -497,6 +516,7 @@ def vv_list() -> None:
         ("V&V benchmark cases (transonic — Stage 06):", TRANSONIC_CASES),
         ("V&V benchmark cases (scale-resolving — Stage 07):", SCALE_RESOLVING_CASES),
         ("V&V benchmark cases (external geometry — Stage 18):", EXTERNAL_GEOMETRY_CASES),
+        ("V&V benchmark cases (FSI — Stage 19):", FSI_CASES),
     ):
         typer.echo(header + "\n")
         for name, case in cases.items():
@@ -568,6 +588,7 @@ def vv_run(
     from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
     from aero.vv.flapping import FLAPPING_CASES
     from aero.vv.forward_regime import FORWARD_REGIME_CASES
+    from aero.vv.fsi import FSI_CASES
     from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
     from aero.vv.tmr import TMR_CASES
     from aero.vv.transonic import TRANSONIC_CASES
@@ -582,6 +603,7 @@ def vv_run(
         **TRANSONIC_CASES,
         **SCALE_RESOLVING_CASES,
         **EXTERNAL_GEOMETRY_CASES,
+        **FSI_CASES,
     }
     if case not in all_cases:
         known = ", ".join(all_cases)
@@ -627,7 +649,9 @@ def vv_run(
     )
     # Stage is informational on the MLflow side; each adapter is tagged with
     # the stage that introduced it.
-    if solver_name == "jax-fluids":
+    if solver_name == "precice":
+        stage_str = "19"
+    elif solver_name == "jax-fluids":
         stage_str = "08"
     elif solver_name in {"pyfr", "nekrs"}:
         stage_str = "07"

@@ -117,6 +117,19 @@ class CoupledCaseSpec(BaseModel):
     fluid_mesh_dict: FluidMeshDict = "blockMeshDict"
     fluid_participant_dir: str = Field(default="fluid-openfoam", min_length=1)
     wall_clock_ceiling_s: int = Field(..., ge=60, description="Pre-declared budget ceiling.")
+    analysis_discard_s: float = Field(
+        ...,
+        ge=0.0,
+        description=(
+            "Absolute solver time before which no sample may enter the analysis window. "
+            "Pre-registered (ADR-036 S2), never tuned after seeing the record."
+        ),
+    )
+    analysis_min_cycles: int = Field(
+        default=4,
+        ge=2,
+        description="Minimum settled cycles required for a reportable measurement (S3).",
+    )
     gated: bool = Field(
         default=True,
         description="True for runs that bear a pre-registered verdict; see the validator.",
