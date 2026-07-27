@@ -7,9 +7,11 @@
 # must not silently span two digests.
 #
 # Two-step build pattern (as ADR-006 established for SU2):
-#   1. buildah bud -f containers/precice-fsi.Dockerfile -t localhost/aero/precice-fsi:<ver>
-#      ... buildah push ... oci-archive:/tmp/precice-fsi-oci.tar
-#   2. this .def bootstraps from that OCI archive (filesystem-only).
+#   1. buildah bud runs on the PROXMOX HOST and pushes an OCI archive onto the shared
+#      NFS (/mnt/aero-nfs/tmp/ host-side == /mnt/aero/tmp/ inside the LXC);
+#   2. this .def bootstraps from that archive here on aero-build (filesystem-only).
+# The From: path below is therefore the LXC-side NFS path, matching pyfr.def/nekrs.def —
+# not /tmp, which only exists on the host that ran buildah.
 #
 # NOTE: %post is filesystem-only — the Apptainer build sandbox inside the unprivileged
 # aero-build LXC cannot open sockets (Stage 02 §6), so every apt/pip/git step happens in
@@ -21,7 +23,7 @@
 # Built, signed and SHA256-recorded by scripts/build_precice_fsi_sif.sh.
 
 Bootstrap: oci-archive
-From: /tmp/precice-fsi-oci.tar
+From: /mnt/aero/tmp/precice-fsi-oci.tar
 
 %labels
     org.aero.component   precice-fsi

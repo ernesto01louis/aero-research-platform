@@ -16,7 +16,7 @@
 # Built, signed and SHA256-recorded by scripts/build_calculix_sif.sh.
 
 Bootstrap: oci-archive
-From: /tmp/calculix-precice-oci.tar
+From: /mnt/aero/tmp/calculix-precice-oci.tar
 
 %labels
     org.aero.component   calculix-precice
