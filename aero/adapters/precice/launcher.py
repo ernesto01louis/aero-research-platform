@@ -167,10 +167,24 @@ def build_participant_command(
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
     parts.append(participant.command)
+    inner = " && ".join(parts)
+    if participant.run_as_uid is not None:
+        # setpriv rather than su: no PAM, no login shell, no surprise environment. HOME
+        # points into the container's /tmp (apptainer bind-mounts the host's, which is
+        # world-writable) because --no-home leaves it pointing at nothing writable, and
+        # OpenFOAM wants somewhere for $WM_PROJECT_USER_DIR.
+        home = f"/tmp/aero-foam-{participant.run_as_uid}"
+        inner = (
+            f"mkdir -p {home}/OpenFOAM && chmod 700 {home} && "
+            f"chown {participant.run_as_uid}:{participant.run_as_uid} {home} {home}/OpenFOAM && "
+            f"setpriv --reuid={participant.run_as_uid} --regid={participant.run_as_uid} "
+            f"--clear-groups env HOME={home} WM_PROJECT_USER_DIR={home}/OpenFOAM "
+            f"bash -lc {shlex.quote(inner)}"
+        )
     command = build_apptainer_exec(
         sif_path=sif_path,
         case_bind_source=case_root_remote,
-        command=" && ".join(parts),
+        command=inner,
         writable_tmpfs=participant.writable_tmpfs,
     )
     return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)

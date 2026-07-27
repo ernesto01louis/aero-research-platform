@@ -91,6 +91,14 @@ class PreciceSolverError(RuntimeError):
     """A coupled preCICE run could not be prepared, meshed, executed or read."""
 
 
+def _chown_tree(root: Path, *, uid: int) -> None:
+    """Recursively chown `root` to `uid`:`uid`."""
+    import os
+
+    for path in (root, *root.rglob("*")):
+        os.chown(path, uid, uid)
+
+
 def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tuple[int, int]:
     """preCICE TimeWindow indices spanning ``[t_start, t_end]``.
 
@@ -181,6 +189,12 @@ class PreciceCoupledSolver(Solver):
 
         if self.expectation is not None:
             assert_config(produced, self.expectation)
+
+        if spec.run_as_uid is not None:
+            # The participants run unprivileged (see ParticipantSpec.run_as_uid), so the
+            # case they write into has to belong to them. Done AFTER the manifest check,
+            # so digest verification still runs against the bytes as acquired.
+            _chown_tree(root, uid=spec.run_as_uid)
 
         tree.write_manifest(root / "aero-manifest.json")
         self._trees[Path(host_path).name] = tree

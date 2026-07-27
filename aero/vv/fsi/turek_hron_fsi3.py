@@ -135,6 +135,7 @@ def fsi3_case_spec(
     wall_clock_ceiling_s: int,
     fluid_mesh_dict: str = "blockMeshDict",
     sif: str = "precice-fsi.sif",
+    run_as_uid: int = 1000,
     repo_root: Path | None = None,
 ) -> CoupledCaseSpec:
     """Build the coupled case spec, verifying the pinned artifacts as it goes."""
@@ -164,6 +165,7 @@ def fsi3_case_spec(
                 # LXC needs anyway.
                 command="../../tools/run-openfoam.sh",
                 sif=sif,
+                run_as_uid=run_as_uid,
             ),
             ParticipantSpec(
                 name="Solid",
@@ -174,6 +176,7 @@ def fsi3_case_spec(
                 command="./run.sh",
                 sif=sif,
                 env={"PRECICE_TUTORIALS_NO_VENV": "1"},
+                run_as_uid=run_as_uid,
             ),
         ),
         container_of_record=sif,
@@ -182,6 +185,7 @@ def fsi3_case_spec(
         wall_clock_ceiling_s=wall_clock_ceiling_s,
         analysis_discard_s=ANALYSIS_DISCARD_S,
         analysis_min_cycles=ANALYSIS_MIN_CYCLES,
+        run_as_uid=run_as_uid,
         gated=gated,
     )
 

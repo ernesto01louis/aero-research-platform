@@ -65,6 +65,19 @@ class ParticipantSpec(BaseModel):
     )
     env: Mapping[str, str] = Field(default_factory=dict)
     writable_tmpfs: bool = False
+    run_as_uid: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Drop to this uid before running the participant. OpenFOAM REFUSES to compile "
+            "a codedFixedValue boundary condition as root -- dynamicCode::checkSecurity's "
+            "isAdministrator() check is unconditional in v2412, and allowSystemOperations "
+            "does not gate it. The tutorial's inlet is codedFixedValue, and solver SIFs "
+            "must run as the LXC root, so the fluid participant would abort at t=0. "
+            "Dropping privileges keeps the upstream case byte-identical, which the "
+            "alternative (rewriting the inlet as exprFixedValue) would not."
+        ),
+    )
 
 
 class TutorialPin(BaseModel):
@@ -129,6 +142,14 @@ class CoupledCaseSpec(BaseModel):
         default=4,
         ge=2,
         description="Minimum settled cycles required for a reportable measurement (S3).",
+    )
+    run_as_uid: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "uid the participants run as, and the owner the materialized case is chowned "
+            "to. See ParticipantSpec.run_as_uid for why this is necessary."
+        ),
     )
     gated: bool = Field(
         default=True,
