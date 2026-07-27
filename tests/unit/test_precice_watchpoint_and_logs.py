@@ -203,3 +203,50 @@ def test_find_iterations_logs_keys_by_participant(tmp_path: Path) -> None:
     _write_iterations(tmp_path / "fluid-openfoam" / "precice-Fluid-iterations.log", [(0, 1, 1, 1)])
     _write_iterations(tmp_path / "solid-nutils" / "precice-Solid-iterations.log", [(0, 1, 1, 1)])
     assert sorted(find_iterations_logs(tmp_path)) == ["Fluid", "Solid"]
+
+
+# --- blockMesh cell-count parsing ---------------------------------------------------
+
+# Captured verbatim from OpenFOAM-ESI v2412 running the pinned Turek-Hron blockMeshDict
+# inside precice-fsi.sif. Pinned as a fixture because the field it feeds
+# (MeshHandle.n_elements) is provenance-bearing: it is what identifies the mesh rung.
+_REAL_BLOCKMESH_TAIL = """No patch pairs to merge
+
+Writing polyMesh with 0 cellZones
+----------------
+Mesh Information
+----------------
+  boundingBox: (0 0 -0.1) (2.5 0.41 0.1)
+  nPoints: 42938
+  nCells: 20969
+  nFaces: 84376
+  nInternalFaces: 41438
+----------------
+Patches
+----------------
+  patch 0 (start: 41438 size: 20969) name: front
+  patch 6 (start: 84042 size: 201) name: flap
+
+End
+"""
+
+
+def test_blockmesh_cell_count_regex_matches_real_v2412_output() -> None:
+    """blockMesh says "nCells:"; "cells:" is checkMesh's wording.
+
+    Getting this wrong does not fail loudly by itself — the solver refuses to publish an
+    unparseable count — but it stops every campaign at the mesh step, and the near-miss
+    is the same class as Stage 18's pre-snap cell count reaching a provenance field.
+    """
+    from aero.adapters.precice.solver import _N_CELLS_RE
+
+    match = _N_CELLS_RE.search(_REAL_BLOCKMESH_TAIL)
+    assert match is not None
+    assert int(match.group(1)) == 20969
+
+
+def test_blockmesh_regex_does_not_match_patch_sizes() -> None:
+    """`patch 0 (start: 41438 size: 20969)` must not be mistaken for a cell count."""
+    from aero.adapters.precice.solver import _N_CELLS_RE
+
+    assert len(_N_CELLS_RE.findall(_REAL_BLOCKMESH_TAIL)) == 1

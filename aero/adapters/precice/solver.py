@@ -77,8 +77,12 @@ from aero.orchestration._base import Executor
 DEFAULT_PRECICE_SIF_PATH = "/opt/aero/containers/precice-fsi.sif"
 DEFAULT_SIF_DIR = "/opt/aero/containers"
 
-#: `blockMesh` prints this once the mesh is written.
-_N_CELLS_RE = re.compile(r"^\s*cells:\s*(\d+)\s*$", re.MULTILINE)
+#: blockMesh's "Mesh Information" block, verified against real v2412 output:
+#:     nPoints: 42938
+#:     nCells: 20969
+#: NOT "cells:" -- that is checkMesh's wording, and confusing the two is how Stage 18
+#: ended up publishing a pre-snap cell count in a provenance-bearing field.
+_N_CELLS_RE = re.compile(r"^\s*nCells:\s*(\d+)\s*$", re.MULTILINE)
 
 _MESH_TIMEOUT_S = 1800
 
