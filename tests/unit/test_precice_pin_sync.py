@@ -52,9 +52,9 @@ def test_container_recipe_installs_the_pinned_versions() -> None:
     if not recipe.is_file():
         pytest.skip("container recipe not present in this checkout")
     text = recipe.read_text(encoding="utf-8")
-    assert f"pyprecice=={PINNED_PYPRECICE_VERSION}" in text
-    assert PINNED_PRECICE_VERSION in text
-    assert PINNED_OPENFOAM_ADAPTER_COMMIT[:7] in text
+    assert f"ARG PYPRECICE_VERSION={PINNED_PYPRECICE_VERSION}" in text
+    assert f"ARG PRECICE_VERSION={PINNED_PRECICE_VERSION}" in text
+    assert f"ARG OPENFOAM_ADAPTER_REF={PINNED_OPENFOAM_ADAPTER_COMMIT}" in text
 
 
 def test_stage_19_marker_is_registered() -> None:

@@ -1,0 +1,62 @@
+# containers/precice-fsi.def — aero-research-platform coupled FSI image (Stage 19).
+#
+# Wraps the locally-built OCI image from containers/precice-fsi.Dockerfile: OpenFOAM-ESI
+# v2412 + preCICE 3.4.1 + the openfoam-adapter, plus a Nutils solid participant in its
+# own virtualenv. ADR-035 records why this is ONE image rather than two: the four-fold
+# provenance tuple carries exactly one container_sif_sha256, and a gated coupled run
+# must not silently span two digests.
+#
+# Two-step build pattern (as ADR-006 established for SU2):
+#   1. buildah bud -f containers/precice-fsi.Dockerfile -t localhost/aero/precice-fsi:<ver>
+#      ... buildah push ... oci-archive:/tmp/precice-fsi-oci.tar
+#   2. this .def bootstraps from that OCI archive (filesystem-only).
+#
+# NOTE: %post is filesystem-only — the Apptainer build sandbox inside the unprivileged
+# aero-build LXC cannot open sockets (Stage 02 §6), so every apt/pip/git step happens in
+# the Dockerfile, where buildah's slirp4netns gives it a network.
+#
+# The OpenFOAM environment resolves through /etc/profile.d, i.e. in a LOGIN shell only,
+# which is why the adapter invokes participants with `bash -lc` (build_apptainer_exec).
+#
+# Built, signed and SHA256-recorded by scripts/build_precice_fsi_sif.sh.
+
+Bootstrap: oci-archive
+From: /tmp/precice-fsi-oci.tar
+
+%labels
+    org.aero.component   precice-fsi
+    org.aero.stage       19
+    org.aero.solver      preCICE 3.4.1 (OpenFOAM-ESI v2412 + Nutils 9.2)
+    org.aero.base-image  opencfd/openfoam-default:2412
+    org.aero.maintainer  aero-research-platform
+
+%post
+    # Filesystem-only: bind-mount targets. The OCI image already has these; recreate so
+    # a fresh bootstrap path lands them too.
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/aero/solid-venv/bin:$PATH
+    # Makes upstream's solid-nutils/run.sh use the pre-baked interpreter instead of
+    # building a venv from a network the SIF does not have.
+    export PRECICE_TUTORIALS_NO_VENV=1
+    export AERO_SOLID_PYTHON=/opt/aero/solid-venv/bin/python
+
+%test
+    # Probe exactly the interfaces the coupled run uses. OpenFOAM activates through
+    # /etc/profile.d, so it is probed through a login shell — the same way the adapter
+    # invokes it.
+    precice-version || { echo "preCICE not installed" >&2; exit 1; }
+    bash -lc 'ls "$FOAM_LIBBIN/libpreciceAdapterFunctionObject.so"' \
+        || { echo "openfoam-adapter library missing from FOAM_LIBBIN" >&2; exit 1; }
+    bash -lc 'command -v pimpleFoam blockMesh' \
+        || { echo "OpenFOAM solvers not on PATH" >&2; exit 1; }
+    python3 -c "import precice, nutils, numpy, gmsh" \
+        || { echo "solid participant stack incomplete" >&2; exit 1; }
+    echo "aero preCICE FSI image — OpenFOAM + adapter + preCICE + Nutils OK"
+
+%runscript
+    echo "aero-research-platform preCICE FSI image (Stage 19)"
+    exec "$@"
