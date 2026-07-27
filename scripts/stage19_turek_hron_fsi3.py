@@ -39,7 +39,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from aero.adapters.precice import (  # noqa: E402
     CoupledCaseSpec,
+    CoupledLaunchPlan,
+    ParticipantSpec,
     PreciceCoupledSolver,
+    launch_coupled,
     read_precice_config,
 )
 from aero.adapters.precice.analysis import (  # noqa: E402
@@ -246,6 +249,62 @@ def _relative(measured: float, reference: float) -> float:
 # ---------------------------------------------------------------------------------------
 
 
+def _solverdummy_gate(
+    spec: CoupledCaseSpec, args: argparse.Namespace, host_root: Path, remote_root: str
+) -> dict[str, Any]:
+    """Gate I1 — two dummy participants couple inside the SIF, through the real launcher.
+
+    Seconds, not hours, and it exercises every piece of infrastructure the campaign
+    depends on: apptainer exec, MPI_Init inside the unprivileged LXC, socket m2n between
+    two processes, --no-home, and the supervisor script itself.
+
+    `solverdummy.py` imports nothing from `aero`, so it is copied into the case directory
+    and run directly — the SIF does not need the platform installed.
+    """
+    from aero.adapters.precice.solverdummy import write_solverdummy_config
+
+    case = host_root / "solverdummy"
+    case.mkdir(parents=True, exist_ok=True)
+    write_solverdummy_config(case / "precice-config.xml")
+    source = (
+        Path(__file__).resolve().parents[1] / "aero" / "adapters" / "precice" / "solverdummy.py"
+    )
+    (case / "solverdummy.py").write_bytes(source.read_bytes())
+
+    sif = f"/opt/aero/containers/{spec.container_of_record}"
+    plan = CoupledLaunchPlan(
+        case_root_remote=f"{remote_root}/solverdummy",
+        participants=tuple(
+            ParticipantSpec(
+                name=name,
+                workdir=".",
+                command=(
+                    f"python3 solverdummy.py --participant {name} --config precice-config.xml"
+                ),
+                sif=spec.container_of_record,
+            )
+            for name in ("A", "B")
+        ),
+        sif_paths={spec.container_of_record: sif},
+        wall_clock_ceiling_s=300,
+        poll_interval_s=2,
+        peer_grace_s=30,
+        term_grace_s=10,
+    )
+    executor = LocalSSHExecutor(
+        host=args.host, ssh_user="root", repo_root=_REPO_ROOT, long_timeout_s=1800
+    )
+    outcome = launch_coupled(
+        plan, executor, run_id=f"solverdummy-{datetime.now(UTC):%Y%m%d-%H%M%S}", case_root_host=case
+    )
+    return {
+        "passed": outcome.ok,
+        "stopped_by": outcome.stopped_by,
+        "participants": {o.name: o.state for o in outcome.outcomes},
+        "log_tails": {o.name: o.log_tail[-800:] for o in outcome.outcomes},
+    }
+
+
 def _preflight(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]:
     """I-gates. Everything here must pass before a campaign solve is launched."""
     record: dict[str, Any] = {"started_at": _utc_now(), "gates": {}}
@@ -285,6 +344,83 @@ def _preflight(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any
     print(f"[I3] blockMesh ok={mesh.ok} cells={mesh.n_elements} ({spec.fluid_mesh_dict})")
     if not mesh.ok:
         record["verdict"] = "NO-GO (I3: blockMesh failed)"
+        return record
+
+    # I1 — infrastructure, through the real launcher.
+    try:
+        i1 = _solverdummy_gate(
+            spec,
+            args,
+            host_root=case_dir.host_path,
+            remote_root=str(case_dir.remote_path),
+        )
+    except Exception as exc:
+        i1 = {"passed": False, "error": str(exc)}
+    record["gates"]["I1"] = i1
+    print(
+        f"[I1] solverdummy coupling passed={i1['passed']} ({i1.get('stopped_by', i1.get('error'))})"
+    )
+    if not i1["passed"]:
+        record["verdict"] = "NO-GO (I1: the infrastructure pre-flight did not couple)"
+        record["finished_at"] = _utc_now()
+        return record
+
+    # I4 — calibration. Measured, so the budget decision is made from evidence.
+    windows = args.calibration_windows
+    calib_spec = spec.model_copy(
+        update={
+            "name": f"{spec.name}_calibration",
+            "max_time": windows * 1e-3,
+            "wall_clock_ceiling_s": min(args.timeout, 3600),
+        }
+    )
+    calib_dir = solver.prepare(calib_spec)
+    calib_mesh = solver.mesh(calib_dir, executor)
+    if not calib_mesh.ok:
+        record["gates"]["I4"] = {"passed": False, "reason": "blockMesh failed for the calibration"}
+        record["verdict"] = "NO-GO (I4: calibration mesh failed)"
+        record["finished_at"] = _utc_now()
+        return record
+
+    print(f"[I4] calibration: {windows} time windows ({calib_spec.max_time:g} s physical)")
+    calib_result = solver.run(calib_dir, executor)
+    calib_status = solver.coupled_status(calib_result)
+    i4: dict[str, Any] = {
+        "windows_requested": windows,
+        "stopped_by": calib_status.stopped_by,
+        "wall_clock_s": calib_status.wall_clock_s,
+    }
+    try:
+        trace = solver.watchpoint(calib_result)
+        reports = solver.coupling_report(calib_result)
+        completed = trace.n_rows
+        i4.update(
+            {
+                "passed": completed > 0,
+                "windows_completed": completed,
+                "seconds_per_window": (
+                    calib_status.wall_clock_s / completed if completed else None
+                ),
+                "mean_iterations": [r.mean_iterations for r in reports],
+                "max_iterations": [r.max_observed_iterations for r in reports],
+                "n_nonconverged": [r.n_nonconverged for r in reports],
+            }
+        )
+        if completed:
+            per_window = calib_status.wall_clock_s / completed
+            i4["projection"] = {q: per_window * q / 1e-3 / 3600.0 for q in (2.0, 6.0, 8.0, 15.0)}
+            print(
+                f"[I4] {completed} windows in {calib_status.wall_clock_s:.0f}s "
+                f"= {per_window:.2f} s/window"
+            )
+            for target, hours in sorted(i4["projection"].items()):
+                print(f"       projected to t = {target:g} s: {hours:.1f} h")
+    except Exception as exc:
+        i4.update({"passed": False, "error": str(exc)})
+    record["gates"]["I4"] = i4
+    if not i4.get("passed"):
+        record["verdict"] = "NO-GO (I4: the calibration run produced no readable coupling)"
+        record["finished_at"] = _utc_now()
         return record
 
     record["verdict"] = "PRE-FLIGHT COMPLETE"
@@ -442,6 +578,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=("blockMeshDict", "blockMeshDict_refined", "blockMeshDict_double_refined"),
     )
     parser.add_argument("--preflight", action="store_true", help="Run the I-gates only.")
+    parser.add_argument(
+        "--calibration-windows",
+        type=int,
+        default=200,
+        help="Time windows for the I4 calibration run (ADR-036 requires >= 200).",
+    )
     parser.add_argument(
         "--not-gated",
         action="store_true",

@@ -1,0 +1,49 @@
+# containers/calculix-precice.def — aero-research-platform CalculiX + preCICE image.
+#
+# Stage 19 (ADR-035): the APPLICATION solid solver, built now so Stage 20's flexible
+# flapping wing does not block on container work. ADR-016 keeps two solid solvers
+# deliberately — the coupling verification rides the supported Turek-Hron tutorial
+# (Nutils), while the application needs the shell/membrane elements CalculiX supports —
+# and the two claims stay distinct.
+#
+# Wraps the locally-built OCI image from containers/calculix-precice.Dockerfile.
+# Two-step build, split across hosts (scripts/build_calculix_sif.sh): buildah on the
+# Proxmox host, apptainer here. %post is filesystem-only — the Apptainer build sandbox
+# in the unprivileged aero-build LXC cannot open sockets (Stage 02 §6).
+#
+# Licence: CalculiX is GPL-2-or-later; ADR-035 records the Invariant-5 disposition.
+#
+# Built, signed and SHA256-recorded by scripts/build_calculix_sif.sh.
+
+Bootstrap: oci-archive
+From: /tmp/calculix-precice-oci.tar
+
+%labels
+    org.aero.component   calculix-precice
+    org.aero.stage       19
+    org.aero.solver      CalculiX 2.20 + preCICE adapter v2.20.1
+    org.aero.maintainer  aero-research-platform
+
+%post
+    mkdir -p /case /work /opt/aero
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/opt/calculix/bin:$PATH
+    # CalculiX is OpenMP-threaded; the coupled runs on aero-dev are serial by policy
+    # (MPI is blocked in the LXC and the box is shared), so pin it to one thread and
+    # let the campaign decide otherwise explicitly.
+    export OMP_NUM_THREADS=1
+
+%test
+    command -v ccx_preCICE || { echo "ccx_preCICE not on PATH" >&2; exit 1; }
+    # ccx prints its banner and exits non-zero without an input deck, so probe the
+    # binary's linkage instead of its exit status.
+    ldd "$(command -v ccx_preCICE)" | grep -q libprecice \
+        || { echo "ccx_preCICE is not linked against libprecice" >&2; exit 1; }
+    echo "aero CalculiX + preCICE image — ccx_preCICE OK"
+
+%runscript
+    echo "aero-research-platform CalculiX + preCICE image (Stage 19)"
+    exec "$@"
