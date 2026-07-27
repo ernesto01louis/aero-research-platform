@@ -8,7 +8,7 @@ session_duration_hours: 9
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 30b1adde7e4d60edcb561d18a71acdf3e994b276
-git_sha_end: PLACEHOLDER_GIT_SHA_END
+git_sha_end: 2a5bbd63a66fddd8c0a4e64f1176aad19023ce83
 stage_tag: v0.0.19
 next_stage: 20
 next_stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
@@ -72,16 +72,25 @@ session.
 
 ## 3. Deviations from the stage plan
 
+- **The gated campaign is RUNNING, detached, and had not returned.** Launched from a
+  clean tree at `2a5bbd6` as run `turek_hron_fsi3-20260727-152140`
+  (`blockMeshDict`, 20 969 cells, `max-time = 8.0 s`, ceiling 48 h). **Recovering it:**
+  the local driver writes the bundle only at the end, so if that process died the remote
+  tmux job carries on regardless — re-read
+  `/mnt/aero-nfs/runs/turek_hron_fsi3-20260727-152140/tutorial/` directly
+  (`coupled-status.json`, the watch-point, the two iterations logs) and re-run the
+  analysis; nothing about the verdict depends on the driver having stayed alive.
 - **No campaign verdict.** The campaign is feasible; it simply takes ~30 h. Gate I4's
   measurement is what establishes that, and it is worth recording how nearly it went the
   other way. The *transient-inclusive* rate over the first few windows is ~49-87 s/window,
   which projects 108 h for `max-time = 8 s` and would have justified declaring a budget
   NO-GO on the spot. But coupling iterations fall steeply as the start-up transient
   clears — 16, 23, 12, 11, 8, 8, 6, 6, ... settling at 3 — and the **post-transient
-  marginal rate is 13.6 s/window**, measured over 83 consecutive windows. That puts
-  `max-time = 8 s` (8000 windows) at **~30 h**, and the minimum physical time that can
+  rate is 13.35 s/window** — the completed 200-window calibration ran in 2670 s with
+  mean 3.52 coupling iterations, max 23, and **zero non-converged windows**. That puts
+  `max-time = 8 s` (8000 windows) at **29.7 h**, and the minimum physical time that can
   yield a verdict at all (S2's 4 s discard plus S3's four settled cycles at 5.54 Hz,
-  i.e. t = 4.72 s) at **~18 h**. Both inside the 48 h ceiling.
+  i.e. t = 4.72 s) at **17.5 h**. Both inside the 48 h ceiling.
   **This is exactly why ADR-036 I4 requires the measurement before any budget or rung
   decision:** deciding from the early rate would have retired the stage as an
   infrastructure failure when in fact it fits with 17 h to spare.
@@ -116,7 +125,11 @@ session.
 - No new required checks. `vv-required`'s internal paths-filter already covers
   `aero/adapters/**` and `aero/vv/**`; nothing needed adding, and the workflow itself must
   never be `paths:`-filtered.
-- New unit tests run in the existing required `pytest unit` job (285 pass).
+- New unit tests run in the existing required `pytest unit` job (287 pass).
+- **`README.md`'s STATUS block now reads "Latest tag: v0.0.19".** That tag does **not**
+  exist and must not be pushed until a verdict does. The block is generated from this
+  handoff's `stage_tag` frontmatter and hand-editing it fails CI; the generator has no way
+  to express "intended tag". `status: partial` above is authoritative.
 
 ## 6. Gotchas discovered
 
@@ -204,6 +217,8 @@ session.
    lands, revisit.
 6. `_txt_table` treats any short final row as a partial write; a file truncated
    mid-campaign by something else would read as one dropped row.
+7. The `README` STATUS generator cannot express "stage complete, not yet tagged" — see §5.
+   Worth a small fix before a future partial stage repeats it.
 
 **Ledger (carried, not dropped)**: mesh fallback ladder into the V&V runner;
 vertex-manifoldness (bowtie) check; 3D external-geometry mode + generic external-aero
@@ -241,11 +256,17 @@ and recomputed by the same code that will measure the solve. The pre-registratio
 mechanically bound to the code in required CI, and the band-parity and gate-block checks
 were mutation-tested.
 
-**Not confident.** Whether FSI3 will *ever* finish within a sane budget on this hardware —
-that is the open measurement, and it is the likeliest reason this stage closes NO-GO.
-Whether the D bands are the right width is untested, because nothing has been compared
-against them yet. The supervisor is generated bash: its three stop paths are executed in
-CI against stubs, but it has now run exactly twice in anger.
+**Now measured, no longer a risk.** Throughput. The 200-window calibration converged
+every window at a mean of 3.52 coupling iterations, and 29.7 h for the full pre-registered
+run sits comfortably inside the 48 h ceiling. Worth recording that this nearly went the
+other way: the transient-inclusive rate projects 108 h, and had the budget call been made
+from it the stage would have been retired as an infrastructure failure.
+
+**Not confident.** Whether the D bands are the right width — nothing has yet been compared
+against them, and that is the whole open question. Whether the run stays converged for
+8000 windows rather than 200; FSI3's added mass is what makes it the benchmark's hardest
+case, and K1 will refuse the run if it does not. The supervisor is generated bash: its
+three stop paths are executed in CI against stubs, but it has now run in anger four times.
 
 **Bus factor.** The AppArmor change is the single most important undocumented-elsewhere
 fact; it is in a runbook rather than only in this handoff for that reason. The other

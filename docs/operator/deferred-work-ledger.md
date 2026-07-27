@@ -220,3 +220,24 @@ explicitly-deferred remainders, each with its unblocking condition:
   runner blocks all PRs — why it's currently gated).
 - Decide the non-root `apptainer exec` posture (run-as-root vs privileged LXC) —
   document in an ADR (Stage-02 §6; not blocking).
+
+## Stage 19 (preCICE FSI core) — new items
+
+- **Stage-11 moving-mesh PSS gates share the Stage-19 S3 hole.**
+  `aero/postprocess/cycle_detection.py` compares only ADJACENT cycles, so a record
+  drifting under ~2 %/cycle certifies as a settled limit cycle without bound. Stage 19
+  closed this for its own path by adding a cumulative first-to-last bound in
+  `aero/postprocess/limit_cycle.py` (ADR-036 S5). `aero/adapters/openfoam/solver.py`'s
+  `_load_moving` / `_load_flapping` still use the unbounded check. **Not changed at
+  Stage 19 because backfilling it would retroactively alter earlier campaign verdicts.**
+  Decide deliberately: backfill and re-run the affected cases, or record the exposure.
+- **CalculiX SIF not built.** `containers/calculix-precice.{Dockerfile,def}` and
+  `scripts/build_calculix_sif.sh` are committed and ready; run from the Proxmox host, then
+  record the digest in `containers/SHA256SUMS` and run the perpendicular-flap smoke.
+- **The `aero[precice]` extra is exercised only inside the SIF** (by `solverdummy`). If a
+  host-side in-process participant ever lands, revisit what the extra is for.
+- **`_txt_table` treats any short final row as a partial write.** Correct for a live
+  preCICE file; a file truncated by something else would read as one silently dropped row.
+- **The README STATUS generator cannot express "stage complete, not yet tagged"** — it
+  reports the handoff's `stage_tag` as "Latest tag" regardless. Stage 19 is partial and
+  untagged, so the block currently overstates. Small fix to `scripts/regenerate_status.sh`.
