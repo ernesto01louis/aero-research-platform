@@ -64,20 +64,52 @@ def test_the_block_states_every_gate_family() -> None:
 def test_the_bands_in_the_block_match_the_bands_in_the_code() -> None:
     """The document and the executable gate must not drift apart.
 
-    Checked by parsing the D-clauses out of the prose, so that editing one without the
-    other fails here rather than in a campaign six months from now.
+    Compared as an ORDERED list of (clause, band) pairs, not a set: a set of percentages
+    loses multiplicity and association, so deleting D4 (25 %, same as D3) or swapping the
+    amplitude and frequency bands would leave the set unchanged and the test green.
     """
     import re
 
     from aero.vv.fsi import TurekHronFSI3
 
     block = _driver_module().PREREGISTERED_GATE_BLOCK
-    stated = {
-        int(percent) / 100.0
-        for percent in re.findall(r"^\s+D\d [^\n]*within (\d+) %", block, flags=re.MULTILINE)
-    }
-    coded = {metric.tolerance for metric in TurekHronFSI3().metrics()}
-    assert stated == coded, f"ADR-036 states bands {sorted(stated)}, code has {sorted(coded)}"
+    stated = [
+        (clause, int(percent) / 100.0)
+        for clause, percent in re.findall(
+            r"^\s+(D\d) [^\n]*within (\d+) %", block, flags=re.MULTILINE
+        )
+    ]
+    assert stated == [("D1", 0.15), ("D2", 0.05), ("D3", 0.25), ("D4", 0.25), ("D5", 0.05)]
+
+    # ...and the code's metric -> band mapping, by name, in order.
+    coded = [(m.name, m.tolerance) for m in TurekHronFSI3().metrics()]
+    assert coded == [
+        ("tip_uy_amplitude", 0.15),
+        ("tip_uy_frequency", 0.05),
+        ("tip_ux_amplitude", 0.25),
+        ("tip_ux_mean", 0.25),
+        ("tip_ux_frequency", 0.05),
+    ]
+    assert len(stated) == len(coded) == 5
+    assert [band for _, band in stated] == [band for _, band in coded]
+
+
+def test_only_the_pre_registered_configuration_can_be_gated() -> None:
+    """ADR-036 B3 declares the refined run non-gated "so it cannot become a second
+    attempt at the gate". That has to be structural, not a convention."""
+    from aero.vv.fsi.turek_hron_fsi3 import GATED_MAX_TIME, GATED_MESH_DICT, fsi3_case_spec
+
+    assert fsi3_case_spec(
+        max_time=GATED_MAX_TIME, wall_clock_ceiling_s=172800, fluid_mesh_dict=GATED_MESH_DICT
+    ).gated
+    assert not fsi3_case_spec(
+        max_time=GATED_MAX_TIME,
+        wall_clock_ceiling_s=172800,
+        fluid_mesh_dict="blockMeshDict_refined",
+    ).gated
+    assert not fsi3_case_spec(
+        max_time=2.0, wall_clock_ceiling_s=172800, fluid_mesh_dict=GATED_MESH_DICT
+    ).gated
 
 
 def test_the_block_is_ascii() -> None:

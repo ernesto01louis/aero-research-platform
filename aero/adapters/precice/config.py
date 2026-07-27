@@ -544,6 +544,15 @@ class PreciceConfigExpectation(BaseModel):
     time_window_size: float = Field(..., gt=0.0)
     max_iterations: int = Field(..., ge=1)
     convergence_limits: Mapping[str, float]
+    convergence_kinds: Mapping[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "data name -> measure tag, e.g. 'relative-convergence-measure'. Checked "
+            "because a limit of 1e-4 means something entirely different as an ABSOLUTE "
+            "measure than as a relative one, and swapping the two would sail past a "
+            "limits-only comparison."
+        ),
+    )
     watch_points: Mapping[str, tuple[float, ...]]  # "Participant/WatchPoint" -> coordinate
     acceleration_kind: str = Field(..., min_length=1)
 
@@ -592,6 +601,19 @@ def assert_config(config: PreciceConfig, expected: PreciceConfigExpectation) -> 
     if got_limits != dict(expected.convergence_limits):
         problems.append(
             f"convergence limits {got_limits} != expected {dict(expected.convergence_limits)}"
+        )
+    if expected.convergence_kinds:
+        got_kinds_by_data = {m.data: m.kind for m in scheme.convergence_measures}
+        if got_kinds_by_data != dict(expected.convergence_kinds):
+            problems.append(
+                f"convergence measure kinds {got_kinds_by_data} != expected "
+                f"{dict(expected.convergence_kinds)}"
+            )
+    if len(scheme.convergence_measures) != len(got_limits):
+        problems.append(
+            f"{len(scheme.convergence_measures)} convergence measures collapse to "
+            f"{len(got_limits)} data names — two measures on the same data would be "
+            "invisible to a data-keyed comparison"
         )
 
     for key, coordinate in expected.watch_points.items():

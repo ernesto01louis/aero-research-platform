@@ -22,6 +22,16 @@ record get the same answer, and "run a bit longer until it passes" is not availa
 **Not converged is an error, not a number.** If the settled tail is shorter than the
 caller's minimum, this raises. A displacement amplitude read off a drifting record is not
 a measurement of a limit cycle, however close to a published value it happens to land.
+
+**Consecutive drift is not enough.** :func:`aero.postprocess.detect_cycle_convergence`
+compares *adjacent* cycles, so a record that grows steadily but slowly satisfies it
+without bound: at 1.2 % per cycle every adjacent difference is inside a 2 % tolerance
+while the amplitude grows 30 % across the window. That is not a pathological signal, it
+is what a slowly saturating added-mass instability looks like — the realistic FSI3
+failure mode. A CUMULATIVE first-to-last bound over the settled tail is therefore applied
+as well. On the published Turek-Hron FSI3 reference the cumulative amplitude drift is
+0.25 % over seven cycles, so the bound accepts genuine data with two orders of magnitude
+to spare while refusing steady growth.
 """
 
 from __future__ import annotations
@@ -34,7 +44,7 @@ from pydantic import BaseModel, Field, model_validator
 from aero.postprocess._base import _STRICT, Signal
 from aero.postprocess.cycle_detection import CycleConvergenceReport, detect_cycle_convergence
 from aero.postprocess.frequency import dominant_frequency
-from aero.postprocess.phase_averaging import segment_cycles
+from aero.postprocess.phase_averaging import CycleSamples, segment_cycles
 
 
 class LimitCycleError(RuntimeError):
@@ -70,8 +80,14 @@ class LimitCycleAnalysis(BaseModel):
     t_end: float = Field(..., description="Last instant of the record.")
     n_cycles_after_discard: int = Field(..., ge=1)
     n_settled_cycles: int = Field(..., ge=1, description="Length of the settled tail (the window).")
-    mean_drift: float = Field(..., ge=0.0)
-    amplitude_drift: float = Field(..., ge=0.0)
+    mean_drift: float = Field(..., ge=0.0, description="Worst ADJACENT-cycle relative drift.")
+    amplitude_drift: float = Field(..., ge=0.0, description="Worst adjacent-cycle drift.")
+    cumulative_mean_drift: float = Field(
+        ..., ge=0.0, description="First-to-last relative change of the per-cycle mean."
+    )
+    cumulative_amplitude_drift: float = Field(
+        ..., ge=0.0, description="First-to-last relative change of the per-cycle amplitude."
+    )
     statistics: dict[str, SignalStatistics] = Field(..., min_length=1)
 
     @model_validator(mode="after")
@@ -102,6 +118,7 @@ def analyse_limit_cycle(
     min_cycles: int = 4,
     mean_drift_tol: float = 0.01,
     amplitude_drift_tol: float = 0.02,
+    cumulative_drift_tol: float = 0.02,
 ) -> LimitCycleAnalysis:
     """Analyse a multi-signal record over the settled tail of its limit cycle.
 
@@ -161,6 +178,32 @@ def analyse_limit_cycle(
     t_window = t_kept[window]
 
     statistics: dict[str, SignalStatistics] = {}
+    tail = segment_cycles(
+        Signal.from_arrays(t_window, kept[fundamental][window], name=fundamental), period=period
+    )
+    # The detector counts cycles on a segmentation anchored at t_kept[0]; the statistics
+    # are computed on a re-segmentation anchored at t_start. Those can differ by one, so
+    # report the number of cycles actually averaged into the gated numbers, not the
+    # detector's — a settled-cycle count that overstates the evidence is a small lie in a
+    # provenance-bearing field.
+    if tail.n_cycles < min_cycles:
+        raise LimitCycleError(
+            f"the settled tail re-segments into {tail.n_cycles} full cycle(s), fewer than "
+            f"the required {min_cycles}, even though the detector counted "
+            f"{convergence.n_converged_cycles}. The gated statistics would average fewer "
+            "cycles than the pre-registered minimum."
+        )
+    cumulative_mean_drift, cumulative_amplitude_drift = _cumulative_drift(tail)
+    if max(cumulative_mean_drift, cumulative_amplitude_drift) > cumulative_drift_tol:
+        raise LimitCycleError(
+            f"the settled tail drifts monotonically: over its {tail.n_cycles} cycles the "
+            f"per-cycle mean changes {cumulative_mean_drift:.1%} and the amplitude "
+            f"{cumulative_amplitude_drift:.1%} from first to last (bound "
+            f"{cumulative_drift_tol:.1%}). Consecutive-cycle drift stayed inside "
+            f"{mean_drift_tol:.1%}/{amplitude_drift_tol:.1%}, which is exactly how a slowly "
+            "growing record masquerades as a limit cycle — the quantity is still moving. "
+            "Run longer, or investigate the coupling; do not widen the bound."
+        )
     for name, values in kept.items():
         series = values[window]
         signal = Signal.from_arrays(t_window, series, name=name)
@@ -183,8 +226,30 @@ def analyse_limit_cycle(
         t_start=t_start,
         t_end=float(t_kept[-1]),
         n_cycles_after_discard=samples.n_cycles,
-        n_settled_cycles=convergence.n_converged_cycles,
+        n_settled_cycles=tail.n_cycles,
         mean_drift=convergence.mean_drift,
         amplitude_drift=convergence.amplitude_drift,
+        cumulative_mean_drift=cumulative_mean_drift,
+        cumulative_amplitude_drift=cumulative_amplitude_drift,
         statistics=statistics,
+    )
+
+
+def _cumulative_drift(samples: CycleSamples) -> tuple[float, float]:
+    """First-to-last relative change of the per-cycle mean and amplitude.
+
+    Normalised the same way :mod:`aero.postprocess.cycle_detection` normalises its
+    adjacent-cycle drifts — a near-zero mean is scaled by the oscillation amplitude
+    rather than by itself — so the two bounds are commensurable.
+    """
+    m = np.asarray(samples.per_cycle_mean, dtype=np.float64)
+    a = np.asarray(samples.per_cycle_amplitude, dtype=np.float64)
+    if samples.n_cycles < 2:
+        return 0.0, 0.0
+    amp_scale = max(float(np.max(np.abs(a))), 1.0e-30)
+    mean_mag = float(np.mean(np.abs(m)))
+    mean_scale = max(mean_mag if mean_mag >= 0.05 * amp_scale else amp_scale, 1.0e-30)
+    return (
+        float(abs(m[-1] - m[0]) / mean_scale),
+        float(abs(a[-1] - a[0]) / amp_scale),
     )

@@ -62,6 +62,10 @@ TUREK_HRON_FSI3_EXPECTATION = PreciceConfigExpectation(
     time_window_size=1e-3,
     max_iterations=100,
     convergence_limits={"Stress": 1e-4, "Displacement": 1e-4},
+    convergence_kinds={
+        "Stress": "relative-convergence-measure",
+        "Displacement": "relative-convergence-measure",
+    },
     watch_points={"Solid/Flap-Tip": (0.6, 0.2)},
     acceleration_kind="IQN-ILS",
 )
@@ -70,6 +74,11 @@ TUREK_HRON_FSI3_EXPECTATION = PreciceConfigExpectation(
 #: published reference window begins at t = 5 s; 4 s is the declared discard.
 ANALYSIS_DISCARD_S = 4.0
 ANALYSIS_MIN_CYCLES = 4
+
+#: The rung and end-time ADR-036 B2 pre-registers for the GATED campaign. Any other
+#: combination is, by construction, one of the B3 diagnostics — see `fsi3_case_spec`.
+GATED_MESH_DICT = "blockMeshDict"
+GATED_MAX_TIME = 8.0
 
 #: Pre-registered displacement bands (ADR-036 D1-D5).
 _BAND_UY_AMPLITUDE = 0.15
@@ -132,6 +141,11 @@ def fsi3_case_spec(
     root = repo_root or _repo_root()
     archive = root / _REFERENCE_DIR / _ARCHIVE
     archive_sha = _verified(archive, what="pinned preCICE tutorial archive")
+    # `gated` is DERIVED, never passed in. ADR-036 B2 pre-registers exactly one gated
+    # configuration; B3's refined-mesh run is declared non-gated from the start "so it
+    # cannot become a second attempt at the gate". Letting a caller assert gated=True for
+    # an arbitrary rung or a shortened end time would make that declaration decorative.
+    gated = fluid_mesh_dict == GATED_MESH_DICT and max_time == GATED_MAX_TIME
     return CoupledCaseSpec(
         name=name,
         pin=TutorialPin(
@@ -168,7 +182,7 @@ def fsi3_case_spec(
         wall_clock_ceiling_s=wall_clock_ceiling_s,
         analysis_discard_s=ANALYSIS_DISCARD_S,
         analysis_min_cycles=ANALYSIS_MIN_CYCLES,
-        gated=True,
+        gated=gated,
     )
 
 
@@ -192,7 +206,7 @@ class TurekHronFSI3:
                 name=self.name,
                 # Defaults match the pre-declared campaign budget (ADR-036 B2). The
                 # campaign driver passes its own; these keep `aero vv run` usable.
-                max_time=8.0,
+                max_time=GATED_MAX_TIME,
                 wall_clock_ceiling_s=172800,
             )
         return self._spec

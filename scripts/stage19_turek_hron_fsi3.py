@@ -51,9 +51,18 @@ from aero.adapters.precice.analysis import (  # noqa: E402
     analyse_displacement_watchpoint,
 )
 from aero.adapters.precice.config import describe  # noqa: E402
-from aero.adapters.precice.logs import assert_coupling_converged  # noqa: E402
+from aero.adapters.precice.logs import (  # noqa: E402
+    CouplingConvergenceError,
+    assert_coupling_converged,
+)
+from aero.adapters.precice.solver import PreciceSolverError  # noqa: E402
+from aero.adapters.precice.watchpoint import WatchpointError  # noqa: E402
 from aero.orchestration import LocalSSHExecutor  # noqa: E402
 from aero.postprocess import LimitCycleError  # noqa: E402
+from aero.provenance.four_fold import (  # noqa: E402
+    ProvenanceError,
+    compute_provenance,
+)
 from aero.vv.fsi import TUREK_HRON_FSI3_EXPECTATION, TurekHronFSI3, fsi3_case_spec  # noqa: E402
 
 _ADR = _REPO_ROOT / "docs" / "adrs" / "ADR-036-precice-fsi3-gate-preregistration.md"
@@ -89,8 +98,12 @@ P - pins and provenance (Hard Rule 8)
      nutils 9.2 / numpy 1.26.4 / meshio 5.3.5 / gmsh 4.15.2; OpenFOAM ESI v2412
      (image digest sha256:1ba02114..41b50); CalculiX 2.20 + calculix-adapter v2.20.1.
   P3 every gated run logs the four-fold tuple from a clean tree, with
-     container_sif_sha256 = precice-fsi.sif. A gated run spanning more than one SIF is
-     structurally refused.
+     container_sif_sha256 = precice-fsi.sif. Evaluated by the campaign driver BEFORE the
+     solve, not assumed: a dirty tree yields a "-dirty" SHA and a GATED verdict is
+     refused, because the SHA would not describe what ran. A gated run spanning more than
+     one SIF is structurally refused, and `gated` is DERIVED from the rung and end time
+     (B2's configuration) rather than passed in, so a B3 diagnostic cannot claim the
+     gated verdict.
   P4 containers/SHA256SUMS carries precice-fsi.sif and calculix-precice.sif; both are
      signed and apptainer-verify clean.
   P5 the aero[precice] pin, PINNED_PYPRECICE_VERSION and the container recipe state the
@@ -99,9 +112,10 @@ P - pins and provenance (Hard Rule 8)
 C - configuration integrity (what we run is what upstream wrote)
   C1 the materialized precice-config.xml matches TUREK_HRON_FSI3_EXPECTATION exactly:
      participants {Fluid, Solid}; scheme parallel-implicit; time-window-size 1e-3;
-     max-iterations 100; relative convergence limits 1e-4 on BOTH Stress and
-     Displacement; acceleration IQN-ILS; m2n sockets; watch-point Solid/Flap-Tip at
-     (0.6, 0.2).
+     max-iterations 100; convergence measures on BOTH Stress and Displacement, each of
+     KIND relative-convergence-measure with limit 1e-4 (the kind is compared, not just
+     the limit - 1e-4 absolute is a different problem from 1e-4 relative); acceleration
+     IQN-ILS; m2n sockets; watch-point Solid/Flap-Tip at (0.6, 0.2).
   C2 the ONLY permitted modification to the upstream configuration is <max-time>, and it
      is enforced structurally: the rewritten file is re-parsed and must equal the source
      model under a max_time-only update. Loosening max-iterations, a convergence limit or
@@ -119,9 +133,11 @@ I - infrastructure pre-flight (all before any campaign run)
   I2 upstream 1-window cross-check against the reference-results VTUs. REPORTED, never
      gated: upstream ran OpenFOAM v2512 + deal.II and we run v2412 + Nutils.
   I3 blockMesh succeeds on the selected variant and its cell count is recorded.
-  I4 a calibration run of at least 200 time windows completes, and its median
-     post-transient seconds-per-window and iterations-per-window are recorded BEFORE any
-     budget or rung decision is taken.
+  I4 a calibration run COMPLETES at least the requested 200 time windows and ends
+     stopped_by == "all-exited"; its seconds-per-window and iterations-per-window are
+     recorded BEFORE any budget or rung decision is taken. A run that died after a few
+     windows must not yield a seconds-per-window figure, because that figure is what the
+     budget decision rests on.
 
 R - reference integrity
   R1 ref_fsi3.point matches its recorded sha256 and is identified as featflow level 4
@@ -139,10 +155,16 @@ R - reference integrity
 K - coupling convergence (fail-loud, enforced inside load())
   K1 ZERO time windows in the analysis window may hit max-iterations = 100, and every
      window must report Convergence == 1. A single non-converged window makes the run
-     non-reportable - investigate, never relax.
+     non-reportable - investigate, never relax. The window range is DERIVED from the
+     S-rule's analysis window (index = round(t / time-window-size) - 1), not from the
+     whole run: upstream documents that the first time windows need many coupling
+     iterations, so gating the start-up transient would be a spurious NO-GO about
+     something the analysis never looks at.
   K2 the supervisor's coupled-status.json exists, and either both participants exited
-     cleanly or the run stopped_by == "ceiling" with both alive at SIGTERM.
-     participant-died is a loud failure.
+     cleanly or the run stopped_by == "ceiling" with EVERY participant still running at
+     SIGTERM (i.e. every recorded state is "killed"). A ceiling stop in which one
+     participant had already exited is a desynchronised coupling wearing a budget
+     outcome's clothes, and is refused. participant-died is a loud failure.
   K3 diagnostics, never gated: mean/max iterations per window, per-iteration residuals,
      IQN-ILS filter drops.
 
@@ -159,6 +181,15 @@ S - periodic steady state (the analysis window is DERIVED, never chosen)
   S4 the driver checkpoints as further cycles complete, and the verdict is taken from the
      LAST checkpoint at the stopping time - never the best. Every checkpoint ships in the
      bundle.
+  S5 CUMULATIVE bound: across the settled tail, the first-to-last relative change of the
+     per-cycle mean and of the per-cycle amplitude must each stay within 2 %. S3 compares
+     ADJACENT cycles only, so without S5 a record growing 1.2 % per cycle satisfies it
+     without limit while the amplitude grows 30 % across the window - which is what a
+     slowly saturating added-mass instability looks like, i.e. the realistic FSI3 failure
+     mode. On the published reference the cumulative drift is 0.25 % over seven cycles,
+     so the bound accepts genuine data with two orders of magnitude to spare.
+     n_settled_cycles reports the cycles actually averaged into the gated statistics, not
+     the detector's count, and must itself meet the S3 minimum.
 
 D - displacement bands (the physics gate, relative to R3)
   D1 flag-tip transverse amplitude within 15 %.
@@ -394,9 +425,12 @@ def _preflight(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any
         trace = solver.watchpoint(calib_result)
         reports = solver.coupling_report(calib_result)
         completed = trace.n_rows
+        # ADR-036 I4 requires a calibration of at least the requested length. "> 0" would
+        # let a run that died after three windows report a seconds-per-window figure, and
+        # that figure is what the budget decision is made from.
         i4.update(
             {
-                "passed": completed > 0,
+                "passed": completed >= windows and calib_status.stopped_by == "all-exited",
                 "windows_completed": completed,
                 "seconds_per_window": (
                     calib_status.wall_clock_s / completed if completed else None
@@ -460,6 +494,23 @@ def _analyse(
     )
 
 
+def _provenance(spec: CoupledCaseSpec, *, allow_dirty: bool) -> dict[str, Any]:
+    """Gate P3 — the four-fold tuple from a clean tree, computed BEFORE anything runs.
+
+    P3 sits inside the GO conjunction, so it has to be evaluated rather than assumed
+    (Stage-18 review finding 8: a bundle claimed a rule it never checked). Computing it
+    first also means a dirty tree stops the campaign in seconds instead of at the end of
+    a multi-day run, when the SHA no longer describes what ran.
+    """
+    provenance = compute_provenance(
+        repo_root=_REPO_ROOT,
+        container_sif=spec.container_of_record,
+        resolved_config=json.loads(spec.model_dump_json()),
+        allow_dirty=allow_dirty,
+    )
+    return json.loads(provenance.model_dump_json())
+
+
 def _campaign(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]:
     """Full campaign: prepare, mesh, coupled run, analyse, verdict."""
     case = TurekHronFSI3(spec)
@@ -468,13 +519,20 @@ def _campaign(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]
 
     record: dict[str, Any] = {
         "started_at": _utc_now(),
-        "gate_block_sha256": None,
         "spec": json.loads(spec.model_dump_json()),
         "reference": reference,
         "bands": bands,
         "gated": spec.gated,
         "checkpoints": [],
     }
+
+    try:
+        record["provenance"] = _provenance(spec, allow_dirty=args.allow_dirty)
+        print(f"[P3] four-fold provenance ok: git {record['provenance']['git_sha'][:12]}")
+    except ProvenanceError as exc:
+        record["verdict"] = f"NO-GO (P3: {exc})"
+        record["finished_at"] = _utc_now()
+        return record
 
     solver = PreciceCoupledSolver(
         sif_path=f"/opt/aero/containers/{spec.container_of_record}",
@@ -537,6 +595,14 @@ def _campaign(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]
         record["verdict"] = f"NO-GO (S3: {exc})"
         record["finished_at"] = _utc_now()
         return record
+    except (WatchpointError, PreciceSolverError, CouplingConvergenceError, ValueError) as exc:
+        # _analyse reaches the watch-point reader, the config, and the solver's own
+        # fail-loud checks, none of which raise LimitCycleError. Letting those escape
+        # would end a multi-day campaign with a traceback and no bundle — the one outcome
+        # worse than a NO-GO, because nothing is recorded.
+        record["verdict"] = f"NO-GO ({type(exc).__name__}: {exc})"
+        record["finished_at"] = _utc_now()
+        return record
 
     checkpoint.wall_clock_s = status.wall_clock_s
     record["checkpoints"].append(checkpoint.as_dict())
@@ -555,7 +621,12 @@ def _campaign(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]
     )
 
     all_passed = all(checkpoint.passed.values())
-    if not spec.gated:
+    dirty = str(record.get("provenance", {}).get("git_sha", "")).endswith("-dirty")
+    if spec.gated and dirty:
+        record["verdict"] = (
+            "NO-GO (P3: the tree was dirty, so the recorded SHA does not describe what ran)"
+        )
+    elif not spec.gated:
         record["verdict"] = "DIAGNOSTIC (non-gated by pre-registration; reported, bears no verdict)"
     elif all_passed:
         record["verdict"] = "GO"
@@ -578,6 +649,11 @@ def main(argv: list[str] | None = None) -> int:
         choices=("blockMeshDict", "blockMeshDict_refined", "blockMeshDict_double_refined"),
     )
     parser.add_argument("--preflight", action="store_true", help="Run the I-gates only.")
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="Exploration only: log a -dirty SHA. A GATED verdict requires a clean tree.",
+    )
     parser.add_argument(
         "--calibration-windows",
         type=int,

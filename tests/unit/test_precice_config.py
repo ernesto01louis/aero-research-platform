@@ -260,3 +260,38 @@ def test_read_precice_config_records_the_digest(tmp_path: Path) -> None:
     path.write_text(FSI3_CONFIG, encoding="utf-8")
     config = read_precice_config(path)
     assert config.source_sha256 == hashlib.sha256(FSI3_CONFIG.encode()).hexdigest()
+
+
+def test_a_swapped_convergence_measure_kind_is_rejected() -> None:
+    """1e-4 ABSOLUTE is a different problem from 1e-4 relative.
+
+    A data->limit comparison sees no change when the tag is swapped, so the measure kind
+    is compared too.
+    """
+    expectation = EXPECTATION.model_copy(
+        update={
+            "convergence_kinds": {
+                "Stress": "relative-convergence-measure",
+                "Displacement": "relative-convergence-measure",
+            }
+        }
+    )
+    assert_config(_parse(), expectation)
+
+    swapped = FSI3_CONFIG.replace(
+        '<relative-convergence-measure limit="1e-4" data="Displacement"',
+        '<absolute-convergence-measure limit="1e-4" data="Displacement"',
+    )
+    with pytest.raises(PreciceConfigError, match="convergence measure kinds"):
+        assert_config(_parse(swapped), expectation)
+
+
+def test_two_measures_on_the_same_data_cannot_hide() -> None:
+    """A data-keyed dict would silently collapse them."""
+    doubled = FSI3_CONFIG.replace(
+        '<relative-convergence-measure limit="1e-4" data="Stress" mesh="Fluid-Mesh-Centers" />',
+        '<relative-convergence-measure limit="1e-4" data="Stress" mesh="Fluid-Mesh-Centers" />\n'
+        '    <absolute-convergence-measure limit="1e2" data="Stress" mesh="Fluid-Mesh-Centers" />',
+    )
+    with pytest.raises(PreciceConfigError, match="collapse"):
+        assert_config(_parse(doubled), EXPECTATION)

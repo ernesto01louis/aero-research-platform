@@ -91,6 +91,21 @@ class PreciceSolverError(RuntimeError):
     """A coupled preCICE run could not be prepared, meshed, executed or read."""
 
 
+def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tuple[int, int]:
+    """preCICE TimeWindow indices spanning ``[t_start, t_end]``.
+
+    preCICE logs ``TimeWindow = _timeWindows - 1``, and the watch-point's first row is
+    the first COMPLETED window, so the window whose end is at time t has index
+    ``round(t / dt) - 1``. Clamped at zero, and widened by nothing: the bound is inclusive
+    on both ends so the analysis window's own first and last windows are both checked.
+    """
+    if window_size <= 0.0:
+        raise PreciceSolverError(f"non-positive coupling time-window size {window_size!r}")
+    first = max(round(t_start / window_size) - 1, 0)
+    last = max(round(t_end / window_size) - 1, first)
+    return first, last
+
+
 class PreciceCoupledSolver(Solver):
     """Drives a two-participant preCICE case through the platform's solver lifecycle."""
 
@@ -306,10 +321,19 @@ class PreciceCoupledSolver(Solver):
                 f"{' (' + ', '.join(died) + ')' if died else ''}. A partial coupled solve is "
                 f"not reportable.\n{result.solver_log[-2000:]}"
             )
-
-        reports = self.coupling_report(result)
-        for report in reports:
-            assert_coupling_converged(report)
+        # Gate K2 permits exactly two endings: everyone exited cleanly, or the ceiling
+        # stopped a run in which BOTH participants were still alive. A run where one
+        # participant had already exited when the ceiling fired is a desynchronised
+        # coupling wearing a budget outcome's clothes.
+        if status.stopped_by == "ceiling":
+            already_gone = [o.name for o in status.outcomes if o.state != "killed"]
+            if already_gone:
+                raise PreciceSolverError(
+                    f"{result.case_dir.run_id}: the ceiling stopped the run, but "
+                    f"{', '.join(already_gone)} had already exited — the participants were "
+                    "no longer coupled. Gate K2 admits a ceiling stop only with every "
+                    "participant still running; this record is not reportable."
+                )
 
         trace = self.watchpoint(result)
         uy = trace.signal("Displacement1")
@@ -319,6 +343,21 @@ class PreciceCoupledSolver(Solver):
             discard_s=spec.analysis_discard_s,
             min_cycles=spec.analysis_min_cycles,
         )
+
+        # Gate K1 applies to the ANALYSIS WINDOW, not the whole run. Upstream documents
+        # that the first time windows need many coupling iterations; failing the run for
+        # a capped window at t = 0.01 s would be a spurious NO-GO about the start-up
+        # transient, and asserting over everything is how `within()` became dead code.
+        window_size = self.config_for(result.case_dir).coupling_scheme.time_window_size
+        first_window, last_window = _window_indices(
+            analysis.t_start, analysis.t_end, window_size=window_size
+        )
+        reports = tuple(
+            r.within(first_window=first_window, last_window=last_window)
+            for r in self.coupling_report(result)
+        )
+        for report in reports:
+            assert_coupling_converged(report)
         tip_uy = analysis.of(TIP_UY)
         tip_ux = analysis.of(TIP_UX)
 
@@ -334,6 +373,10 @@ class PreciceCoupledSolver(Solver):
             "analysis_t_start": analysis.t_start,
             "analysis_t_end": analysis.t_end,
             "analysis_n_settled_cycles": float(analysis.n_settled_cycles),
+            "analysis_cumulative_mean_drift": analysis.cumulative_mean_drift,
+            "analysis_cumulative_amplitude_drift": analysis.cumulative_amplitude_drift,
+            "coupling_first_window": float(first_window),
+            "coupling_last_window": float(last_window),
             "analysis_mean_drift": analysis.mean_drift,
             "analysis_amplitude_drift": analysis.amplitude_drift,
             "t_end": float(t[-1]),

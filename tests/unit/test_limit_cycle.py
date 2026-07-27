@@ -152,3 +152,54 @@ def test_analysis_window_is_the_settled_tail_not_the_whole_record() -> None:
     assert analysis.t_start > 3.0
     assert analysis.t_end == pytest.approx(float(t[-1]), abs=1e-9)
     assert analysis.window_duration < float(t[-1] - t[0])
+
+
+# --- the cumulative bound (ADR-036 S5) ----------------------------------------------
+
+
+def _growing(rate_per_cycle: float, *, duration: float = 8.0, f0: float = 5.539872):
+    """A record whose amplitude grows steadily and never saturates."""
+    t = np.arange(0.001, duration, 1e-3)
+    grow = (1.0 + rate_per_cycle) ** (t * f0)
+    uy = 9.66436e-4 + 0.671 * 3.495533e-2 * grow * np.sin(2 * np.pi * f0 * t)
+    ux = (
+        -2.8568e-3
+        + 2.7002e-3 * grow * np.sin(2 * np.pi * 2 * f0 * t)
+        + 0.35e-3 * grow * np.sin(2 * np.pi * f0 * t)
+    )
+    return t, {"flap_tip_uy": uy, "flap_tip_ux": ux}
+
+
+def test_sub_tolerance_monotone_growth_is_refused() -> None:
+    """The defect an adversarial review found in this gate, pinned.
+
+    detect_cycle_convergence compares ADJACENT cycles only. At 1.2 % growth per cycle
+    every adjacent difference sits inside the 2 % tolerance, so the record certified as a
+    fully settled limit cycle while its amplitude grew ~30 % across the analysis window —
+    and all five displacement bands then passed, producing a GO on a solve that never
+    reached a periodic steady state. A slowly saturating added-mass instability is the
+    realistic FSI3 failure mode, not a contrived signal.
+    """
+    t, signals = _growing(0.012)
+    with pytest.raises(LimitCycleError, match="drifts monotonically"):
+        analyse_limit_cycle(t, signals, fundamental="flap_tip_uy", discard_s=4.0, min_cycles=4)
+
+
+def test_the_cumulative_bound_still_accepts_a_genuine_limit_cycle() -> None:
+    """A bound that refused real data would be worse than no bound."""
+    t, signals = _record(duration=8.0)
+    analysis = analyse_limit_cycle(t, signals, fundamental="uy", discard_s=4.0, min_cycles=4)
+    assert analysis.cumulative_amplitude_drift < 0.02
+    assert analysis.cumulative_mean_drift < 0.02
+
+
+def test_settled_cycle_count_is_the_cycles_actually_averaged() -> None:
+    """n_settled_cycles is provenance-bearing: it must not overstate the evidence.
+
+    The detector counts on a segmentation anchored at the first kept sample; the
+    statistics are computed on a re-segmentation anchored at the window start. Those can
+    differ by one.
+    """
+    t, signals = _record(duration=8.0)
+    analysis = analyse_limit_cycle(t, signals, fundamental="uy", discard_s=4.0, min_cycles=4)
+    assert analysis.n_settled_cycles == analysis.of("uy").n_cycles
