@@ -223,14 +223,18 @@ explicitly-deferred remainders, each with its unblocking condition:
 
 ## Stage 19 (preCICE FSI core) — new items
 
-- **Stage-11 moving-mesh PSS gates share the Stage-19 S3 hole.**
-  `aero/postprocess/cycle_detection.py` compares only ADJACENT cycles, so a record
-  drifting under ~2 %/cycle certifies as a settled limit cycle without bound. Stage 19
-  closed this for its own path by adding a cumulative first-to-last bound in
-  `aero/postprocess/limit_cycle.py` (ADR-036 S5). `aero/adapters/openfoam/solver.py`'s
-  `_load_moving` / `_load_flapping` still use the unbounded check. **Not changed at
-  Stage 19 because backfilling it would retroactively alter earlier campaign verdicts.**
-  Decide deliberately: backfill and re-run the affected cases, or record the exposure.
+- **Stage-11 moving-mesh PSS gate: enable the cumulative bound (needs discard-first).**
+  The cumulative linear-trend bound now lives in the shared
+  `aero/postprocess/cycle_detection.py` (ADR-019 amendment, Stage 19) and is COMPUTED and
+  reported by `_load_moving` / `_load_flapping`, but those paths do NOT gate on it.
+  Reason, measured: they segment from t=0 and let the adjacent-drift scan pick the tail,
+  which can include transient cycles; re-analysing 107 surviving historical runs with the
+  bound enabled flipped 56, and real drift could not be separated from that artifact.
+  Enabling it safely requires adopting Stage-19's unconditional-discard-then-analyze
+  discipline first (discard the start-up transient, THEN segment + gate), which changes
+  tail selection and hence historical verdicts. Do it per-owning-stage (11/13/14) with
+  re-runs of the affected cases; the surviving force histories are under
+  `/mnt/aero-nfs/runs/{plunging_airfoil_hg2007,oscillating_cylinder_lockin}-*`.
 - **CalculiX SIF not built.** `containers/calculix-precice.{Dockerfile,def}` and
   `scripts/build_calculix_sif.sh` are committed and ready; run from the Proxmox host, then
   record the digest in `containers/SHA256SUMS` and run the perpendicular-flap smoke.

@@ -28,9 +28,9 @@ compares *adjacent* cycles, so a record that grows steadily but slowly satisfies
 without bound: at 1.2 % per cycle every adjacent difference is inside a 2 % tolerance
 while the amplitude grows 30 % across the window. That is not a pathological signal, it
 is what a slowly saturating added-mass instability looks like — the realistic FSI3
-failure mode. A CUMULATIVE first-to-last bound over the settled tail is therefore applied
-as well. On the published Turek-Hron FSI3 reference the cumulative amplitude drift is
-0.25 % over seven cycles, so the bound accepts genuine data with two orders of magnitude
+failure mode. A CUMULATIVE linear-trend bound over the settled tail is therefore applied
+as well. On the published Turek-Hron FSI3 reference the cumulative amplitude trend drift is
+0.14 % over seven cycles, so the bound accepts genuine data with two orders of magnitude
 to spare while refusing steady growth.
 """
 
@@ -42,9 +42,13 @@ import numpy as np
 from pydantic import BaseModel, Field, model_validator
 
 from aero.postprocess._base import _STRICT, Signal
-from aero.postprocess.cycle_detection import CycleConvergenceReport, detect_cycle_convergence
+from aero.postprocess.cycle_detection import (
+    CycleConvergenceReport,
+    cumulative_drift,
+    detect_cycle_convergence,
+)
 from aero.postprocess.frequency import dominant_frequency
-from aero.postprocess.phase_averaging import CycleSamples, segment_cycles
+from aero.postprocess.phase_averaging import segment_cycles
 
 
 class LimitCycleError(RuntimeError):
@@ -83,10 +87,12 @@ class LimitCycleAnalysis(BaseModel):
     mean_drift: float = Field(..., ge=0.0, description="Worst ADJACENT-cycle relative drift.")
     amplitude_drift: float = Field(..., ge=0.0, description="Worst adjacent-cycle drift.")
     cumulative_mean_drift: float = Field(
-        ..., ge=0.0, description="First-to-last relative change of the per-cycle mean."
+        ..., ge=0.0, description="Linear-trend total change of the per-cycle mean over the window."
     )
     cumulative_amplitude_drift: float = Field(
-        ..., ge=0.0, description="First-to-last relative change of the per-cycle amplitude."
+        ...,
+        ge=0.0,
+        description="Linear-trend total change of the per-cycle amplitude over the window.",
     )
     statistics: dict[str, SignalStatistics] = Field(..., min_length=1)
 
@@ -193,7 +199,9 @@ def analyse_limit_cycle(
             f"{convergence.n_converged_cycles}. The gated statistics would average fewer "
             "cycles than the pre-registered minimum."
         )
-    cumulative_mean_drift, cumulative_amplitude_drift = _cumulative_drift(tail)
+    cumulative_mean_drift, cumulative_amplitude_drift = cumulative_drift(
+        np.asarray(tail.per_cycle_mean), np.asarray(tail.per_cycle_amplitude)
+    )
     if max(cumulative_mean_drift, cumulative_amplitude_drift) > cumulative_drift_tol:
         raise LimitCycleError(
             f"the settled tail drifts monotonically: over its {tail.n_cycles} cycles the "
@@ -232,24 +240,4 @@ def analyse_limit_cycle(
         cumulative_mean_drift=cumulative_mean_drift,
         cumulative_amplitude_drift=cumulative_amplitude_drift,
         statistics=statistics,
-    )
-
-
-def _cumulative_drift(samples: CycleSamples) -> tuple[float, float]:
-    """First-to-last relative change of the per-cycle mean and amplitude.
-
-    Normalised the same way :mod:`aero.postprocess.cycle_detection` normalises its
-    adjacent-cycle drifts — a near-zero mean is scaled by the oscillation amplitude
-    rather than by itself — so the two bounds are commensurable.
-    """
-    m = np.asarray(samples.per_cycle_mean, dtype=np.float64)
-    a = np.asarray(samples.per_cycle_amplitude, dtype=np.float64)
-    if samples.n_cycles < 2:
-        return 0.0, 0.0
-    amp_scale = max(float(np.max(np.abs(a))), 1.0e-30)
-    mean_mag = float(np.mean(np.abs(m)))
-    mean_scale = max(mean_mag if mean_mag >= 0.05 * amp_scale else amp_scale, 1.0e-30)
-    return (
-        float(abs(m[-1] - m[0]) / mean_scale),
-        float(abs(a[-1] - a[0]) / amp_scale),
     )
