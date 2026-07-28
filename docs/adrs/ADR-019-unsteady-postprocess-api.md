@@ -108,3 +108,49 @@ Key API decisions:
 - Related ADR: ADR-017 (Stage-10 transient seed), ADR-015 (Invariant 10 — `u95_statistical`)
 - Governing scope: `docs/handoff-bundle/00-MISSION-AND-SCOPE.md` §3.4, §3.6
 - Output-validity bar: `docs/vv/output-validity-bar.md`
+
+---
+
+## Amendment — Stage 19 (2026-07-27): cumulative-drift bound in the PSS check
+
+**Context.** The Stage-19 adversarial review found that `detect_cycle_convergence` —
+which this ADR introduced and which backs both the Stage-11 moving-mesh gates and the
+new Stage-19 FSI3 gate — compares only *adjacent* cycles. A record growing < ~2 % per
+cycle keeps every adjacent difference inside tolerance while its amplitude grows tens of
+percent across the window: a slowly saturating instability certified as a settled limit
+cycle. On the FSI3 gate this would have passed a diverging solve as GO.
+
+**Decision.** Add a **cumulative** bound to the shared primitive, as a least-squares
+**linear-trend** drift over the settled tail (`aero.postprocess.cycle_detection.
+cumulative_drift`). The metric is deliberately a trend, not a first-to-last or
+block-means difference: a real limit cycle *beats* (its per-cycle amplitude wobbles a few
+percent around a stationary level), and any endpoint-based measure then reads the beat's
+phase rather than a trend — flipping genuine converged cycles. This was not theoretical:
+first-to-last flipped ~107 of 107 surviving historical moving-mesh runs, block-3-means
+flipped ~56, and the least-squares trend flips **zero** (worst 1e-4) while still reading
+0.22 on the FSI3 growth-test record and 1.4e-3 on the published FSI3 reference.
+
+**Scope — what is and is not enabled.**
+
+- The cumulative drift is **always computed and reported** on
+  `CycleConvergenceReport` (new fields, defaulted so pre-existing direct constructions
+  stay valid) and is emitted as a diagnostic scalar by the Stage-11 `_load_moving` /
+  `_load_flapping` load paths.
+- It **gates** only when the caller passes `cumulative_*_drift_tol`. Default `None`
+  preserves the pre-review `converged` boolean **byte-for-byte**, so no historical
+  verdict changes.
+- **Stage 19 opts in** (via `aero.postprocess.limit_cycle`), because it discards the
+  start-up transient *before* segmenting, so its analysis tail is clean and the trend
+  metric is well-posed. This path is fully verified.
+- **Stage 11 does NOT opt in**, deliberately. Its loaders segment from t = 0 and let the
+  adjacent-drift scan pick the tail, which can include transient cycles; re-analysing the
+  107 historical runs with the bound enabled flipped 56 of them, and the real drift could
+  not be cleanly separated from that tail-selection artifact. Enabling it there would
+  manufacture NO-GOs. Doing it safely requires first adopting Stage-19's
+  unconditional-discard-then-analyze discipline in the Stage-11 loaders — a change to tail
+  selection that *would* alter historical verdicts and must be done per-owning-stage with
+  re-runs. Ledgered in `docs/operator/deferred-work-ledger.md`.
+
+This is the honest reading of "backfill properly": the fix lives in the shared primitive
+and is used wherever it is verified safe; extending the *gate* to Stage 11 is a larger,
+verdict-altering change that is scoped and ledgered rather than bolted on unverified.

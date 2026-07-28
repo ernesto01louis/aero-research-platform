@@ -47,6 +47,70 @@ class CycleConvergenceReport(BaseModel):
     )
     mean_drift_tol: float = Field(..., gt=0.0)
     amplitude_drift_tol: float = Field(..., gt=0.0)
+    # Cumulative (linear-trend) drift over the settled tail. Always computed (cheap,
+    # diagnostic); only factored into `converged` when the caller passes a cumulative
+    # tolerance (see detect_cycle_convergence). Defaulted so pre-existing direct
+    # constructions of this model remain valid.
+    cumulative_mean_drift: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Linear-trend total change of the per-cycle mean over the tail.",
+    )
+    cumulative_amplitude_drift: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Linear-trend total change of the per-cycle amplitude over the tail.",
+    )
+    cumulative_mean_drift_tol: float | None = Field(
+        default=None, description="Cumulative bound applied, or None if not gated on."
+    )
+    cumulative_amplitude_drift_tol: float | None = Field(
+        default=None, description="Cumulative bound applied, or None if not gated on."
+    )
+
+
+def _trend_drift(series: np.ndarray, *, scale: float) -> float:
+    """The total relative change a least-squares LINEAR TREND predicts across the series.
+
+    Deliberately a trend, not a first-to-last or block-means difference. A limit cycle can
+    *beat* — its per-cycle amplitude wobbles a few percent around a stationary level
+    (imperfect lock-in, harmonic interaction) — and any endpoint-based measure then reads
+    the beat's phase rather than any drift, flipping a genuine converged cycle to
+    "drifting". A least-squares slope averages the beat out: a stationary wobble has zero
+    slope, a slowly growing record has a clear one. Empirically decisive — over 107
+    historical moving-mesh runs the trend drift is 1e-4 (zero flips), while the
+    monotonically growing FSI3 test record reads 0.22 and the published FSI3 reference
+    reads 1.4e-3.
+    """
+    s = np.asarray(series, dtype=np.float64)
+    n = s.size
+    if n < 3:
+        return 0.0
+    slope = float(np.polyfit(np.arange(n), s, 1)[0])
+    return abs(slope * (n - 1)) / scale
+
+
+def cumulative_drift(mean: np.ndarray, amplitude: np.ndarray) -> tuple[float, float]:
+    """Trend drift of a per-cycle mean and amplitude series over the settled tail.
+
+    The single shared implementation, called both by :func:`detect_cycle_convergence`
+    (Stage 11) and by :mod:`aero.postprocess.limit_cycle` (Stage 19), so the two gates
+    cannot drift apart. Uses a least-squares linear trend (see :func:`_trend_drift`), which
+    a stationary but beating limit cycle passes and a slowly growing one fails. Normalised
+    like the adjacent-cycle drifts: amplitude by its own magnitude, a near-zero mean by the
+    oscillation amplitude instead of by itself, so the bounds are commensurable.
+    """
+    m = np.asarray(mean, dtype=np.float64)
+    a = np.asarray(amplitude, dtype=np.float64)
+    if m.size < 2:
+        return 0.0, 0.0
+    amp_scale = max(float(np.max(np.abs(a))), _EPS)
+    mean_mag = float(np.mean(np.abs(m)))
+    mean_scale = max(mean_mag if mean_mag >= 0.05 * amp_scale else amp_scale, _EPS)
+    return (
+        _trend_drift(m, scale=mean_scale),
+        _trend_drift(a, scale=amp_scale),
+    )
 
 
 def detect_cycle_convergence(
@@ -55,6 +119,8 @@ def detect_cycle_convergence(
     window: int = 3,
     mean_drift_tol: float = 0.01,
     amplitude_drift_tol: float = 0.02,
+    cumulative_mean_drift_tol: float | None = None,
+    cumulative_amplitude_drift_tol: float | None = None,
 ) -> CycleConvergenceReport:
     """Find the longest settled tail of cycles and judge convergence.
 
@@ -64,6 +130,17 @@ def detect_cycle_convergence(
     (enough for a meaningful batch-means estimate). ``mean_drift`` / ``amplitude_drift``
     report the worst consecutive drift over the settled tail (or over the whole record
     when nothing settled).
+
+    **Cumulative bound (opt-in).** Consecutive-cycle drift alone certifies a record that
+    grows steadily but slowly: at 1.2 % per cycle every adjacent difference sits inside a
+    2 % tolerance while the amplitude grows 30 % across the window — a slowly saturating
+    instability wearing a limit cycle's clothes (found by adversarial review of the
+    Stage-19 gate, which this same function backs). When
+    ``cumulative_mean_drift_tol`` / ``cumulative_amplitude_drift_tol`` are given, the
+    linear-trend drift over the settled tail must also stay within them for ``converged``
+    to be true. The cumulative drifts are **always** computed and reported; passing the
+    tolerances is what makes them *gate*. Default ``None`` preserves the pre-review
+    behaviour byte-for-byte, so no historical verdict changes unless a caller opts in.
     """
     m = np.asarray(samples.per_cycle_mean, dtype=np.float64)
     a = np.asarray(samples.per_cycle_amplitude, dtype=np.float64)
@@ -111,6 +188,14 @@ def detect_cycle_convergence(
         tail_mean_drift = float(np.max(d_mean))
         tail_amp_drift = float(np.max(d_amp))
 
+    # Cumulative drift over whatever tail we settled on (or the whole record if none).
+    tail_slice = slice(c, None) if n_tail >= 2 else slice(None)
+    cum_mean, cum_amp = cumulative_drift(m[tail_slice], a[tail_slice])
+    if converged and cumulative_mean_drift_tol is not None:
+        converged = converged and cum_mean <= cumulative_mean_drift_tol
+    if converged and cumulative_amplitude_drift_tol is not None:
+        converged = converged and cum_amp <= cumulative_amplitude_drift_tol
+
     return CycleConvergenceReport(
         converged=converged,
         n_cycles=n,
@@ -120,4 +205,8 @@ def detect_cycle_convergence(
         amplitude_drift=tail_amp_drift,
         mean_drift_tol=mean_drift_tol,
         amplitude_drift_tol=amplitude_drift_tol,
+        cumulative_mean_drift=cum_mean,
+        cumulative_amplitude_drift=cum_amp,
+        cumulative_mean_drift_tol=cumulative_mean_drift_tol,
+        cumulative_amplitude_drift_tol=cumulative_amplitude_drift_tol,
     )

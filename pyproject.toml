@@ -158,9 +158,20 @@ physicsnemo-cu12 = [
     "warp-lang>=1.4",
 ]
 
-# Stage 11 — preCICE 3 multi-physics coupling
+# Stage 19 — preCICE 3 partitioned fluid-structure coupling (ADR-035).
+# NOTE what this extra is and is not. The gated FSI3 campaign does not import
+# pyprecice on the host at all: both participants are upstream code running inside
+# precice-fsi.sif, and everything aero/adapters/precice/ does host-side is stdlib
+# file parsing. The single in-repo consumer is aero.adapters.precice.solverdummy,
+# which runs INSIDE the SIF as the infrastructure pre-flight, and it is the declared
+# path for a future in-process participant (Stage 20+).
+# The pin is exact because the bindings must ABI-match the preCICE library baked into
+# the SIF (preCICE 3.4.1); tests/unit/test_precice_pin_sync.py asserts this version,
+# aero.adapters.precice.PINNED_PYPRECICE_VERSION and the container recipe agree.
+# pyprecice is sdist-only on PyPI: installing this extra needs the preCICE C++ headers
+# and MPI development headers present. No CI job installs it.
 precice = [
-    # populated in stage-19 (ADR-016, post-renumbering): pyprecice
+    "pyprecice==3.4.0",
 ]
 
 # Stage 04 — provenance backbone (version floors recorded in ADR-004)
@@ -349,6 +360,7 @@ markers = [
     "stage_16: tests gated to stage 16 deliverables",
     "stage_17: tests gated to stage 17 deliverables",
     "stage_18: tests gated to stage 18 deliverables",
+    "stage_19: tests gated to stage 19 deliverables",
 ]
 
 [tool.uv]

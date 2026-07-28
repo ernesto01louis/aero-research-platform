@@ -1,0 +1,19 @@
+# Turek-Hron FSI3 tabulated reference (featflow maintained benchmark pages, retrieved 2026-07-27)
+# wwwold.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/fsi_benchmark/
+#   fsi_tests/fsi_fsi_tests.html
+# Convention: the paper's "mean +/- amplitude [frequency]" — amplitude is half peak-to-peak.
+# ux/uy are the displacement of point A (the flag tip, initial position (0.6, 0.2)) in metres.
+# drag/lift are dimensional forces per unit span [N/m] on the cylinder+flag union.
+# level/ndof are the featflow FEM discretisation, NOT comparable to an FVM cell count.
+# The gate's reference row is level 4, dt 2.5e-4 — see reference.md (it is the row the
+# DVC-tracked ref_fsi3.point time series reproduces).
+level,ndof,dt,ux_mean,ux_amplitude,ux_frequency,uy_mean,uy_amplitude,uy_frequency,drag_mean,drag_amplitude,drag_frequency,lift_mean,lift_amplitude,lift_frequency
+2,19488,0.001,-3.02e-3,2.83e-3,10.75,1.41e-3,3.547e-2,5.37,4.582e2,2.832e1,10.75,2.41,1.4558e2,5.37
+3,76672,0.001,-2.78e-3,2.62e-3,10.93,1.44e-3,3.436e-2,5.46,4.591e2,2.663e1,10.93,2.41,1.5126e2,5.46
+4,304128,0.001,-2.86e-3,2.70e-3,10.95,1.45e-3,3.493e-2,5.47,4.602e2,2.765e1,10.95,2.47,1.5487e2,5.47
+2,19488,0.0005,-3.02e-3,2.85e-3,10.75,1.42e-3,3.563e-2,5.37,4.587e2,2.878e1,10.75,2.23,1.4602e2,5.37
+3,76672,0.0005,-2.78e-3,2.62e-3,10.92,1.44e-3,3.435e-2,5.46,4.591e2,2.662e1,10.92,2.39,1.5068e2,5.46
+4,304128,0.0005,-2.86e-3,2.70e-3,10.92,1.45e-3,3.490e-2,5.46,4.602e2,2.747e1,10.92,2.37,1.5375e2,5.46
+2,19488,0.00025,-3.02e-3,2.85e-3,10.74,1.32e-3,3.573e-2,5.36,4.587e2,2.880e1,10.74,2.23,1.4600e2,5.33
+3,76672,0.00025,-2.77e-3,2.61e-3,10.93,1.43e-3,3.443e-2,5.46,4.591e2,2.650e1,10.93,2.36,1.4991e2,5.46
+4,304128,0.00025,-2.88e-3,2.72e-3,10.93,1.47e-3,3.499e-2,5.46,4.605e2,2.774e1,10.93,2.50,1.5391e2,5.46

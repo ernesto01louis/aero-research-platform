@@ -464,6 +464,19 @@ class OpenFOAMSolver(Solver):
             )
 
         samples = segment_cycles(Signal.from_arrays(t, cl, name="lift_coefficient"), period=period)
+        # NOTE (Stage-19 backfill, deliberately NOT enabled here). detect_cycle_convergence
+        # now also computes a cumulative linear-trend drift and can gate on it — the fix for
+        # the periodic-steady-state hole an adversarial review found in the shared machinery
+        # (a record growing <2 %/cycle certifies as settled). Stage 19 gates on it, because
+        # it discards the start-up transient BEFORE segmenting, so its tail is clean. These
+        # Stage-11 loaders segment from t=0 and let the adjacent-drift scan pick the tail,
+        # which can include transient cycles; re-analysing 107 surviving historical runs
+        # with the bound enabled flipped 56 of them, and I could not cleanly separate real
+        # drift from that tail-selection artifact. Enabling it here would manufacture NO-GOs,
+        # so it stays a DIAGNOSTIC (conv.cumulative_*_drift, recorded below) rather than a
+        # gate. Enabling it safely needs the unconditional-discard discipline first — a tail
+        # change that alters historical verdicts and must be done per-case with re-runs.
+        # Ledgered in docs/operator/deferred-work-ledger.md.
         conv = detect_cycle_convergence(samples)
         if not conv.converged:
             raise ValueError(
@@ -488,6 +501,8 @@ class OpenFOAMSolver(Solver):
             "cycle_converged": 1.0,
             "n_converged_cycles": float(conv.n_converged_cycles),
             "converged_from_cycle": float(conv.converged_from_cycle),
+            "cumulative_mean_drift": conv.cumulative_mean_drift,
+            "cumulative_amplitude_drift": conv.cumulative_amplitude_drift,
             "mean_drift": conv.mean_drift,
             "amplitude_drift": conv.amplitude_drift,
             "forcing_period": period,
@@ -606,6 +621,19 @@ class OpenFOAMSolver(Solver):
         cl = np.asarray(trace.cl)
         cd = np.asarray(trace.cd)
         samples = segment_cycles(Signal.from_arrays(t, cl, name="lift_coefficient"), period=period)
+        # NOTE (Stage-19 backfill, deliberately NOT enabled here). detect_cycle_convergence
+        # now also computes a cumulative linear-trend drift and can gate on it — the fix for
+        # the periodic-steady-state hole an adversarial review found in the shared machinery
+        # (a record growing <2 %/cycle certifies as settled). Stage 19 gates on it, because
+        # it discards the start-up transient BEFORE segmenting, so its tail is clean. These
+        # Stage-11 loaders segment from t=0 and let the adjacent-drift scan pick the tail,
+        # which can include transient cycles; re-analysing 107 surviving historical runs
+        # with the bound enabled flipped 56 of them, and I could not cleanly separate real
+        # drift from that tail-selection artifact. Enabling it here would manufacture NO-GOs,
+        # so it stays a DIAGNOSTIC (conv.cumulative_*_drift, recorded below) rather than a
+        # gate. Enabling it safely needs the unconditional-discard discipline first — a tail
+        # change that alters historical verdicts and must be done per-case with re-runs.
+        # Ledgered in docs/operator/deferred-work-ledger.md.
         conv = detect_cycle_convergence(samples)
         if not conv.converged:
             raise ValueError(
@@ -625,6 +653,8 @@ class OpenFOAMSolver(Solver):
             "cycle_converged": 1.0,
             "n_converged_cycles": float(conv.n_converged_cycles),
             "converged_from_cycle": float(conv.converged_from_cycle),
+            "cumulative_mean_drift": conv.cumulative_mean_drift,
+            "cumulative_amplitude_drift": conv.cumulative_amplitude_drift,
             "mean_drift": conv.mean_drift,
             "amplitude_drift": conv.amplitude_drift,
             "forcing_period": period,

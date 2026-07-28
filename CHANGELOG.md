@@ -5,6 +5,68 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
+## [0.0.19] - 2026-07-28
+
+### Added — Stage 19 (preCICE FSI Core — Turek-Hron FSI3) — GO, all pre-registered bands passed
+
+> **Verdict:** partitioned fluid-structure coupling is verified. A real OpenFOAM↔Nutils
+> Turek-Hron **FSI3** simulation — the highest-added-mass case in the benchmark — ran through
+> the platform's own plumbing for **8000 coupled time windows in 20.30 h**, and the flag-tip
+> displacement matched the published Turek & Hron (2006) / featflow level-4 reference inside
+> every band pre-registered in ADR-036 **before any campaign run**:
+> **transverse amplitude +2.49 %** (band 15 %), **fundamental frequency +0.90 %** (5 %),
+> **streamwise amplitude +4.73 %** (25 %), **streamwise mean +4.53 %** (25 %),
+> **streamwise frequency +1.13 %** (5 %). Coupling convergence (gate K1) was total:
+> **8000/8000 windows converged**, mean 5.40 iterations against a cap of 100, zero
+> non-converged. Four-fold provenance from a clean tree. No band was relaxed.
+>
+> This establishes **coupling correctness**, which ADR-016 explicitly keeps distinct from
+> application fidelity for a flexible wing — that is Stage 20's separate claim, with a
+> different solid solver and a different reference.
+
+- `aero/adapters/precice/` — the preCICE coupling adapter (stdlib + numpy + pydantic only):
+  a typed `precice-config.xml` reader/validator built on raw `expat` (ElementTree and
+  minidom both reject preCICE's undeclared XML prefixes), a `TXTTableWriter` reader for
+  watchpoint and iteration logs, a pure supervisor-script launcher that runs both
+  participants concurrently without amending the `Executor` protocol, and
+  `PreciceCoupledSolver(Solver)` — the sixth concrete solver. The `Solver` ABC is unchanged.
+- `aero/vv/fsi/` + `TurekHronFSI3` V&V case, registry and CLI wiring
+  (`aero vv run --case turek_hron_fsi3 --solver precice`); new exit code 6 (`PreciceError`).
+- `aero/postprocess/limit_cycle.py` — limit-cycle statistics over a **derived** analysis
+  window: every signal segmented at one fundamental period, an unconditional start-up
+  discard, and a settled tail found by rule. Not-converged raises rather than returning a
+  number.
+- `aero[precice]` extra pinned to `pyprecice==3.4.0`; `containers/precice-fsi.sif` and
+  `containers/calculix-precice.sif` built, signed and digest-recorded.
+- ADR-035 (coupling contract, pins from upstream's attested `reference_versions.yaml`,
+  container strategy, CalculiX GPL-2+ Invariant-5 disposition) and ADR-036 (the
+  pre-registered gate block). **ADR-016 moves `proposed` → `accepted`** with a validation
+  record — the condition it had carried since Stage 09.
+- FSI3 displacement reference DVC-tracked and **recomputed** with the platform's own
+  estimators; `reference.md` extended *and corrected* — the upstream `reference-results/`
+  tarballs are a 1-to-3-window CI artifact, **not** a displacement reference.
+
+### Fixed
+
+- **`aero/postprocess/cycle_detection.py` — a hole in the periodic-steady-state check.**
+  It compared only *adjacent* cycles, so a record growing 1.2 % per cycle satisfied a 2 %
+  tolerance while the amplitude grew 30 % across the window — it would have certified a
+  diverging solve as a converged limit cycle. A shared cumulative **least-squares
+  linear-trend** bound now backs both the Stage-19 gate and Stage 11 (opt-in there, so no
+  historical verdict changes; verified against 107 historical moving-mesh runs — zero
+  flips). Found by adversarial review of already-green code, alongside 12 other defects.
+- **AppArmor, not the LXC, was blocking MPI.** Ubuntu 24.04's stub `apptainer` profile
+  declares no `network` rules, so AF_INET socket creation was denied inside *every*
+  Apptainer container since Stage 10. Narrow local rules + runbook
+  (`docs/operator/apptainer-inet-sockets.md`).
+
+### Known gaps
+
+- The CalculiX **SIF is built and signed**, but its non-gated perpendicular-flap coupled
+  smoke is deferred to Stage 20, where the two-container provenance question is decided.
+- The refined-mesh (38 k) grid-sensitivity run was pre-registered as **non-gated** and was
+  not executed; it bears no verdict.
+
 ## [0.0.18] - 2026-07-26
 
 ### Added — Stage 18 (Arbitrary-Geometry Ingestion + Robust Meshing) — GO, all pre-registered gates passed
