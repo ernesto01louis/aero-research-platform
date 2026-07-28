@@ -96,20 +96,28 @@ def test_the_bands_in_the_block_match_the_bands_in_the_code() -> None:
 
 def test_only_the_pre_registered_configuration_can_be_gated() -> None:
     """ADR-036 B3 declares the refined run non-gated "so it cannot become a second
-    attempt at the gate". That has to be structural, not a convention."""
-    from aero.vv.fsi.turek_hron_fsi3 import GATED_MAX_TIME, GATED_MESH_DICT, fsi3_case_spec
+    attempt at the gate". That has to be structural, not a convention.
 
-    assert fsi3_case_spec(
-        max_time=GATED_MAX_TIME, wall_clock_ceiling_s=172800, fluid_mesh_dict=GATED_MESH_DICT
-    ).gated
-    assert not fsi3_case_spec(
-        max_time=GATED_MAX_TIME,
-        wall_clock_ceiling_s=172800,
-        fluid_mesh_dict="blockMeshDict_refined",
-    ).gated
-    assert not fsi3_case_spec(
-        max_time=2.0, wall_clock_ceiling_s=172800, fluid_mesh_dict=GATED_MESH_DICT
-    ).gated
+    Uses the pure predicate rather than `fsi3_case_spec`, which verifies the DVC-tracked
+    tutorial archive — this guard belongs in the REQUIRED unit job, so it must not need a
+    `dvc pull`.
+    """
+    from aero.vv.fsi.turek_hron_fsi3 import (
+        GATED_MAX_TIME,
+        GATED_MESH_DICT,
+        is_gated_configuration,
+    )
+
+    assert is_gated_configuration(fluid_mesh_dict=GATED_MESH_DICT, max_time=GATED_MAX_TIME)
+    # The B3 diagnostic rung.
+    assert not is_gated_configuration(
+        fluid_mesh_dict="blockMeshDict_refined", max_time=GATED_MAX_TIME
+    )
+    assert not is_gated_configuration(
+        fluid_mesh_dict="blockMeshDict_double_refined", max_time=GATED_MAX_TIME
+    )
+    # A shortened end time is not the pre-registered campaign either.
+    assert not is_gated_configuration(fluid_mesh_dict=GATED_MESH_DICT, max_time=2.0)
 
 
 def test_the_block_is_ascii() -> None:

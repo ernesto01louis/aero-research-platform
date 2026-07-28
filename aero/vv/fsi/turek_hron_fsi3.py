@@ -41,7 +41,12 @@ from aero.adapters.precice.case import CoupledCaseSpec, ParticipantSpec, Tutoria
 from aero.adapters.precice.config import PreciceConfigExpectation
 from aero.vv._base import BenchmarkError, MetricSpec, ReferenceData, Series, SolverLike
 
-__all__ = ["TUREK_HRON_FSI3_EXPECTATION", "TurekHronFSI3", "fsi3_case_spec"]
+__all__ = [
+    "TUREK_HRON_FSI3_EXPECTATION",
+    "TurekHronFSI3",
+    "fsi3_case_spec",
+    "is_gated_configuration",
+]
 
 _REFERENCE_DIR = Path("data") / "references" / "fsi" / "turek_hron_fsi3"
 _RECOMPUTED = "fsi3_recomputed.csv"
@@ -86,6 +91,17 @@ _BAND_UY_FREQUENCY = 0.05
 _BAND_UX_AMPLITUDE = 0.25
 _BAND_UX_MEAN = 0.25
 _BAND_UX_FREQUENCY = 0.05
+
+
+def is_gated_configuration(*, fluid_mesh_dict: str, max_time: float) -> bool:
+    """Is this the ONE configuration ADR-036 B2 pre-registers as gated?
+
+    Pure and filesystem-free on purpose, so the required CI job can guard it without a
+    DVC pull. ADR-036 B3 declares the refined-mesh run non-gated "so it cannot become a
+    second attempt at the gate"; that declaration is only worth anything if it is
+    structural, and this predicate is where it is structural.
+    """
+    return fluid_mesh_dict == GATED_MESH_DICT and max_time == GATED_MAX_TIME
 
 
 def _repo_root() -> Path:
@@ -146,7 +162,7 @@ def fsi3_case_spec(
     # configuration; B3's refined-mesh run is declared non-gated from the start "so it
     # cannot become a second attempt at the gate". Letting a caller assert gated=True for
     # an arbitrary rung or a shortened end time would make that declaration decorative.
-    gated = fluid_mesh_dict == GATED_MESH_DICT and max_time == GATED_MAX_TIME
+    gated = is_gated_configuration(fluid_mesh_dict=fluid_mesh_dict, max_time=max_time)
     return CoupledCaseSpec(
         name=name,
         pin=TutorialPin(
