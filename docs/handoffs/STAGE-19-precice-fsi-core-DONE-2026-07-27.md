@@ -73,33 +73,6 @@ zero non-converged. ADR-016 is `accepted`.
 
 ## 3. Deviations from the stage plan
 
-## 3a. The result (gate D, ADR-036)
-
-Run `turek_hron_fsi3-20260727-152140`: upstream mesh (20 969 cells), `max-time = 8.0 s`,
-8000 coupled windows in **20.30 h**, both participants exited 0.
-
-| gate | quantity | measured | reference | error | band | |
-|---|---|---|---|---|---|---|
-| D1 | transverse amplitude | 3.408544e-2 m | 3.495533e-2 | +2.49 % | 15 % | PASS |
-| D2 | fundamental frequency | 5.490204 Hz | 5.539872 | +0.90 % | 5 % | PASS |
-| D3 | streamwise amplitude | 2.827944e-3 m | 2.700146e-3 | +4.73 % | 25 % | PASS |
-| D4 | streamwise mean | −2.727524e-3 m | −2.856809e-3 | +4.53 % | 25 % | PASS |
-| D5 | streamwise frequency | 10.94931 Hz | 11.07420 | +1.13 % | 5 % | PASS |
-
-Diagnostic (never gated): transverse mean 1.644498e-3 m. **K1**: 8000/8000 windows
-converged, mean 5.40 iterations against a cap of 100, zero non-converged. **S3**: 19
-settled cycles after the 4.0 s discard. **P3**: clean-tree four-fold provenance
-(`git_sha 2a5bbd63`, container `ce795873…`).
-
-Worth noting against the pre-registration's own honesty clause: D1 came in at +2.49 %
-against a 15 % band. The operator chose 15 % before the reference's own 2.1 % level-to-level
-spread was measured, and ADR-036 records that 10 % would also have been defensible. At
-+2.49 % the result would have passed either band, so the choice did not decide the outcome —
-but that is luck, not method, and a future stage should size the band from the reference's
-measured spread rather than from judgement.
-
-## 3. Deviations from the stage plan
-
 - **Timing: the budget call nearly went the wrong way.** Gate I4's measurement is what
   established feasibility. The *transient-inclusive* rate over the first windows is
   ~49-87 s/window, which projects 108 h for `max-time = 8 s` and would have justified
@@ -124,6 +97,31 @@ measured spread rather than from judgement.
 - **The refined-mesh diagnostic (B3) was not run.** Pre-registered non-gated from the
   start, so it bears no verdict and its absence changes nothing about the GO. It is a
   ~20 h run; launch it when the box is free.
+
+## 3a. The result (gate D, ADR-036)
+
+Run `turek_hron_fsi3-20260727-152140`: upstream mesh (20 969 cells), `max-time = 8.0 s`,
+8000 coupled windows in **20.30 h**, both participants exited 0.
+
+| gate | quantity | measured | reference | error | band | |
+|---|---|---|---|---|---|---|
+| D1 | transverse amplitude | 3.408544e-2 m | 3.495533e-2 | +2.49 % | 15 % | PASS |
+| D2 | fundamental frequency | 5.490204 Hz | 5.539872 | +0.90 % | 5 % | PASS |
+| D3 | streamwise amplitude | 2.827944e-3 m | 2.700146e-3 | +4.73 % | 25 % | PASS |
+| D4 | streamwise mean | −2.727524e-3 m | −2.856809e-3 | +4.53 % | 25 % | PASS |
+| D5 | streamwise frequency | 10.94931 Hz | 11.07420 | +1.13 % | 5 % | PASS |
+
+Diagnostic (never gated): transverse mean 1.644498e-3 m. **K1**: 8000/8000 windows
+converged, mean 5.40 iterations against a cap of 100, zero non-converged. **S3**: 19
+settled cycles after the 4.0 s discard. **P3**: clean-tree four-fold provenance
+(`git_sha 2a5bbd63`, container `ce795873…`).
+
+Worth noting against the pre-registration's own honesty clause: D1 came in at +2.49 %
+against a 15 % band. The operator chose 15 % before the reference's own 2.1 % level-to-level
+spread was measured, and ADR-036 records that 10 % would also have been defensible. At
++2.49 % the result would have passed either band, so the choice did not decide the outcome —
+but that is luck, not method, and a future stage should size the band from the reference's
+measured spread rather than from judgement.
 
 ## 4. Environment / dependency / schema changes
 
@@ -179,30 +177,60 @@ measured spread rather than from judgement.
    `allowSystemOperations` (already 1 in the image), and neither
    `FOAM_ALLOW_SYSTEM_OPERATIONS` nor a user controlDict InfoSwitch changes it. Participants
    drop to uid 1000 via `setpriv`; the case is chowned *after* digest verification.
+4. **Cancelling a self-hosted CI job does NOT stop it — and it leaves orphaned solves
+   behind.** The `aero-build-vv` runner logs `Force kill process on cancellation: 'False'`,
+   so on cancel GitHub marks the run `completed/cancelled` *immediately* while the runner
+   lets the step's `pytest` run to completion. The runner therefore stays `busy=true` with
+   **no** run showing `in_progress`, and nothing new is dispatched. Worse, `vv-smoke`
+   submits each V&V case through `scripts/run_long.sh`, which detaches into a **root** tmux
+   session; the cancelled pytest keeps marching through cases and spawning *new* detached
+   solves, and every case whose `run_long.sh wait … 1800` cap expires leaves a solve running
+   forever with no reader. Eight such orphans had accumulated on aero-build by 2026-07-28.
+
+   The documented practice "cancel `vv-smoke` to unblock `vv-required`" is therefore
+   **actively counterproductive on its own** — it is what pinned the runner for ~90 min this
+   stage. GitHub's `force-cancel` endpoint does not help either: once the run is `completed`
+   it returns `409 Cannot cancel a workflow run that is completed`, so there is no API lever
+   left. Cancelling must be followed by a host-side reap:
+
+   ```bash
+   ssh aero-build 'W=$(pgrep -f "Runner.Worker spawnclient" | head -1); \
+     pkill -TERM -P "$W"; sleep 5; kill -TERM "$W"'   # release the runner
+   ssh root@aero-build 'tmux ls'                       # then reap orphaned sf-* solves
+   ```
+
+   Diagnosis tell: `gh api …/actions/runners` shows `busy=true` while `gh run list` shows
+   nothing `in_progress`. Confirm the culprit by reading the live
+   `actions-runner/_diag/Worker_*.log` — it names the ref and the step script, which is how
+   the pinning job was identified as the cancelled `vv-smoke` (its step is the `if schedule`
+   / `else` form at `vv-smoke.yml:62-65`, distinguishable from `vv-required`'s single
+   `not moving` invocation). **Better fix for a future stage:** set the runner's
+   `ACTIONS_RUNNER_FORCE_KILL_ON_CANCEL` / `--force-kill` behaviour, or have `run_long.sh`
+   register a trap that kills its tmux session on SIGTERM, so cancellation is self-cleaning.
 
 **Formats and APIs**
 
-4. `xml.etree.ElementTree` and `minidom` **refuse** a preCICE config: `data:vector`,
+5. `xml.etree.ElementTree` and `minidom` **refuse** a preCICE config: `data:vector`,
    `m2n:sockets` etc. use undeclared XML prefixes and CPython always drives expat with
    namespace processing on. Drive `xml.parsers.expat` directly with namespaces off.
-5. preCICE's `TXTTableWriter`: header line has a **leading two-space delimiter** and no
+6. preCICE's `TXTTableWriter`: header line has a **leading two-space delimiter** and no
    comment marker; rows are newline-**prefixed**, so there is no trailing newline and a
    live file's last row can be partial. A 2-D vector column is `name0  name1`.
-6. `blockMesh` prints **`nCells:`**; `cells:` is checkMesh's wording.
-7. `precice-config-validate` takes a FILE — `--help` is parsed as the filename, exit 2.
-8. gmsh's Python module **dlopens `libGL.so.1` at import**; `libglu1-mesa` is not enough.
-9. A `K=V` prefix in a compound shell command binds only to the next command. Passing
+7. `blockMesh` prints **`nCells:`**; `cells:` is checkMesh's wording.
+8. `precice-config-validate` takes a FILE — `--help` is parsed as the filename, exit 2.
+9. gmsh's Python module **dlopens `libGL.so.1` at import**; `libglu1-mesa` is not enough.
+10. A `K=V` prefix in a compound shell command binds only to the next command. Passing
    participant env via `build_apptainer_exec(env=...)` put it on the adapter's own `cd`.
-10. Upstream's `run.sh` scripts source `../../tools/…`, i.e. **outside** the case
+11. Upstream's `run.sh` scripts source `../../tools/…`, i.e. **outside** the case
     directory: the bind mount must be the tutorial root, not the case.
-11. The openfoam-adapter must be built into `$FOAM_LIBBIN`, and participants run with
+12. The openfoam-adapter must be built into `$FOAM_LIBBIN`, and participants run with
     `--no-home`, or the host `$HOME` shadows it via `$FOAM_USER_LIBBIN` — failing only at
     run time.
-12. `buildah run` needs a working *container*, not an image.
+13. `buildah run` needs a working *container*, not an image.
 
 **Corrections to the inherited record**
 
-13. The upstream `reference-results/` tarballs are **not** a displacement reference — they
+14. The upstream `reference-results/` tarballs are **not** a displacement reference — they
     hold 1–3 coupled time windows of `.vtu` exports (preCICE's CI fixture). Both the
     STAGE-19 prompt and Stage-18's `reference.md` implied otherwise; `reference.md` is
     corrected. Side effect: **git-lfs is not needed** — `media.githubusercontent.com`
