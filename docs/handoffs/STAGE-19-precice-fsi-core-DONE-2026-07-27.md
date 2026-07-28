@@ -1,10 +1,10 @@
 ---
 stage: 19
 stage_name: "Stage 19 — preCICE FSI Core (Turek-Hron FSI3)"
-status: partial
+status: complete
 date_started: 2026-07-27
-date_completed: 2026-07-27
-session_duration_hours: 9
+date_completed: 2026-07-28
+session_duration_hours: 11
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 30b1adde7e4d60edcb561d18a71acdf3e994b276
@@ -14,12 +14,13 @@ next_stage: 20
 next_stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 ---
 
-# Stage 19 — preCICE FSI Core (Turek-Hron FSI3) — PARTIAL 2026-07-27
+# Stage 19 — preCICE FSI Core (Turek-Hron FSI3) — DONE 2026-07-28
 
-> **Read this first.** The coupling machinery is built, verified end-to-end and shipped,
-> and the pre-flight passes. The *physics verdict is not in*: the gated campaign is a
-> ~30 h run and had not returned when the session closed. ADR-016 therefore stays
-> `proposed`. Nothing here claims a passed gate.
+> **Read this first. Verdict: GO.** The Turek-Hron FSI3 coupling verification passed
+> every pre-registered band, on the full 8000-window run, from a clean tree with four-fold
+> provenance. **ADR-016 moves to `accepted`.** What that establishes is *coupling
+> correctness* — not application fidelity for a flexible wing, which is Stage 20's separate
+> claim with a different solid solver and a different reference.
 
 ## 0. The one-paragraph version
 
@@ -30,20 +31,20 @@ Getting there required diagnosing a long-standing infrastructure limit
 (**"MPI is blocked in the aero LXCs" is actually an AppArmor rule**) and eight distinct
 defects, four of mine and four environmental. An adversarial review then found **13 more,
 one of them a hole in the gate's own periodic-steady-state check that would have passed a
-diverging solve as GO**. All are fixed. What is *not* done is the campaign itself: the
-measured post-transient rate is 13.6 s per time window, which puts the pre-registered
-`max-time = 8 s` run at ~30 h — inside the 48 h ceiling, but well past the end of a
-session.
+diverging solve as GO**. All are fixed. The campaign then ran 8000 coupled windows in
+20.30 h and **passed all five displacement bands** — transverse amplitude +2.49 % against
+a 15 % band, fundamental frequency +0.90 % against 5 % — with every window converged and
+zero non-converged. ADR-016 is `accepted`.
 
 ## 1. Deliverables status
 
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | `aero/adapters/precice/` populated + `aero[precice]` extra; pins confirmed in an ADR; SIF/container strategy ADR'd | ✅ | 11 modules; ADR-035; one combined `precice-fsi.sif`, built, signed, digest recorded |
-| 2 | Turek-Hron FSI3 coupling verification, pre-registered tolerances, `aero/vv/fsi/` + registry + CLI | ⚠️ | Case, gate and pre-registration (ADR-036) all shipped and committed *before* any run. The campaign itself did not complete — see §3 |
-| 3 | CalculiX SIF built + non-gated smoke | ❌ | Recipe, def and build script written and committed; **not built**. Deferred — see §7 |
+| 2 | Turek-Hron FSI3 coupling verification, pre-registered tolerances, `aero/vv/fsi/` + registry + CLI | ✅ | **GO** — all five D-bands passed on the full 8000-window run; gate + pre-registration (ADR-036) committed *before* any run. Bundle: `data/vv/stage19_turek_hron_fsi3.json` |
+| 3 | CalculiX SIF built + non-gated smoke | ⚠️ | **SIF built**, signed, digest `4ca47da…` recorded; `ccx_preCICE` links against libprecice. The non-gated perpendicular-flap smoke is deferred to Stage 20 — see §7 |
 | 4 | FSI3 reference data DVC-tracked, `reference.md` extended | ✅ | `ref_fsi3.point` + the pinned tutorial archive DVC-tracked; `reference.md` extended *and corrected* |
-| 5 | ADR-016 → accepted on gate pass; ADRs; GO/NO-GO; handoff; STAGE-20 prompt; tag | ⚠️ | ADR-035/036 landed; STAGE-20 prompt landed; **ADR-016 stays `proposed`**; no tag |
+| 5 | ADR-016 → accepted on gate pass; ADRs; GO/NO-GO; handoff; STAGE-20 prompt; tag | ✅ | **ADR-016 → `accepted`** with a validation record; ADR-035/036 + the ADR-019 amendment landed; verdict GO; STAGE-20 prompt landed; tagged `v0.0.19` |
 
 ## 2. Decisions made
 
@@ -72,36 +73,57 @@ session.
 
 ## 3. Deviations from the stage plan
 
-- **The gated campaign is RUNNING, detached, and had not returned.** Launched from a
-  clean tree at `2a5bbd6` as run `turek_hron_fsi3-20260727-152140`
-  (`blockMeshDict`, 20 969 cells, `max-time = 8.0 s`, ceiling 48 h). **Recovering it:**
-  the local driver writes the bundle only at the end, so if that process died the remote
-  tmux job carries on regardless — re-read
-  `/mnt/aero-nfs/runs/turek_hron_fsi3-20260727-152140/tutorial/` directly
-  (`coupled-status.json`, the watch-point, the two iterations logs) and re-run the
-  analysis; nothing about the verdict depends on the driver having stayed alive.
-- **No campaign verdict.** The campaign is feasible; it simply takes ~30 h. Gate I4's
-  measurement is what establishes that, and it is worth recording how nearly it went the
-  other way. The *transient-inclusive* rate over the first few windows is ~49-87 s/window,
-  which projects 108 h for `max-time = 8 s` and would have justified declaring a budget
-  NO-GO on the spot. But coupling iterations fall steeply as the start-up transient
-  clears — 16, 23, 12, 11, 8, 8, 6, 6, ... settling at 3 — and the **post-transient
-  rate is 13.35 s/window** — the completed 200-window calibration ran in 2670 s with
-  mean 3.52 coupling iterations, max 23, and **zero non-converged windows**. That puts
-  `max-time = 8 s` (8000 windows) at **29.7 h**, and the minimum physical time that can
-  yield a verdict at all (S2's 4 s discard plus S3's four settled cycles at 5.54 Hz,
-  i.e. t = 4.72 s) at **17.5 h**. Both inside the 48 h ceiling.
+## 3a. The result (gate D, ADR-036)
+
+Run `turek_hron_fsi3-20260727-152140`: upstream mesh (20 969 cells), `max-time = 8.0 s`,
+8000 coupled windows in **20.30 h**, both participants exited 0.
+
+| gate | quantity | measured | reference | error | band | |
+|---|---|---|---|---|---|---|
+| D1 | transverse amplitude | 3.408544e-2 m | 3.495533e-2 | +2.49 % | 15 % | PASS |
+| D2 | fundamental frequency | 5.490204 Hz | 5.539872 | +0.90 % | 5 % | PASS |
+| D3 | streamwise amplitude | 2.827944e-3 m | 2.700146e-3 | +4.73 % | 25 % | PASS |
+| D4 | streamwise mean | −2.727524e-3 m | −2.856809e-3 | +4.53 % | 25 % | PASS |
+| D5 | streamwise frequency | 10.94931 Hz | 11.07420 | +1.13 % | 5 % | PASS |
+
+Diagnostic (never gated): transverse mean 1.644498e-3 m. **K1**: 8000/8000 windows
+converged, mean 5.40 iterations against a cap of 100, zero non-converged. **S3**: 19
+settled cycles after the 4.0 s discard. **P3**: clean-tree four-fold provenance
+(`git_sha 2a5bbd63`, container `ce795873…`).
+
+Worth noting against the pre-registration's own honesty clause: D1 came in at +2.49 %
+against a 15 % band. The operator chose 15 % before the reference's own 2.1 % level-to-level
+spread was measured, and ADR-036 records that 10 % would also have been defensible. At
++2.49 % the result would have passed either band, so the choice did not decide the outcome —
+but that is luck, not method, and a future stage should size the band from the reference's
+measured spread rather than from judgement.
+
+## 3. Deviations from the stage plan
+
+- **Timing: the budget call nearly went the wrong way.** Gate I4's measurement is what
+  established feasibility. The *transient-inclusive* rate over the first windows is
+  ~49-87 s/window, which projects 108 h for `max-time = 8 s` and would have justified
+  declaring a budget NO-GO on the spot. But coupling iterations fall steeply as the
+  start-up transient clears — 16, 23, 12, 11, 8, 8, 6, 6 … settling at 3 — and the
+  completed 200-window calibration measured **13.35 s/window**. The campaign then actually
+  ran at **9.1 s/window** average (20.30 h), comfortably inside the 48 h ceiling.
   **This is exactly why ADR-036 I4 requires the measurement before any budget or rung
   decision:** deciding from the early rate would have retired the stage as an
-  infrastructure failure when in fact it fits with 17 h to spare.
+  infrastructure failure.
 - **The pre-registration was amended after it was committed.** ADR-036 landed at
   `208cad7`; the adversarial review then found the S3 hole and nine other defects, and
   ADR-036 gained S5 plus tightened C1/K1/K2/I4/P3 wording at `b136858`. This is legitimate
   *only* because no campaign had run and every change makes the gate harder to pass — the
   D bands are untouched. Had a campaign already run, the correct move would have been a
   new ADR and a re-run, as Stage 18 did.
-- **CalculiX not built.** The recipe is committed but the build was not run; the session's
-  time went to making the gated path actually work.
+- **CalculiX SIF built; its smoke deferred.** `calculix-precice.sif` is built, signed and
+  digest-recorded, and `ccx_preCICE` links against libprecice. The non-gated
+  perpendicular-flap coupled smoke was not run — it is inherently two-container, which is
+  the multi-container provenance question Stage 20 has to decide anyway, so it belongs
+  there rather than being rushed here.
+- **The refined-mesh diagnostic (B3) was not run.** Pre-registered non-gated from the
+  start, so it bears no verdict and its absence changes nothing about the GO. It is a
+  ~20 h run; launch it when the box is free.
 
 ## 4. Environment / dependency / schema changes
 
@@ -112,6 +134,12 @@ session.
 - `containers/precice-fsi.sif` — sha256
   `ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8`, signed, in
   `SHA256SUMS`. Retires the reserved name `precice-distribution.sif`.
+- `containers/calculix-precice.sif` — sha256
+  `4ca47da2961d8d6a6033fb216a542165b04419e2527d5d5b8c94cd2771d28668`, signed;
+  calculix-adapter commit `51cf777`, CalculiX 2.20.
+- `aero/postprocess/cycle_detection.py` gains an opt-in cumulative (linear-trend) drift
+  bound + reported fields — the ADR-019 amendment. Default off, so Stage-11 behaviour is
+  byte-identical.
 - DVC: `ref_fsi3.point` (1.1 MB) and `precice-tutorials-turek-hron-fsi3.tar.gz` (76 KB),
   both pushed to `aero-minio`.
 - **aero-dev system change:** `/etc/apparmor.d/local/apptainer` now permits inet/inet6
@@ -129,7 +157,7 @@ session.
 - **`README.md`'s STATUS block now reads "Latest tag: v0.0.19".** That tag does **not**
   exist and must not be pushed until a verdict does. The block is generated from this
   handoff's `stage_tag` frontmatter and hand-editing it fails CI; the generator has no way
-  to express "intended tag". `status: partial` above is authoritative.
+  to express "intended tag". `status: complete` above is authoritative.
 
 ## 6. Gotchas discovered
 
@@ -194,20 +222,21 @@ session.
 
 ## 7. Open items for the next stage (and beyond)
 
-**Immediately, to finish Stage 19**
+**For Stage 20**
 
-1. **Run the calibration to completion and record the projection.** `--preflight
-   --calibration-windows 200`. If the projection exceeds the 48 h ceiling, the honest
-   verdict is **NO-GO on budget**, ADR-016 stays `proposed`, and the stage tags with that
-   result. Do not relax `max-time` to fit: the B-ladder degrades cost, and `max-time` is
-   already the one permitted mutation, so shortening it further needs a new pre-registered
-   rung, not a quiet edit.
-2. **Build `calculix-precice.sif`** (`scripts/build_calculix_sif.sh`, from the Proxmox
-   host) and record the digest; then the non-gated perpendicular-flap smoke.
-3. **Consider whether a faster path exists** before accepting the budget NO-GO: the
-   dominant cost is likely the Nutils solid (Python FEM, quadratic elements) rather than
-   the 21k-cell fluid — worth measuring per-participant before concluding the hardware is
-   the limit. `solid-dealii` is the obvious alternative and ADR-016 already permits it.
+1. **Run the CalculiX perpendicular-flap smoke.** The SIF is built and ready. It is
+   inherently two-container, which forces the multi-container provenance decision Stage 20
+   has to make anyway (`ProvenanceTuple` carries one `container_sif_sha256`; the gated-run
+   validator refuses a multi-SIF *gated* case by construction). Decide that deliberately —
+   extend the tuple with its own ADR, or keep the claim non-gated — rather than working
+   around the validator.
+2. **Do not reuse this stage's result as Stage-20 evidence.** FSI3 establishes coupling
+   correctness with a Nutils solid. A flexible wing with a CalculiX shell model against
+   Heathcote-Gursul is a different claim with a different reference. ADR-016 exists to keep
+   them apart.
+3. **Optional, cheap, and now unblocked:** the refined-mesh (38 k) diagnostic, pre-registered
+   non-gated in ADR-036 B3. ~20 h. It would give grid sensitivity on a result that currently
+   rests on one rung.
 
 **Ledger (new this stage)**
 
@@ -256,17 +285,23 @@ and recomputed by the same code that will measure the solve. The pre-registratio
 mechanically bound to the code in required CI, and the band-parity and gate-block checks
 were mutation-tested.
 
-**Now measured, no longer a risk.** Throughput. The 200-window calibration converged
-every window at a mean of 3.52 coupling iterations, and 29.7 h for the full pre-registered
-run sits comfortably inside the 48 h ceiling. Worth recording that this nearly went the
-other way: the transient-inclusive rate projects 108 h, and had the budget call been made
-from it the stage would have been retired as an infrastructure failure.
+**Settled by measurement.** The coupling is correct within the pre-registered bands, and
+the run converged in all 8000 windows at a mean of 5.40 iterations against a cap of 100 —
+FSI3's added mass, the thing that makes it the benchmark's hardest case, never destabilised
+it. Throughput is a solved question: 9.1 s/window, 20.30 h.
 
-**Not confident.** Whether the D bands are the right width — nothing has yet been compared
-against them, and that is the whole open question. Whether the run stays converged for
-8000 windows rather than 200; FSI3's added mass is what makes it the benchmark's hardest
-case, and K1 will refuse the run if it does not. The supervisor is generated bash: its
-three stop paths are executed in CI against stubs, but it has now run in anger four times.
+**Still not certain.** The result rests on **one mesh rung**; the refined-mesh diagnostic
+was not run, so there is no grid-sensitivity evidence behind the numbers. The bands are
+engineering judgement anchored to the reference's discretisation spread, not a
+platform-owned convergence study — no GCI is claimed and the tier is `validated`, not
+thesis-grade. D5 is correlated with D2 and is labelled as such rather than counted as
+independent. And the whole claim is coupling correctness with a Nutils solid; nothing here
+speaks to a CalculiX shell model.
+
+**Bus factor.** The AppArmor change is the single most important fact not derivable from
+the code; it is in a runbook for that reason. The second is that `gated` is *derived* from
+the rung and end time, so a diagnostic run cannot accidentally carry a pre-registered
+verdict — if that derivation is loosened, ADR-036 B3's declaration becomes decorative.
 
 **Bus factor.** The AppArmor change is the single most important undocumented-elsewhere
 fact; it is in a runbook rather than only in this handoff for that reason. The other

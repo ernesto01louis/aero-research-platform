@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.19  ·  **Status:** partial  ·  **Completed:** 2026-07-27
+**Latest tag:** v0.0.19  ·  **Status:** complete  ·  **Completed:** 2026-07-28
 
 **Stage 19 — preCICE FSI Core (Turek-Hron FSI3)** — most recent stage.
 
