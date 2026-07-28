@@ -23,6 +23,7 @@ from aero.orchestration._base import ExecResult
 # host rather than hang.
 _SSH_OPTS: tuple[str, ...] = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=15")
 _TIMEOUT_RC = 124  # conventional exit code for a timed-out command
+_VANISHED_RC = 4  # run_long.sh `vanished`: job died without a sentinel (Stage 19)
 
 
 class LocalSSHExecutor(BaseModel):
@@ -115,8 +116,8 @@ class LocalSSHExecutor(BaseModel):
         logger.info("submitted long job '{}' on {}", session, self.ssh_target)
 
         # run_long.sh wait polls sentinel files (no held connection): exit 0
-        # done, 1 failed, 2 timeout. Guard with a slightly larger Python-side
-        # timeout in case run_long.sh itself wedges.
+        # done, 1 failed, 2 timeout, 4 vanished. Guard with a slightly larger
+        # Python-side timeout in case run_long.sh itself wedges.
         try:
             waited = subprocess.run(
                 [run_long, "wait", self.ssh_target, session, str(timeout_s)],
@@ -143,6 +144,24 @@ class LocalSSHExecutor(BaseModel):
                 returncode=_TIMEOUT_RC,
                 stdout=logs.stdout,
                 stderr=f"long job '{session}' timed out after {timeout_s}s",
+                duration_s=duration,
+                host=self.host,
+            )
+        if wait_rc == _VANISHED_RC:
+            # The remote job died without writing a sentinel — killed, or its
+            # tmux server went away. Distinguishing this from a normal non-zero
+            # exit matters: there is no `rc` file to read, so falling through to
+            # `_remote_rc` would report a bare 1 with an empty stderr and a
+            # truncated log, which reads exactly like an ordinary solver failure.
+            return ExecResult(
+                command=command,
+                returncode=_VANISHED_RC,
+                stdout=logs.stdout,
+                stderr=(
+                    f"long job '{session}' vanished on {self.ssh_target}: the tmux session "
+                    "is gone and no .done/.failed sentinel or rc was written. The job did "
+                    "NOT complete — its output log, if any, is partial."
+                ),
                 duration_s=duration,
                 host=self.host,
             )

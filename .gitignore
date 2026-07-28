@@ -60,3 +60,8 @@ Thumbs.db
 *.log
 .aider*
 node_modules/
+
+# Downloaded CI artifacts (gh run download) — the dashboard has no durable
+# home in the repo; the artifact is the source of truth.
+/vv-dashboard/
+/vv-dashboard-*/

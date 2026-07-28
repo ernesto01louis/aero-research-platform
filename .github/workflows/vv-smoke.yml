@@ -22,6 +22,18 @@ on:
   schedule:
     - cron: "0 5 * * *"
 
+concurrency:
+  # A superseded push has nothing to contribute: the suite is a snapshot of
+  # a commit, and on a single self-hosted runner an obsolete run is pure
+  # contention against the required check.
+  # Added AFTER scripts/run_long.sh learned to reap on signal/timeout —
+  # the order matters. The runner is configured
+  # `Force kill process on cancellation: False`, so cancelling a job does
+  # NOT stop its step; enabling cancel-in-progress first would have turned
+  # every superseded push into a fresh batch of orphaned solver processes.
+  group: vv-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
@@ -35,6 +47,12 @@ jobs:
       AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # This job owns the lifetime of every solve it submits: run_long.sh reaps
+      # the detached tmux session on cancellation or timeout instead of leaving
+      # it running. Without this, the `cancel-in-progress` group above would strand a
+      # solve on every superseded push — the runner reports `busy` with no job
+      # in flight, and the next run competes with the last one's corpses.
+      AERO_RUN_LONG_REAP: "1"
     steps:
       - uses: actions/checkout@v5
 
@@ -58,11 +76,23 @@ jobs:
         # Stage 06: the test selector now picks up both stage_05 (OpenFOAM)
         # and stage_06 (SU2) TMR paths via the `vv` + `slow` markers they
         # share.
+        #
+        # `not moving` (Stage 19) — restores a suite that had been broken for 23
+        # days. Commit 9e6e930 (Stage 11) introduced the `moving` marker for the
+        # multi-hour moving-mesh cases, documented it in pyproject.toml as "runs
+        # via the driver", added scripts/stage11_moving_vv.py to run them, and
+        # added `and not moving` to vv-required.yml — but not here. From that
+        # commit's own push (run #140, 2026-07-05T15:28:22Z) this job never
+        # finished again: 73 consecutive runs, 48 of them killed at exactly
+        # 90m00s by the ceiling below. The last green run was #137 at 41m07s.
+        # The two moving cases alone consume more than half the budget, and
+        # test_unsteady_plunging_airfoil has never once completed in CI.
+        # They are gated by moving-vv.yml instead, which gives them hours.
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            .venv/bin/pytest -m "vv and slow" --run-slow -v tests/vv
+            .venv/bin/pytest -m "vv and slow and not moving" --run-slow -v tests/vv
           else
-            .venv/bin/pytest -m "vv and slow and not mesh_sweep" --run-slow -v tests/vv
+            .venv/bin/pytest -m "vv and slow and not mesh_sweep and not moving" --run-slow -v tests/vv
           fi
 
       - name: Regenerate the V&V dashboard

@@ -1,0 +1,105 @@
+name: moving-vv
+
+# The multi-hour moving-mesh V&V cases (`moving` marker): the Stage-11
+# oscillating-cylinder lock-in case and the Heathcote & Gursul (2007)
+# plunging-airfoil thrust case.
+#
+# Why this workflow exists. Commit 9e6e930 (Stage 11) introduced the `moving`
+# marker so these two cases would run "via the driver" rather than inside the
+# PR-gating suites, and excluded them from vv-required.yml — but the identical
+# exclusion was never added to vv-smoke.yml. The result was the worst of both
+# worlds: they blew vv-smoke's 90-minute ceiling on every single run from
+# 2026-07-05 onward (73 consecutive non-green runs, taking the nightly NASA TMR
+# suite offline with them), while `test_unsteady_plunging_airfoil` still never
+# once completed. Excluding them from vv-smoke without giving them a home would
+# have silently dropped an experiment-anchored validation case, which Hard Rule
+# 15 (VALIDATE-AGAINST-EXPERIMENT) does not permit. This is that home.
+#
+# Budget. Each case is multi-hour; the driver's own poll ceiling is 4 h. They run
+# SEQUENTIALLY and deliberately: the platform has exactly one self-hosted `vv`
+# runner, so while this job holds it, `vv-required` (the only REQUIRED check)
+# queues behind it. That is why the schedule is weekly and off-hours rather than
+# nightly, and why `workflow_dispatch` exists for a deliberate run. Registering a
+# second runner on aero-build would remove the tradeoff and is ledgered for a
+# future stage. The solves themselves execute on aero-dev, not on the runner.
+#
+# Not a required status check, and it must never become one — a multi-hour job
+# cannot gate a pull request.
+
+on:
+  schedule:
+    # Sundays 02:00 UTC — the quietest window for the single vv runner.
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "Single UNSTEADY_CASES key to run (blank = all moving cases)"
+        required: false
+        default: ""
+
+concurrency:
+  # Never let two multi-hour moving-mesh runs contend for the one vv runner.
+  # `cancel-in-progress: false` — a run this long is not worth discarding for a
+  # newer trigger, and cancelling it is what strands detached solves.
+  group: moving-vv
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  moving-vv:
+    name: Moving-mesh V&V — multi-hour cases
+    runs-on: [self-hosted, vv]
+    timeout-minutes: 600
+    env:
+      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # This job OWNS the lifetime of every solve it submits: on cancellation or
+      # timeout, run_long.sh reaps the detached tmux session instead of leaving
+      # it running on aero-dev. Without this, a cancelled multi-hour job strands
+      # a solver process indefinitely — the mechanism that accumulated 2690 job
+      # directories and 31 GB of dead logs on aero-build.
+      AERO_RUN_LONG_REAP: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install aero with the openfoam + provenance + vv extras
+        run: |
+          uv venv --python 3.12 --clear
+          uv pip install -e ".[openfoam,provenance,vv,dev]"
+
+      - name: Fetch DVC-tracked V&V assets
+        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
+
+      - name: Run the moving-mesh cases through the Stage-11 driver
+        # Sequential and fail-slow: a failure in the first case must not hide the
+        # second case's result, because "never ran" and "ran and failed" are
+        # different facts in a V&V record. The step still fails if either does.
+        run: |
+          set -u
+          CASES="${{ github.event.inputs.case }}"
+          if [ -z "$CASES" ]; then
+            CASES="oscillating_cylinder_lockin plunging_airfoil_hg2007"
+          fi
+          rc=0
+          for c in $CASES; do
+            echo "::group::moving-vv $c"
+            if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host aero-dev; then
+              echo "$c: PASS"
+            else
+              echo "$c: FAIL (exit $?)"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $rc
+
+      - name: Reap any solve this job left behind
+        # Belt and braces for the paths a trap cannot cover (SIGKILL, runner
+        # crash). Reports what it found; never fails the job on cleanup alone.
+        if: always()
+        run: |
+          scripts/run_long.sh list root@aero-dev || true
+          scripts/run_long.sh list aero-dev || true
