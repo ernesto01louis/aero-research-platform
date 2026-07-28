@@ -20,6 +20,17 @@ on:
   schedule:
     - cron: "30 5 * * *"
 
+concurrency:
+  # Same reasoning as the V&V suites; the four-fold contract is a property of
+  # the commit under test, so an obsolete run proves nothing.
+  # Added AFTER scripts/run_long.sh learned to reap on signal/timeout —
+  # the order matters. The runner is configured
+  # `Force kill process on cancellation: False`, so cancelling a job does
+  # NOT stop its step; enabling cancel-in-progress first would have turned
+  # every superseded push into a fresh batch of orphaned solver processes.
+  group: provenance-completeness-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -38,6 +49,12 @@ jobs:
       # boto3 env-var credential chain.
       AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # This job owns the lifetime of every solve it submits: run_long.sh reaps
+      # the detached tmux session on cancellation or timeout instead of leaving
+      # it running. Without this, the `cancel-in-progress` group above would strand a
+      # solve on every superseded push — the runner reports `busy` with no job
+      # in flight, and the next run competes with the last one's corpses.
+      AERO_RUN_LONG_REAP: "1"
     steps:
       - uses: actions/checkout@v5
 

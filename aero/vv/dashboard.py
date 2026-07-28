@@ -26,7 +26,7 @@ class DashboardEntry(BaseModel):
     model_config = _STRICT
 
     case_name: str = Field(..., min_length=1)
-    status: str = Field(..., description="pass | fail | regress | unknown")
+    status: str = Field(..., description="pass | fail | regress | missing | unknown")
     git_sha: str = Field(default="", description="git SHA of the run.")
     mlflow_run_id: str = Field(default="", description="MLflow run id.")
     metric_errors: dict[str, float] = Field(
@@ -34,7 +34,17 @@ class DashboardEntry(BaseModel):
     )
 
 
-_STATUS_COLOR = {"pass": "#1a7f37", "fail": "#cf222e", "regress": "#bf8700"}
+# `missing` is rendered as loudly as `fail` on purpose. A registered case with no
+# run is not a blank cell to be skipped over — it is an unevaluated gate, and the
+# failure mode it guards against is a case that goes red, stops being run, and
+# then quietly stops appearing at all, letting the suite reach "all green" by
+# attrition rather than by anyone fixing the physics.
+_STATUS_COLOR = {
+    "pass": "#1a7f37",
+    "fail": "#cf222e",
+    "regress": "#bf8700",
+    "missing": "#cf222e",
+}
 
 
 def _row(entry: DashboardEntry) -> str:

@@ -12,6 +12,7 @@
 # Wait:    run_long.sh wait   <aero-alias> <session-name> [timeout-seconds]
 # Logs:    run_long.sh logs   <aero-alias> <session-name>
 # List:    run_long.sh list   <aero-alias>
+# Kill:    run_long.sh kill   <aero-alias> <session-name>
 #
 # <aero-alias> accepts an optional SSH user prefix (e.g. root@aero-build) to
 # run the job as that user — Stage 03 onward, solver SIFs run as the LXC root.
@@ -24,12 +25,34 @@
 #   .failed     — sentinel; present iff the job exited non-zero
 #
 # Exit codes for `status` / `wait`: 0 done, 1 failed, 2 running/timeout,
-# 3 unknown.
+# 3 unknown, 4 vanished.
+#
+# `vanished` (Stage 19) is a TERMINAL state: no sentinel was ever written, no
+# `rc` exists, and the tmux session is gone. The job did not finish — it was
+# killed, or the tmux server died under it. Before this state existed,
+# `remote_state` reported such a job as `unknown` and `wait` fell through to its
+# timeout branch, so a job killed at minute 5 of a 6-hour wait blocked the caller
+# for the full six hours and was then reported as "still running". A dead solve
+# must be distinguishable from a slow one; that is what gate K2 means by
+# `participant-died` being a loud failure. A grace window (VANISH_GRACE_MIN)
+# keeps the submit→tmux-registration race from being misread as a death.
+#
+# AERO_RUN_LONG_REAP=1 makes `wait` the OWNER of the job's lifetime: on timeout,
+# and on SIGTERM/SIGINT/SIGHUP, it kills the remote tmux session instead of
+# leaving it detached. CI sets this. It is OPT-IN precisely because the default
+# ("give up watching, leave the job running") is the right semantic for a human
+# who submits a solve and stops watching it — but it is the wrong one for a CI
+# job, where a cancelled or timed-out step abandons its solves forever. That
+# asymmetry is what accumulated 2690 job directories and 31 GB of dead solver
+# logs on aero-build between 2026-07-05 and 2026-07-28, and what left detached
+# root tmux solves competing for the V&V runner's cores.
 
 set -euo pipefail
 
 AERO_ALIASES=(aero-build aero-dev aero-mlflow aero-vv aero-prefect aero-agent aero-lit)
 JOBROOT=".aero-jobs"   # relative to the remote user's home directory
+VANISH_GRACE_MIN=1     # a job dir younger than this is "starting", never "vanished"
+REAP=${AERO_RUN_LONG_REAP:-0}   # 1 ⇒ `wait` owns the job's lifetime (see header)
 
 die() { echo "run_long: $*" >&2; exit 64; }
 
@@ -58,9 +81,13 @@ cmd_submit() {
   local command="$*"
   local jobdir="$JOBROOT/$session"
 
-  if ssh "$alias" "tmux has-session -t '$session' 2>/dev/null"; then
-    die "session '$session' already running on $alias — pick another name"
-  fi
+  # FAIL-LOUD on an unreachable host. `if ssh ...` swallows a connection failure
+  # as "no such session" and submits anyway, which is the opposite of what the
+  # guard is for: it would double-submit onto a host we cannot see.
+  local dup
+  dup=$(ssh "$alias" "tmux has-session -t '$session' 2>/dev/null && echo yes || echo no") \
+    || die "cannot reach $alias to check for a duplicate session — refusing to submit"
+  [[ $dup == no ]] || die "session '$session' already running on $alias — pick another name"
 
   ssh "$alias" "mkdir -p '$jobdir' && rm -f '$jobdir/.done' '$jobdir/.failed' '$jobdir/rc'"
   printf '%s\n' "$command" | ssh "$alias" "cat > '$jobdir/cmd.sh'"
@@ -83,12 +110,37 @@ WRAP
 }
 
 remote_state() {
+  # Order is load-bearing: the two sentinels are terminal and authoritative, so
+  # they are checked before the tmux session (a job that finished microseconds
+  # ago may still have a session lingering). `vanished` is only reachable once
+  # the job dir has aged past the grace window, so the submit→tmux race cannot
+  # be misreported as a death.
   local alias=$1 session=$2
   ssh "$alias" "
     if   [ -f '$JOBROOT/$session/.done' ];   then echo done
     elif [ -f '$JOBROOT/$session/.failed' ]; then echo failed
     elif tmux has-session -t '$session' 2>/dev/null; then echo running
-    else echo unknown; fi"
+    elif [ ! -d '$JOBROOT/$session' ]; then echo unknown
+    elif [ -n \"\$(find '$JOBROOT/$session' -maxdepth 1 -name cmd.sh -mmin +$VANISH_GRACE_MIN 2>/dev/null)\" ]; then echo vanished
+    else echo running; fi"
+}
+
+cmd_kill() {
+  # Terminate a detached job and leave an HONEST record: a killed job gets the
+  # .failed sentinel and rc=143, so a later `status` reports `failed` rather
+  # than `vanished`. Idempotent — killing an already-finished job never
+  # overwrites its real sentinel.
+  local alias=$1 session=$2
+  is_alias "$alias" || die "unknown aero alias '$alias'"
+  ssh "$alias" "
+    tmux kill-session -t '$session' 2>/dev/null || true
+    if [ -d '$JOBROOT/$session' ] \
+       && [ ! -f '$JOBROOT/$session/.done' ] \
+       && [ ! -f '$JOBROOT/$session/.failed' ]; then
+      echo 143 > '$JOBROOT/$session/rc'
+      touch '$JOBROOT/$session/.failed'
+    fi" || true
+  echo "$session@$alias: killed (recorded as failed, rc=143)"
 }
 
 cmd_status() {
@@ -98,7 +150,8 @@ cmd_status() {
   state=$(remote_state "$alias" "$session")
   echo "$session@$alias: $state"
   case $state in
-    done) return 0 ;; failed) return 1 ;; running) return 2 ;; *) return 3 ;;
+    done) return 0 ;; failed) return 1 ;; running) return 2 ;;
+    vanished) return 4 ;; *) return 3 ;;
   esac
 }
 
@@ -106,14 +159,35 @@ cmd_wait() {
   local alias=$1 session=$2 timeout=${3:-3600}
   is_alias "$alias" || die "unknown aero alias '$alias'"
   local elapsed=0 interval=5 state
+
+  # When this waiter owns the job's lifetime, a signal must take the remote job
+  # down with it. Without this, cancelling the CI step that runs the V&V suite
+  # left its solves detached and running — the runner reports `busy` with no job
+  # in flight, and the next run competes with the corpses of the last one.
+  if [ "$REAP" = "1" ]; then
+    trap 'echo "run_long: signalled — reaping ${session}@${alias}" >&2; cmd_kill "$alias" "$session" || true; exit 2' TERM INT HUP
+  fi
+
   while true; do
     state=$(remote_state "$alias" "$session")
     case $state in
       done)   echo "$session@$alias: done";   return 0 ;;
       failed) echo "$session@$alias: failed (see: $0 logs $alias $session)"; return 1 ;;
+      vanished)
+        echo "$session@$alias: VANISHED — tmux session gone, no sentinel, no rc." >&2
+        echo "  The job did NOT complete; it was killed or its tmux server died." >&2
+        echo "  Logs (may be partial): $0 logs $alias $session" >&2
+        return 4 ;;
     esac
     if [ "$elapsed" -ge "$timeout" ]; then
-      echo "$session@$alias: still running after ${timeout}s (timeout)" >&2
+      if [ "$REAP" = "1" ]; then
+        echo "$session@$alias: timeout after ${timeout}s — reaping (AERO_RUN_LONG_REAP=1)" >&2
+        cmd_kill "$alias" "$session" || true
+      else
+        echo "$session@$alias: still running after ${timeout}s (timeout)" >&2
+        echo "  NOTE: the remote job is STILL RUNNING and now unattended." >&2
+        echo "  Reap it with: $0 kill $alias $session" >&2
+      fi
       return 2
     fi
     sleep "$interval"
@@ -141,6 +215,7 @@ case "$1" in
   wait)   shift; [[ $# -ge 2 ]] || die "usage: run_long.sh wait <alias> <session> [timeout]"; cmd_wait "$@" ;;
   logs)   shift; [[ $# -eq 2 ]] || die "usage: run_long.sh logs <alias> <session>"; cmd_logs "$@" ;;
   list)   shift; [[ $# -eq 1 ]] || die "usage: run_long.sh list <alias>"; cmd_list "$@" ;;
+  kill)   shift; [[ $# -eq 2 ]] || die "usage: run_long.sh kill <alias> <session>"; cmd_kill "$@" ;;
   -h | --help) usage 0 ;;
   *) cmd_submit "$@" ;;
 esac
