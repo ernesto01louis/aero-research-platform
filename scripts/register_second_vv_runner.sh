@@ -80,8 +80,14 @@ gh api -X POST "repos/${REPO}/actions/runners/registration-token" --jq .token \
         --work _work
     "
 
-echo "==> installing + starting the service"
-ssh "$HOST" "cd '$DST' && sudo ./svc.sh install aero-admin && sudo ./svc.sh start"
+echo "==> installing + starting the service (as root: see note)"
+# NOT `sudo ./svc.sh` as aero-admin. That account's NOPASSWD sudoers entry covers only
+# /usr/bin/{apt,apt-get,systemctl,mount,umount,apptainer} — an arbitrary script is not on
+# the list, so `sudo ./svc.sh install` prompts for a password and hangs a non-interactive
+# run forever. `ssh root@<host>` is the project's documented break-glass path
+# (docs/architecture/ssh-conventions.md); svc.sh still installs the unit to RUN as
+# aero-admin, which is what the first runner does.
+ssh "root@${HOST#*@}" "cd '$DST' && ./svc.sh install aero-admin && ./svc.sh start"
 
 echo "==> verifying"
 ssh "$HOST" "systemctl list-units 'actions.runner*' --no-pager --plain | head -5"
