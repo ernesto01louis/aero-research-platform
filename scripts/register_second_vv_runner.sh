@@ -50,17 +50,61 @@ command -v gh >/dev/null || { echo "gh CLI required (to mint the registration to
 
 echo "==> preflight on ${HOST}"
 ssh "$HOST" "test -d '$SRC'" || { echo "no existing runner at $SRC on $HOST" >&2; exit 65; }
-if ssh "$HOST" "test -e '$DST'"; then
-  echo "$DST already exists on $HOST — nothing to do (remove it first to re-register)" >&2
+
+# Already REGISTERED (not merely present) means there is nothing to do. Distinguishing the
+# two matters: a half-finished attempt leaves the directory behind, and an existence-only
+# guard would refuse to resume it forever.
+if ssh "$HOST" "test -f '$DST'/.runner && test -f '$DST'/.credentials"; then
+  echo "$DST is already registered on $HOST — nothing to do." >&2
   exit 0
 fi
 
-echo "==> cloning runner binaries into $DST (identity + state stripped)"
+if ssh "$HOST" "test -d '$DST'"; then
+  echo "==> $DST exists but is not registered — cleaning identity leftovers and resuming"
+else
+  echo "==> cloning runner binaries into $DST"
+  ssh "$HOST" "cp -a '$SRC' '$DST'"
+fi
+
+# After a self-update the runner replaces `bin`/`externals` with symlinks to versioned
+# directories, using ABSOLUTE targets. `cp -a` faithfully preserves those, so the clone's
+# `bin` still points into the SOURCE tree — `config.sh` then executes the source runner's
+# binary, which derives its config root from its own location and reads the SOURCE's
+# `.runner`. It reports "already configured" no matter how thoroughly the clone's own
+# identity files are removed. Repoint any symlink aimed inside $SRC at the clone's copy.
+echo "==> repointing self-update symlinks into $DST"
 ssh "$HOST" "
   set -e
-  cp -a '$SRC' '$DST'
-  rm -f  '$DST'/.runner '$DST'/.credentials '$DST'/.credentials_rsaparams '$DST'/.service '$DST'/.env
+  for l in bin externals; do
+    t=\$(readlink '$DST'/\$l 2>/dev/null) || continue
+    case \"\$t\" in
+      '$SRC'/*) ln -sfn '$DST'/\"\${t#'$SRC'/}\" '$DST'/\$l; echo \"    \$l -> \${t#'$SRC'/}\" ;;
+    esac
+  done
+  # Fail loud if either still escapes into the source tree.
+  for l in bin externals; do
+    t=\$(readlink '$DST'/\$l 2>/dev/null) || continue
+    case \"\$t\" in
+      '$SRC'/*) echo \"\$l still points into $SRC\" >&2; exit 1 ;;
+    esac
+  done
+"
+
+# Strip EVERY trace of the source runner's identity. `.runner_migrated` is the one that
+# bites: the runner writes it during a self-update as a second copy of `.runner`, so a
+# clone carries the parent's agentId/agentName under a name the obvious strip list misses
+# — and `config.sh` refuses with "already configured" without saying which file it read.
+echo "==> stripping source identity + state"
+ssh "$HOST" "
+  set -e
+  rm -f  '$DST'/.runner '$DST'/.credentials '$DST'/.credentials_rsaparams \
+         '$DST'/.runner_migrated '$DST'/.service '$DST'/.env '$DST'/.path
   rm -rf '$DST'/_work '$DST'/_diag
+  # Fail loud rather than hand config.sh a dirty directory.
+  for f in .runner .credentials .runner_migrated; do
+    [ -e '$DST'/\$f ] && { echo \"could not remove \$f\" >&2; exit 1; }
+  done
+  echo '    identity clear'
 "
 
 echo "==> configuring as '$NAME' (labels: $LABELS)"
