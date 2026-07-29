@@ -343,8 +343,16 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `validation_tag` MLflow tag. `aero vv list|run|report`; `aero vv run --case
   X --mesh-sweep` runs an ASME V&V 20 GCI study. **Before any
   `production`-tagged run, verify `aero vv report --latest` shows all green —
-  a red V&V dashboard means no `production` runs.** A tolerance is a contract:
-  a failing case is investigated, never relaxed to pass. The airfoil mesh is
+  a red V&V dashboard means no `production` runs.** Run the *command*; there is
+  no dashboard file to read. `docs/vv-dashboard.html` is a CI build artifact
+  (uploaded by `vv-smoke` / `vv-transonic`) and is gitignored — a copy was
+  tracked until Stage 19 and had gone 69 days stale, wrong in both directions.
+  Since Stage 19 the report is **registry-driven**: a registered case with no
+  run at all reports `missing`, renders red, and denies ALL GREEN. Before that,
+  rows came only from what MLflow returned, so a case that went red and then
+  stopped being re-run vanished from the report entirely and the gate could go
+  green by attrition. A tolerance is a contract: a failing case is investigated,
+  never relaxed to pass. The airfoil mesh is
   now an eight-block C-grid (`farfield_extent_chords`, wake cut, y+ < 1 with
   `nutLowReWallFunction`) — the Stage-03 O-grid is retired. `vv-required` is a
   stage-gated required CI check. See ADR-005.
