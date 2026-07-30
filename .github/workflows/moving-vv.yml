@@ -20,8 +20,17 @@ name: moving-vv
 # runner, so while this job holds it, `vv-required` (the only REQUIRED check)
 # queues behind it. That is why the schedule is weekly and off-hours rather than
 # nightly, and why `workflow_dispatch` exists for a deliberate run. Registering a
-# second runner on aero-build would remove the tradeoff and is ledgered for a
-# future stage. The solves themselves execute on aero-dev, not on the runner.
+# second runner on aero-build removed part of that tradeoff (registered 2026-07-29).
+#
+# HOST: the solves run on aero-build, NOT aero-dev. The `aero-*` SSH aliases are
+# defined in ~/.ssh/config.d/aero on the PROXMOX HOST; they do not exist inside the
+# LXCs. From the runner, `ssh root@aero-dev` fails with "Could not resolve hostname"
+# and the executor surfaces it as rc=255 with EMPTY stderr -- which the adapter then
+# reports as "blockMesh failed", pointing at the mesher rather than at DNS. The first
+# dispatch of this workflow (run 30568971572, 2026-07-30) died that way in 18 s.
+# Only `aero-build` (192.168.2.232) is in the runner's /etc/hosts, which is why
+# vv-smoke submits to root@aero-build too. Giving aero-build an SSH config + key for
+# aero-dev would allow the 16-core box to be used instead, and is ledgered.
 #
 # Not a required status check, and it must never become one — a multi-hour job
 # cannot gate a pull request.
@@ -58,7 +67,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
       # This job OWNS the lifetime of every solve it submits: on cancellation or
       # timeout, run_long.sh reaps the detached tmux session instead of leaving
-      # it running on aero-dev. Without this, a cancelled multi-hour job strands
+      # it running on the solve host. Without this, a cancelled multi-hour job strands
       # a solver process indefinitely — the mechanism that accumulated 2690 job
       # directories and 31 GB of dead logs on aero-build.
       AERO_RUN_LONG_REAP: "1"
@@ -86,7 +95,7 @@ jobs:
           rc=0
           for c in $CASES; do
             echo "::group::moving-vv $c"
-            if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host aero-dev; then
+            if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host aero-build; then
               echo "$c: PASS"
             else
               echo "$c: FAIL (exit $?)"
@@ -101,5 +110,4 @@ jobs:
         # crash). Reports what it found; never fails the job on cleanup alone.
         if: always()
         run: |
-          scripts/run_long.sh list root@aero-dev || true
-          scripts/run_long.sh list aero-dev || true
+          scripts/run_long.sh list root@aero-build || true
