@@ -31,6 +31,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aero.provenance.four_fold import ProvenanceTuple
+
 _STRICT = ConfigDict(
     extra="forbid",
     frozen=True,
@@ -157,19 +159,23 @@ class CoupledCaseSpec(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _single_container_for_gated_runs(self) -> CoupledCaseSpec:
+    def _container_of_record_is_a_participant(self) -> CoupledCaseSpec:
+        """The container of record must be one the case actually runs.
+
+        Stage 19 also refused a GATED run spanning more than one SIF, because
+        ``ProvenanceTuple.container_sif_sha256`` was single-valued and a two-SIF
+        gated run would have logged a digest describing only half of what ran.
+        ADR-038 removed the cause rather than the symptom: the tuple now carries a
+        ``containers`` roster, so a multi-container run can be gated *provided its
+        provenance names every participating SIF*. That obligation is enforced by
+        ``assert_provenance_describes`` at the point provenance is computed — it
+        cannot live here, because a spec has no access to the digests.
+        """
         sifs = {p.sif for p in self.participants}
         if self.container_of_record not in sifs:
             raise ValueError(
                 f"container_of_record {self.container_of_record!r} is not used by any "
                 f"participant (participants use: {', '.join(sorted(sifs))})"
-            )
-        if self.gated and len(sifs) > 1:
-            raise ValueError(
-                f"a GATED coupled run must use a single container so the four-fold "
-                f"provenance tuple's container_sif_sha256 stays single-valued, but this "
-                f"case spans {len(sifs)} SIFs ({', '.join(sorted(sifs))}). Set gated=False "
-                "for multi-container diagnostics (e.g. the CalculiX smoke)."
             )
         return self
 
@@ -178,8 +184,20 @@ class CoupledCaseSpec(BaseModel):
         return len({p.sif for p in self.participants}) > 1
 
     @property
+    def container_sifs(self) -> tuple[str, ...]:
+        """Every distinct SIF this case runs, name-sorted."""
+        return tuple(sorted({p.sif for p in self.participants}))
+
+    @property
     def extra_container_sifs(self) -> tuple[str, ...]:
-        """SIFs other than the container of record; these ride in ``config_hash``."""
+        """SIFs other than the container of record.
+
+        Pass these to ``compute_provenance(extra_container_sifs=...)``; since
+        ADR-038 they are resolved to real digests in the tuple's ``containers``
+        roster rather than being represented only by their *names* inside
+        ``config_hash``, which bound the string ``"calculix-precice.sif"`` but never
+        the bytes it named.
+        """
         return tuple(sorted({p.sif for p in self.participants} - {self.container_of_record}))
 
     def participant(self, name: str) -> ParticipantSpec:
@@ -188,6 +206,45 @@ class CoupledCaseSpec(BaseModel):
                 return candidate
         known = ", ".join(p.name for p in self.participants)
         raise CoupledCaseError(f"no participant {name!r} in case {self.name!r} (have: {known})")
+
+
+def assert_provenance_describes(spec: CoupledCaseSpec, provenance: ProvenanceTuple) -> None:
+    """Refuse a provenance tuple that describes less than the case actually runs.
+
+    This is the structural guarantee that replaced Stage 19's blanket refusal of
+    gated multi-container runs (ADR-038). The rule is now the honest one — a run
+    may span any number of SIFs, but its provenance must name **all** of them:
+
+    * a single-SIF case must carry an EMPTY roster (``container_sif_sha256`` alone
+      already says everything, and a one-entry roster would make every
+      pre-Stage-20 record non-uniform for no gain);
+    * a multi-SIF case must carry a roster whose names are exactly the participant
+      SIFs — no more, no fewer.
+
+    Call it immediately after ``compute_provenance`` and before anything runs, so a
+    mis-described run fails before it produces numbers rather than after.
+    """
+    expected = set(spec.container_sifs)
+    got = {ref.name for ref in provenance.containers}
+    if not spec.multi_container:
+        if got:
+            raise CoupledCaseError(
+                f"case {spec.name!r} runs the single container {spec.container_of_record!r} but "
+                f"its provenance carries a roster {sorted(got)} — a single-container run must "
+                "leave ProvenanceTuple.containers empty"
+            )
+        return
+    if got != expected:
+        missing = sorted(expected - got)
+        extra = sorted(got - expected)
+        raise CoupledCaseError(
+            f"case {spec.name!r} spans {len(expected)} containers "
+            f"({', '.join(sorted(expected))}) but its provenance roster does not match"
+            + (f"; missing {missing}" if missing else "")
+            + (f"; unexpected {extra}" if extra else "")
+            + ". The four-fold tuple must describe everything that ran, or the run is not "
+            "reproducible from it (ADR-038)."
+        )
 
 
 class MaterializedFile(BaseModel):
