@@ -168,6 +168,16 @@ class MeshHandle(BaseModel):
     n_dof: int | None = Field(
         default=None, description="Distinct DOF count (FR/SEM); None for FV solvers."
     )
+    failure: str = Field(
+        default="",
+        description=(
+            "Why meshing failed, built by `aero.orchestration.describe_failure` at the point "
+            "the executor result is known: the mesh command actually run, the exit code, stderr, "
+            "and whether the host was reachable at all. Stage 20 — callers used to synthesise "
+            "'blockMesh failed' from `ok=False` alone, which named the wrong component for every "
+            "failure that was not blockMesh's."
+        ),
+    )
 
 
 class ResultHandle(BaseModel):

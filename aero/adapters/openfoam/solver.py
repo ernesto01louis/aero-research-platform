@@ -64,7 +64,7 @@ from aero.adapters.openfoam.transient_airfoil import (
     TransientAirfoilSpec,
     write_transient_airfoil_case,
 )
-from aero.orchestration._base import Executor
+from aero.orchestration._base import Executor, describe_failure
 from aero.postprocess._base import Signal
 from aero.postprocess.cycle_detection import detect_cycle_convergence
 from aero.postprocess.efficiency import MotionKinematics, propulsive_metrics
@@ -172,8 +172,20 @@ class OpenFOAMSolver(Solver):
             result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
         ok = result.ok and polymesh.is_file()
+        failure = ""
         if not ok:
-            logger.error("blockMesh failed (rc={}):\n{}", result.returncode, result.stdout)
+            # Name the pipeline that actually ran, not "blockMesh" — an external-geometry
+            # case runs four utilities and an overset case five, so the old hard-coded
+            # message pointed at the wrong one whenever it was not the simple path. And
+            # carry rc + stderr + reachability: without them an unreachable host is
+            # indistinguishable from a mesher fault (Stage 20).
+            failure = describe_failure(result, what=f"meshing ({mesh_command})")
+            if result.ok and not polymesh.is_file():
+                failure = (
+                    f"meshing ({mesh_command}) exited 0 on {result.host} but wrote no "
+                    f"constant/polyMesh/points"
+                )
+            logger.error("{}", failure)
         if isinstance(spec, ExternalGeometrySpec):
             # Last snappy stage line = the final (post-snap, post-layer) cell count.
             snappy_counts = _SNAPPY_CELL_COUNT_RE.findall(result.stdout)
@@ -181,7 +193,7 @@ class OpenFOAMSolver(Solver):
         else:
             cells = _CELL_COUNT_RE.search(result.stdout)
             n_elements = int(cells.group(1)) if cells else None
-        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements)
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements, failure=failure)
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
@@ -204,7 +216,7 @@ class OpenFOAMSolver(Solver):
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
         if not result.ok:
-            logger.error("simpleFoam failed (rc={})", result.returncode)
+            logger.error("{}", describe_failure(result, what=app))
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,

@@ -72,7 +72,7 @@ from aero.adapters.precice.logs import (
     read_iterations_log,
 )
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
-from aero.orchestration._base import Executor
+from aero.orchestration._base import Executor, describe_failure
 
 DEFAULT_PRECICE_SIF_PATH = "/opt/aero/containers/precice-fsi.sif"
 DEFAULT_SIF_DIR = "/opt/aero/containers"
@@ -239,9 +239,16 @@ class PreciceCoupledSolver(Solver):
                 "parsed — refusing to report a mesh whose size is unknown, since the "
                 "cell count is what identifies the rung in the provenance record"
             )
+        failure = ""
         if not ok:
-            logger.error("blockMesh failed for {}:\n{}", case_dir.run_id, result.stdout[-2000:])
-        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_cells, n_dof=None)
+            failure = describe_failure(result, what=f"fluid meshing for {case_dir.run_id}")
+            if result.returncode == 0 and not polymesh.is_file():
+                failure = (
+                    f"fluid meshing for {case_dir.run_id} exited 0 but wrote no "
+                    f"constant/polyMesh/points under {spec.fluid_participant_dir}"
+                )
+            logger.error("{}", failure)
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_cells, n_dof=None, failure=failure)
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Launch every participant concurrently under the supervisor script."""

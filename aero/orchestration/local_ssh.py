@@ -24,6 +24,35 @@ from aero.orchestration._base import ExecResult
 _SSH_OPTS: tuple[str, ...] = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=15")
 _TIMEOUT_RC = 124  # conventional exit code for a timed-out command
 _VANISHED_RC = 4  # run_long.sh `vanished`: job died without a sentinel (Stage 19)
+_TRANSPORT_RC = 255  # ssh's own "an error occurred" code — the connection, not the command
+
+
+def _transport_error(*, returncode: int, stderr: str, target: str) -> str:
+    """Explain an SSH transport failure, or return "" if this looks like a real exit.
+
+    `ssh` reserves 255 for its own errors (name resolution, refused connection,
+    key rejection) and passes any other code through from the remote command.
+    We therefore treat 255 as a transport fault by default rather than only when
+    stderr matches a known phrase: the failure that motivated this — the CI
+    runner being unable to resolve `aero-dev` — arrived as **rc 255 with an empty
+    stderr**, so a pattern match would have missed exactly the case it was for.
+    A remote command that genuinely exits 255 is vanishingly rare, and the
+    message says so rather than asserting a verdict.
+    """
+    if returncode != _TRANSPORT_RC:
+        return ""
+    detail = stderr.strip() or (
+        "ssh printed nothing on stderr, which is itself a tell: the aero-* aliases live in "
+        "~/.ssh/config.d/aero on the Proxmox host and do NOT exist inside the LXCs, so a CI "
+        "runner resolving them fails silently. Only aero-build (192.168.2.232) is in the "
+        "runner's /etc/hosts."
+    )
+    return (
+        f"ssh exited {_TRANSPORT_RC} for {target} — its own transport-failure code, meaning the "
+        f"command never reached the host (bad hostname, refused connection, rejected key). "
+        f"{detail} If the remote command genuinely exited {_TRANSPORT_RC}, this is a hint, not "
+        f"a verdict."
+    )
 
 
 class LocalSSHExecutor(BaseModel):
@@ -90,6 +119,9 @@ class LocalSSHExecutor(BaseModel):
             stderr=proc.stderr,
             duration_s=time.monotonic() - started,
             host=self.host,
+            transport_error=_transport_error(
+                returncode=proc.returncode, stderr=proc.stderr, target=self.ssh_target
+            ),
         )
 
     def _run_detached(self, command: str, timeout_s: int, session: str | None) -> ExecResult:
@@ -105,6 +137,11 @@ class LocalSSHExecutor(BaseModel):
             check=False,
         )
         if submit.returncode != 0:
+            # run_long.sh's own submit guard dies with "cannot reach <alias> …
+            # refusing to submit" when the duplicate-session probe cannot open a
+            # connection. That is a transport fault, not a solver one, and it must
+            # not reach the caller wearing an ordinary non-zero exit code.
+            unreachable = "cannot reach" in submit.stderr
             return ExecResult(
                 command=command,
                 returncode=submit.returncode or 1,
@@ -112,6 +149,12 @@ class LocalSSHExecutor(BaseModel):
                 stderr=f"run_long.sh submit failed: {submit.stderr}",
                 duration_s=time.monotonic() - started,
                 host=self.host,
+                transport_error=(
+                    f"run_long.sh could not reach {self.ssh_target} and refused to submit "
+                    f"'{session}' — the job never started. {submit.stderr.strip()}"
+                    if unreachable
+                    else ""
+                ),
             )
         logger.info("submitted long job '{}' on {}", session, self.ssh_target)
 
