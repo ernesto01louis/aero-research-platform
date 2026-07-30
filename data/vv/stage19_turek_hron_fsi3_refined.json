@@ -1,0 +1,149 @@
+{
+  "adr": "ADR-036",
+  "bands": {
+    "tip_ux_amplitude": 0.25,
+    "tip_ux_frequency": 0.05,
+    "tip_ux_mean": 0.25,
+    "tip_uy_amplitude": 0.15,
+    "tip_uy_frequency": 0.05
+  },
+  "checkpoints": [
+    {
+      "measured": {
+        "tip_ux_amplitude": 0.0028307315699473688,
+        "tip_ux_frequency": 10.997601354661722,
+        "tip_ux_mean": -0.0027541477081618024,
+        "tip_uy_amplitude": 0.03426683854736842,
+        "tip_uy_frequency": 5.498145466762992,
+        "tip_uy_mean_DIAGNOSTIC": 0.0013401724231351191
+      },
+      "n_settled_cycles": 19,
+      "n_windows": 8001,
+      "passed": {
+        "tip_ux_amplitude": true,
+        "tip_ux_frequency": true,
+        "tip_ux_mean": true,
+        "tip_uy_amplitude": true,
+        "tip_uy_frequency": true
+      },
+      "relative_errors": {
+        "tip_ux_amplitude": 0.04836241075385135,
+        "tip_ux_frequency": 0.0069168558756639445,
+        "tip_ux_mean": 0.03593565122421474,
+        "tip_uy_amplitude": 0.01969632249592773,
+        "tip_uy_frequency": 0.007532039230691257
+      },
+      "t_end": 8.0,
+      "wall_clock_s": 92114.0
+    }
+  ],
+  "coupled_status": {
+    "executor_returncode": 0,
+    "outcomes": [
+      {
+        "ended_epoch": 1785434435.0,
+        "log_path": "/mnt/aero/runs/turek_hron_fsi3-20260729-162514/tutorial/Fluid.log",
+        "log_tail": "smoothSolver:  Solving for Uy, Initial residual = 2.419013757e-06, Final residual = 6.709547503e-10, No Iterations 2\nGAMG:  Solving for p, Initial residual = 0.0005838834103, Final residual = 8.396562467e-07, No Iterations 2\nGAMG:  Solving for p, Initial residual = 8.544268608e-06, Final residual = 5.215522199e-07, No Iterations 1\ntime step continuity errors : sum local = 1.550797056e-10, global = -2.902120447e-12, cumulative = -2.400648672e-06\nGAMG:  Solving for p, Initial residual = 0.0002008303793, Final residual = 2.705555597e-07, No Iterations 2\nGAMG:  Solving for p, Initial residual = 3.576080659e-06, Final residual = 6.21013122e-08, No Iterations 2\ntime step continuity errors : sum local = 1.846668513e-11, global = -1.418897721e-12, cumulative = -2.40065009e-06\nPIMPLE: iteration 5\nsmoothSolver:  Solving for Ux, Initial residual = 1.169316768e-07, Final residual = 1.63147869e-09, No Iterations 1\nsmoothSolver:  Solving for Uy, Initial residual = 4.244393855e-07, Final residual = 5.921987004e-09, No Iterations 1\nGAMG:  Solving for p, Initial residual = 0.0001283022188, Final residual = 1.683505013e-07, No Iterations 2\nGAMG:  Solving for p, Initial residual = 2.656736496e-06, Final residual = 1.047463195e-07, No Iterations 1\ntime step continuity errors : sum local = 3.114887395e-11, global = -1.967219219e-12, cumulative = -2.400652058e-06\nGAMG:  Solving for p, Initial residual = 4.930314688e-05, Final residual = 3.533994662e-07, No Iterations 1\nGAMG:  Solving for p, Initial residual = 1.427575014e-06, Final residual = 3.180924023e-08, No Iterations 2\ntime step continuity errors : sum local = 9.459415847e-12, global = -7.609655025e-13, cumulative = -2.400652819e-06\nPIMPLE: converged in 5 iterations\nExecutionTime = 42639.05 s  ClockTime = 92097 s\n\nforces forces write:\n    Sum of forces\n        Total    : (90.27189895 -28.60677521 2.937168213e-19)\n        Pressure : (80.4793504 -28.44697298 5.555207674e-19)\n        Viscous  : (9.792548547 -0.1598022242 -2.618039461e-19)\n    Sum of moments\n        Total    : (5.915888563e-20 -7.013025304e-20 -27.12764077)\n        Pressure : (1.067043007e-19 -2.431800019e-19 -25.11258066)\n        Viscous  : (-4.754541508e-20 1.730497489e-19 -2.015060112)\n    writing force and moment files.\n\n---[precice] \u001b[0m Time window completed\n---[precice] \u001b[0m Mapping \"Displacement\" for t=8 from \"Solid-Mesh\" to \"Fluid-Mesh-Nodes\"\n---[precice] \u001b[0m Reached end at: final time-window: 8000, final time: 8\n---[preciceAdapter] The coupling timestep completed. Writing the updated results.\n---[preciceAdapter] The coupling completed.\n---[precice] \u001b[0m Close communication channels\n---[preciceAdapter] The simulation was ended by preCICE. Calling the end() methods of any functionObject explicitly.\n---[preciceAdapter] Great that you are using the OpenFOAM-preCICE adapter! Next to the preCICE library and any other components, please also cite this adapter. Find how on https://precice.org/adapter-openfoam-overview.html.\nEnd",
+        "name": "Fluid",
+        "returncode": 0,
+        "started_epoch": 1785342321.0,
+        "state": "exited-ok"
+      },
+      {
+        "ended_epoch": 1785434435.0,
+        "log_path": "/mnt/aero/runs/turek_hron_fsi3-20260729-162514/tutorial/Solid.log",
+        "log_tail": "---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Displacement\" = 2.01e-06, limit = 1.00e-04, normalization = 1.11e-01, conv = true\n---[precice] \u001b[0m Mapping \"Stress\" for t=8 from \"Fluid-Mesh-Centers\" to \"Solid-Mesh\"\n---[precice] \u001b[0m it 5 (min: 1, max: 100), time-window 8000, t 7.9990000000000006 (max: 8), Dt 0.001, max-dt 0.0009999999999994458\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Stress\" = 1.07e-04, limit = 1.00e-04, normalization = 2.69e+04, conv = false\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Displacement\" = 1.32e-07, limit = 1.00e-04, normalization = 1.11e-01, conv = true\n---[precice] \u001b[0m Mapping \"Stress\" for t=8 from \"Fluid-Mesh-Centers\" to \"Solid-Mesh\"\n---[precice] \u001b[0m it 6 (min: 1, max: 100), time-window 8000, t 7.9990000000000006 (max: 8), Dt 0.001, max-dt 0.0009999999999994458\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Stress\" = 1.40e-04, limit = 1.00e-04, normalization = 2.69e+04, conv = false\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Displacement\" = 2.98e-08, limit = 1.00e-04, normalization = 1.11e-01, conv = true\n---[precice] \u001b[0m Mapping \"Stress\" for t=8 from \"Fluid-Mesh-Centers\" to \"Solid-Mesh\"\n---[precice] \u001b[0m it 7 (min: 1, max: 100), time-window 8000, t 7.9990000000000006 (max: 8), Dt 0.001, max-dt 0.0009999999999994458\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Stress\" = 5.02e-06, limit = 1.00e-04, normalization = 2.69e+04, conv = true\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Displacement\" = 9.88e-09, limit = 1.00e-04, normalization = 1.11e-01, conv = true\n---[precice] \u001b[0m All converged\n---[precice] \u001b[0m Time window completed\n---[precice] \u001b[0m Mapping \"Stress\" for t=8 from \"Fluid-Mesh-Centers\" to \"Solid-Mesh\"\n---[precice] \u001b[0m Reached end at: final time-window: 8000, final time: 8\n---[precice] \u001b[0m Close communication channels\n\ntime step 7999 > solve > solving for argument d (2361,2) using newton method\ntime step 7999 > solve > iter 0 > residual norm: 8.5e-05\ntime step 7999 > solve > iter 1 > residual norm: 1.1e-08 (65%)\ntime step 7999 > solve > iter 2 > residual norm: 3.7e-15 (100%)\ntime step 7999 > solve > solving for argument d (2361,2) using newton method\ntime step 7999 > solve > iter 0 > residual norm: 8.5e-05\ntime step 7999 > solve > iter 1 > residual norm: 1.1e-08 (65%)\ntime step 7999 > solve > iter 2 > residual norm: 4.2e-15 (100%)\ntime step 7999 > solve > solving for argument d (2361,2) using newton method\ntime step 7999 > solve > iter 0 > residual norm: 8.5e-05\ntime step 7999 > solve > iter 1 > residual norm: 1.1e-08 (65%)\ntime step 7999 > solve > iter 2 > residual norm: 4.0e-15 (100%)\ntime step 8000 > solution.jpg\ntime step 8000 > uy: 18.058529mm\ntime step 8000 > ux: -2.882690mm\ntime step 8000 > tip-displacement.jpg\nfinish 2026-07-30 18:00:20, elapsed 25:34:57\nlog written to: file:///tmp/aero-foam-1000/public_html/solid/log-3.html\nStarted on:  Wed, 29 Jul 2026 16:25:21 +0000\nFinished on: Thu, 30 Jul 2026 18:00:20 +0000\nDuration:    92099 seconds (wall-clock time, including time waiting for participants)",
+        "name": "Solid",
+        "returncode": 0,
+        "started_epoch": 1785342321.0,
+        "state": "exited-ok"
+      }
+    ],
+    "run_id": "turek_hron_fsi3-20260729-162514",
+    "status_json_path": "/mnt/aero-nfs/runs/turek_hron_fsi3-20260729-162514/tutorial/coupled-status.json",
+    "stopped_by": "all-exited",
+    "wall_clock_s": 92114.0
+  },
+  "coupling": [
+    {
+      "max_iterations": 28,
+      "mean_iterations": 5.439875,
+      "n_nonconverged": 0,
+      "n_windows": 8000,
+      "participant": "Fluid"
+    },
+    {
+      "max_iterations": 28,
+      "mean_iterations": 5.439875,
+      "n_nonconverged": 0,
+      "n_windows": 8000,
+      "participant": "Solid"
+    }
+  ],
+  "finished_at": "2026-07-30T18:00:41+00:00",
+  "gated": false,
+  "mesh": {
+    "n_cells": 38489,
+    "ok": true
+  },
+  "preregistered_gate_block": "THE PRE-REGISTERED GATE BLOCK (ADR-036 is the source of record; the campaign driver's\nPREREGISTERED_GATE_BLOCK is the operational copy, embedded in every bundle; a required\nunit test asserts the two are byte-identical)\n\nP - pins and provenance (Hard Rule 8)\n  P1 precice/tutorials @ cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e (branch develop),\n     materialized from a DVC-tracked archive and verified file-by-file against the\n     git-tracked manifest tutorials_pin_manifest.csv.\n  P2 preCICE v3.4.1 (libprecice3_3.4.1_noble.deb, sha256 3a36a402..be888);\n     openfoam-adapter 2c3062ce941915616ac763371805c57e15e02466; pyprecice 3.4.0;\n     nutils 9.2 / numpy 1.26.4 / meshio 5.3.5 / gmsh 4.15.2; OpenFOAM ESI v2412\n     (image digest sha256:1ba02114..41b50); CalculiX 2.20 + calculix-adapter v2.20.1.\n  P3 every gated run logs the four-fold tuple from a clean tree, with\n     container_sif_sha256 = precice-fsi.sif. Evaluated by the campaign driver BEFORE the\n     solve, not assumed: a dirty tree yields a \"-dirty\" SHA and a GATED verdict is\n     refused, because the SHA would not describe what ran. A gated run spanning more than\n     one SIF is structurally refused, and `gated` is DERIVED from the rung and end time\n     (B2's configuration) rather than passed in, so a B3 diagnostic cannot claim the\n     gated verdict.\n  P4 containers/SHA256SUMS carries precice-fsi.sif and calculix-precice.sif; both are\n     signed and apptainer-verify clean.\n  P5 the aero[precice] pin, PINNED_PYPRECICE_VERSION and the container recipe state the\n     same pyprecice version (machine-checked in required CI).\n\nC - configuration integrity (what we run is what upstream wrote)\n  C1 the materialized precice-config.xml matches TUREK_HRON_FSI3_EXPECTATION exactly:\n     participants {Fluid, Solid}; scheme parallel-implicit; time-window-size 1e-3;\n     max-iterations 100; convergence measures on BOTH Stress and Displacement, each of\n     KIND relative-convergence-measure with limit 1e-4 (the kind is compared, not just\n     the limit - 1e-4 absolute is a different problem from 1e-4 relative); acceleration\n     IQN-ILS; m2n sockets; watch-point Solid/Flap-Tip at (0.6, 0.2).\n  C2 the ONLY permitted modification to the upstream configuration is <max-time>, and it\n     is enforced structurally: the rewritten file is re-parsed and must equal the source\n     model under a max_time-only update. Loosening max-iterations, a convergence limit or\n     the acceleration aborts the run.\n  C3 selecting one of upstream's own blockMeshDict variants is a DECLARED mutation\n     (cost/resolution among upstream-authored meshes), recorded with both digests.\n  C4 the watch-point header read from the run equals the header PREDICTED from the\n     configuration's mesh dimensions and use-data order. No positional column indexing.\n  C5 every materialized file's sha256 is recorded in aero-manifest.json next to the case.\n\nI - infrastructure pre-flight (all before any campaign run)\n  I1 two solverdummy participants complete a serial-explicit coupling inside the SIF via\n     the real supervisor launcher (proves apptainer exec, MPI_Init under the LXC, socket\n     m2n, --no-home, and the launcher).\n  I2 upstream 1-window cross-check against the reference-results VTUs. REPORTED, never\n     gated: upstream ran OpenFOAM v2512 + deal.II and we run v2412 + Nutils.\n  I3 blockMesh succeeds on the selected variant and its cell count is recorded.\n  I4 a calibration run COMPLETES at least the requested 200 time windows and ends\n     stopped_by == \"all-exited\"; its seconds-per-window and iterations-per-window are\n     recorded BEFORE any budget or rung decision is taken. A run that died after a few\n     windows must not yield a seconds-per-window figure, because that figure is what the\n     budget decision rests on.\n\nR - reference integrity\n  R1 ref_fsi3.point matches its recorded sha256 and is identified as featflow level 4\n     (ndof 304128) at dt 2.5e-4. The level is discriminated by score; dt is read from the\n     series' own column, because at level 4 the tabulated dt rows agree to within the\n     table's printed precision.\n  R2 statistics recomputed with the platform's own estimators agree with that tabulated\n     row within 3 % (ux mean, uy amplitude) and 5 % (frequency). Otherwise the campaign\n     STOPS - a gate compared against a reference we do not understand is worse than no\n     gate. Not \"prefer whichever is closer\".\n  R3 the reference OF RECORD is the recomputed set (fsi3_recomputed.csv), produced by the\n     same function that measures a solve; the tabulated row is reported alongside every\n     gated number.\n\nK - coupling convergence (fail-loud, enforced inside load())\n  K1 ZERO time windows in the analysis window may hit max-iterations = 100, and every\n     window must report Convergence == 1. A single non-converged window makes the run\n     non-reportable - investigate, never relax. The window range is DERIVED from the\n     S-rule's analysis window (index = round(t / time-window-size) - 1), not from the\n     whole run: upstream documents that the first time windows need many coupling\n     iterations, so gating the start-up transient would be a spurious NO-GO about\n     something the analysis never looks at.\n  K2 the supervisor's coupled-status.json exists, and either both participants exited\n     cleanly or the run stopped_by == \"ceiling\" with EVERY participant still running at\n     SIGTERM (i.e. every recorded state is \"killed\"). A ceiling stop in which one\n     participant had already exited is a desynchronised coupling wearing a budget\n     outcome's clothes, and is refused. participant-died is a loud failure.\n  K3 diagnostics, never gated: mean/max iterations per window, per-iteration residuals,\n     IQN-ILS filter drops.\n\nS - periodic steady state (the analysis window is DERIVED, never chosen)\n  S1 every signal is segmented at ONE period, taken from the transverse tip displacement.\n     Streamwise displacement, drag and lift are the second harmonic; segmenting them at\n     their own dominant frequency makes per-cycle amplitudes alternate between\n     half-strokes and spuriously fails S3.\n  S2 the first 4.0 s of physical time is discarded unconditionally (the inlet ramp ends\n     at t = 2 s; the published reference window begins at t = 5 s).\n  S3 detect_cycle_convergence (window 3, mean-drift 1 %, amplitude-drift 2 %) reports\n     converged on the transverse signal with a settled tail of at least 4 full cycles\n     inside t >= 4.0 s. The analysis window IS that settled tail.\n  S4 the driver checkpoints as further cycles complete, and the verdict is taken from the\n     LAST checkpoint at the stopping time - never the best. Every checkpoint ships in the\n     bundle.\n  S5 CUMULATIVE bound: across the settled tail, the first-to-last relative change of the\n     per-cycle mean and of the per-cycle amplitude must each stay within 2 %. S3 compares\n     ADJACENT cycles only, so without S5 a record growing 1.2 % per cycle satisfies it\n     without limit while the amplitude grows 30 % across the window - which is what a\n     slowly saturating added-mass instability looks like, i.e. the realistic FSI3 failure\n     mode. On the published reference the cumulative drift is 0.25 % over seven cycles,\n     so the bound accepts genuine data with two orders of magnitude to spare.\n     n_settled_cycles reports the cycles actually averaged into the gated statistics, not\n     the detector's count, and must itself meet the S3 minimum.\n\nD - displacement bands (the physics gate, relative to R3)\n  D1 flag-tip transverse amplitude within 15 %.\n  D2 flag-tip fundamental frequency within 5 %.\n  D3 flag-tip streamwise amplitude within 25 %.\n  D4 flag-tip streamwise mean within 25 %.\n  D5 flag-tip streamwise frequency within 5 % - a structural harmonic check, declared\n     CORRELATED with D2 and not independent evidence.\n\nX - diagnostics, never gated: transverse MEAN (period-conditioned: a 1.5 % change in the\n  assumed period moves it ~50 %, measured on the reference itself); drag and lift mean and\n  amplitude; iterations per window; the featflow-table cross-check deltas; the I2\n  comparison; and the refined-mesh campaign in its entirety.\n\nVERDICT: GO if and only if P and C and I1 and I3 and R and K1 and K2 and S3 and D1..D5\nall pass. I2 and X are reported, never gated. NO-GO means: ship the adapter, the harness\nand the loud gate, and record the miss and the infrastructure gap honestly. No band is\nrelaxed under any circumstance.\n\nBUDGET (pre-declared): aero-dev only, serial, no cloud spend.\n  B1 pre-flight (I1-I4) ceiling 3600 s.\n  B2 gated campaign: rung blockMeshDict (the ~21k-cell upstream default), max-time 8.0 s,\n     ceiling 172800 s (48 h), single run, no restarts. Reaching the ceiling is a RECORDED\n     OUTCOME, not a failure; the analysis then runs on whatever the S-rule yields.\n  B3 non-gated diagnostic: rung blockMeshDict_refined, same max-time and ceiling, may run\n     concurrently with B2. Pre-registered as non-gated from the start so it cannot become\n     a second attempt at the gate.\n  B4 if S3 cannot be satisfied within B2, the verdict is NO-GO on periodic-steady-state -\n     not a re-run with a hand-picked window.\n\nCONTINGENCIES - MECHANISM (allowed, declared in advance) vs GATE (forbidden):\n  M1 if the coded inlet BC will not compile in the SIF, set FOAM_ALLOW_SYSTEM_OPERATIONS\n     and a writable WM_PROJECT_USER_DIR; failing that, substitute the algebraically\n     identical exprFixedValue form and record the substitution and a byte-diff.\n  M2 a stale precice-run/ exchange directory is removed before each run; participants run\n     with --no-home.\n  M3 if headless gmsh fails, pre-generate the solid mesh inside the SIF at build time.\n  M4 SCOPE DEGRADATION, WEAKER CLAIM: if and only if precice-fsi.sif cannot be built\n     because the openfoam-adapter will not compile against OpenFOAM v2412, run\n     fluid-nutils + solid-nutils instead. That verifies the harness but NOT the OpenFOAM\n     participant path, so taking M4 means ADR-016 stays `proposed` and the stage verdict\n     is NO-GO-with-partial-delivery.\n  FORBIDDEN: changing any D band, any convergence limit, max-iterations, the S2 discard,\n  the S3 tail length, the analysis window, or the reference row. Any of these requires a\n  new ADR AFTER the campaign, and the original verdict stands on the record.\n",
+  "provenance": {
+    "config_hash": "7d519b4cdb018ad9c4dbe22094acd0b1f8aa71c42b44e6120c76000e672bd83c",
+    "container_sif_sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "git_sha": "bf86a1dfae1a4ec372e8336be8437da813a9c7de"
+  },
+  "reference": {
+    "tip_ux_amplitude": 0.002700146,
+    "tip_ux_frequency": 11.0742,
+    "tip_ux_mean": -0.002856809,
+    "tip_uy_amplitude": 0.03495533,
+    "tip_uy_frequency": 5.539872
+  },
+  "run_id": "turek_hron_fsi3-20260729-162514",
+  "spec": {
+    "analysis_discard_s": 4.0,
+    "analysis_min_cycles": 4,
+    "archive_path": "/root/projects/aero-research-platform/data/references/fsi/turek_hron_fsi3/precice-tutorials-turek-hron-fsi3.tar.gz",
+    "container_of_record": "precice-fsi.sif",
+    "fluid_mesh_dict": "blockMeshDict_refined",
+    "fluid_participant_dir": "fluid-openfoam",
+    "gated": false,
+    "max_time": 8.0,
+    "name": "turek_hron_fsi3",
+    "participants": [
+      {
+        "command": "../../tools/run-openfoam.sh",
+        "env": {},
+        "name": "Fluid",
+        "run_as_uid": 1000,
+        "sif": "precice-fsi.sif",
+        "workdir": "fluid-openfoam",
+        "writable_tmpfs": false
+      },
+      {
+        "command": "./run.sh",
+        "env": {
+          "PRECICE_TUTORIALS_NO_VENV": "1"
+        },
+        "name": "Solid",
+        "run_as_uid": 1000,
+        "sif": "precice-fsi.sif",
+        "workdir": "solid-nutils",
+        "writable_tmpfs": false
+      }
+    ],
+    "pin": {
+      "archive_sha256": "351c9e5ff1415585f5a7fe4043d5bf26d6038cd690a389f508201354c148c33f",
+      "branch": "develop",
+      "commit": "cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e",
+      "manifest_path": "/root/projects/aero-research-platform/data/references/fsi/turek_hron_fsi3/tutorials_pin_manifest.csv",
+      "repo": "precice/tutorials"
+    },
+    "run_as_uid": 1000,
+    "tutorial_case": "turek-hron-fsi3",
+    "wall_clock_ceiling_s": 172800
+  },
+  "started_at": "2026-07-29T16:25:12+00:00",
+  "verdict": "DIAGNOSTIC (non-gated by pre-registration; reported, bears no verdict)"
+}
