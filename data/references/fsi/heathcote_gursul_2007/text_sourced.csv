@@ -1,0 +1,34 @@
+# Heathcote & Gursul (2007) chordwise-flexible plunging airfoil — TEXT-SOURCED values.
+#
+# Every row here is quoted from the PROSE of Samuel Heathcote's PhD thesis (University of
+# Bath), sha256 fdee2ce497ab39af65aff769f04d858e4a2a3cf10adacc0c1351760f3f74fe10, and is
+# therefore EXACT: no digitization, no reading error, no axis calibration.
+#
+# These rows are the R2 cross-check anchor. Any digitization of Figures 5.6 / 5.9 / 5.13
+# must reproduce the applicable ones, or the digitization is wrong and the campaign STOPS.
+# That gate exists because this repo's OTHER Heathcote-Gursul reference file was wrong by
+# 3-5x for an entire stage: thrust had been digitized off the efficiency curve.
+#
+# Columns:
+#   quantity  - machine-readable name
+#   value     - the number as stated
+#   units     - "-" for dimensionless
+#   b_over_c  - plate thickness ratio the row applies to ("" = not foil-specific)
+#   reynolds  - Reynolds number ("" = all three)
+#   strouhal  - Strouhal number ("" = not a single-St statement)
+#   section   - thesis section the sentence appears in
+#   note      - the claim, in the thesis's own terms
+quantity,value,units,b_over_c,reynolds,strouhal,section,note
+thrust_crossover_strouhal_rigid,0.17,-,4.23e-3,,,5.3.2,drag-to-thrust transition for the stiffest (essentially rigid) airfoil; stated to hold at all three Reynolds numbers
+thrust_coefficient,0.04,-,0.56e-3,27000,,5.3.1,C_T of the most flexible airfoil where its vortices are shed almost in a line
+pitch_amplitude_deg,1.0,deg,4.23e-3,9000,0.56,5.3.1,stated as "less than 1 degree" - an UPPER BOUND, not a measurement
+pitch_amplitude_deg,6.0,deg,,9000,0.56,5.3.1,intermediate-stiffness airfoil of Figure 5.2b
+pitch_amplitude_deg,17.0,deg,0.56e-3,9000,0.56,5.3.1,most flexible airfoil of Figure 5.2c
+pitch_amplitude_deg,2.0,deg,4.23e-3,,,2.1.6,"stated as ""less than 2 degrees for the highest oscillation frequency"" - an UPPER BOUND"
+peak_efficiency_strouhal,0.29,-,,,,5.1,Strouhal number at which propulsive efficiency peaks in the phase/St plane
+peak_efficiency_pitch_phase_deg,97.5,deg,,,,5.1,"stated as a 95-100 degree range; the midpoint is recorded, the range is the uncertainty"
+peak_thrust_pitch_phase_deg,115.0,deg,,,,5.1,"stated as a 110-120 degree range; the midpoint is recorded, the range is the uncertainty"
+validation_drag_coefficient,0.028,-,,20000,0.19,2.2.3,rigid NACA-0012 force-measurement validation; stated as 0.028 +/- 0.005
+u95_input_thrust_frac,0.05,-,,,,2.2.2,combined strain-gauge error - the platform's u95_input on any thrust coefficient
+u95_input_efficiency_frac,0.10,-,,,,2.2.2,efficiency depends on gauge readings in BOTH directions; roughly double the thrust error
+u95_input_momentum_flux_frac,0.10,-,,,,2.2.2,PIV momentum-flux uncertainty; not gated by Stage 20
