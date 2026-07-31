@@ -197,3 +197,22 @@ HARD DON'TS
 Conventional commits `<type>(stage-20): …`; `.venv/bin` on PATH for pre-commit. Update the existing
 Stage-20 handoff as you go rather than writing a second one; flip `status: partial` to `complete`
 only when a verdict exists.
+
+LEAVE AN AUDIT TRAIL (the operator will have this session's work reviewed against it)
+
+- **One commit per coherent unit**, each with a body saying *why*, not just *what*. `git log` is
+  the primary evidence; a squashed "phase 3 done" commit destroys it.
+- **Record every number you measure**, not just the ones that passed — s/window and
+  iterations/window per arm per rung (I4), the static mesh-quality baseline (I5), the three power
+  routes P1/P2/P3 and their pairwise deltas, the ccx `.dat` cadence classification (K3).
+- **Every band in ADR-039 must be traceable to a row in `hg2007_recomputed.csv`** via the stated
+  multiplier rule, with the raw multiplier printed beside the applied number.
+- **If you deviate from this prompt or the approved plan, say so in the handoff's §3** with the
+  evidence that forced it. Deviating is fine; deviating silently is not.
+- **If a gate fails, stop and record it.** Never widen a band, never re-pick a window, never
+  re-run until it passes. A NO-GO with evidence is a result; a GO obtained by adjustment is not.
+- Update `docs/handoffs/STAGE-20-flexible-flapping-wing-fsi-DONE-2026-07-30.md` **as you go**.
+  Also record the operator's `85e0b32` (`run_long.sh`: a timed-out wait no longer strands the solve
+  it was watching) in §4 — it is not yet there, and it matters for a six-run concurrent campaign.
+- Final state must be: clean tree, pushed, PR #44 checks green, `pytest -q tests/unit
+  tests/stage_20` green, and nothing running on aero-dev that you did not intend to leave running.
