@@ -51,6 +51,30 @@ Relative bending stiffness `λ/λ₀` (thesis Table 2-1), `λ₀` being the thin
 |---|---|---|---|---|---|---|---|
 | `λ/λ₀` | 1 | 3.4 | 8 | 15.6 | 27 | 64 | **422** |
 
+### Airfoil outline (thesis Fig 2.5 — a *scale* diagram, measured)
+
+Fig 2.5 is captioned "Scale diagram of the chord-wise flexible airfoil" and carries **no dimension
+labels**, so the outline below is **measured off the rendered figure**, not text-sourced. It is
+recorded here because the Stage-20 CalculiX solid mesh needs the real wetted shape — preCICE maps
+between the fluid and solid *surfaces*, so an invented outline would be an invented experiment.
+
+| quantity | value | how |
+|---|---|---|
+| teardrop LE length | **30 mm** (0.333c) | **exact** — 90 mm chord − 60 mm plate, both text-sourced |
+| teardrop max thickness | **≈ 9.6 mm** (≈ 0.107c) | measured off Fig 2.5 at 200 dpi |
+| teardrop max-thickness location | ≈ 8-9 mm from the nose (≈ 0.1c) | measured |
+| plate length | **60 mm** (0.667c) | text-sourced (§2.1.6) |
+| plate thickness | `b = (b/c) × 90 mm`, e.g. **0.38 mm** for `b/c = 4.23e-3` | text-sourced |
+
+**The scale reading is self-checking.** Measuring the teardrop's length off the figure gives
+≈29.5 mm against the 30 mm the text implies arithmetically — a 1.7 % agreement on a quantity known
+two independent ways. That is what makes the *unlabelled* thickness measurement trustworthy at
+roughly the same level; carry **≈5 % on the teardrop thickness** and treat the outline as a declared
+approximation of a shape the thesis draws but does not tabulate.
+
+The LE is "machined in two halves, and the plate clamped between the two" (Fig 2.5 caption), so the
+plate is built in at `x = 30 mm` and the structural root is there — not at the nose.
+
 **The pitching motion is not prescribed — it arises from the flexibility.** The leading edge is
 driven in pure heave; the plate's inertial and hydrodynamic loading produces the pitch. That is
 why Stage 20 drives the plunge from the *solid* leading edge and lets the coupling produce the
