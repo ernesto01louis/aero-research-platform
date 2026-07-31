@@ -120,10 +120,13 @@ coupled case — plus the pre-registration and a multi-day campaign.
 
 ### 6.1 Upstream's 2-D CalculiX idiom is a 3-D slab, not plane stress
 
-`perpendicular-flap/solid-calculix/all.msh` is a **one-element-thick 3-D mesh** (z ∈ {0, 1}) with
-`*BOUNDARY Nall, 3` suppressing the out-of-plane dof, while both preCICE meshes are declared
-`dimensions="2"`. The plan had recommended CalculiX plane-stress (`CPS8R`) elements; upstream's own
-proven idiom is the slab. **Use the slab** — it is what the calculix-adapter is exercised against.
+`perpendicular-flap/solid-calculix/all.msh` is a **one-element-thick 3-D mesh** (z ∈ {0, 1}) of
+**`C3D8I`** elements (738 nodes, 244 elements), with `*BOUNDARY Nall, 3` suppressing the
+out-of-plane dof, while both preCICE meshes are declared `dimensions="2"`. The plan had
+recommended CalculiX plane-stress (`CPS8R`) elements; upstream's own proven idiom is the slab.
+**Use the slab, and use `C3D8I`** — the incompatible-modes hex is what cures shear locking in a
+thin bending member, which is exactly the HG plate's regime, and it is what the calculix-adapter is
+actually exercised against.
 
 Also learned, and all needed by the Stage-20 deck writer:
 
@@ -207,7 +210,11 @@ no obvious failure. **Run `git log` after every commit.** Running
 
 - Plunge driven from the **solid's** leading edge (the pitch is not prescribed — it *arises* from
   the flexibility, per the thesis, so prescribing it would model a different experiment).
-- CalculiX **3-D slab with dof 3 suppressed**, not plane stress (§6.1).
+- CalculiX **3-D slab of `C3D8I`, dof 3 suppressed**, not plane stress (§6.1).
+- **Solid geometry is settled**: 30 mm aluminium teardrop (≈9.6 mm max thickness, measured off the
+  scale diagram and cross-checked to 1.7 %) + 60 mm steel plate, structural root at `x = 30 mm`
+  where the plate is clamped between the two machined LE halves. Recorded in `reference.md`; the
+  deck writer's boundary condition goes at the root, not the nose.
 - The rigid control is the **same coupled path with a stiffer plate** (`b/c = 4.23e-3`), which HG
   measured — so both ends of the increment carry an experimental anchor.
 - Both the **absolute** bands and the **increment** bands sit in the VERDICT line (operator
