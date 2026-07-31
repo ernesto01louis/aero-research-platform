@@ -90,7 +90,15 @@ coupled case — plus the pre-registration and a multi-day campaign.
 - `ProvenanceTuple` gains `containers: tuple[ContainerRef, ...] = ()` and a fifth conditional
   MLflow tag `container_sif_set`. `ContainerRef` and `container_roster` are new public names.
 - **Postgres: migration `005_container_set`** adds a nullable `container_sif_set TEXT` to
-  `mlflow_artifact_provenance` plus a partial index. **NOT YET APPLIED on LXC 202** — see §7.
+  `mlflow_artifact_provenance` plus a partial index. **APPLIED 2026-07-31** by the operator from
+  the Proxmox host (`alembic upgrade head`); `alembic current` reports `005_container_set (head)`.
+  Verified after the fact rather than assumed: the column is `text`/nullable, all **1280**
+  historical rows are intact with `container_sif_set IS NULL` (correct — every pre-Stage-20 run is
+  single-container), and both the old and new indexes are present.
+  **The mirror write path is verified too**, inside a transaction that was rolled back: the real
+  `_INSERT_SQL` accepts a two-container roster, the stored value is byte-identical to the
+  `container_sif_set` MLflow tag, and it round-trips back to both SIF digests. Row count unchanged.
+  *(Note the DB is at 192.168.2.184; CT 202 is its CTID, not its address.)*
 - `ExecResult` gains `transport_error` / `transport_failed`; `MeshHandle` gains `failure`;
   `aero.orchestration.describe_failure` is new.
 - New pytest marker `stage_20`; new test dir `tests/stage_20/` (45 tests).
@@ -174,12 +182,14 @@ no obvious failure. **Run `git log` after every commit.** Running
    `reference.md`: three independent readings per marker, multiply Fig 5.6 by `St²`, and fail loud
    against the text-sourced rows rather than preferring whichever is closer. Then write
    `scripts/stage20_acquire_hg_reference.py` to recompute and cross-check.
-2. **Apply Postgres migration `005_container_set` on LXC 202** (`aero_provenance` DB). Additive
-   `ALTER TABLE … ADD COLUMN` only. Until it is applied, a gated multi-container run fails loud at
-   the mirror — which is the correct behaviour, but it will stop the campaign.
+2. ~~Apply Postgres migration `005_container_set`~~ — **DONE 2026-07-31**, see §4. The multi-container
+   mirror path is clear; nothing else in the provenance chain blocks the campaign.
 3. **Run `scripts/grant_aero_build_ssh_to_aero_dev.sh`** (operator; packaged, not executed —
    authorising a remote root key is the class auto-mode blocks by design). Runbook at
-   `docs/operator/aero-build-to-aero-dev-ssh.md`.
+   `docs/operator/aero-build-to-aero-dev-ssh.md`. **Not on the campaign's critical path**: the
+   campaign is launched by hand from the Proxmox host, which reaches aero-dev already. This unblocks
+   *CI* reaching the 16-core box — including `test_unsteady_plunging_airfoil`, which has never
+   completed there.
 4. **Author the coupled case** — the largest remaining chunk: CalculiX `.inp` writer + re-reader,
    adapter `config.yml` writer, a committed digest-verified `precice-config.xml` template with a
    renderer, a **dimensional** OpenFOAM fluid writer (do **not** reuse `plunging_airfoil.py`; it
