@@ -9,6 +9,7 @@ duration (CLAUDE.md long-job convention).
 
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 import time
@@ -25,6 +26,20 @@ _SSH_OPTS: tuple[str, ...] = ("-o", "BatchMode=yes", "-o", "ConnectTimeout=15")
 _TIMEOUT_RC = 124  # conventional exit code for a timed-out command
 _VANISHED_RC = 4  # run_long.sh `vanished`: job died without a sentinel (Stage 19)
 _TRANSPORT_RC = 255  # ssh's own "an error occurred" code — the connection, not the command
+#: Headroom the Python-side guard allows `run_long.sh wait` beyond its own nominal
+#: ceiling. It must be GENEROUS: if the guard fires first the script is killed before
+#: it can reap, which is how moving-vv run 30615205786 stranded a solve. Named (not
+#: inline) so a test can shrink it instead of sleeping for two minutes.
+_WAIT_GUARD_MARGIN_S = 120
+
+
+def _reap_enabled() -> bool:
+    """True when the caller owns the remote job's lifetime (``AERO_RUN_LONG_REAP=1``).
+
+    Read at call time, not import time, so a test or a driver can set it without
+    having to re-import the module.
+    """
+    return os.environ.get("AERO_RUN_LONG_REAP", "0") == "1"
 
 
 def _transport_error(*, returncode: int, stderr: str, target: str) -> str:
@@ -166,12 +181,34 @@ class LocalSSHExecutor(BaseModel):
                 [run_long, "wait", self.ssh_target, session, str(timeout_s)],
                 capture_output=True,
                 text=True,
-                timeout=timeout_s + 120,
+                timeout=timeout_s + _WAIT_GUARD_MARGIN_S,
                 check=False,
             )
             wait_rc = waited.returncode
         except subprocess.TimeoutExpired:
+            # Our guard beat run_long.sh's own ceiling, so the script was killed
+            # before it could reach its reap branch — which means AERO_RUN_LONG_REAP
+            # did NOT fire and the remote job is still running, detached, with no
+            # reader. Reap it here rather than assume someone else did. This is not
+            # hypothetical: moving-vv run 30615205786 died at 4h02m32s against a 4 h
+            # nominal ceiling and left pimpleFoam running on aero-dev, because
+            # run_long.sh's elapsed counter ignored per-poll SSH latency and so ran
+            # ~10 % slow. That counter is fixed, but the ordering must not be the only
+            # thing standing between a timeout and a stranded solve.
             wait_rc = 2
+            if _reap_enabled():
+                logger.warning(
+                    "run_long.sh wait exceeded the executor's own guard for '{}' — "
+                    "reaping the remote job directly",
+                    session,
+                )
+                subprocess.run(
+                    [run_long, "kill", self.ssh_target, session],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=120,
+                )
 
         logs = subprocess.run(
             [run_long, "logs", self.ssh_target, session],
