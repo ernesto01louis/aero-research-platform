@@ -61,6 +61,41 @@ __all__ = [
 ]
 
 
+class TeardropPlateSection(BaseModel):
+    """A rigid teardrop leading edge faired into a thin constant-thickness plate.
+
+    The Heathcote-Gursul (2007) chordwise-flexible section (Stage 20). Supplying this on a
+    :class:`CaseSpec` swaps ONLY the surface curve the eight-block C-grid wraps; every
+    block, cell count and grading stays exactly as it is for a NACA section. That matters
+    for more than convenience: the C-grid is geometrically self-similar under uniform
+    refinement, which is what makes a real 3-grid GCI admissible here (ADR-028), and a
+    snapped `snappyHexMesh` grid is not.
+
+    All lengths are in the same units as ``CaseSpec.chord``.
+    """
+
+    model_config = _STRICT
+
+    nose_length: float = Field(
+        ...,
+        gt=0.0,
+        description="Chordwise station of MAXIMUM thickness, where the elliptical nose ends "
+        "(HG: ~8.5 mm of a 90 mm chord, measured off Fig 2.5). Not the teardrop length.",
+    )
+    max_half_thickness: float = Field(
+        ..., gt=0.0, description="Teardrop maximum HALF thickness (HG: ~4.8 mm, measured)."
+    )
+    join_x: float = Field(
+        ...,
+        gt=0.0,
+        description="Chordwise station where the taper has faired into the plate — the "
+        "structural root (HG: 30 mm, where the plate is clamped between the LE halves).",
+    )
+    plate_half_thickness: float = Field(
+        ..., gt=0.0, description="Plate HALF thickness, b/2 (HG: b = (b/c) * chord)."
+    )
+
+
 class CaseSpec(BaseModel):
     """A NACA-class external-aerodynamics case for incompressible `simpleFoam`.
 
@@ -172,6 +207,11 @@ class CaseSpec(BaseModel):
         ge=0,
         description="Cells across the blunt-TE base; required >=1 when trailing_edge_thickness>0.",
     )
+    section: TeardropPlateSection | None = Field(
+        default=None,
+        description="Swap the surface curve the C-grid wraps for a teardrop/plate section "
+        "(Stage 20, Heathcote-Gursul). None (default) = the NACA path, byte-identical.",
+    )
 
     @model_validator(mode="after")
     def _blunt_te_needs_base_cells(self) -> CaseSpec:
@@ -188,6 +228,20 @@ class CaseSpec(BaseModel):
         # quartic, not by this field. Require the recorded value to match it so
         # a misleading value (e.g. 0.01) cannot be silently ignored — the
         # config_hash must describe the geometry that was actually meshed.
+        if self.section is not None:
+            # A teardrop/plate section sets its own base thickness, so the NACA quartic is
+            # not the reference — but the field still has to describe the meshed geometry,
+            # which is the whole point of the check. Bind it to the plate instead.
+            want = 2.0 * self.section.plate_half_thickness / self.chord
+            rel = abs(self.trailing_edge_thickness - want) / want
+            if rel > 1.0e-9:
+                raise ValueError(
+                    f"trailing_edge_thickness={self.trailing_edge_thickness} does not match "
+                    f"the teardrop/plate section's own base thickness {want:.6g}c "
+                    f"(2 * plate_half_thickness / chord). This field records the geometry; "
+                    f"it does not size it."
+                )
+            return self
         if self.trailing_edge_thickness > 0.0:
             from aero.adapters.openfoam.geometry import OPEN_TE_FULL_THICKNESS
 
