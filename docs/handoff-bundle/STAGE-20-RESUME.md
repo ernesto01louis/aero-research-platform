@@ -1,173 +1,199 @@
-Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage.
+Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (2nd resume).
 
 Read first, in order: CLAUDE.md; `.aero-stage` (already 20, do not bump);
-`docs/handoffs/STAGE-20-flexible-flapping-wing-fsi-DONE-2026-07-30.md` — this is the
-work-of-record for what is already done, especially §6 (gotchas), §7 (the ordered
-resumption path) and §8 (do-not-re-derive). Then the original brief
-`docs/handoff-bundle/STAGE-20-flexible-flapping-wing-fsi.md`, then ADR-016/035/036/038,
-then `data/references/fsi/heathcote_gursul_2007/reference.md`. The approved plan is at
-`/root/.claude/plans/stage-20-flexible-typed-pinwheel.md`.
+`docs/handoffs/STAGE-20-flexible-flapping-wing-fsi-DONE-2026-07-30.md` — the work-of-record.
+**Read §6.6–§6.9 and §7 items 1 and 1b before writing anything**; they change what you would
+otherwise write. Then `docs/handoff-bundle/STAGE-20-flexible-flapping-wing-fsi.md` (original
+brief), ADR-016/022/024/030/035/036/038, and
+`data/references/fsi/heathcote_gursul_2007/reference.md`. Approved plan:
+`/root/.claude/plans/tage-20-flexible-warm-beacon.md` — **stale on `h`; reference.md wins.**
 
-Branch `stage-20-flexible-flapping-wing-fsi` is checked out and pushed; PR #44 is a DRAFT
-with all 10 host-side required checks green. Work continues on that branch and PR.
+Branch `stage-20-flexible-flapping-wing-fsi`, PR #44 (DRAFT). Auto-mode: proceed without approval
+prompts, announce actions; stop only for destructive ops, the burst tier, or non-aero LXCs.
 
-Auto-mode applies: proceed without approval prompts, announce actions; stop only for
-destructive ops, the burst budget tier, or anything touching non-aero LXCs.
+DONE AND VERIFIED — do not redo, do not re-derive
 
-WHAT IS ALREADY DONE AND VERIFIED (do not redo, do not re-derive)
+- **CalculiX is in the loop.** Perpendicular-flap smoke, two SIFs, 50/50 windows converged at mean
+  2.14 iterations. Re-run in ~35 s: `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5`.
+- **Multi-container provenance** (ADR-038); Postgres `005_container_set` APPLIED and verified.
+- **Phase 2b COMPLETE.** `digitization.csv` (208 markers, Figs 5.6a/b/c + 5.9a + 5.13a),
+  `hg2007_recomputed.csv` (reference of record), `scripts/stage20_digitize_hg_figures.py`,
+  `scripts/stage20_acquire_hg_reference.py`. **R2 passes on all five anchors.**
+- **Gated operating point FIXED** (from the reference alone, before any solve):
+  **Re = 9000, St = 0.345, flexible `b/c = 0.85e-3` (76.5 µm) vs rigid `b/c = 4.23e-3` (380.7 µm)**
+  ⇒ `U = 0.1 m/s`, `f = 0.9857 Hz`, `T = 1.0145 s`; `c = 90 mm`, `a = 17.5 mm`, **`h = 0.194`**,
+  water (`rho = 1000`, `nu = 1e-6`), span 300 mm. Reference: `C_T` 1.008 / 0.398 (`ΔC_T` 0.609),
+  `η` 0.1753 / 0.0888 (`Δη` 0.0865), pitch amplitude 5.35°.
+  Sanity check the numbers hang together: any derived `f` outside the rig's stated 0.3–2.5 Hz
+  range means the setup is wrong.
+- **Mesh feasibility PASSES.** `CaseSpec.section` (`TeardropPlateSection`) swaps only the surface
+  curve inside the existing eight-block C-grid; NACA path pinned byte-identical. Both arms:
+  `checkMesh` "Mesh OK", 48 240 cells, skew 2.40, no negative volumes. **The thicker-plate fallback
+  is NOT needed.** Suite 359 green (`pytest -q tests/unit tests/stage_20`).
 
-- **CalculiX is in the loop.** The perpendicular-flap smoke ran OpenFOAM in `precice-fsi.sif`
-  and CalculiX in `calculix-precice.sif`: 50/50 coupled windows converged at mean 2.14
-  iterations, both exited 0, tip deflected 0 → 0.1646 m under ~8.6 N. Non-gated; it proves
-  plumbing only. Bundle `data/vv/stage20_calculix_smoke.json`. Re-run in ~35 s with
-  `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5`.
-- **Multi-container provenance is decided, implemented and applied** (ADR-038): `ProvenanceTuple`
-  carries a `containers` roster, strictly additively. Postgres migration `005_container_set` is
-  APPLIED and verified (column live, 1280 historical rows intact and NULL, mirror INSERT
-  exercised in a rolled-back transaction and byte-identical to the MLflow tag). Stage 19's
-  blanket refusal is replaced by `assert_provenance_describes`.
-- **The HG2007 reference is acquired to the extent the prose supports**, plus the airfoil
-  outline measured off the scale diagram. `u95_input` is MEASURED, not guessed: ±5 % thrust,
-  ±10 % efficiency, author-stated.
-- Executor rc=255 fail-loud fix; `stage_20` marker; `tests/stage_20/` (45 tests). The full
-  suite is 347 green (`pytest -q tests/unit tests/stage_20`).
+FOUR THINGS THAT WILL BITE YOU IF YOU SKIP THE HANDOFF
+
+1. **`h = 0.194`, not 0.175** (§6.7). 0.175 is the *other two* Heathcote experiments.
+2. **No raw PDF digest is reproducible here** (§6.6) — Bath re-wraps the file on every download
+   (60 bytes of 12.2 M differ per fetch). Use `pdf_content_sha256` / `page_raster_sha256`.
+3. **This thesis's blanket "for all Re" prose is not evidence** (§6.8): the crossover claim misses
+   by 12.6 % at the gated Re, while its condition-specific prose reproduces to 0.1 %.
+4. **The C-grid's max non-orthogonality has always been ~85**, including 86.5 on the platform's own
+   production Stage-05 V&V mesh (§6.9). ADR-024's absolute `≤ 70` applied to I5 would fail on the
+   STATIC mesh before any motion. **I5 must gate DEGRADATION against the recorded static
+   baseline**, plus absolute skew ≤ 4 and zero negative volumes.
 
 YOUR TASK, IN THIS ORDER
 
-**1. Finish Phase 2b — digitize Figures 5.6 / 5.9 / 5.13.**
-The thesis is NOT committed (licence). Re-fetch to the scratchpad and verify the digest:
-`curl -sL -o heathcote_thesis.pdf https://purehost.bath.ac.uk/ws/files/188126105/Samuel_Francis_Heathcote_thesis.pdf`
-→ sha256 `fdee2ce497ab39af65aff769f04d858e4a2a3cf10adacc0c1351760f3f74fe10`.
-The host has no poppler/pypdf; render with `uv run --no-project --with pymupdf` at 200 dpi.
-Figures live at rendered pages: **5.6 → p143 (a,b) + p144 (c)**, **5.9 → p147 (a,b)**,
-**5.13 → p152**. Method is already fixed in `reference.md` and is binding:
-  - **Figures 5.6 and 5.1 plot `C_T/St²`, NOT `C_T`**, despite Fig 5.6's caption. Multiply by
-    `St²` — a factor of 11.1 at St = 0.3. This exact species of error made the repo's *other*
-    HG reference wrong by 3-5× for a whole stage.
-  - Read each required marker **three times independently**; commit all three readings in
-    `digitization.csv` with the tool and version. Reading term = half-range; axis-calibration
-    term from tick spacing.
-  - **Record the correlated / uncorrelated split explicitly.** The axis-calibration term cancels
-    in the flexible-minus-rigid increment (same figure, same axes) and the instrument systematic
-    largely cancels too (same gauge, same calibration); only the independent per-marker reading
-    term survives. That split is what licenses a tighter band on the increment than on the
-    absolutes, and it must be shown, not asserted.
-  - **Cross-check against `text_sourced.csv` and STOP on disagreement** — never "prefer whichever
-    is closer". The anchors: rigid drag→thrust crossover at St = 0.17 at all three Re;
-    `C_T = 0.04` for `b/c = 0.56e-3` at Re = 27000; pitch amplitudes <1° / 6° / 17° at
-    Re = 9000, St = 0.56.
-Write `scripts/stage20_acquire_hg_reference.py` mirroring `stage19_acquire_fsi_reference.py`'s
-five steps, and recompute the reference of record with the platform's own estimators.
+**1. Phase 3A — the `source` seam. LAND THE TWO NON-REGRESSION TESTS ON PRE-REFACTOR CODE FIRST,
+see them green, THEN refactor.** Golden values produced by post-refactor code prove nothing. This
+is the single most important ordering rule in the stage.
+  - `tests/stage_20/test_stage19_materialization_is_byte_identical.py` — fixture tarball through
+    the real `_write_case`; assert a literal `{path: sha256}` map, the **golden bytes of
+    `aero-manifest.json`**, the exact `DeclaredMutation` tuple; plus a DVC-gated variant on the
+    real FSI3 archive.
+  - `tests/stage_20/test_stage19_load_path_unchanged.py` — fake `ResultHandle` over committed FSI3
+    fixtures; assert the `SolveResult` equals a committed golden (all 20 scalars, `cd is None`).
+  - Then: `CoupledCaseSpec.source: TutorialSource | AuthoredSource` (discriminator `kind`);
+    `TutorialTree` → `MaterializedTree` (`pin` XOR `authored`); `DeclaredMutation.kind +=
+    "authored"`, `before_sha256: str | None`; `select_fluid_mesh(fluid_participant_dir=…)` (kills
+    the `case.py:382` hard-code); `_materialize(spec, root)` as a **method** (a free function drags
+    the foam writer into `case.py`, which `launcher.py` imports); `CASE_ROOT_DIRNAME = "tutorial"`
+    + `_case_dir()` collapse the eight re-derivation sites; **extract** `_assert_status_gate` (K2)
+    and `_assert_coupling_converged_over` (K1) so both load paths share ONE gate implementation.
+  - **One honest divergence — record it, do not paper over it:** nesting the pin under `source`
+    changes FSI3's `config_hash`. Pin the new value with the old in a comment; record both in
+    ADR-037. Materialized *bytes* stay identical; the *spec serialization* moved. Different claims.
 
-**2. Phase 3 — author the coupled case.** The largest chunk. There is no upstream tutorial for
-it, and `aero/adapters/precice/config.py` is a READER only.
-  - `aero/adapters/precice/calculix.py` — typed, fail-loud `.inp` writer **plus a re-reader** for
-    the C-gate. **Element type `C3D8I`** (incompatible-modes hex; cures shear locking in a thin
-    bending member) on a **one-element-thick 3-D slab with `*BOUNDARY Nall, 3`**, preCICE meshes
-    declared `dimensions="2"`. NOT plane stress — that was the plan's assumption and upstream's
-    proven idiom overrides it.
-  - Geometry (settled, in `reference.md`): 30 mm aluminium teardrop, ≈9.6 mm max thickness
-    (≈0.107c), + 60 mm steel plate, `E = 2.05e11`, `b = (b/c)·90 mm`. **Structural root at
-    x = 30 mm**, where the plate is clamped between the two machined LE halves — not at the nose.
-  - **`a = 17.5 mm` fixed, so `h = a/c = 17.5/90 = 0.194`. NOT 0.175.** `0.175` belongs to the
-    other two Heathcote experiments (the NACA-0012 validation model, and the *spanwise* wing whose
-    chord is 100 mm) — same shaker amplitude, different chord. An earlier draft of `reference.md`
-    and the approved plan file both carry `0.175`; **`reference.md` is authoritative and the plan
-    is stale on this point.** The error is 11 % on plunge amplitude and propagates into the
-    frequency-from-Strouhal conversion, the I5 mesh-motion probe and every solve.
-  - Sanity check that the numbers hang together: at `Re = 18 000`, `c = 0.09 m`, water ⇒
-    `U₀ = 0.2 m/s`; `St = 0.3` ⇒ `f = St·U₀/(2a) = 1.71 Hz`, comfortably inside the thesis's
-    stated 0.3-2.5 Hz rig range. If a derived frequency falls outside that band, the setup is wrong.
-  - Drive the plunge from the **solid's** leading edge via `*BOUNDARY` + `*AMPLITUDE`, with
-    ADR-024's `(1−cos)` ramp. The pitch is NOT prescribed — it arises from the flexibility, per
-    the thesis; prescribing it would model a different experiment.
-  - Forces reach the solid by the adapter **overwriting a `*CLOAD` block the deck declares as
-    zeros** on the interface node set — the deck must declare it or there is nothing to overwrite.
-    The adapter's `config.yml` `patch:` name maps to an `*NSET` with an `N` prefix
-    (`patch: surface` → `*NSET,NSET=Nsurface`). The calculix-adapter reads **`Force`**, not
-    FSI3's `Stress`.
-  - `precice-config.xml` is a **committed, digest-verified template + renderer**, not a writer:
-    render → re-read with `read_precice_config` → `assert_config` against a pre-registered
-    expectation. Upstream's numerics for this class: `parallel-implicit`, `max-iterations 50`,
-    relative 5e-3 on BOTH `Displacement` and `Force`, IQN-ILS + QR2 filter,
-    `initial-relaxation 0.5`, `time-windows-reused 15`.
-  - **The case is DIMENSIONAL.** Do NOT reuse `aero/adapters/openfoam/plunging_airfoil.py`; it
-    hard-codes `RHO_INF = U_INF = 1.0` and would silently mis-normalise every coefficient. Write
-    `aero/adapters/openfoam/flexible_foil.py`. Use `backward` in `fvSchemes` —
-    `transient_fvschemes` is first-order Euler. Needs `preciceDict` with `locations faceCenters`
-    and a dimensioned `rho`.
-  - **Add the force/power path to the coupled route** — `PreciceCoupledSolver.load()` returns
-    `cd=None, cl=None` today. Reuse `_read_coefficient_dat`, `_read_force_history` and
-    `_strictly_increasing_mask` from `aero/adapters/openfoam/solver.py`; the last is essential
-    (`adjustableRunTime` writes duplicate timestamps and `Signal` requires ascending `t`).
-  - **Efficiency is where a silent bias lives.** For a deforming foil `−⟨F_y·ẏ_LE⟩` is NOT the
-    actuator power, and the error appears only in the flexible arm — i.e. inside the gated
-    increment. Compute interface power `∫(traction·v_surface)dS` via a coded OpenFOAM function
-    object (`dynamicCode` works under the existing `setpriv` uid-1000 path). The verification is
-    free: on the rigid arm it must reduce to `−⟨F_y·ẏ⟩` within 0.5 % — pre-register that.
-  - Extend `CoupledCaseSpec` with a `source: TutorialSource | AuthoredSource` discriminated union
-    and refactor `_write_case` into an overridable `_materialize` seam. **Keep the Stage-19 path
-    byte-equivalent** — the FSI3 verdict rests on it.
-  - Register the new case in **all three** `aero/cli.py` sites (`vv list`, `vv run`, and
-    `vv report`'s `registered` set — missing the third means it cannot report `missing`).
-  - Unit-test every writer's output **byte-for-byte** (the `render_supervisor_script` precedent),
-    and drive `compose_improvement(kind="time_averaged", paired=…)` on synthetic per-cycle series
-    — Stage 20 is its first production caller.
+**2. Phase 3B — authored-case integrity (C-family).**
+  - `aero/adapters/precice/calculix.py`: typed `.inp` writer **plus a re-reader**. `C3D8I` on a
+    one-element-thick 3-D slab with `*BOUNDARY Nall, 3`; preCICE meshes `dimensions="2"`. NOT plane
+    stress. Highest-value assertions: `*CLOAD` on the interface nset exists with dofs {1,2,3} all
+    present and all exactly `0.0` (the adapter OVERWRITES it — missing, the run is silently
+    force-free); `ALPHA` present and `0.0` (ccx defaults to −0.05 HHT damping, i.e. numerical
+    damping inside the gated increment); `DIRECT` present and `dt == time-window-size`; `C3D8I` not
+    `C3D8`. A ~20-line `config.yml` reader (no YAML dep — Invariant 1) asserting
+    `"N" + patch == interface_nset`, `read-data == [Force]` (**not** FSI3's `Stress`),
+    `write-data == [Displacement]`.
+  - Geometry: 30 mm aluminium teardrop (max half-thickness 4.8 mm at x ≈ 8.5 mm) + 60 mm steel
+    plate, `E = 2.05e11`. **Structural root at x = 30 mm.** Model the teardrop as a **fully
+    prescribed (kinematically rigid) region**, not a stiff material — it removes a spurious elastic
+    mode and makes the plunge exact. Plunge from the **solid's** LE via `*BOUNDARY` + `*AMPLITUDE`
+    with ADR-024's `(1−cos)` ramp (reuse `aero.postprocess.flapping_kinematics`; do not re-derive).
+    **The pitch is NOT prescribed** — it arises from the flexibility.
+  - `precice-config.xml` = committed template + renderer + re-read + `assert_config`, **not a
+    writer**. `templates/SHA256SUMS` verified on every read; assert `found_tokens == _TOKENS`
+    exactly before substituting; then check every token is observable in the parsed model.
+  - Upstream numerics: `parallel-implicit`, `max-iterations 50`, relative 5e-3 on **both**
+    `Displacement` and `Force`, IQN-ILS + QR2, `initial-relaxation 0.5`, `time-windows-reused 15`.
+    **Scale the RBF `support-radius`** — upstream's `1.0` is metres on a 0.09 m chord.
 
-**3. Phase 4 — ADR-039, the pre-registered gate block. BEFORE any campaign run.**
-Mirror ADR-036 exactly: `<!-- GATE-BLOCK:BEGIN/END -->` around a ```text fence, duplicated
-byte-identically as `PREREGISTERED_GATE_BLOCK` in the driver, asserted by a required-CI unit test,
-embedded in every bundle. Families P/C/I/R/K/S/**A**/D/**M**/X + VERDICT + BUDGET + CONTINGENCIES.
-  - **Both the absolute bands AND the flexible-minus-rigid increment sit in the VERDICT line**
-    (operator decision), knowing ADR-022 makes a NO-GO on the absolute clause a live outcome.
-    Design the verdict to resolve clause by clause so "NO-GO on absolute fidelity, GO on the
-    flexibility increment" is expressible.
-  - Size bands from the reference's OWN uncertainty, never from what we expect to achieve, and
-    record the raw multiplier alongside the applied number.
-  - Two deliberate improvements on ADR-036, both flagged as gaps in its own record: **name every
-    gated clause in the VERDICT line** (ADR-036 gated S3 but omitted S5 — the clause its own
-    review had just added), and add a **shape-7 test** asserting every clause identifier appears
-    either in the VERDICT line or the reported-only list. Band-parity test compares ORDERED
-    `(clause, band)` pairs — a set loses multiplicity.
-  - **Mutation-test the tests**: delete a clause, swap two bands, drop a clause from VERDICT —
-    each must turn a test red.
-  - New A-family (alignment): elementwise-equal t-grids, the **prescribed** period (never an
-    FFT-detected one — `paired_delta_uncertainty` compares at `period_rtol = 1e-9` and would
-    correctly refuse two detected periods), one absolute pre-registered discard, ≥20 settled
-    cycles per arm.
+**3. Phase 3C — dimensional fluid deck + readout.**
+  - `aero/adapters/openfoam/flexible_foil.py`. Do **not** reuse `plunging_airfoil.py`
+    (`RHO_INF = U_INF = 1.0`). `preciceDict` in the **perpendicular-flap shape** (single interface,
+    `locations faceCenters`, `readData (Displacement)`, `writeData (Force)`) with dimensioned
+    `rho … 1000`. `dynamicMeshDict`: `displacementLaplacian` + `diffusivity quadratic
+    inverseDistance`. `backward` in `fvSchemes` (add `ddt_scheme=` to `transient_fvschemes`
+    additively — `tests/stage_11/test_dynamic_mesh_writers.py:62-63` pins the default byte-exact).
+    **`adjustTimeStep no`, fixed `deltaT`** — that is what makes the A-family's bitwise t-grid
+    equality reachable at all. `movingWallVelocity` on the moving wall. Name the FOs exactly
+    `forces1` / `forceCoeffs1` (`_coefficient_file` / `_maybe_force_file` hard-code those).
+  - Promote `_read_force_history`, `_read_coefficient_dat`, `_strictly_increasing_mask` into
+    `aero/adapters/openfoam/force_io.py` under public names; re-bind the privates so stages 10–16
+    stay green.
+  - **Two watch-points** (solid LE and TE), both in `HG2007_EXPECTATION.watch_points` so a
+    coordinate typo aborts at `prepare`. LE verifies the prescribed plunge; the pair gives the
+    pitch angle. **Kinematics analytic, never differenced** — one sample per window aliases.
+  - **Input power three ways, cross-checked:** P1 `−⟨F_y·ẏ_LE⟩` (correct for the rigid arm only),
+    P2 a coded OpenFOAM FO integrating `∮(traction·v)dS`, P3 CalculiX reaction power via
+    `*NODE PRINT, NSET=Ndriven, TOTALS=ONLY` + `RF` (free, and independent of the fluid solver:
+    in periodic steady state `⟨d/dt(KE+U_strain)⟩ = 0`). Pre-register rigid `|P2−P1|/P1 ≤ 0.005`
+    and both arms `|P3−P2|/P2 ≤ 0.02`; report `(P1−P2)/P2` on the flexible arm — that IS the bias
+    the naive formula would have put inside the gated increment. `η` from **P2**.
+    `dynamicCode` works under the existing `setpriv` uid-1000 path; verify with a <60 s probe in a
+    **scratch** dir, never the campaign case (I6). Also have the FO write its own `Fx,Fy` solely to
+    compare against `forces1` at 1 % — its `fvc::grad(U)` traction is not `devRhoReff`.
+  - **ccx `.dat` cadence — do not assume:** classify structurally. `duplicates == 0` ⇒ per-window;
+    `duplicates == Σ(iterations) − n_windows` (from the iterations log) ⇒ per-iteration, keep the
+    **LAST** row at each time; anything else RAISES. Ignoring this biases the flexible arm.
+  - `analyse_limit_cycle`: add optional `period: float | None = None` (default ⇒ FFT, bit-identical
+    to Stage 19) + additive `period_source`. New `aero/vv/alignment.py` for the A-family t-grid
+    check — `paired_delta_uncertainty` has **no** t-grid check today and `CycleSamples` has no `t0`.
 
-**4. Phase 5 — pre-flight, then fix the rung ladder FROM THE MEASUREMENT.**
-I1 solverdummy across two SIFs; I3 mesh + counts; **I5 an ADR-024-style motion-only probe**
-(`moveDynamicMesh` + `checkMesh` on plunge + 1.5× expected tail deflection, non-ortho ≤ 70,
-skew ≤ 4, zero negative volumes) BEFORE any coupled solve; **I4 calibrations that COMPLETE ≥200
-windows and end `all-exited`, for both arms at every rung**.
+**4. Phase 3D — CLI.** `_build_solver` hard-wires `TUREK_HRON_FSI3_EXPECTATION` into every
+`precice` solver — move the expectation onto the source. `stage_str` table + per-case `stage = "20"`
+(replaces the hard-code at `cli.py:652`). `_SOLVER_SIF["precice"]` → both SIFs. **The CLI path
+never calls `assert_provenance_describes` — a live gap.** Register in **all three** `FSI_CASES`
+sites (`vv list` :519, `vv run` :606, `vv report`'s `registered` set :755).
+
+**5. Phase 4 — ADR-037 (authored-case architecture), flip ADR-038 to `accepted`, and ADR-039 (the
+gate block) BEFORE any campaign run.** Mirror ADR-036 in form byte-for-byte: pure ASCII, ` - ` not
+em-dashes, family headers at column 0, clauses at two-space indent, continuations at five.
+Families P/C/I/R/K/S/**A**/D/**M**/X + VERDICT + BUDGET + CONTINGENCIES.
+  - **P must be rewritten, not copied** — ADR-036's P3 ("a gated run spanning more than one SIF is
+    structurally refused") is now FALSE. Cite `assert_provenance_describes` + the roster + the
+    `container_sif_set` tag. CalculiX is **2.20** + adapter v2.20.1 (verified in the SIF).
+  - **I5 = degradation vs the recorded static baseline** (gotcha 4). **I6** = the coded-FO probe.
+  - **A-family:** bitwise-equal t-grids; the **prescribed** period, bit-identical between arms
+    (`paired_delta_uncertainty` compares at `period_rtol = 1e-9` and would correctly refuse two
+    FFT-detected periods); one absolute pre-registered discard; ≥20 settled cycles per arm;
+    `correlation` / `variance_reduction` reported, never gated.
+  - **D-family:** D0 pitch amplitude 5.35°, D1 `C_T` 1.008, D2 `η` 0.1753, D3 `ΔC_T` 0.609,
+    D4 `Δη` 0.0865, D5/D6 signs (**no band, cannot be relaxed**), D7 admissibility, **D8 rigid-arm
+    pitch ≤ 2°** (HG's exact text-sourced bound — falsifies "our rigid arm is actually rigid"),
+    D9/D10 the power identities. **M**: `|C_T,rigid − C_T,rigid,HG| / C_T,rigid,HG ≤ 0.58`,
+    ADR-022's measured envelope as a regression bound (not an absolute-thrust validation).
+  - Band sizing: `4 × (u95_ref / |value|)`, floored 0.25, capped 0.50. Increment `u95_ref` = RSS of
+    the two arms' **reading** terms only — the axis term cancels, and `digitization.csv` shows that
+    split per row rather than asserting it. Record the raw multiplier; say when a floor/cap binds.
+  - **Record why the selection rule changed**: "largest `ΔC_T`" is degenerate because `C_T ~ St²`,
+    so it walks to the figure's right-hand edge; replaced by `Δ(C_T/St²)` inside HG's own
+    `0.2 < St < 0.4` band. Note the optimal plate thickness MOVES with St, so plate and St are
+    chosen together.
+  - **Two improvements on ADR-036:** name EVERY gated clause in the VERDICT line (ADR-036 omitted
+    S5 — the clause its own review had just added — and left I4 neither gated nor listed); add
+    **shape-7**: every clause identifier appears either in the VERDICT line or the reported-only
+    list. Band-parity test compares **ORDERED** `(clause, band)` pairs — a set loses multiplicity.
+    ADR-036's regex matches only integer percentages and the literal word "within" — widen it if
+    any band is fractional. **Mutation-test the tests**: delete a clause, swap two bands, drop one
+    from VERDICT — each must turn a test red.
+  - **Both the absolute bands AND the increment sit in the VERDICT line** (operator decision),
+    knowing ADR-022 makes a NO-GO on the absolute clause a live outcome. Design the verdict to
+    resolve clause by clause so "NO-GO on absolute fidelity, GO on the flexibility increment" is
+    expressible. Note §6.8's finding that HG's rig was deliberately nominally 2-D (end plates, gap
+    < 3 % chord) — that *weakens* ADR-022's 2-D-vs-3-D root cause here and belongs in the ADR.
+
+**6. Phase 5 — pre-flight**: I1 solverdummy across two SIFs; I3 mesh + counts; I5; I6; **I4
+calibrations that COMPLETE ≥200 windows and end `all-exited`, for both arms at every rung**.
 **Do not extrapolate a rate from the transient** — Stage 19 was off 3.5-9.6× one way and its B3
-diagnostic ~1.8× the other. Pre-register: fixed coupling `time-window-size` across all three rungs
-chosen from the FINEST rung's Courant requirement (else a spatial GCI is contaminated by temporal
-error, and Courant drifts toward ADR-030's spurious-attractor threshold); refine the solid mesh by
-the same ratio as the fluid; build the ladder DOWNWARD (put the affordable mesh at the top and add
-a coarse rung below, e.g. 13k/28k/60k) so the critical path is a rung we can afford.
+diagnostic ~1.8× the other; a run that died after a few windows yields no s/window figure at all.
+Pre-register: fixed coupling `time-window-size` across all three rungs, chosen from the FINEST
+rung's Courant requirement (else a spatial GCI is contaminated by temporal error, and Courant
+drifts toward ADR-030's measured spurious-attractor threshold between Co 4 and Co 8); refine the
+solid by the same ratio as the fluid; build the ladder DOWNWARD (e.g. 13k/28k/60k). Pre-flight
+FAILS on `Co > 1` rather than silently adjusting.
 
-**5. Phase 6 — launch the campaign**: 3 rungs × {flexible, rigid} = 6 coupled runs, all launched
-concurrently on aero-dev (≈12 of 16 cores, ~5 GB each of 32 GB), via `run_long.sh` with unique
-session names and `AERO_RUN_LONG_REAP=1`. ~5-7 days wall clock. Then Phase 7 analysis, Phase 8
-adversarial review, Phase 9 handoff + tag.
+**7. Phase 6 — launch** 3 rungs × {flexible, rigid} = 6 coupled runs, all launched concurrently on
+aero-dev (~12 of 16 cores, ~5 GB each of 32 GB), via `run_long.sh` with unique session names and
+`AERO_RUN_LONG_REAP=1`. Then update the handoff (`status: partial`, **no tag, no verdict**).
+Phases 7–9 (GCI + paired U95 + clause-by-clause verdict, adversarial review, tag) are a further
+session. `compose_improvement(kind="time_averaged", paired=…)`: Stage 20 is its FIRST production
+caller — drive it on synthetic per-cycle series in unit tests first, do NOT pass
+`baseline`/`improved` (the validator raises), and note `u95_delta_input_frac` multiplies
+`|paired.mean_baseline|`, i.e. the RIGID arm's mean.
 
 HARD DON'TS
 - Never relax a pre-registered band. Pre-register BEFORE any campaign run.
-- Do not cite Stage 19's numbers as Stage 20 evidence — different solid solver, different
-  reference, ADR-016's whole point.
+- Do not cite Stage 19's numbers as Stage 20 evidence (ADR-016).
 - Fail loud on non-converged coupling and unreached periodic steady state.
 - **NEVER cancel a self-hosted CI job to free a runner** — it strands detached solves. Tell:
   runners `busy=true` while `gh run list` shows nothing `in_progress`.
-- **Verify EVERY commit with `git log`.** The ruff-format hook exits 0 having rolled the commit
-  back; it happened three times last session. Run `ruff format && ruff check --fix` before
-  `git add`.
+- **Verify EVERY commit with `git log`.** Run `ruff format && ruff check --fix` before `git add`.
+  Changing handoff frontmatter stales the README STATUS block — run `scripts/regenerate_status.sh`.
 - `aero/` core is stdlib + numpy + pydantic only; add new modules to `import-platform-only.yml`.
-- The multi-hour case is **driver-only**, never in `tests/vv` — that is the FSI3 precedent and it
-  is what stops a multi-hour job leaking into `vv-smoke` (which a missing `and not moving` broke
-  for 23 days).
+- The multi-hour case is **driver-only**, never in `tests/vv`.
+- **Never write a value into a provenance-bearing field you have not actually computed.**
 
-Conventional commits `<type>(stage-20): …`, `.venv/bin` on PATH for pre-commit. Update the
-existing Stage-20 handoff as you go rather than writing a second one; flip `status: partial` to
-`complete` only when a verdict exists.
+Conventional commits `<type>(stage-20): …`; `.venv/bin` on PATH for pre-commit. Update the existing
+Stage-20 handoff as you go rather than writing a second one; flip `status: partial` to `complete`
+only when a verdict exists.
