@@ -1,7 +1,8 @@
 # Chordwise-flexible plunging airfoil — Heathcote & Gursul (2007) — reference data
 
 **Case:** `hg2007_flexible_foil` — a chordwise-flexible teardrop/flat-plate airfoil in pure
-plunge, `h = a_LE/c = 0.175`, `St = 2 f a / U₀`, `Re = 9 000 / 18 000 / 27 000`, water tunnel.
+plunge, `a = 17.5 mm` ⇒ `h = a_LE/c = 0.194`, `St = 2 f a / U₀`, `Re = 9 000 / 18 000 / 27 000`,
+water tunnel.
 **Tier:** flapping (flagship) — the **flexible** row of
 `.claude/rules/flapping-validation-ladder.md`. Stage 20's experiment-anchored gate (Hard Rule 15).
 
@@ -22,10 +23,29 @@ Values here come from the open-access origin of that data, **Samuel Heathcote's 
 (University of Bath), Chapter 5 "Effect of chordwise flexibility at low Reynolds numbers", and
 Chapter 2 "Experimental apparatus and methods".
 
-- Retrieved 2026-07-30 from
+- Retrieved from
   `https://purehost.bath.ac.uk/ws/files/188126105/Samuel_Francis_Heathcote_thesis.pdf`
-- **sha256 `fdee2ce497ab39af65aff769f04d858e4a2a3cf10adacc0c1351760f3f74fe10`**, 12 MB, 186 pages
+- 12,175,275 bytes, **186 pages** (`/Type/Pages/Count 186`)
 - The PDF is **not committed** (licence); only its digest, retrieval URL and date are recorded.
+
+> ⚠️ **CORRECTION (Stage 20) — the raw file sha256 is NOT reproducible, and the one recorded
+> here on 2026-07-30 (`fdee2ce4…`) never could have been.** Bath's Pure repository re-wraps
+> the PDF on **every download** with `OpenPDF 1.4.2`: two fetches of the same URL, minutes
+> apart, differ in exactly **60 bytes of 12,175,275** — the `/CreationDate` stamp and the
+> `/ID` trailer array. Every content stream is byte-identical. A raw sha256 is therefore a
+> per-fetch artifact, and this file's former claim that the figure render was "reproducible
+> from the recorded PDF digest" was false as written.
+>
+> Two invariants **are** reproducible, both verified across independent fetches:
+>
+> | invariant | value |
+> |---|---|
+> | `pdf_content_sha256` — sha256 with `/ID` and the date strings normalized | `276cec6ea449dd130fe6c804afd1e07239d02da022c4a8b12b1303a69371085b` |
+> | `page_raster_sha256` — sha256 of the 200 dpi page raster, `pymupdf==1.26.3` | per page, in `digitization.csv` |
+>
+> The **raster** digest is the stronger of the two: it pins the exact pixels that were read,
+> which is what a digitization actually depends on. `scripts/stage20_digitize_hg_figures.py`
+> verifies the content digest before reading anything and refuses to proceed on a mismatch.
 
 Every value below is marked **text-sourced** (quoted from the prose, exact) or
 **figure-digitized** (read off a rasterised plot, carries digitization uncertainty). The
@@ -41,9 +61,23 @@ distinction is load-bearing — see the correction note at the end of this file.
 | trailing-edge element | **Carbon-Manganese steel** plate, **length 60 mm**, `E = 2.05 × 10¹¹ N/m²` |
 | plate thicknesses tested | 2, 3, 4, 5, 6, 8, 15 thousandths of an inch |
 | ⇒ thickness ratios `b/c` | 0.56, 0.85, 1.13, 1.41, 1.69, 2.23, 4.23 (× 10⁻³) |
-| plunge amplitude | `h = a_LE/c = 0.175`, pure heave of the **leading edge** |
+| plunge amplitude | `a = 17.5 mm` fixed for all runs ⇒ **`h = a_LE/c = 0.194`**, pure heave of the **leading edge** |
 | Reynolds numbers | 9 000, 18 000, 27 000 |
-| medium | water tunnel |
+| medium | water tunnel (Eidetics 1520, 381 × 508 × 1530 mm test section, Tu < 0.5 %) |
+| oscillation frequency range | 0.3 < f < 2.5 Hz |
+| end conditions | **Perspex end plates, gap < 3 % chord — the rig was deliberately nominally 2-D** |
+
+> ⚠️ **CORRECTION (Stage 20) — the plunge amplitude was wrong.** This file recorded
+> `h = a_LE/c = 0.175`. It is **0.194**. §2.1.4 fixes `a = 17.5 mm` for every water-tunnel
+> run, and this airfoil's chord is 90 mm: `17.5/90 = 0.194`, which is how the thesis writes
+> it in Chapters 3, 4 and 5 (dozens of occurrences, e.g. "Ref=16,200, h=0.194").
+> `h = 0.175` belongs to the **other two** Heathcote experiments — the NACA-0012 validation
+> model (p78: "Present Exp., NACA0012, h=0.175") and the **spanwise** wing, where
+> `h = a_ROOT/c = 0.175` because the chord is 100 mm. Same shaker amplitude, different
+> chord. That is precisely the three-way conflation the callout at the top of this file
+> warns about, and this file had made it. The error is 11 % on the plunge amplitude, which
+> propagates into the frequency-from-Strouhal conversion, the mesh-motion probe and every
+> solve.
 
 Relative bending stiffness `λ/λ₀` (thesis Table 2-1), `λ₀` being the thinnest plate:
 
@@ -119,6 +153,52 @@ inferred.
 Figures 5.6 and 5.9 plot the five thicknesses `b/c ∈ {0.56, 0.85, 1.13, 1.41, 4.23} × 10⁻³`;
 Fig 5.13 omits the rigid `4.23 × 10⁻³` (its pitch amplitude is too small to measure a phase for).
 
+**The panels do not share an abscissa range, and assuming they do is a 44 % error.** The
+thesis holds the oscillation *frequencies* fixed across the three Reynolds panels (§5.3.1:
+"although the Strouhal number range decreases with increasing Reynolds number, the
+oscillation frequencies, in Hertz, are the same for parts (a), (b), and (c)"), so
+`St = 2fa/U` scales as `1/U`. Read off the rendered axis labels:
+
+| panel | Re | St axis |
+|---|---|---|
+| (a) | 9 000 | 0 → **1.0** |
+| (b) | 18 000 | 0 → **0.5** |
+| (c) | 27 000 | 0 → **0.35** |
+
+Assuming panel (c) ran to 0.5 like (b) makes its rigid drag→thrust crossover read 0.241
+instead of 0.167.
+
+**Fig 5.2's caption names its own thicknesses**: "(a) `b/c=4.23×10⁻³`; (b) `b/c=1.41×10⁻³`;
+(c) `b/c=0.56×10⁻³`". So the text-sourced pitch amplitudes of **6°** (part b) and **17°**
+(part c) at Re = 9000, St = 0.56 are attributable to specific foils — which is what makes
+them usable as R2 anchors rather than unattached numbers.
+
+> ⚠️ **A documented disagreement between the thesis prose and the thesis's own figure.**
+> §5.3.2 states the rigid drag→thrust transition occurs "at a Strouhal number St=0.17" and
+> that this holds "**for all Reynolds numbers**" (§5.3.3 repeats it for efficiency). Figure
+> 5.6 does not agree. Digitized:
+>
+> | Re | measured crossover | vs the prose's 0.17 |
+> |---|---|---|
+> | 9 000 | **0.191** | **+12.6 %** |
+> | 18 000 | 0.161 | −5.3 % |
+> | 27 000 | 0.167 | −1.7 % |
+>
+> The digitization is not at fault. Each panel's calibration is verified three independent
+> ways (the predicted `C_T/St² = 0` gridline position matches the detected one to 0.3 px;
+> the major-tick positions match; two of the three panels reproduce 0.17 outright), and
+> Fig 5.9a corroborates Re = 9000 independently — negative-efficiency cases "are not shown",
+> and the rigid efficiency series *begins* at St = 0.205 with nothing plotted below it. At
+> 9× magnification there is no marker hidden on the zero line; the crossing is genuinely
+> unmarked and the two bracketing squares interpolate to 0.19.
+>
+> **Consequence, and it generalises:** a blanket "for all Reynolds numbers" statement in
+> this thesis is a rounded generalisation, not a measurement, and is not by itself evidence.
+> Condition-specific prose (the 6° / 17° / <1° pitch amplitudes, each tied to a named foil
+> and a named St) is a different and much stronger class of claim — and those reproduce to
+> 0.1 %. The R2 gate is therefore applied to the crossover only where prose and figure
+> agree, and the Re = 9000 value is carried as a *measured* row in the reference of record.
+
 ## Text-sourced values (exact — quoted from the prose, no digitization)
 
 `text_sourced.csv` carries these. They are the anchor for the R-family cross-check: any
@@ -175,20 +255,87 @@ Small scalar tables are git-tracked directly (forward-regime tier convention). T
 not committed. No DVC artifact yet — if full digitized traces are added later they move to DVC
 with `.dvc` + `.sha256` sidecars, per the Stage-18/19 pattern.
 
-## Status of the figure digitization
+## Which quantity is gated (and why)
 
-**Text-sourced values: complete and committed.** Figure digitization of 5.6 / 5.9 / 5.13 is the
-remaining acquisition step, and it is deliberately not being rushed: the *other* HG reference in
-this repo was wrong by 3–5× for a whole stage because someone digitized the wrong curve (thrust
-confused with efficiency, thesis Fig 2.9 vs the efficiency figure). The method is fixed in advance
-in `scripts/stage20_acquire_hg_reference.py`:
+The pre-registered operating point (ADR-039), fixed from this reference **alone**, before any
+solve: **Re = 9000, St = 0.345, flexible `b/c = 0.85 × 10⁻³` (76.5 µm) against rigid
+`b/c = 4.23 × 10⁻³` (380.7 µm)** ⇒ `U = 0.1 m/s`, `f = 0.9857 Hz`, `T = 1.0145 s`.
 
-1. render the figure page at 200 dpi (reproducible from the recorded PDF digest);
-2. read each required marker **three times independently**, recording all three;
-3. reading term = half-range of the three; axis-calibration term from the tick spacing;
+Re = 9000 is forced: **Fig 5.13 exists only at Re = 9000**, so it is the only Reynolds number
+at which the structural-response gate (D0, pitch amplitude) has a reference at all.
+
+`St` and the flexible plate are chosen by maximising the flexible-minus-rigid increment **in
+HG's own normalisation, `Δ(C_T/St²)`**, restricted to `0.2 < St < 0.4` — the band the thesis
+identifies as the range observed in nature and in which its own propulsive-efficiency optimum
+(St = 0.29) sits. Selecting on raw `ΔC_T` instead is degenerate: `C_T` scales as `St²`, so
+`ΔC_T` rises monotonically to the right-hand edge of the figure (it peaks at St = 0.89, where
+`f = 2.54 Hz` is the top of the rig's stated 0.3–2.5 Hz range and the peak plunge velocity is
+2.8× freestream). **That is exactly why HG plot `C_T/St²` and not `C_T`.**
+
+Note the optimal plate thickness *moves with St* — the thesis says so directly ("The peak
+moves to higher values of plate thickness with increasing Strouhal number"), and the
+digitization reproduces it: at St ≈ 0.35 the best plate is `0.85 × 10⁻³`, at St ≈ 0.72 it is
+`1.13 × 10⁻³`. Plate and Strouhal number are therefore chosen **together**, not separately.
+
+## Reference of record (recomputed)
+
+`hg2007_recomputed.csv`, written by `scripts/stage20_acquire_hg_reference.py`. This — not the
+raw digitization — is what ADR-039 sizes its bands from.
+
+| quantity | value | gated |
+|---|---|:-:|
+| `C_T` flexible | 1.008 | ✅ |
+| `C_T` rigid | 0.398 | ✅ |
+| **`ΔC_T`** | **0.609** | ✅ |
+| `η` flexible | 0.1753 | ✅ |
+| `η` rigid | 0.0888 | ✅ |
+| **`Δη`** | **0.0865** | ✅ |
+| pitch amplitude, flexible | 5.35° | ✅ |
+| `C_P` flexible / rigid (**derived** as `C_T/η`) | 5.749 / 4.490 | ❌ |
+| rigid crossover at Re = 9000 (**measured**) | 0.1914 | ❌ |
+
+`C_P` is derived, not published: HG give `C_T` (Fig 5.6) and `η` (Fig 5.9) but never `C_P`, so
+`C_P = C_T/η` is an identity here and is reported for context — **it is not an independent
+check that our efficiency definition matches theirs**, and recording it as one would dress a
+definition up as evidence.
+
+## Status of the figure digitization — COMPLETE
+
+`digitization.csv` (208 markers across Figs 5.6a/b/c, 5.9a, 5.13a) and its `.sha256` sidecar
+are committed. Regenerate with `scripts/stage20_digitize_hg_figures.py --pdf <thesis.pdf>`.
+
+The caution was earned: the *other* HG reference in this repo was wrong by 3–5× for a whole
+stage because someone digitized the wrong curve. The method, fixed in advance:
+
+1. render the figure page at 200 dpi and record the **page raster sha256** (see the Source
+   correction above — the raw file digest is not reproducible, the raster is);
+2. read each required marker **three times independently**;
+3. reading term = half-range of the three; axis-calibration term from the axis endpoints;
 4. **multiply Fig 5.6 values by `St²`** — the axis is `C_T/St²`;
-5. cross-check against every applicable text-sourced value above (the R2 gate) and **STOP** on
+5. cross-check against every applicable text-sourced value (the R2 gate) and **STOP** on
    disagreement rather than preferring whichever is closer.
+
+**Deviation from step 2, declared.** The three readings are three independent *binarizations*
+(grey thresholds 120/140/160) of a normalized-cross-correlation match against each figure's
+own legend glyph — not three human passes. Three passes of one deterministic estimator over
+three binarizations measure the extraction's real sensitivity; three human passes over one
+image would not be independent in any useful sense, and would not be re-runnable by a third
+party. Series are resolved **jointly**: one marker belongs to exactly one series, highest
+correlation wins, which is what stops the thin `+` glyph claiming open triangles.
+
+**R2 result — PASS**, with the one documented crossover disagreement above:
+
+| anchor | measured | stated | Δ |
+|---|---|---|---|
+| pitch amplitude, `b/c = 0.56e-3`, Re 9000, St 0.56 | 16.99° | 17° | −0.1 % |
+| rigid crossover, Re = 18000 | 0.161 | 0.17 | −5.3 % |
+| rigid crossover, Re = 27000 | 0.167 | 0.17 | −1.7 % |
+| `ΔC_T` positive at the gated point | +0.609 | HG's headline result | ✅ |
+| `Δη` positive at the gated point | +0.0865 | HG's headline result | ✅ |
+
+The bound is **15 %**, pre-registered before the values were read: wide enough to absorb the
+prose quoting pitch amplitudes to one significant figure ("6 degrees" means 5.5–6.5) and the
+abscissa's own reading error, far tighter than the 3–5× class of error R2 exists to catch.
 
 ## License
 

@@ -69,6 +69,15 @@ it, and `aero/adapters/precice/config.py` is a READER only.
   - Geometry (settled, in `reference.md`): 30 mm aluminium teardrop, ≈9.6 mm max thickness
     (≈0.107c), + 60 mm steel plate, `E = 2.05e11`, `b = (b/c)·90 mm`. **Structural root at
     x = 30 mm**, where the plate is clamped between the two machined LE halves — not at the nose.
+  - **`a = 17.5 mm` fixed, so `h = a/c = 17.5/90 = 0.194`. NOT 0.175.** `0.175` belongs to the
+    other two Heathcote experiments (the NACA-0012 validation model, and the *spanwise* wing whose
+    chord is 100 mm) — same shaker amplitude, different chord. An earlier draft of `reference.md`
+    and the approved plan file both carry `0.175`; **`reference.md` is authoritative and the plan
+    is stale on this point.** The error is 11 % on plunge amplitude and propagates into the
+    frequency-from-Strouhal conversion, the I5 mesh-motion probe and every solve.
+  - Sanity check that the numbers hang together: at `Re = 18 000`, `c = 0.09 m`, water ⇒
+    `U₀ = 0.2 m/s`; `St = 0.3` ⇒ `f = St·U₀/(2a) = 1.71 Hz`, comfortably inside the thesis's
+    stated 0.3-2.5 Hz rig range. If a derived frequency falls outside that band, the setup is wrong.
   - Drive the plunge from the **solid's** leading edge via `*BOUNDARY` + `*AMPLITUDE`, with
     ADR-024's `(1−cos)` ramp. The pitch is NOT prescribed — it arises from the flexibility, per
     the thesis; prescribing it would model a different experiment.
