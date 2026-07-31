@@ -22,7 +22,19 @@ quantity,value,units,b_over_c,reynolds,strouhal,section,note
 thrust_crossover_strouhal_rigid,0.17,-,4.23e-3,,,5.3.2,drag-to-thrust transition for the stiffest (essentially rigid) airfoil; stated to hold at all three Reynolds numbers
 thrust_coefficient,0.04,-,0.56e-3,27000,,5.3.1,C_T of the most flexible airfoil where its vortices are shed almost in a line
 pitch_amplitude_deg,1.0,deg,4.23e-3,9000,0.56,5.3.1,stated as "less than 1 degree" - an UPPER BOUND, not a measurement
-pitch_amplitude_deg,6.0,deg,,9000,0.56,5.3.1,intermediate-stiffness airfoil of Figure 5.2b
+pitch_amplitude_deg,6.0,deg,1.41e-3,9000,0.56,5.3.1,"intermediate-stiffness airfoil of Figure 5.2b; the b/c is FROM FIG 5.2'S OWN CAPTION - ""(a) b/c=4.23x10-3; (b) b/c=1.41x10-3; (c) b/c=0.56x10-3"" - so this row is attributable to a foil"
+thrust_optimal_plate_at_st056_re9000,1.41e-3,-,1.41e-3,9000,0.56,5.3.1,"""The thrust coefficient is greatest for the airfoil of intermediate flexibility (Figure 5.2b)"" - of the THREE foils shown in Fig 5.2, not of all seven"
+plunge_amplitude_m,0.0175,m,,,,2.1.4,"""The amplitude of the oscillation, a=17.5mm, was fixed for all experiments"" (water tunnel)"
+dimensionless_heave_amplitude,0.194,-,,,,3-5,"h=a/c=17.5/90. Stated as h=0.194 throughout Chapters 3-5. NOT 0.175: that is the NACA-0012 validation model (p78) and the SPANWISE wing, where h=a_ROOT/c=0.175 on a 100 mm chord (6.1). Same shaker amplitude, different chord"
+end_plate_gap_frac_chord,0.03,-,,,,2.1.4,"""Perspex end plates were placed at one or both ends of the airfoil, in order to preserve the two-dimensional nature of the flow over the wing. The gap between the end of the airfoil and the end plate was less than 3% of the chord-length."" The rig was DELIBERATELY nominally 2-D"
+oscillation_frequency_min_hz,0.3,Hz,,,,2.1.4,water-tunnel frequency range lower bound
+oscillation_frequency_max_hz,2.5,Hz,,,,2.1.4,water-tunnel frequency range upper bound
+tunnel_test_section_width_m,0.381,m,,,,2.1.4,Eidetics Model 1520 free-surface closed-loop water tunnel; 381 x 508 x 1530 mm test section
+turbulence_intensity_frac,0.005,-,,,,2.1.4,"""The turbulence intensity was measured with LDV to be less than 0.5%"""
+bending_stiffness_lambda0,0.614,-,0.56e-3,9000,,2.1.6,bending stiffness coefficient of the THINNEST plate at this Reynolds number
+bending_stiffness_lambda0,0.154,-,0.56e-3,18000,,2.1.6,as above
+bending_stiffness_lambda0,0.068,-,0.56e-3,27000,,2.1.6,as above
+optimum_pitch_phase_deg_at_st029,110.0,deg,,,0.29,5.3.5,"""For a Strouhal number of St=0.29, for example, the optimum pitch phase angle is 110+/-4 degrees"" (thrust-optimal)"
 pitch_amplitude_deg,17.0,deg,0.56e-3,9000,0.56,5.3.1,most flexible airfoil of Figure 5.2c
 pitch_amplitude_deg,2.0,deg,4.23e-3,,,2.1.6,"stated as ""less than 2 degrees for the highest oscillation frequency"" - an UPPER BOUND"
 peak_efficiency_strouhal,0.29,-,,,,5.1,Strouhal number at which propulsive efficiency peaks in the phase/St plane
