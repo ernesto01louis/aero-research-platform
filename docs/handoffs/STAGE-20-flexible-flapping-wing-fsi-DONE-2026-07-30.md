@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-07-30
-session_duration_hours: 3
+date_completed: 2026-07-31
+session_duration_hours: 7
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: 3db1da455242263e1053e6a182a3d3d87b56f011
+git_sha_end: ae9b3fbe6e733df250a5640e62f24f417a1036b2
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -41,7 +41,7 @@ coupled case — plus the pre-registration and a multi-day campaign.
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ⚠️ | Smoke **PASSES** on two containers; the *writers* are not built. Element choice now settled by evidence (§6.1) |
-| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ⚠️ | Reference **acquired** (text-sourced values exact, uncertainties measured); figure digitization and the V&V case are not done |
+| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ⚠️ | Reference **COMPLETE**: text-sourced exact, figures digitized, reference of record written, R2 passes, operating point fixed (§7.1). Two corrections to the committed file (§6.6, §6.7). The V&V case itself is not built |
 | 3 | Pre-registered gate block (ADR-037+) before any campaign run | ❌ | **Not started.** No campaign has run, so nothing is out of order |
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ❌ | Not started |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, and exercised by a real run |
@@ -101,7 +101,7 @@ coupled case — plus the pre-registration and a multi-day campaign.
   *(Note the DB is at 192.168.2.184; CT 202 is its CTID, not its address.)*
 - `ExecResult` gains `transport_error` / `transport_failed`; `MeshHandle` gains `failure`;
   `aero.orchestration.describe_failure` is new.
-- New pytest marker `stage_20`; new test dir `tests/stage_20/` (45 tests).
+- New pytest marker `stage_20`; new test dir `tests/stage_20/`. Suite is **359 green** (`pytest -q tests/unit tests/stage_20`), up from 348.
 - New reference dirs `data/references/fsi/{heathcote_gursul_2007,precice_perpendicular_flap}/`.
   The perpendicular-flap archive is DVC-tracked and pushed to `aero-minio`
   (sha256 `6f1c7b9b0b849845…`, 170 files, same pin `cd33e2db` as Stage 19).
@@ -177,14 +177,100 @@ Observed three times this session: hooks reformat, the commit does not land, and
 no obvious failure. **Run `git log` after every commit.** Running
 `ruff format && ruff check --fix` before `git add` avoids it.
 
+### 6.6 The recorded thesis sha256 was never reproducible — and neither is any raw PDF digest here
+
+Bath's Pure repository **re-wraps the PDF on every download** with `OpenPDF 1.4.2`. Two fetches of
+the same URL, minutes apart, differ in exactly **60 bytes of 12,175,275** — the `/CreationDate`
+stamp and the `/ID` trailer array. Every content stream is byte-identical. So `fdee2ce4…`, recorded
+2026-07-30, was a per-fetch artifact, and this reference's claim that the figure render was
+"reproducible from the recorded PDF digest" was **false as written**.
+
+Replaced by two invariants, both verified across independent fetches: a **content digest**
+(`276cec6e…`, `/ID` + dates normalized) and a **per-page 200 dpi raster digest** under a pinned
+`pymupdf==1.26.3`. The raster digest is the stronger one — it pins the exact pixels that were read.
+**Generalise this:** any digest of a document fetched from a repository that stamps downloads is
+worthless as a reproducibility anchor. Check before recording one.
+
+### 6.7 The plunge amplitude in `reference.md` was wrong — `h = 0.194`, not 0.175
+
+§2.1.4 fixes `a = 17.5 mm` for **every** water-tunnel run, and this airfoil's chord is 90 mm, so
+`h = a/c = 0.194` — which is how the thesis writes it dozens of times through Chapters 3–5.
+`h = 0.175` belongs to the **other two** Heathcote experiments: the NACA-0012 validation model
+(p78) and the **spanwise** wing, where `h = a_ROOT/c = 0.175` because that chord is 100 mm. Same
+shaker amplitude, different chord. That is precisely the three-way conflation the reference file's
+own opening callout warns about — and the file had made it. 11 % on the plunge amplitude, which
+propagates into the frequency-from-Strouhal conversion, the mesh-motion probe, and every solve.
+
+### 6.8 This thesis's blanket "for all Reynolds numbers" prose does not survive its own figures
+
+§5.3.2 states the rigid drag→thrust transition is at "St=0.17" and holds "for all Reynolds
+numbers" (§5.3.3 repeats it for efficiency). Figure 5.6 gives **0.191 / 0.161 / 0.167** at
+Re = 9000 / 18000 / 27000. Two of three reproduce it; **Re = 9000 — the gated Re — is +12.6 %**.
+
+The digitization is not at fault: per-panel calibration is verified three independent ways, and
+Fig 5.9a corroborates Re = 9000 independently (negative-efficiency points "are not shown", and the
+rigid efficiency series begins at St = 0.205 with nothing below it). At 9× magnification there is
+no marker hidden on the zero line — the crossing is genuinely unmarked.
+
+**The lesson generalises past this anchor.** A blanket "for all Re" statement in this thesis is a
+rounded generalisation, not a measurement. Its *condition-specific* prose is a different and much
+stronger class of claim — the 6°/17° pitch amplitudes, each tied to a named foil and a named St,
+reproduce to **0.1 %**. Weight them accordingly. R2 gates the crossover only where prose and
+figure agree; the measured Re = 9000 value is carried as a row in the reference of record.
+
+### 6.9 The C-grid's non-orthogonality has always been ~85, so I5 cannot use an absolute threshold
+
+The mesh spike measured max non-orthogonality of **84.9** for the HG section, **80.5** for a stock
+NACA 0012 at identical knobs, and **86.5** for the platform's own default Stage-05 production V&V
+mesh — the one every TMR run uses. It barely moves with far-field extent (20/50/100 c), normal
+count (80/120/140) or first-cell height (2e-6/1e-5/1e-4 c), and the **average is only ~18**. It is
+a localised property of this C-grid family and always has been; the HG section adds ~4°.
+
+So ADR-024's absolute `non-ortho ≤ 70`, applied to I5, **would fail on the static mesh before any
+motion** — and would equally fail the platform's production V&V mesh. ADR-024's 70 was measured on
+the *flapping-wing* writer, a different mesh. **I5 must gate the DEGRADATION under motion against
+the recorded static baseline**, plus absolute skewness ≤ 4 and zero negative volumes — which is
+what ADR-024's real failure mode looked like anyway (skewness 5503, 18 145 inverted pyramids):
+catastrophic, not marginal. Write that into ADR-039 rather than inheriting the number.
+
+Also note `MeshQualityGate`'s M2 = 65 default was authored in Stage 18 for the **snappy** path and
+has never been applied to the blockMesh C-grid. Applying it now would be a new, retroactive gate.
+
 ## 7. Open items for the next stage (and beyond)
 
 **Blocking, in order — this is the resumption path**
 
-1. **Finish the figure digitization** (Figs 5.6 / 5.9 / 5.13) by the method already fixed in
-   `reference.md`: three independent readings per marker, multiply Fig 5.6 by `St²`, and fail loud
-   against the text-sourced rows rather than preferring whichever is closer. Then write
-   `scripts/stage20_acquire_hg_reference.py` to recompute and cross-check.
+1. ~~Finish the figure digitization~~ — **DONE 2026-07-31.** `digitization.csv` (208 markers,
+   Figs 5.6a/b/c + 5.9a + 5.13a), `hg2007_recomputed.csv` (the reference of record),
+   `scripts/stage20_digitize_hg_figures.py` and `scripts/stage20_acquire_hg_reference.py`.
+   **R2 PASSES** on all five anchors — pitch amplitude 16.99° vs 17° (−0.1 %) and 5.48° vs 6°
+   (−8.6 %), crossover at Re 18000/27000, and both increments positive — with the one documented
+   disagreement in §6.8. Three readings per marker are three independent *binarizations* of a
+   cross-correlation match against each figure's own legend glyph, declared as a deviation from
+   "three human passes" and strictly more auditable (anyone can re-run it).
+
+   **The gated operating point is fixed** (from the reference alone, before any solve):
+   **Re = 9000, St = 0.345, flexible `b/c = 0.85e-3` (76.5 µm) vs rigid `b/c = 4.23e-3`
+   (380.7 µm)** ⇒ `U = 0.1 m/s`, `f = 0.9857 Hz`, `T = 1.0145 s`. Reference values:
+   `C_T` 1.008 / 0.398 (`ΔC_T` = 0.609), `η` 0.1753 / 0.0888 (`Δη` = 0.0865), pitch amplitude
+   5.35°. **Re = 9000 is forced** — Fig 5.13 exists only there, so it is the only Re at which the
+   D0 structural gate has a reference at all.
+
+   **The selection rule changed and ADR-039 must record why.** The originally approved rule
+   ("largest measured `ΔC_T`") is degenerate: `C_T` scales as `St²`, so `ΔC_T` rises monotonically
+   to the figure's right-hand edge (it peaks at St = 0.89, where f = 2.54 Hz is the top of the
+   rig's stated 0.3–2.5 Hz range and peak plunge velocity is 2.8× freestream). That is exactly why
+   HG plot `C_T/St²`. The operator-chosen replacement maximises **`Δ(C_T/St²)` inside the
+   `0.2 < St < 0.4` band the thesis itself calls out** as observed in nature and containing its own
+   efficiency optimum (St = 0.29). Note the optimal plate thickness **moves with St** — the thesis
+   says so, and the digitization reproduces it — so plate and Strouhal number are chosen together.
+
+1b. **The mesh feasibility spike PASSED; the thin-plate fallback is not needed.** Both arms mesh
+   at the chosen `b/c = 0.85e-3`: `checkMesh` "Mesh OK", 48 240 cells, skewness 2.40/2.39, no
+   negative volumes. `CaseSpec.section` (`TeardropPlateSection`) swaps only the surface curve the
+   existing eight-block C-grid wraps, so the grid stays self-similar under refinement and a real
+   3-grid GCI remains admissible. The NACA path is pinned byte-identical by test. **But read §6.9
+   before writing I5.**
 2. ~~Apply Postgres migration `005_container_set`~~ — **DONE 2026-07-31**, see §4. The multi-container
    mirror path is clear; nothing else in the provenance chain blocks the campaign.
 3. **Run `scripts/grant_aero_build_ssh_to_aero_dev.sh`** (operator; packaged, not executed —

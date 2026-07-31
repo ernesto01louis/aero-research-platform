@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.20 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-07-30
+**Latest tag:** v0.0.20 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-07-31
 
 **Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)** — most recent stage.
 
