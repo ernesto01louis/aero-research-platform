@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<precice-configuration>
+  <data:vector name="Stress" />
+  <data:vector name="Displacement" />
+
+  <mesh name="Fluid-Mesh" dimensions="2">
+    <use-data name="Displacement" />
+    <use-data name="Stress" />
+  </mesh>
+
+  <mesh name="Solid-Mesh" dimensions="2">
+    <use-data name="Stress" />
+    <use-data name="Displacement" />
+  </mesh>
+
+  <participant name="Fluid">
+    <provide-mesh name="Fluid-Mesh" />
+    <receive-mesh name="Solid-Mesh" from="Solid" />
+    <read-data name="Displacement" mesh="Fluid-Mesh" />
+    <write-data name="Stress" mesh="Fluid-Mesh" />
+    <mapping:nearest-neighbor
+      direction="write"
+      from="Fluid-Mesh"
+      to="Solid-Mesh"
+      constraint="conservative" />
+    <mapping:nearest-neighbor
+      direction="read"
+      from="Solid-Mesh"
+      to="Fluid-Mesh"
+      constraint="consistent" />
+  </participant>
+
+  <participant name="Solid">
+    <provide-mesh name="Solid-Mesh" />
+    <read-data name="Stress" mesh="Solid-Mesh" />
+    <write-data name="Displacement" mesh="Solid-Mesh" />
+    <watch-point mesh="Solid-Mesh" name="Flap-Tip" coordinate="0.6;0.2" />
+  </participant>
+
+  <m2n:sockets acceptor="Fluid" connector="Solid" exchange-directory=".." />
+
+  <coupling-scheme:parallel-implicit>
+    <participants first="Fluid" second="Solid" />
+    <max-time value="0.512" />
+    <time-window-size value="1e-3" />
+    <max-iterations value="100" />
+    <exchange data="Stress" mesh="Solid-Mesh" from="Fluid" to="Solid" />
+    <exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />
+    <relative-convergence-measure limit="1e-4" data="Displacement" mesh="Solid-Mesh" />
+    <relative-convergence-measure limit="1e-4" data="Stress" mesh="Solid-Mesh" />
+    <acceleration:IQN-ILS>
+      <data name="Displacement" mesh="Solid-Mesh" scaling="1" />
+      <preconditioner type="residual-sum" />
+      <filter type="QR2" limit="1e-2" />
+      <initial-relaxation value="0.1" />
+      <max-used-iterations value="100" />
+      <time-windows-reused value="15" />
+    </acceleration:IQN-ILS>
+  </coupling-scheme:parallel-implicit>
+</precice-configuration>
