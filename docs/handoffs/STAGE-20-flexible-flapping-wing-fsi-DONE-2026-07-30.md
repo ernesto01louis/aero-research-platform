@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-07-31
-session_duration_hours: 7
+date_completed: 2026-08-01
+session_duration_hours: 10
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: ae9b3fbe6e733df250a5640e62f24f417a1036b2
+git_sha_end: 67d8e8226b651890529f96a6a498f34b8d5c6c67
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -85,6 +85,27 @@ coupled case — plus the pre-registration and a multi-day campaign.
 - **The plan's plane-stress element recommendation is superseded** by what the smoke showed
   (§6.1). Evidence over plan — which is why the smoke was sequenced first.
 
+**Session 3 (2026-08-01) — deviations, and why**
+
+- **Only Phase 3A's first half landed.** The two non-regression pins and their goldens are
+  committed (`67d8e82`); the refactor they exist to protect is not, nor is anything after it.
+  The ordering rule ("land the tests on pre-refactor code, see them green, THEN refactor") is the
+  stage's single most important one, and half of it done correctly is worth more than both halves
+  done in the wrong order. What is left is enumerated in §7 item 3b.
+- **The campaign as scoped does not fit its ceiling, and this was found before the ADR froze
+  rather than after** (§6.11). Two operator decisions followed — the settled-cycle ladder with two
+  launch waves, and pre-registering the sizing *rule* with B2's numbers filled from I4 in a later
+  commit. Both are deviations from the resume prompt's "6 runs launched concurrently" and from
+  ADR-036's precedent of concrete numbers in B2; both are recorded here and belong in ADR-039.
+- **A new pre-flight clause, I7,** is proposed ahead of ADR-039: a measured max-Courant probe. The
+  prompt lists I1/I3/I4/I5/I6 only. Without it the B-family would be pre-registered against an
+  estimate, and §6.11 shows the estimate spans an order of magnitude.
+- **`PreciceConfigExpectation` needs an additive extension** it was not scoped for, or the
+  C-family's "every rendered token is observable in the parsed model" cannot be honoured (§6.12).
+- **Two repo-hygiene carve-outs were added** (`.gitignore` negation, `end-of-file-fixer` exclude).
+  Both change shared config to protect a fixture, so they are called out rather than buried: see
+  §6.10 for why renaming the fixtures instead would have made them stop testing anything.
+
 ## 4. Environment / dependency / schema changes
 
 - `ProvenanceTuple` gains `containers: tuple[ContainerRef, ...] = ()` and a fifth conditional
@@ -101,7 +122,19 @@ coupled case — plus the pre-registration and a multi-day campaign.
   *(Note the DB is at 192.168.2.184; CT 202 is its CTID, not its address.)*
 - `ExecResult` gains `transport_error` / `transport_failed`; `MeshHandle` gains `failure`;
   `aero.orchestration.describe_failure` is new.
-- New pytest marker `stage_20`; new test dir `tests/stage_20/`. Suite is **359 green** (`pytest -q tests/unit tests/stage_20`), up from 348.
+- New pytest marker `stage_20`; new test dir `tests/stage_20/`. Suite is **380 green**
+  (`pytest -q tests/unit tests/stage_20`), up from 348 at Stage-19 close.
+- **`85e0b32` (operator, 2026-07-31) — `run_long.sh`: a timed-out wait no longer strands the solve
+  it was watching.** `cmd_wait` counted only its own sleeps, ignoring the ~0.5 s ssh round trip per
+  poll, so a nominal 14400 s ceiling did not fire until ~15800 s while `LocalSSHExecutor` guarded
+  the subprocess at `timeout_s + 120`. The guard therefore ALWAYS won the race, SIGKILLed the
+  script before its reap branch, and `AERO_RUN_LONG_REAP=1` never ran — "decorative on the one path
+  it was written for" (moving-vv run 30615205786 left `pimpleFoam` running on aero-dev). Fixed two
+  ways on purpose: `cmd_wait` now measures a real clock (`date +%s`), and the executor reaps for
+  itself in its own `TimeoutExpired` branch via the new named `_WAIT_GUARD_MARGIN_S`.
+  **This matters directly for a six-run concurrent campaign** — six detached solves, six waits.
+- New fixture trees `tests/stage_20/fixtures/{stage19_load_path,materialization}/`, and two
+  `.pre-commit-config.yaml` / `.gitignore` carve-outs they need (§6.10).
 - New reference dirs `data/references/fsi/{heathcote_gursul_2007,precice_perpendicular_flap}/`.
   The perpendicular-flap archive is DVC-tracked and pushed to `aero-minio`
   (sha256 `6f1c7b9b0b849845…`, 170 files, same pin `cd33e2db` as Stage 19).
@@ -236,6 +269,130 @@ catastrophic, not marginal. Write that into ADR-039 rather than inheriting the n
 Also note `MeshQualityGate`'s M2 = 65 default was authored in Stage 18 for the **snappy** path and
 has never been applied to the blockMesh C-grid. Applying it now would be a new, retroactive gate.
 
+### 6.10 Four traps in the Stage-19 non-regression fixtures, all found by writing them
+
+The two pins landed at `67d8e82` (`tests/stage_20/test_stage19_{load_path_unchanged,
+materialization_is_byte_identical}.py`). Each of these would have produced a *green* or
+*absent* test rather than a loud one:
+
+- **`load()` emits 23 scalars, not 20.** The resume prompt says 20. A golden written against
+  "20 scalars" would have passed vacuously. The test spells all 23 out as a literal.
+- **`*.log` is gitignored repo-wide** (`.gitignore:60`), and the fixture's filenames are load
+  bearing — `find_iterations_logs` globs `precice-*-iterations.log`, `watchpoint_path` builds
+  `precice-<Participant>-watchpoint-<name>.log`. The fixture would have been committed incomplete
+  and CI would have failed on a missing file, not on a wrong number. Scoped negation added.
+- **`end-of-file-fixer` was appending a newline to those fixtures.** preCICE's `TXTTableWriter`
+  PREFIXES each row with `"\n"`, so its files genuinely end without one, and `_txt_table` relies
+  on that to spot a partially-written final row. The hook is now scoped away from them rather than
+  the fixtures being made unfaithful.
+- **`tarfile.extractall` chowns every member when running as root** (with `-1/-1`, because the
+  `data` filter strips recorded ownership), so a monkeypatched `os.chown` sees far more than
+  `_chown_tree`'s calls. Discriminate on the uid. The property actually worth pinning — chown
+  after digest verification, *before* the manifest write — is observable as `aero-manifest.json`
+  being absent from the call list, which needs no real inode and so works on a CI runner.
+
+`.within()`'s window scoping is verified by **mutation, not assumption**: neutering
+`CouplingIterationReport.within` makes `load()` raise on the fixture. And the K1 unification the
+refactor performs is **provably a no-op on the tagged Stage-19 record** —
+`data/vv/stage19_turek_hron_fsi3.json` reports `n_nonconverged: 0` over 8000/8000 windows for both
+participants, so whole-run and window-scoped agree there. Record that in ADR-037; it is the
+evidence that makes the behaviour change safe rather than merely plausible.
+
+### 6.11 The flexible plate is the clock, and the default wall spacing is unrunnable
+
+Two mesh facts decide the campaign's wall time, and neither is in the plan:
+
+- **`CaseSpec.first_cell_height` defaults to `2.0e-6` chords** (`schemas.py:176`) — 0.18 µm on a
+  90 mm chord, authored for a y+<1 RAS TMR mesh. The wake-cut block inherits it, and the transverse
+  velocity there is the full plunge speed, so `Co <= 1` would need `dt ~ 1.7e-6 s`. **The mesh
+  spike used this default**, so its 48 240 cells / skew 2.40 numbers describe a mesh nobody can
+  integrate at a fixed time step. `PlungingAirfoilSpec` already uses **`5.0e-4`** (Stage-11/13
+  precedent) — that is the value to pre-register, and I3/I5 must re-measure the static baseline
+  with it.
+- **The C-grid's surface blocks are `simpleGrading (1.0 …)`** (`case_writer.py:209-216`), i.e.
+  UNIFORM in arc length — the cosine-spaced control points are shape fidelity, not the cell
+  distribution. That is what makes a Courant estimate tractable at all, and it had not been
+  written down anywhere.
+
+With those, the binding limiter is the **blunt-TE base of the flexible plate**: 76.5 µm across
+`n_te` cells. At `n_te = 2` that is 38 µm against a peak plunge velocity `a*omega = 0.1084 m/s`
+(1.08 U), giving `dt ~ 3.5e-4 s` — **5x tighter than the rigid arm**, which the paired A-family
+forces both arms to share. At `T = 1.0145 s` that is ~2900 windows/cycle; 24 cycles is ~70 000
+windows, and the finest rung (dt scaled by the refinement ratio) ~90 000. **The campaign does not
+fit a 7-day ceiling on the central estimate** (fine rung ~8.3 d), and the plausible band is wide.
+
+Two operator decisions were taken on this, both to be written into ADR-039:
+
+1. **Settled-cycle ladder plus two launch waves** — >=20 settled cycles on the rung carrying the
+   paired increment, >=10 on the GCI-only rungs (`DEFAULT_MIN_SAMPLES` is 8, so 10 is a declared
+   margin, and a GCI needs converged *means*, not tight variances); wave 1 = coarse+mid, wave 2 =
+   fine, with the 7-day ceiling applying **per wave**.
+2. **Pre-register the sizing RULE, not the numbers.** ADR-039 lands complete with B2 carrying the
+   rule plus a `<<B2-PENDING-I4>>` marker; the I4/I7 record lands next with its own four-fold
+   tuple; a third commit fills the marker only, and a committed pure sizing function plus a test
+   re-derive the numbers from the I4 JSON so they are an output rather than a decision. The driver
+   refuses a gated run unless `git merge-base --is-ancestor` proves ADR-039's first commit precedes
+   the I4 record.
+
+Add **I7**, a cheap measured max-Courant probe (a few fluid-only steps at the candidate `deltaT`
+with the mesh at mid-stroke), and run it **before** ADR-039 freezes, so the arithmetic above
+becomes a measurement rather than an estimate. Pre-flight FAILS on `Co > 1`; it never adjusts.
+
+### 6.12 Three things in the authored case that fail silently, not loudly
+
+Found by reading upstream's actual `perpendicular-flap/solid-calculix/flap.inp` bytes:
+
+- **The CalculiX slab's z-thickness must equal the OpenFOAM `span`.** preCICE `Force` is an
+  absolute force in newtons. Upstream's flap gets away with a `z in {0,1}` slab because its fluid
+  span is also 1. The HG fluid span is 2.5 mm (`tests/stage_20/test_hg_section.py`), so a 1 m slab
+  under-loads the plate by 400x: `checkMesh` is fine, the coupling converges, and the pitch
+  amplitude just comes out at 0.01 degrees. One `span` field must feed both writers, with a
+  C-family clause asserting the emitted `.inp` z-extent equals the emitted `blockMeshDict` span.
+- **`*STEP, INC=1000000`.** CalculiX's default is 100. At `INC=100` with tens of thousands of
+  windows ccx finishes its step, writes its `.frd` and exits **0**; `read_coupled_status` reads rc 0
+  as `exited-ok`, `stopped_by` becomes `all-exited`, and **K2 passes**. The failure only surfaces
+  at S3, after the fluid has burned its ceiling.
+- **`PreciceConfigExpectation` has no field for the RBF `support-radius`** or for any acceleration
+  parameter (`config.py:536-557`), even though `MappingDecl.support_radius` and the
+  `AccelerationDecl` fields are all parsed. So "assert every rendered token is observable in the
+  parsed model" is **not achievable through `assert_config` as it stands** — it needs an additive
+  extension (`| None = None` fields, so FSI3's expectation and its tests stay byte-identical).
+  Upstream's `support-radius="1."` is one metre on a 0.09 m chord and must be scaled.
+
+Also settled by reading those bytes: `*BOUNDARY Nall, 3` gives plane **strain**, so the effective
+modulus is `E/(1-nu^2) = 2.253e11`, not 2.05e11 — the naive `Eb^3/12` hand-check is otherwise 10 %
+off. And with `ALPHA=0.0` and no damping, the cycle-mean reaction power over the prescribed region
+equals the interface power exactly, which is what makes D10 a real closure check *and* a check
+that `ALPHA=0` held.
+
+### 6.13 The ADR-039 bands, computed — and the floor binds on four of five
+
+Applying the pre-registered rule `4 x (u95_ref/|value|)`, floored 0.25, capped 0.50, to
+`hg2007_recomputed.csv` (instrument systematic 5 % thrust / 10 % efficiency on **absolute** rows
+only; increments use the reading terms alone, which is what the CSV's `u_axis_abs = 0` encodes):
+
+| clause | quantity | value | `u95_ref` | raw 4x | band | binding |
+|---|---|---|---|---|---|---|
+| D0 | pitch amplitude, flexible | 5.34637 deg | 0.08651 | 0.065 | **0.25** | floor |
+| D1 | `C_T` flexible | 1.00772 | 0.05187 | 0.206 | **0.25** | floor |
+| D2 | `eta` flexible | 0.175279 | 0.01756 | 0.401 | **0.40** | — |
+| D3 | `dC_T` | 0.609257 | 0.00325 | 0.021 | **0.25** | floor |
+| D4 | `d eta` | 0.0865273 | 0.0 | 0.0 | **0.25** | floor |
+
+**The cap never binds; the floor binds four times out of five, so for D3 and D4 the 4x rule is
+decorative and 0.25 is a policy number.** Say that in the ADR rather than letting the formula imply
+the band was derived. It matters: ADR-022 measured this platform's 2-D plunging solve missing HG's
+absolute rigid thrust by -28 %/+58 %, and if that error is multiplicative and common-mode the
+increment inherits ~28 % — **a NO-GO on D3 is at least as likely as one on D1**.
+
+Two structural notes for the same section. `MetricSpec` only expresses relative/absolute/normalized
+numeric bands, so D5/D6 (signs) and D7 (admissibility) have to be structural predicates carrying a
+literal `(no band)` token, while D8 (rigid pitch <= 2 deg), D9 and D10 ride the existing harness as
+`comparison="absolute"` against a reference of `0.0` with the power *ratios* emitted into
+`solve.scalars`. And ADR-036's band-parity regex `r"^\s+(D\d) [^\n]*within (\d+) %"` has three
+defects for Stage 20: `D\d` matches **`D10` as `D1`** (a phantom pair, silently), `(\d+) %` cannot
+express D9's 0.5 %, and `^\s+` also matches five-space continuation lines.
+
 ## 7. Open items for the next stage (and beyond)
 
 **Blocking, in order — this is the resumption path**
@@ -279,6 +436,29 @@ has never been applied to the blockMesh C-grid. Applying it now would be a new, 
    campaign is launched by hand from the Proxmox host, which reaches aero-dev already. This unblocks
    *CI* reaching the 16-core box — including `test_unsteady_plunging_airfoil`, which has never
    completed there.
+3b. **Phase 3A's non-regression pins are DONE (`67d8e82`); the refactor they protect is NOT.**
+   The two tests, their fixtures and their goldens landed in a single commit on pre-refactor code,
+   which is the ordering rule the stage turns on. Prove it before trusting the refactor:
+
+       git log --oneline -- tests/stage_20/fixtures/          # must be exactly 67d8e82
+       git merge-base --is-ancestor 67d8e82 <refactor sha>    # must be true
+
+   Still to do, in one commit: `CoupledCaseSpec.source: TutorialSource | AuthoredSource`
+   (discriminator `kind`); `TutorialTree` -> `MaterializedTree` (`pin` XOR `authored`);
+   `DeclaredMutation.kind += "authored"` with `before_sha256: str | None`;
+   `select_fluid_mesh(fluid_participant_dir=...)`; `_materialize` as a **method**;
+   `CASE_ROOT_DIRNAME` + `_case_dir()`; and the `_assert_status_gate` / `_assert_coupling_
+   converged_over` extraction. Note the site count: **7 production + 2 test literals**, not eight.
+
+   **Keep the manifest bytes identical by versioning the SHAPE, not by adding fields.** Extract
+   a pure `render_tutorial_manifest_json(...)` (schema v1, dicts built by hand from explicit
+   fields, never `model_dump()`) whose docstring says its bytes are a committed golden reproduced
+   in every pre-Stage-20 bundle; give authored cases a *separate* emitter. `json.dumps(sort_keys=
+   True)` is recursive, so a single new optional field on `MaterializedFile` or `DeclaredMutation`
+   rewrites all 94 `files` entries, and a new top-level key re-sorts the document. Keep `dest` at
+   `host_path/CASE_ROOT_DIRNAME` and assert `tree.root.name == CASE_ROOT_DIRNAME` in a validator,
+   or `case_dir` and every mutation `path` shift.
+
 4. **Author the coupled case** — the largest remaining chunk: CalculiX `.inp` writer + re-reader,
    adapter `config.yml` writer, a committed digest-verified `precice-config.xml` template with a
    renderer, a **dimensional** OpenFOAM fluid writer (do **not** reuse `plunging_airfoil.py`; it
@@ -327,8 +507,17 @@ Stage 20 rather than starting 21.
 - **Do not re-derive:** the `ccx_preCICE` conventions (§6.1 — they came from upstream's bytes), the
   HG geometry and uncertainties (`reference.md`, text-sourced and exact), or the provenance
   decision (ADR-038 records the rejected alternative and why).
-- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (347 pass), then
+- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**380** pass), then
   `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to end).
+- **Corrections to the resume prompt**, all verified against the code — carry them forward:
+  `_write_case` is `PreciceCoupledSolver._write_case` at `solver.py:168-207`, **not** in `case.py`;
+  `load()` emits **23** scalars, not 20; the `"tutorial"` literal appears at **7 production + 2
+  test** sites, not eight; and the approved-plan path the prompt names
+  (`tage-20-flexible-warm-beacon.md`) **does not exist** — the real one is
+  `/root/.claude/plans/stage-20-flexible-typed-pinwheel.md`, itself stale on `h`, on the
+  plane-stress element choice (superseded by the C3D8I slab) and on its Phase-6 sizing. This
+  session's roadmap, with the two operator decisions folded in, is
+  `/root/.claude/plans/stage-20-flexible-cryptic-umbrella.md`.
 
 ## 9. Artifacts produced
 
