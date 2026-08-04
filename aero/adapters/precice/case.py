@@ -1,4 +1,4 @@
-"""Coupled-case specification and materialization of the pinned upstream tutorial.
+"""Coupled-case specification and materialization of a coupled case's bytes.
 
 The platform does not re-author the Turek-Hron FSI3 case. Running the *supported*
 upstream tutorial verbatim is what makes the coupling-correctness claim externally
@@ -18,12 +18,18 @@ Exactly two deviations are permitted, both declared and both recorded in
 Everything else is verified against the git-tracked per-file digest manifest. That
 manifest — not the archive checksum — is the integrity contract, because GitHub codeload
 tarballs are not guaranteed byte-stable over time (ADR-036 gate C5).
+
+Stage 20 adds a SECOND source of bytes. The Heathcote-Gursul flexible-foil case has no
+upstream equivalent, so its bytes are *authored* rather than materialized from a pin, and
+the integrity contract inverts: instead of "these bytes are the pinned bytes", it becomes
+"these bytes are exactly what this spec renders, and re-reading them reproduces the spec".
+The two are joined by :class:`CoupledCaseSpec.source`, a discriminated union — one field,
+so a tree can never be ambiguous about which contract it is under (ADR-037).
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import tarfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -42,6 +48,13 @@ _STRICT = ConfigDict(
 )
 
 FluidMeshDict = Literal["blockMeshDict", "blockMeshDict_refined", "blockMeshDict_double_refined"]
+
+#: The directory, under a run's host path, that holds the coupled case's bytes. It is named
+#: "tutorial" for history: Stage 19 laid the upstream tutorial down there, the name appears in
+#: both drivers' paths and in the pinned launcher bind string, and renaming it would move
+#: `case_dir` and every declared mutation's `path` inside `aero-manifest.json` — i.e. break the
+#: goldens that prove the Stage-19 bytes never moved. The name is now source-agnostic.
+CASE_ROOT_DIRNAME = "tutorial"
 
 
 class CoupledCaseError(RuntimeError):
@@ -113,15 +126,76 @@ class TutorialPin(BaseModel):
         return entries
 
 
+class TutorialSource(BaseModel):
+    """Bytes that come from a pinned upstream tutorial archive.
+
+    The integrity contract is "these bytes ARE the pinned bytes": every file is verified
+    against the git-tracked per-file digest manifest, and only the two declared mutations
+    (``max-time``, ``fluid-mesh-dict``) may deviate from it.
+    """
+
+    model_config = _STRICT
+
+    kind: Literal["tutorial"] = "tutorial"
+    pin: TutorialPin
+    archive_path: Path = Field(..., description="DVC-tracked pinned tutorial archive.")
+    tutorial_case: str = Field(
+        default="turek-hron-fsi3",
+        min_length=1,
+        description="The case sub-directory INSIDE the tutorial root (not the root itself).",
+    )
+    fluid_mesh_dict: FluidMeshDict = "blockMeshDict"
+    fluid_participant_dir: str = Field(default="fluid-openfoam", min_length=1)
+
+
+class AuthoredSource(BaseModel):
+    """Bytes this platform renders itself, for a case with no upstream equivalent.
+
+    The integrity contract inverts. There is no pin to compare against, so the claim
+    becomes "these bytes are exactly what this spec renders, and re-reading them
+    reproduces the spec" — which is why every authored writer ships with a re-reader and
+    why ``renderer_version`` and ``template_sha256`` are part of the record (ADR-037).
+    """
+
+    model_config = _STRICT
+
+    kind: Literal["authored"] = "authored"
+    case_dir_name: str = Field(
+        ...,
+        min_length=1,
+        description="The case sub-directory INSIDE the case root, e.g. 'hg2007-flexible-foil'.",
+    )
+    fluid_participant_dir: str = Field(default="fluid-openfoam", min_length=1)
+    solid_participant_dir: str = Field(default="solid-calculix", min_length=1)
+    template: str = Field(
+        ...,
+        min_length=1,
+        description="Basename of the committed precice-config.xml template that is rendered.",
+    )
+    template_sha256: str = Field(..., pattern=r"^[0-9a-f]{64}$")
+    renderer_version: str = Field(
+        ...,
+        min_length=1,
+        description="Bumped whenever a rendered byte changes, so two bundles are comparable.",
+    )
+
+
+#: Every source of a coupled case's bytes. One field on the spec, discriminated on ``kind`` —
+#: NOT a nullable pair, because a nullable pair's XOR invariant is enforced only at
+#: construction and ``model_copy(update=...)`` bypasses ``mode="after"`` validators (this
+#: module already uses that idiom twice). A forged both-set tree would emit a tutorial
+#: manifest naming an upstream pin for a case we authored: a provenance lie produced by a
+#: runtime predicate. A single discriminated field cannot be made ambiguous.
+CaseSource = TutorialSource | AuthoredSource
+
+
 class CoupledCaseSpec(BaseModel):
     """A partitioned FSI case. Satisfies ``SpecLike`` via ``.name``."""
 
     model_config = _STRICT
 
     name: str = Field(..., min_length=1)
-    pin: TutorialPin
-    archive_path: Path = Field(..., description="DVC-tracked pinned tutorial archive.")
-    tutorial_case: str = Field(default="turek-hron-fsi3", min_length=1)
+    source: CaseSource = Field(..., discriminator="kind")
     participants: tuple[ParticipantSpec, ...] = Field(..., min_length=2)
     container_of_record: str = Field(
         ...,
@@ -129,8 +203,6 @@ class CoupledCaseSpec(BaseModel):
         description="The SIF whose digest becomes the four-tuple's container_sif_sha256.",
     )
     max_time: float = Field(..., gt=0.0, description="The one permitted config override [s].")
-    fluid_mesh_dict: FluidMeshDict = "blockMeshDict"
-    fluid_participant_dir: str = Field(default="fluid-openfoam", min_length=1)
     wall_clock_ceiling_s: int = Field(..., ge=60, description="Pre-declared budget ceiling.")
     analysis_discard_s: float = Field(
         ...,
@@ -178,6 +250,28 @@ class CoupledCaseSpec(BaseModel):
                 f"participant (participants use: {', '.join(sorted(sifs))})"
             )
         return self
+
+    @property
+    def case_subdir(self) -> str:
+        """The case directory name under :data:`CASE_ROOT_DIRNAME`, whatever the source."""
+        source = self.source
+        if source.kind == "tutorial":
+            return source.tutorial_case
+        return source.case_dir_name
+
+    @property
+    def fluid_participant_dir(self) -> str:
+        return self.source.fluid_participant_dir
+
+    @property
+    def tutorial_pin(self) -> TutorialPin | None:
+        """The upstream pin, or ``None`` for an authored case.
+
+        Deliberately NOT named ``pin``: a stale ``spec.pin`` must be an ``AttributeError``
+        at the call site rather than a silent ``None`` that flows into a manifest.
+        """
+        source = self.source
+        return source.pin if source.kind == "tutorial" else None
 
     @property
     def multi_container(self) -> bool:
@@ -255,64 +349,68 @@ class MaterializedFile(BaseModel):
 
 
 class DeclaredMutation(BaseModel):
-    """A deviation from the pinned upstream bytes that the campaign declares up front."""
+    """A deviation from the bytes a case started from, declared up front.
+
+    ``before_sha256`` is ``None`` for an authored file, which replaced nothing.
+    ``sha256("")`` would have been the convenient placeholder and is exactly wrong: in a
+    bundle it reads like a real prior version.
+    """
 
     model_config = _STRICT
 
-    kind: Literal["max-time", "fluid-mesh-dict"]
+    kind: Literal["max-time", "fluid-mesh-dict", "authored"]
     path: str = Field(..., min_length=1)
     detail: str = Field(..., min_length=1)
-    before_sha256: str = Field(..., pattern=r"^[0-9a-f]{64}$")
+    before_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     after_sha256: str = Field(..., pattern=r"^[0-9a-f]{64}$")
 
 
-class TutorialTree(BaseModel):
-    """The materialized, digest-verified tutorial plus the declared mutations applied."""
+class MaterializedTree(BaseModel):
+    """The laid-down, digest-verified case bytes plus the declared mutations applied.
+
+    Carries the *source* rather than a pin, so the manifest emitter is selected by an
+    exhaustive match on ``source.kind`` and a third source type in a future stage is a
+    type error rather than a silent fall-through to the tutorial schema.
+    """
 
     model_config = _STRICT
 
     root: Path
     case_dir: Path
-    pin: TutorialPin
+    source: CaseSource = Field(..., discriminator="kind")
     files: tuple[MaterializedFile, ...] = Field(..., min_length=1)
     mutations: tuple[DeclaredMutation, ...] = ()
 
-    def write_manifest(self, path: Path) -> None:
-        """Write ``aero-manifest.json`` — the run's own record of what it laid down."""
-        path.write_text(
-            json.dumps(
-                {
-                    "pin": {
-                        "repo": self.pin.repo,
-                        "branch": self.pin.branch,
-                        "commit": self.pin.commit,
-                        "archive_sha256": self.pin.archive_sha256,
-                    },
-                    "case_dir": str(self.case_dir.relative_to(self.root)),
-                    "files": [f.model_dump() for f in self.files],
-                    "declared_mutations": [m.model_dump() for m in self.mutations],
-                },
-                indent=2,
-                sort_keys=True,
+    @model_validator(mode="after")
+    def _root_is_the_case_root(self) -> MaterializedTree:
+        """``root`` must be the case root, or ``case_dir`` and every mutation path shift.
+
+        ``aero-manifest.json`` records ``case_dir`` and each mutation's ``path`` relative
+        to ``root``. If ``root`` were the run directory instead of the case root, every one
+        of those strings would gain a ``tutorial/`` prefix and both goldens would move.
+        """
+        if self.root.name != CASE_ROOT_DIRNAME:
+            raise ValueError(
+                f"MaterializedTree.root must be the case root directory "
+                f"({CASE_ROOT_DIRNAME!r}), got {self.root.name!r}"
             )
-            + "\n",
-            encoding="utf-8",
-        )
+        return self
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def materialize_tutorial(
-    pin: TutorialPin, *, archive: Path, dest: Path, tutorial_case: str = "turek-hron-fsi3"
-) -> TutorialTree:
+def materialize_tutorial(source: TutorialSource, *, dest: Path) -> MaterializedTree:
     """Extract the pinned tutorial into `dest` and verify every file against the manifest.
 
     The relative layout is preserved exactly: ``solid.py`` opens
     ``'../precice-config.xml'`` and both ``run.sh`` scripts source ``'../../tools/log.sh'``,
     so the case directory and ``tools/`` must be siblings under one root.
     """
+    pin = source.pin
+    archive = source.archive_path
+    tutorial_case = source.tutorial_case
     if not archive.is_file():
         raise CoupledCaseError(
             f"{archive}: pinned tutorial archive not found — run `dvc pull` for "
@@ -366,12 +464,12 @@ def materialize_tutorial(
         raise CoupledCaseError(
             f"{case_dir}: the archive does not contain the tutorial case {tutorial_case!r}"
         )
-    return TutorialTree(root=dest, case_dir=case_dir, pin=pin, files=tuple(files))
+    return MaterializedTree(root=dest, case_dir=case_dir, source=source, files=tuple(files))
 
 
 def select_fluid_mesh(
-    tree: TutorialTree, *, variant: FluidMeshDict, case_dir: Path
-) -> TutorialTree:
+    tree: MaterializedTree, *, variant: FluidMeshDict, case_dir: Path, fluid_participant_dir: str
+) -> MaterializedTree:
     """Install one of the tutorial's own ``blockMeshDict`` variants as the fluid mesh.
 
     ``blockMesh`` reads ``system/blockMeshDict``; upstream ships two alternatives beside
@@ -379,7 +477,7 @@ def select_fluid_mesh(
     quality — every variant is upstream-authored for this same benchmark), recorded with
     both digests so the bundle shows exactly which mesh produced the numbers.
     """
-    system = case_dir / "fluid-openfoam" / "system"
+    system = case_dir / fluid_participant_dir / "system"
     target = system / "blockMeshDict"
     source = system / variant
     if not source.is_file():
@@ -409,8 +507,8 @@ def select_fluid_mesh(
 
 
 def record_max_time_mutation(
-    tree: TutorialTree, *, path: Path, before_sha256: str, after_sha256: str, max_time: float
-) -> TutorialTree:
+    tree: MaterializedTree, *, path: Path, before_sha256: str, after_sha256: str, max_time: float
+) -> MaterializedTree:
     """Record the ``<max-time>`` rewrite in the tree's declared-mutation ledger."""
     return tree.model_copy(
         update={

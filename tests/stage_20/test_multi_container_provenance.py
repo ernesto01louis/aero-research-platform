@@ -172,13 +172,17 @@ class TestSpecAgreement:
     """`assert_provenance_describes` is what replaced the blanket gated refusal."""
 
     def _spec(self, *, sifs: tuple[str, ...]):  # type: ignore[no-untyped-def]
-        from aero.adapters.precice import ParticipantSpec, TutorialPin
+        from aero.adapters.precice import ParticipantSpec, TutorialPin, TutorialSource
         from aero.adapters.precice.case import CoupledCaseSpec
 
         return CoupledCaseSpec(
             name="hg2007",
-            pin=TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
-            archive_path=Path("a.tar.gz"),
+            source=TutorialSource(
+                pin=TutorialPin(
+                    commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")
+                ),
+                archive_path=Path("a.tar.gz"),
+            ),
             max_time=8.0,
             wall_clock_ceiling_s=600,
             analysis_discard_s=4.0,

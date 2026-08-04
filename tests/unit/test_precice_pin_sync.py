@@ -111,12 +111,19 @@ def test_the_config_expectation_matches_the_pinned_benchmark() -> None:
 
 
 def _two_container_spec(*, gated: bool):  # type: ignore[no-untyped-def]
-    from aero.adapters.precice import CoupledCaseSpec, ParticipantSpec, TutorialPin
+    from aero.adapters.precice import (
+        CoupledCaseSpec,
+        ParticipantSpec,
+        TutorialPin,
+        TutorialSource,
+    )
 
     return CoupledCaseSpec(
         name="x",
-        pin=TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
-        archive_path=Path("a.tar.gz"),
+        source=TutorialSource(
+            pin=TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
+            archive_path=Path("a.tar.gz"),
+        ),
         max_time=8.0,
         wall_clock_ceiling_s=600,
         analysis_discard_s=4.0,
@@ -145,13 +152,22 @@ def test_a_gated_multi_container_run_is_allowed_since_adr_038() -> None:
 
 
 def test_the_container_of_record_must_be_one_a_participant_runs() -> None:
-    from aero.adapters.precice import CoupledCaseSpec, ParticipantSpec, TutorialPin
+    from aero.adapters.precice import (
+        CoupledCaseSpec,
+        ParticipantSpec,
+        TutorialPin,
+        TutorialSource,
+    )
 
     with pytest.raises(ValueError, match="not used by any participant"):
         CoupledCaseSpec(
             name="x",
-            pin=TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
-            archive_path=Path("a.tar.gz"),
+            source=TutorialSource(
+                pin=TutorialPin(
+                    commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")
+                ),
+                archive_path=Path("a.tar.gz"),
+            ),
             max_time=8.0,
             wall_clock_ceiling_s=600,
             analysis_discard_s=4.0,

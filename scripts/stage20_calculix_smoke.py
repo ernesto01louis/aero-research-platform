@@ -48,8 +48,12 @@ from aero.adapters.precice import (  # noqa: E402
     PreciceConfigExpectation,
     PreciceCoupledSolver,
     TutorialPin,
+    TutorialSource,
 )
-from aero.adapters.precice.case import assert_provenance_describes  # noqa: E402
+from aero.adapters.precice.case import (  # noqa: E402
+    CASE_ROOT_DIRNAME,
+    assert_provenance_describes,
+)
 from aero.adapters.precice.launcher import read_coupled_status  # noqa: E402
 from aero.adapters.precice.logs import (  # noqa: E402
     find_iterations_logs,
@@ -116,13 +120,16 @@ def smoke_case_spec(*, max_time: float, wall_clock_ceiling_s: int) -> CoupledCas
     archive = _verified(_REFERENCE_DIR / _ARCHIVE, what="the pinned perpendicular-flap tutorial")
     return CoupledCaseSpec(
         name="calculix_perpendicular_flap_smoke",
-        pin=TutorialPin(
-            commit=TUTORIALS_COMMIT,
-            archive_sha256=(_REFERENCE_DIR / f"{_ARCHIVE}.sha256").read_text().strip(),
-            manifest_path=_REFERENCE_DIR / _MANIFEST,
+        source=TutorialSource(
+            pin=TutorialPin(
+                commit=TUTORIALS_COMMIT,
+                archive_sha256=(_REFERENCE_DIR / f"{_ARCHIVE}.sha256").read_text().strip(),
+                manifest_path=_REFERENCE_DIR / _MANIFEST,
+            ),
+            archive_path=archive,
+            tutorial_case="perpendicular-flap",
+            fluid_participant_dir="fluid-openfoam",
         ),
-        archive_path=archive,
-        tutorial_case="perpendicular-flap",
         participants=(
             ParticipantSpec(
                 name="Fluid",
@@ -141,7 +148,6 @@ def smoke_case_spec(*, max_time: float, wall_clock_ceiling_s: int) -> CoupledCas
         ),
         container_of_record=FLUID_SIF,
         max_time=max_time,
-        fluid_participant_dir="fluid-openfoam",
         wall_clock_ceiling_s=wall_clock_ceiling_s,
         # Unused: this driver never calls load(), because a smoke has no limit cycle to
         # analyse and asking for one would fail for the right reason at the wrong time.
@@ -221,8 +227,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"run: launching Fluid ({FLUID_SIF}) and Solid ({SOLID_SIF}) concurrently")
         result = solver.run(case_dir, executor)
         status = read_coupled_status(
-            Path(case_dir.host_path) / "tutorial" / "coupled-status.json",
-            case_root_host=Path(case_dir.host_path) / "tutorial",
+            Path(case_dir.host_path) / CASE_ROOT_DIRNAME / "coupled-status.json",
+            case_root_host=Path(case_dir.host_path) / CASE_ROOT_DIRNAME,
             executor_returncode=result.returncode,
         )
         record["coupled_status"] = json.loads(status.model_dump_json())
@@ -230,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         for outcome in status.outcomes:
             print(f"  {outcome.name}: {outcome.state} (rc={outcome.returncode})")
 
-        case_root = Path(case_dir.host_path) / "tutorial" / spec.tutorial_case
+        case_root = Path(case_dir.host_path) / CASE_ROOT_DIRNAME / spec.case_subdir
         record["coupling"] = _coupling_summary(case_root)
         record["watchpoint"] = _watchpoint_summary(case_root, spec)
 

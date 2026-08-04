@@ -24,12 +24,15 @@ Module map:
 from __future__ import annotations
 
 from aero.adapters.precice.case import (
+    CASE_ROOT_DIRNAME,
+    AuthoredSource,
     CoupledCaseError,
     CoupledCaseSpec,
     DeclaredMutation,
+    MaterializedTree,
     ParticipantSpec,
     TutorialPin,
-    TutorialTree,
+    TutorialSource,
     materialize_tutorial,
     select_fluid_mesh,
 )
@@ -81,10 +84,12 @@ PINNED_PRECICE_VERSION = "3.4.1"
 PINNED_OPENFOAM_ADAPTER_COMMIT = "2c3062ce941915616ac763371805c57e15e02466"
 
 __all__ = [
+    "CASE_ROOT_DIRNAME",
     "DEFAULT_PRECICE_SIF_PATH",
     "PINNED_OPENFOAM_ADAPTER_COMMIT",
     "PINNED_PRECICE_VERSION",
     "PINNED_PYPRECICE_VERSION",
+    "AuthoredSource",
     "CoupledCaseError",
     "CoupledCaseSpec",
     "CoupledLaunchError",
@@ -93,6 +98,7 @@ __all__ = [
     "CouplingConvergenceError",
     "CouplingIterationReport",
     "DeclaredMutation",
+    "MaterializedTree",
     "ParticipantOutcome",
     "ParticipantSpec",
     "PreciceConfig",
@@ -101,7 +107,7 @@ __all__ = [
     "PreciceCoupledSolver",
     "PreciceSolverError",
     "TutorialPin",
-    "TutorialTree",
+    "TutorialSource",
     "WatchpointError",
     "WatchpointTrace",
     "assert_config",

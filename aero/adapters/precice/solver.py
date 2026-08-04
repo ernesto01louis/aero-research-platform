@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import assert_never
 
 import numpy as np
 from loguru import logger
@@ -45,9 +46,10 @@ from aero.adapters._base import (
 )
 from aero.adapters.precice.analysis import TIP_UX, TIP_UY, analyse_displacement_watchpoint
 from aero.adapters.precice.case import (
+    CASE_ROOT_DIRNAME,
     CoupledCaseError,
     CoupledCaseSpec,
-    TutorialTree,
+    MaterializedTree,
     materialize_tutorial,
     record_max_time_mutation,
     select_fluid_mesh,
@@ -71,6 +73,7 @@ from aero.adapters.precice.logs import (
     find_iterations_logs,
     read_iterations_log,
 )
+from aero.adapters.precice.manifest import render_tutorial_manifest_json
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
 from aero.orchestration._base import Executor, describe_failure
 
@@ -114,6 +117,56 @@ def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tupl
     return first, last
 
 
+def _assert_status_gate(status: CoupledRunResult, *, run_id: str, solver_log: str) -> None:
+    """Gate K2 — refuse every run ending except the two that are reportable.
+
+    Extracted so the solver's load path and the campaign drivers share ONE implementation.
+    Before this, ``load()`` checked both endings while the Stage-19 driver checked only
+    "a participant died" and never implemented the ceiling-desynchronisation half at all —
+    two gates with the same name and different behaviour.
+
+    The two admissible endings are: everyone exited cleanly, or the ceiling stopped a run in
+    which EVERY participant was still alive. A run where one participant had already exited
+    when the ceiling fired is a desynchronised coupling wearing a budget outcome's clothes.
+    """
+    if status.stopped_by == "participant-died":
+        died = [o.name for o in status.outcomes if o.state == "exited-fail"]
+        raise PreciceSolverError(
+            f"{run_id}: the coupled run ended because a participant died"
+            f"{' (' + ', '.join(died) + ')' if died else ''}. A partial coupled solve is "
+            f"not reportable.\n{solver_log[-2000:]}"
+        )
+    if status.stopped_by == "ceiling":
+        already_gone = [o.name for o in status.outcomes if o.state != "killed"]
+        if already_gone:
+            raise PreciceSolverError(
+                f"{run_id}: the ceiling stopped the run, but "
+                f"{', '.join(already_gone)} had already exited — the participants were "
+                "no longer coupled. Gate K2 admits a ceiling stop only with every "
+                "participant still running; this record is not reportable."
+            )
+
+
+def _assert_coupling_converged_over(
+    reports: tuple[CouplingIterationReport, ...], *, first_window: int, last_window: int
+) -> tuple[CouplingIterationReport, ...]:
+    """Gate K1 — every coupling window inside the analysis window converged.
+
+    Returns the WINDOW-SCOPED reports, because the caller also derives
+    ``coupling_mean_iterations`` / ``coupling_max_iterations`` from them; a ``-> None``
+    extraction would silently revert those two scalars to whole-run values.
+
+    K1 applies to the ANALYSIS WINDOW, not the whole run. Upstream documents that the first
+    time windows need many coupling iterations, so failing a run for a capped window at
+    t = 0.01 s would be a spurious NO-GO about the start-up transient — and asserting over
+    everything is how ``CouplingIterationReport.within()`` became dead code.
+    """
+    scoped = tuple(r.within(first_window=first_window, last_window=last_window) for r in reports)
+    for report in scoped:
+        assert_coupling_converged(report)
+    return scoped
+
+
 class PreciceCoupledSolver(Solver):
     """Drives a two-participant preCICE case through the platform's solver lifecycle."""
 
@@ -131,7 +184,7 @@ class PreciceCoupledSolver(Solver):
         )
         self.expectation = expectation
         self.sif_dir = sif_dir
-        self._trees: dict[str, TutorialTree] = {}
+        self._trees: dict[str, MaterializedTree] = {}
         self._configs: dict[str, PreciceConfig] = {}
 
     # --- helpers ---------------------------------------------------------------
@@ -146,10 +199,10 @@ class PreciceCoupledSolver(Solver):
 
     def _case_root(self, case_dir: CaseDir) -> Path:
         """The materialized tutorial root inside the run directory."""
-        return case_dir.host_path / "tutorial"
+        return case_dir.host_path / CASE_ROOT_DIRNAME
 
     def _remote_case_root(self, case_dir: CaseDir) -> str:
-        return f"{case_dir.remote_path}/tutorial"
+        return f"{case_dir.remote_path}/{CASE_ROOT_DIRNAME}"
 
     def config_for(self, case_dir: CaseDir) -> PreciceConfig:
         """The parsed configuration this run will use (populated by `prepare`)."""
@@ -158,23 +211,42 @@ class PreciceCoupledSolver(Solver):
         except KeyError:
             spec = self._coupled_spec(case_dir.spec)
             config = read_precice_config(
-                self._case_root(case_dir) / spec.tutorial_case / "precice-config.xml"
+                self._case_root(case_dir) / spec.case_subdir / "precice-config.xml"
             )
             self._configs[case_dir.run_id] = config
             return config
 
     # --- lifecycle seams -------------------------------------------------------
 
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
-        spec = self._coupled_spec(case)
-        root = host_path / "tutorial"
-        tree = materialize_tutorial(
-            spec.pin,
-            archive=spec.archive_path,
-            dest=root,
-            tutorial_case=spec.tutorial_case,
+    def _materialize(
+        self, spec: CoupledCaseSpec, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Lay the case's bytes down under `root` and return the tree plus its config.
+
+        A METHOD, not a free function in ``case.py``: an authored case's materializer has to
+        drive the OpenFOAM and CalculiX writers, and ``launcher.py`` imports ``case.py``, so
+        anything ``case.py`` imports at module level is transitively pulled into every
+        launcher consumer.
+
+        It does NOT write the manifest. ``_write_case`` owns that tail
+        (`assert_config` -> chown -> manifest) because the chown must not touch
+        ``aero-manifest.json``: the case belongs to the unprivileged participants, but the
+        manifest is the platform's own record and stays root-owned. That ordering is pinned
+        by absence in ``test_the_case_is_chowned_before_the_manifest_is_written``.
+        """
+        source = spec.source
+        if source.kind != "tutorial":
+            raise PreciceSolverError(
+                f"case {spec.name!r}: authored-case materialization lands in Stage 20 "
+                "Phase 3B; no writer is registered for it yet"
+            )
+        tree = materialize_tutorial(source, dest=root)
+        tree = select_fluid_mesh(
+            tree,
+            variant=source.fluid_mesh_dict,
+            case_dir=tree.case_dir,
+            fluid_participant_dir=source.fluid_participant_dir,
         )
-        tree = select_fluid_mesh(tree, variant=spec.fluid_mesh_dict, case_dir=tree.case_dir)
 
         config_path = tree.case_dir / "precice-config.xml"
         before = read_precice_config(config_path)
@@ -186,6 +258,32 @@ class PreciceCoupledSolver(Solver):
             after_sha256=produced.source_sha256,
             max_time=spec.max_time,
         )
+        return tree, produced
+
+    def _render_manifest(self, tree: MaterializedTree) -> str:
+        """Select the manifest schema by an exhaustive match on the source discriminator."""
+        source = tree.source
+        case_dir_rel = str(tree.case_dir.relative_to(tree.root))
+        match source.kind:
+            case "tutorial":
+                return render_tutorial_manifest_json(
+                    pin=source.pin,
+                    case_dir_rel=case_dir_rel,
+                    files=tree.files,
+                    mutations=tree.mutations,
+                )
+            case "authored":
+                raise PreciceSolverError(
+                    "the authored manifest emitter lands with the authored writer "
+                    "(Stage 20 Phase 3B)"
+                )
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+        spec = self._coupled_spec(case)
+        root = host_path / CASE_ROOT_DIRNAME
+        tree, produced = self._materialize(spec, root)
 
         if self.expectation is not None:
             assert_config(produced, self.expectation)
@@ -196,12 +294,13 @@ class PreciceCoupledSolver(Solver):
             # so digest verification still runs against the bytes as acquired.
             _chown_tree(root, uid=spec.run_as_uid)
 
-        tree.write_manifest(root / "aero-manifest.json")
+        (root / "aero-manifest.json").write_text(self._render_manifest(tree), encoding="utf-8")
         self._trees[Path(host_path).name] = tree
+        pin = spec.tutorial_pin
         logger.info(
             "materialized {} @ {} ({} files, {} declared mutation(s))",
-            spec.tutorial_case,
-            spec.pin.commit[:12],
+            spec.case_subdir,
+            pin.commit[:12] if pin is not None else "authored",
             len(tree.files),
             len(tree.mutations),
         )
@@ -218,13 +317,13 @@ class PreciceCoupledSolver(Solver):
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=remote_root,
-            command=f"cd {spec.tutorial_case}/{spec.fluid_participant_dir} && blockMesh",
+            command=f"cd {spec.case_subdir}/{spec.fluid_participant_dir} && blockMesh",
         ).replace("apptainer exec ", "apptainer exec --no-home ", 1)
 
         result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
         polymesh = (
             self._case_root(case_dir)
-            / spec.tutorial_case
+            / spec.case_subdir
             / spec.fluid_participant_dir
             / "constant"
             / "polyMesh"
@@ -260,13 +359,13 @@ class PreciceCoupledSolver(Solver):
         plan = CoupledLaunchPlan(
             case_root_remote=self._remote_case_root(case_dir),
             participants=tuple(
-                p.model_copy(update={"workdir": f"{spec.tutorial_case}/{p.workdir}"})
+                p.model_copy(update={"workdir": f"{spec.case_subdir}/{p.workdir}"})
                 for p in spec.participants
             ),
             sif_paths={p.sif: f"{self.sif_dir}/{p.sif}" for p in spec.participants},
             wall_clock_ceiling_s=spec.wall_clock_ceiling_s,
             # preCICE writes precice-run/ beside the config, one level in from the root.
-            exchange_dir=spec.tutorial_case,
+            exchange_dir=spec.case_subdir,
         )
         case_root_host = self._case_root(case_dir)
         outcome = launch_coupled(
@@ -302,7 +401,7 @@ class PreciceCoupledSolver(Solver):
         """Read a watch-point, verifying its header against the configuration (gate C4)."""
         spec = self._coupled_spec(result.case_dir.spec)
         config = self.config_for(result.case_dir)
-        workdir = f"{spec.tutorial_case}/{spec.participant(participant).workdir}"
+        workdir = f"{spec.case_subdir}/{spec.participant(participant).workdir}"
         path = watchpoint_path(result.output_host_path, workdir, participant, name)
         return read_watchpoint(
             path,
@@ -335,26 +434,7 @@ class PreciceCoupledSolver(Solver):
         """
         spec = self._coupled_spec(result.case_dir.spec)
         status = self.coupled_status(result)
-        if status.stopped_by == "participant-died":
-            died = [o.name for o in status.outcomes if o.state == "exited-fail"]
-            raise PreciceSolverError(
-                f"{result.case_dir.run_id}: the coupled run ended because a participant died"
-                f"{' (' + ', '.join(died) + ')' if died else ''}. A partial coupled solve is "
-                f"not reportable.\n{result.solver_log[-2000:]}"
-            )
-        # Gate K2 permits exactly two endings: everyone exited cleanly, or the ceiling
-        # stopped a run in which BOTH participants were still alive. A run where one
-        # participant had already exited when the ceiling fired is a desynchronised
-        # coupling wearing a budget outcome's clothes.
-        if status.stopped_by == "ceiling":
-            already_gone = [o.name for o in status.outcomes if o.state != "killed"]
-            if already_gone:
-                raise PreciceSolverError(
-                    f"{result.case_dir.run_id}: the ceiling stopped the run, but "
-                    f"{', '.join(already_gone)} had already exited — the participants were "
-                    "no longer coupled. Gate K2 admits a ceiling stop only with every "
-                    "participant still running; this record is not reportable."
-                )
+        _assert_status_gate(status, run_id=result.case_dir.run_id, solver_log=result.solver_log)
 
         trace = self.watchpoint(result)
         uy = trace.signal("Displacement1")
@@ -365,20 +445,13 @@ class PreciceCoupledSolver(Solver):
             min_cycles=spec.analysis_min_cycles,
         )
 
-        # Gate K1 applies to the ANALYSIS WINDOW, not the whole run. Upstream documents
-        # that the first time windows need many coupling iterations; failing the run for
-        # a capped window at t = 0.01 s would be a spurious NO-GO about the start-up
-        # transient, and asserting over everything is how `within()` became dead code.
         window_size = self.config_for(result.case_dir).coupling_scheme.time_window_size
         first_window, last_window = _window_indices(
             analysis.t_start, analysis.t_end, window_size=window_size
         )
-        reports = tuple(
-            r.within(first_window=first_window, last_window=last_window)
-            for r in self.coupling_report(result)
+        reports = _assert_coupling_converged_over(
+            self.coupling_report(result), first_window=first_window, last_window=last_window
         )
-        for report in reports:
-            assert_coupling_converged(report)
         tip_uy = analysis.of(TIP_UY)
         tip_ux = analysis.of(TIP_UX)
 

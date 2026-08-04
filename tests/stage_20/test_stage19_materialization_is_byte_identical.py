@@ -35,10 +35,12 @@ from pathlib import Path
 
 import pytest
 from aero.adapters.precice.case import (
+    CASE_ROOT_DIRNAME,
     CoupledCaseSpec,
     DeclaredMutation,
     ParticipantSpec,
     TutorialPin,
+    TutorialSource,
 )
 from aero.adapters.precice.config import PreciceConfigExpectation
 from aero.adapters.precice.solver import PreciceCoupledSolver
@@ -123,13 +125,16 @@ _TINY_EXPECTATION = PreciceConfigExpectation(
 def _tiny_spec(**overrides: object) -> CoupledCaseSpec:
     fields: dict[str, object] = {
         "name": "tiny_tutorial",
-        "pin": TutorialPin(
-            commit=_TUTORIALS_COMMIT,
-            archive_sha256=_TINY_ARCHIVE_SHA256,
-            manifest_path=_TINY_MANIFEST,
+        "source": TutorialSource(
+            pin=TutorialPin(
+                commit=_TUTORIALS_COMMIT,
+                archive_sha256=_TINY_ARCHIVE_SHA256,
+                manifest_path=_TINY_MANIFEST,
+            ),
+            archive_path=_TINY_ARCHIVE,
+            tutorial_case="turek-hron-fsi3",
+            fluid_mesh_dict="blockMeshDict_refined",
         ),
-        "archive_path": _TINY_ARCHIVE,
-        "tutorial_case": "turek-hron-fsi3",
         "participants": (
             ParticipantSpec(
                 name="Fluid", workdir="fluid-openfoam", command="./run.sh", sif="precice-fsi.sif"
@@ -140,7 +145,6 @@ def _tiny_spec(**overrides: object) -> CoupledCaseSpec:
         ),
         "container_of_record": "precice-fsi.sif",
         "max_time": _MAX_TIME,
-        "fluid_mesh_dict": "blockMeshDict_refined",
         "wall_clock_ceiling_s": 172800,
         "analysis_discard_s": 1.0,
         "run_as_uid": 1000,
@@ -169,7 +173,7 @@ def _materialize(
         expectation=expectation, host_nfs_root=tmp_path, remote_nfs_root=Path("/mnt/aero")
     )
     case_dir = solver.prepare(spec)
-    root = case_dir.host_path / "tutorial"
+    root = case_dir.host_path / CASE_ROOT_DIRNAME
     dropped = [call for call in calls if call[1] >= 0]
     return root, solver._trees[case_dir.host_path.name], dropped
 

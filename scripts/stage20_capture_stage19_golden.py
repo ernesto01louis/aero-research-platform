@@ -59,9 +59,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 from aero.adapters._base import CaseDir, ResultHandle  # noqa: E402
 from aero.adapters.precice.case import (  # noqa: E402
+    CASE_ROOT_DIRNAME,
     CoupledCaseSpec,
     ParticipantSpec,
     TutorialPin,
+    TutorialSource,
 )
 from aero.adapters.precice.solver import PreciceCoupledSolver  # noqa: E402
 
@@ -316,7 +318,7 @@ def write_fixtures(root: Path = FIXTURE_ROOT) -> None:
     for owned in ("tutorial", "status", "bad"):
         if (root / owned).exists():
             shutil.rmtree(root / owned)
-    tutorial = root / "tutorial"
+    tutorial = root / CASE_ROOT_DIRNAME
     case = tutorial / TUTORIAL_CASE
     (case / FLUID_DIR).mkdir(parents=True)
     (case / SOLID_DIR).mkdir(parents=True)
@@ -360,13 +362,15 @@ def fixture_spec() -> CoupledCaseSpec:
     reference = _REPO_ROOT / "data" / "references" / "fsi" / "turek_hron_fsi3"
     return CoupledCaseSpec(
         name="turek_hron_fsi3",
-        pin=TutorialPin(
-            commit="cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e",
-            archive_sha256="0" * 64,
-            manifest_path=reference / "tutorials_pin_manifest.csv",
+        source=TutorialSource(
+            pin=TutorialPin(
+                commit="cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e",
+                archive_sha256="0" * 64,
+                manifest_path=reference / "tutorials_pin_manifest.csv",
+            ),
+            archive_path=reference / "precice-tutorials-turek-hron-fsi3.tar.gz",
+            tutorial_case=TUTORIAL_CASE,
         ),
-        archive_path=reference / "precice-tutorials-turek-hron-fsi3.tar.gz",
-        tutorial_case=TUTORIAL_CASE,
         participants=(
             ParticipantSpec(
                 name="Fluid", workdir=FLUID_DIR, command="./run.sh", sif="precice-fsi.sif"
@@ -389,8 +393,8 @@ def stage_fixture_tree(destination: Path, *, status: str, config: str | None = N
     `config` names a replacement `precice-config.xml` from the fixture's `bad/` directory
     (used by the gate-C4 negative test); the default keeps the committed one.
     """
-    tutorial = destination / "tutorial"
-    shutil.copytree(FIXTURE_ROOT / "tutorial", tutorial)
+    tutorial = destination / CASE_ROOT_DIRNAME
+    shutil.copytree(FIXTURE_ROOT / CASE_ROOT_DIRNAME, tutorial)
     shutil.copy2(
         FIXTURE_ROOT / "status" / f"coupled-status.{status}.json",
         tutorial / "coupled-status.json",
