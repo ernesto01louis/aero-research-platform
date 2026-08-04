@@ -74,6 +74,40 @@ coupled case — plus the pre-registration and a multi-day campaign.
   figure-read values are not, and are marked as pending rather than estimated. See §6.2 for why
   this specific reference has earned that caution.
 
+**Session 4 (2026-08-04) — four operator decisions, all of which belong in ADR-039**
+
+- **Time scheme: `backward` IF AND ONLY IF checkpoint fidelity is proved; otherwise `Euler`.**
+  Every preCICE OpenFOAM tutorial, including the perpendicular-flap bytes, uses `Euler`. Second
+  order in time under *implicit* coupling requires the adapter to checkpoint and restore
+  `U.oldTime().oldTime()` on every coupling iteration, and nothing in this repo establishes that
+  the pinned adapter does. If it does not, `backward` is silently first-order-plus-noise and the
+  record would carry a temporal-accuracy claim it does not have. The probe becomes a **reusable
+  pre-flight clause I8** in `aero/vv/` — 5 windows implicit versus the same 5 at
+  `max-iterations 1`, comparing window-start field state — not a throwaway spike, so any future
+  preCICE stage inherits it. Either way the claim is measured. *(Note the counter-argument that
+  makes `Euler` defensible if I8 fails: the fixed coupling time-window-size across all rungs makes
+  temporal error common-mode, so it does not contaminate the spatial GCI.)*
+- **`NLGEOM` ON unconditionally.** The honest model for a plate deflecting 73x its own thickness,
+  even though upstream's proven `flap.inp` omits it at a *larger* 16 % tip deflection and the
+  geometric correction at our 5.35 deg is ~0.15 % — three orders inside D0's 0.25 band. B2 is sized
+  for whatever it costs; the Newton-loop multiplier over ~70 000 increments is unmeasured on this
+  box and I4 must report it.
+- **D9 is REPORTED-ONLY; D10 stays gated.** D9 pre-registered `|P2-P1|/P1 <= 0.005` on the rigid
+  arm while D8 separately *admits* up to 2 deg of pitch there. At 2 deg the TE's extra velocity is
+  `0.060 m x 0.0349 rad x 6.194 rad/s = 0.0130 m/s` against an LE velocity amplitude of
+  `a*omega = 0.1084 m/s` — **12 %** — and P1 assumes a single rigid-body velocity. D8 and D9 could
+  not both be satisfiable in the worst admissible case, so a D9 NO-GO would have said nothing about
+  the physics. `(P1-P2)/P2` is now reported on **both** arms as the measured bias the naive formula
+  would have injected. D10 (`|P3-P2|/P2 <= 2 %`) remains in the VERDICT line: it is a genuine
+  closure identity with no rigid-body assumption.
+- **Budget fallback: raise the ceiling, do not degrade the evidence.** If I7 fixes `dt` and I4 then
+  projects wave 1 past its ceiling, the pre-registered response is (1) **per-wave ceiling raised to
+  14 days** and (2) **wave 1 reordered to the rung carrying the paired increment, both arms**, with
+  wave 2 the two GCI-only rungs — so an overrun costs the GCI term, never the headline increment.
+  Cutting settled cycles below 10 and accepting a budget NO-GO are the declared last resorts, in
+  that order, and only if 14 days per wave is also exceeded. aero-dev is otherwise idle, so wall
+  clock is the cheapest thing to spend.
+
 ## 3. Deviations from the stage plan
 
 - **The stage is incomplete.** The approved plan costed the campaign alone at ~5-7 days of
@@ -106,6 +140,33 @@ coupled case — plus the pre-registration and a multi-day campaign.
   Both change shared config to protect a fixture, so they are called out rather than buried: see
   §6.10 for why renaming the fixtures instead would have made them stop testing anything.
 
+**Session 4 (2026-08-04) — deviations, and why**
+
+- **Phase 3A landed as specified; Phase 3B is one commit of three.** Three commits landed
+  (`1bd7011`, `10fcb70`, `c682671`), suite 380 -> 418 green, mypy clean. The session did not reach
+  the authored writers, the ADRs, pre-flight or the campaign. What was done was done to the
+  standard the stage demands rather than more of it done thinly — the precedent of sessions 2
+  and 3.
+- **`MaterializedTree` carries ONE `source` field, not the `pin` XOR `authored` pair every prior
+  prompt and plan specified.** This is a deliberate departure with a demonstrated cause: pydantic's
+  `model_copy(update=...)` **bypasses** `@model_validator(mode="after")` even on a frozen,
+  `validate_assignment=True` model (verified in-process, and pinned by a test), and `case.py`
+  mutates trees with exactly that idiom in two places. The XOR would have been enforced only at
+  construction and forgeable by any helper written by analogy. See §6.14.
+- **A `transient_fvschemes` byte pin had to be invented before `ddt_scheme=` could be added**
+  (§6.15). The prompt cites a pin that does not exist. Landing it consumed a commit that was not
+  in the plan, and it is the Phase-3A ordering rule applied a second time.
+- **The I3/I5 static baseline was measured EARLY, out of the prompt's order.** It needs no new
+  code, costs ~15 minutes, and it invalidates two numbers the stage would otherwise have
+  pre-registered against. See §6.16. Measuring it before the ADR freezes is the whole point of
+  I-family clauses.
+- **`85e0b32` was already recorded in §4** by session 3; the resume prompt's instruction to add it
+  was stale. No change needed.
+- **`_SOLVER_SIF["precice"] -> both SIFs` is not expressible** and Phase 3D must not attempt it:
+  the dict is `dict[str, str]` feeding a single-SIF `compute_provenance`. The container of record
+  and the extras are already on `CoupledCaseSpec` (`container_of_record`, `extra_container_sifs`),
+  so the CLI must derive them from the spec, not widen the table.
+
 ## 4. Environment / dependency / schema changes
 
 - `ProvenanceTuple` gains `containers: tuple[ContainerRef, ...] = ()` and a fifth conditional
@@ -122,8 +183,15 @@ coupled case — plus the pre-registration and a multi-day campaign.
   *(Note the DB is at 192.168.2.184; CT 202 is its CTID, not its address.)*
 - `ExecResult` gains `transport_error` / `transport_failed`; `MeshHandle` gains `failure`;
   `aero.orchestration.describe_failure` is new.
-- New pytest marker `stage_20`; new test dir `tests/stage_20/`. Suite is **380 green**
-  (`pytest -q tests/unit tests/stage_20`), up from 348 at Stage-19 close.
+- New pytest marker `stage_20`; new test dir `tests/stage_20/`. Suite is **418 green**
+  (`pytest -q tests/unit tests/stage_20`), up from 348 at Stage-19 close (380 after session 3).
+- **New module `aero/adapters/precice/manifest.py`** — the two `aero-manifest.json` renderers,
+  schema v1 (tutorial) and v2 (authored), as free functions over primitives. Stdlib only; it is
+  transitively imported by `aero.adapters.precice` and pulls in no banned module (verified).
+- `CoupledCaseSpec` loses five fields to `source`; `TutorialTree` is renamed `MaterializedTree`;
+  `TutorialSource` / `AuthoredSource` / `CASE_ROOT_DIRNAME` are new public names.
+  `PreciceConfigExpectation` gains 15 optional fields plus the `UNSET` sentinel, and
+  `MeshExpectation` / `ParticipantDataExpectation` / `MappingExpectation` are new public models.
 - **`85e0b32` (operator, 2026-07-31) — `run_long.sh`: a timed-out wait no longer strands the solve
   it was watching.** `cmd_wait` counted only its own sleeps, ignoring the ~0.5 s ssh round trip per
   poll, so a nominal 14400 s ceiling did not fire until ~15800 s while `LocalSSHExecutor` guarded
@@ -393,6 +461,112 @@ literal `(no band)` token, while D8 (rigid pitch <= 2 deg), D9 and D10 ride the 
 defects for Stage 20: `D\d` matches **`D10` as `D1`** (a phantom pair, silently), `(\d+) %` cannot
 express D9's 0.5 %, and `^\s+` also matches five-space continuation lines.
 
+### 6.14 A nullable XOR pair is forgeable, because `model_copy` skips after-validators
+
+Every prior Stage-20 plan specified `MaterializedTree` (was `TutorialTree`) as carrying `pin` XOR
+`authored`, with `write_manifest` dispatching on `pin is not None`. That shape is unsound here.
+Verified in-process on a frozen, `extra="forbid"`, `validate_assignment=True` model with an
+`@model_validator(mode="after")` enforcing the XOR:
+
+    m = M(a=1)                      -> a=1 b=None
+    m.model_copy(update={"b": 2})   -> a=1 b=2      # the validator did NOT run
+
+and `case.py` builds trees with `tree.model_copy(update={"mutations": ...})` in **both**
+`select_fluid_mesh` (`:392`) and `record_max_time_mutation` (`:415`). So the invariant would have
+held only at construction, and any authored-path helper written by analogy with those two — the
+obvious thing for the next session to write — could produce a both-set tree.
+
+**What that costs, concretely.** A both-set tree takes the `pin is not None` branch and emits a
+**schema-v1 tutorial manifest for a case we authored**: a `"pin"` block naming
+`precice/tutorials @ cd33e2db` beside bytes this platform wrote, with every authored-provenance
+key silently dropped. That manifest ships in the bundle. Nothing raises. A reviewer reads it as
+"this run laid down the pinned upstream tutorial". It is a provenance lie produced by a runtime
+predicate — the exact class of failure the Phase-3A discipline exists to prevent.
+
+**The fix removes the predicate.** One `source: TutorialSource | AuthoredSource` field on the tree;
+both emitters are free functions in a new `aero/adapters/precice/manifest.py`; and `_write_case`
+selects between them by an exhaustive `match spec.source.kind` with `assert_never`, so a third
+source type in a future stage is a **type error** rather than a silent fall-through. There is no
+invariant left to forge. Generalise it: *any* invariant expressed only as an after-validator is
+bypassable in a codebase that uses `model_copy(update=...)` at all.
+
+### 6.15 The `transient_fvschemes` byte pin the prompt relies on does not exist
+
+`tests/stage_11/test_dynamic_mesh_writers.py:62` is
+
+    assert (tmp_path / "system" / "fvSchemes").read_text() == fc.transient_fvschemes()
+
+Both sides call the same function. It pins writer/consumer **agreement** — that the cylinder writer
+really renders the shared helper — and nothing about the bytes. Change the default output and both
+sides move together; the test stays green. `grep -rn "1df84e21" tests/` returns nothing.
+
+Measured on pre-change code, and now pinned as literals in
+`tests/stage_20/test_fvschemes_bytes_before_ddt_scheme.py`:
+
+| turbulence model | length | sha256 |
+|---|---:|---|
+| `laminar` (the default) | **781** | `1df84e211d7836d8fe9b7b935f5cd4af339174ef3c0d8aacc84b190c0678e4ef` |
+| `kOmegaSST` | 886 | `4edd1332bf0bba804327e9e52dd3f6c0c1100e45ea040404b5ad5908b3d4c302` |
+| `kOmegaSSTLM` | 958 | `3703fe5ca9f6735f404d1a4df3d2e7fc607063c772872ca9f219e3f841fc0f90` |
+
+Without it, a mistake in a new `ddt_scheme=` default branch would silently rewrite the `fvSchemes`
+of the Stage-10 static cylinder, the Stage-11 plunging foil and the Stage-13 URANS decks —
+invalidating the records those decks produced, with nothing going red. The pin lives in
+`tests/stage_20/` on purpose: `tests/stage_11/` is **not** in the mandated
+`pytest -q tests/unit tests/stage_20` suite.
+
+### 6.16 I3/I5 measured: the failing checkMesh check is ASPECT RATIO, not non-orthogonality —
+### and it fails identically on the platform's own stock NACA 0012
+
+Re-measured on aero-dev at the **pre-registered** `first_cell_height = 5.0e-4 c` (the spike's
+numbers came from the `2.0e-6` default and do not apply), both arms, three candidate rungs, span
+slab 2.5 mm. Every number recorded, passing or not:
+
+| rung | arm | cells | nonOrtho max | skew max | aspect ratio | min vol | neg vols | `Mesh OK` |
+|---|---|---:|---:|---:|---:|---:|:-:|:-:|
+| fine | flexible | 130 032 | 86.315 | 1.768 | 1847.56 | 2.466e-12 | no | **no** |
+| fine | rigid | 130 032 | 86.317 | 1.767 | 1847.56 | 2.462e-12 | no | **no** |
+| mid | flexible | 77 240 | 85.230 | 2.163 | 1884.45 | 4.133e-12 | no | **no** |
+| mid | rigid | 77 240 | 85.233 | 2.162 | 1884.45 | 4.127e-12 | no | **no** |
+| coarse | flexible | 45 682 | 85.650 | 2.555 | 1914.12 | 6.968e-12 | no | **no** |
+| coarse | rigid | 45 682 | 85.651 | 2.554 | 1914.12 | 6.958e-12 | no | **no** |
+
+Controls, at the mid rung and identical knobs:
+
+| variant | cells | nonOrtho | skew | aspect ratio | `Mesh OK` |
+|---|---:|---:|---:|---:|:-:|
+| **stock NACA 0012**, 5.0e-4 | 76 896 | 82.565 | 1.998 | **1884.4471** | **no** |
+| HG flexible, 5.0e-4 | 77 240 | 85.230 | 2.163 | **1884.4471** | no |
+| HG flexible, 2.0e-6 (the spike's mesh) | 77 240 | 87.288 | 2.322 | 2954.45 | no |
+
+Five things follow, and three of them change what ADR-039 may say:
+
+1. **checkMesh's own non-orthogonality check reports "Non-orthogonality check OK" at 85.23.** The
+   one failing check is `***High aspect ratio cells found, Max aspect ratio: 1884.4471, number of
+   cells 2892`. §6.9 reached the right conclusion about I5 for a slightly wrong reason.
+2. **The aspect ratio is byte-identical (1884.4471) between the HG section and the stock NACA
+   0012.** It is a pre-existing property of the platform's own eight-block C-grid family, in the
+   far field, untouched by the surface curve. Stage 20 did not introduce it.
+3. **`MeshQualityGate`'s M1 ("Mesh OK") therefore cannot be an absolute I5 gate either** — it fails
+   on the platform's own stock airfoil mesh at the pre-registered spacing. This extends §6.9's
+   argument from M2 to M1, now with a control. I5 gates **degradation against the recorded static
+   baseline** plus absolute skew <= 4 and zero negative volumes; **M1 and M2 are reported, never
+   gated**, and the ADR must say why with these numbers beside it.
+4. **The pre-registered spacing is better on every metric than the spike's**: non-ortho
+   87.29 -> 85.23, skew 2.32 -> 2.16, aspect ratio 2954 -> 1884. Changing it was not only necessary
+   for the time step, it improved the mesh.
+5. **The rung ladder is clean.** Cell counts 45 682 / 77 240 / 130 032 give
+   `sqrt(77240/45682) = 1.300` and `sqrt(130032/77240) = 1.298` — a uniform 2-D refinement ratio of
+   1.30 across both steps, which is what a three-grid GCI wants. Knobs, built downward:
+   fine `(n_surface, n_normal, n_front, n_wake, n_te) = (140, 140, 70, 112, 6)`,
+   mid `(108, 108, 54, 86, 4)`, coarse `(83, 83, 42, 66, 3)`.
+   The two arms differ only in the 5th significant figure of every quality metric, so the paired
+   increment is not confounded by mesh quality.
+
+Raw JSON for both probes is in the session scratchpad; it must be re-run by the I3/I5 pre-flight
+into `data/vv/` with its own four-fold tuple before ADR-039 cites it. **These numbers are a
+measurement, not yet a record.**
+
 ## 7. Open items for the next stage (and beyond)
 
 **Blocking, in order — this is the resumption path**
@@ -436,7 +610,30 @@ express D9's 0.5 %, and `^\s+` also matches five-space continuation lines.
    campaign is launched by hand from the Proxmox host, which reaches aero-dev already. This unblocks
    *CI* reaching the 16-core box — including `test_unsteady_plunging_airfoil`, which has never
    completed there.
-3b. **Phase 3A's non-regression pins are DONE (`67d8e82`); the refactor they protect is NOT.**
+3b. ~~**Phase 3A's non-regression pins are DONE (`67d8e82`); the refactor they protect is NOT.**~~
+   — **DONE 2026-08-04 at `1bd7011`.** The ordering held and is checkable:
+
+       git merge-base --is-ancestor 67d8e82 1bd7011              # true
+       git diff --stat 67d8e82 1bd7011 -- tests/stage_20/fixtures/   # EMPTY
+       git diff --stat 67d8e82 1bd7011 -- tests/stage_20/test_stage19_load_path_unchanged.py
+                                                                 # EMPTY
+
+   The goldens were not re-captured, the load-path pin is untouched, and the materialization pin
+   changed only in how it CONSTRUCTS a spec — not one assertion moved. `MaterializedTree` carries
+   one `source` field rather than the specified XOR pair (§6.14). **The FSI3 `config_hash` moved,
+   as predicted: `c524faff...` -> `3f94f394...`**, pinned by test with the old value in the
+   docstring; ADR-037 must record both and say plainly that the materialized *bytes* are proved
+   identical while the *spec serialization* moved — different claims.
+
+   Also landed: **`10fcb70`** — the additive `PreciceConfigExpectation` extension (15 fields, all
+   defaulting to "do not check", each driven with a wrong value in a parametrized test; ordered
+   `mappings` tuple; an `UNSET` sentinel so "assert absent" is distinguishable from "do not check";
+   and `max_time`, which the plan omitted but which an authored case must assert because there it
+   is a rendered token rather than the one permitted mutation). And **`c682671`** — the
+   `transient_fvschemes` byte pin, on pre-change code, because the one the prompt cites does not
+   exist (§6.15).
+
+   ~~Old text follows for context.~~ Formerly:
    The two tests, their fixtures and their goldens landed in a single commit on pre-refactor code,
    which is the ordering rule the stage turns on. Prove it before trusting the refactor:
 
@@ -501,14 +698,26 @@ Stage 20 rather than starting 21.
 
 ## 8. Pointers for next session
 
-- **Read first:** this file, then ADR-038, then `data/references/fsi/heathcote_gursul_2007/reference.md`
-  (§6.2's traps are live), then the approved plan at
-  `/root/.claude/plans/stage-20-flexible-typed-pinwheel.md`.
+- **Read first:** this file (especially §2's session-4 operator decisions and §6.14-§6.16), then
+  `docs/handoff-bundle/STAGE-20-RESUME.md`, then ADR-038, then
+  `data/references/fsi/heathcote_gursul_2007/reference.md` (§6.2's traps are live). Session 4's
+  roadmap, with the four operator decisions folded in, is
+  `/root/.claude/plans/stage-20-flexible-refactored-aurora.md`; it carries a commit-by-commit
+  sequence for the rest of Phases 3B-4 and a costed pre-flight ordering.
 - **Do not re-derive:** the `ccx_preCICE` conventions (§6.1 — they came from upstream's bytes), the
   HG geometry and uncertainties (`reference.md`, text-sourced and exact), or the provenance
   decision (ADR-038 records the rejected alternative and why).
-- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**380** pass), then
-  `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to end).
+- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**418** pass), then
+  `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to end;
+  re-verified PASS on 2026-08-04, `stopped_by=all-exited`, both participants rc=0, 2790 cells).
+- **Do NOT re-derive:** the ADR-036 band-regex defects. Measured this session, and the
+  work-of-record had them wrong: `r"^\s+(D\d) [^\n]*within (\d+) %"` **silently DROPS** `D9` and
+  `D10` (it needs a literal space after the id, so `D10 ` never matches), the phantom pair comes
+  from `^\s+` matching **five-space continuation lines**, and greedy `[^\n]*` reports the **last**
+  band on a line mentioning two. Silent omission is strictly worse than aliasing for a parity test:
+  forget `D10` in `metrics()` too and both sides agree. The replacement must anchor at exactly two
+  spaces, use `[A-Z]\d{1,2}`, accept fractional percents and `\(no band\)`, be **non-greedy**, and
+  guard that no clause line carries two band tokens.
 - **Corrections to the resume prompt**, all verified against the code — carry them forward:
   `_write_case` is `PreciceCoupledSolver._write_case` at `solver.py:168-207`, **not** in `case.py`;
   `load()` emits **23** scalars, not 20; the `"tutorial"` literal appears at **7 production + 2
