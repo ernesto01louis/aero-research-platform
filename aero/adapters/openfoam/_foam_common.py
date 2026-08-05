@@ -279,8 +279,15 @@ RAS
 
 
 # --- transient (pimpleFoam) dictionaries --------------------------------------
-def transient_fvschemes(*, turbulence_model: str = "laminar") -> str:
-    """Transient schemes — first-order Euler in time, second-order space.
+
+#: The time schemes a transient case may render. Deliberately a closed set: `ddtSchemes`
+#: accepts many names OpenFOAM would happily run and this platform has never validated,
+#: and a typo (`backwards`) would otherwise reach the solver as a run-time failure hours in.
+_TRANSIENT_DDT_SCHEMES = frozenset({"Euler", "backward", "CrankNicolson 0.9"})
+
+
+def transient_fvschemes(*, turbulence_model: str = "laminar", ddt_scheme: str = "Euler") -> str:
+    """Transient schemes — first-order Euler in time by default, second-order space.
 
     Shared by the transient/moving cases (cylinder, plunging airfoil). Euler is the
     robust default for the low-Re unsteady cases; the div/laplacian schemes match the
@@ -288,6 +295,15 @@ def transient_fvschemes(*, turbulence_model: str = "laminar") -> str:
     ``turbulence_model`` the RAS transport div schemes are added (``k``/``omega``, plus
     ``gammaInt``/``ReThetat`` for ``kOmegaSSTLM``) — required because ``divSchemes`` uses
     ``default none``. ``laminar`` (the default) is byte-identical to the Stage-10 cylinder.
+
+    ``ddt_scheme`` is additive and defaults to the value every existing caller already
+    rendered, so the three byte pins in ``tests/stage_20`` hold unchanged. It exists for
+    Stage 20, where second-order time (``backward``) is admissible ONLY if the preCICE
+    OpenFOAM adapter is shown to checkpoint and restore ``U.oldTime().oldTime()`` across
+    coupling iterations — the pre-flight I8 probe. Nothing in this repo establishes that it
+    does, and every preCICE OpenFOAM tutorial uses ``Euler``, so ``backward`` is not a
+    default here: choosing it without the probe would put a temporal-accuracy claim on the
+    record that the record does not support.
     """
     turb_div = ""
     turb_walldist = ""
@@ -299,11 +315,16 @@ def transient_fvschemes(*, turbulence_model: str = "laminar") -> str:
         # entry pimpleFoam exits before the first step (Stage-16 URANS probe). Laminar
         # stays byte-identical to the Stage-10 cylinder (no entry).
         turb_walldist = "wallDist        { method meshWave; }\n"
+    if ddt_scheme not in _TRANSIENT_DDT_SCHEMES:
+        raise ValueError(
+            f"ddt_scheme must be one of {sorted(_TRANSIENT_DDT_SCHEMES)}, got {ddt_scheme!r}"
+        )
     return (
         header("dictionary", "fvSchemes")
-        + """
-ddtSchemes      { default Euler; }
-gradSchemes     { default Gauss linear; }
+        + f"""
+ddtSchemes      {{ default {ddt_scheme}; }}
+"""
+        + """gradSchemes     { default Gauss linear; }
 divSchemes
 {
     default         none;
