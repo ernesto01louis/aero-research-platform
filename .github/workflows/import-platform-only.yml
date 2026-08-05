@@ -53,7 +53,7 @@ jobs:
               # geometry helpers and the flapping kinematics, so this also fences the
               # path by which a solver dependency could reach the precice adapter.
               "aero.adapters.precice.calculix", "aero.adapters.precice.template",
-              "aero.adapters.openfoam.force_io",
+              "aero.adapters.openfoam.force_io", "aero.vv.alignment",
           ):
               importlib.import_module(mod)
 
