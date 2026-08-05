@@ -222,6 +222,77 @@ def _patch_list(patches: tuple[str, ...]) -> str:
     return "(" + " ".join(patches) + ")"
 
 
+#: The tag every interface-power line carries in the solver log. Grep-able, and the reason
+#: the value is logged rather than written to its own file: no OFstream API to drift
+#: against across OpenFOAM releases, and the log is already an artifact of record.
+INTERFACE_POWER_TAG = "aeroInterfacePower"
+
+
+def _interface_power_object() -> str:
+    """A coded function object summing ``force . U`` over the wetted patches.
+
+    This is P2, the rate at which the fluid does work on the structure. It exists because
+    the plate DEFORMS: the wall velocity is not a single rigid-body velocity, so the naive
+    ``F_y * v_plunge`` product (P1) is only an approximation, and the D-family reports the
+    difference between them on both arms as the bias that formula would have injected.
+
+    Two deliberate choices.
+
+    It sums the ``force`` field that the ``forces`` object itself registers, rather than
+    re-deriving pressure and viscous stresses. A re-derivation is a second implementation
+    of the quantity being gated, and the two would eventually disagree by something small
+    and unexplained; summing OpenFOAM's own per-face force means P2 and C_T come from one
+    computation by construction.
+
+    It writes to the solver log with a tag rather than to a file. ``OFstream``'s append
+    signature has moved between OpenFOAM releases and a coded object that fails to compile
+    takes the whole campaign with it, whereas ``Info`` has not changed in a decade. The
+    log is captured by the launcher and ships in the bundle either way.
+
+    Note the cadence: under IMPLICIT coupling this executes once per coupling ITERATION,
+    so a time value can appear several times. That is the same structural situation as the
+    CalculiX ``.dat``, and the readout classifies it the same way -- keep the last row at
+    each time, never average across iterations.
+    """
+    patches = ", ".join(f'"{p}"' for p in WALL_PATCHES)
+    return f"""    // P2: the rate at which the fluid does work on the (deforming) structure.
+    interfacePower
+    {{
+        type            coded;
+        libs            (utilityFunctionObjects);
+        name            aeroInterfacePower;
+        writeControl    timeStep;
+        writeInterval   1;
+        codeExecute
+        #{{
+            const fvMesh& m = mesh();
+            const volVectorField& U = m.lookupObject<volVectorField>("U");
+            const volVectorField& fld = m.lookupObject<volVectorField>("force");
+            const wordList patchNames({{{patches}}});
+            scalar power = 0.0;
+            vector total = Zero;
+            forAll(patchNames, i)
+            {{
+                const label patchi = m.boundaryMesh().findPatchID(patchNames[i]);
+                if (patchi < 0)
+                {{
+                    FatalErrorInFunction
+                        << "no patch named " << patchNames[i]
+                        << " -- the interface-power object and the force object "
+                        << "must name the same walls" << exit(FatalError);
+                }}
+                const vectorField& f = fld.boundaryField()[patchi];
+                const vectorField& u = U.boundaryField()[patchi];
+                power += gSum(f & u);
+                total += gSum(f);
+            }}
+            Info<< "{INTERFACE_POWER_TAG} "
+                << m.time().timeOutputValue() << ' '
+                << power << ' ' << total.x() << ' ' << total.y() << endl;
+        #}};
+    }}"""
+
+
 def _controldict(spec: FlexibleFoilSpec) -> str:
     a_ref = spec.chord * spec.span
     write_interval = spec.field_write_interval_windows
@@ -257,17 +328,23 @@ functions
     }}
     // Dimensional forces [N] -- this is the readout of record. rhoInf is the REAL density,
     // so what the force objects integrate is the same newton the solid receives.
+    // writeFields registers per-face `force`, which the interface-power object below sums
+    // against the wall velocity: P2 is then built from OpenFOAM's OWN force computation
+    // rather than from a re-derivation of the stress tensor, so it cannot disagree with
+    // the C_T that comes out of the same object.
     forces1
     {{
         type            forces;
         libs            (forces);
         writeControl    timeStep;
         writeInterval   1;
+        writeFields     yes;
         patches         {_patch_list(WALL_PATCHES)};
         rho             rhoInf;
         rhoInf          {spec.rho:.12g};
         CofR            (0 0 0);
     }}
+{_interface_power_object()}
     // Coefficients, as an independent cross-check of the dimensional integral above.
     forceCoeffs1
     {{

@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 from aero.adapters.openfoam.flexible_foil import (
+    INTERFACE_POWER_TAG,
     WALL_PATCHES,
     FlexibleFoilSpec,
     write_flexible_foil_case,
@@ -173,9 +174,50 @@ class TestTheTimeSteppingIsFixed:
         write_flexible_foil_case(_spec(ddt_scheme="backward"), tmp_path)
         assert "default backward" in _read(tmp_path, "system/fvSchemes")
 
-    def test_the_forces_are_written_every_step(self, case: Path) -> None:
+    def test_every_reporting_object_runs_every_step(self, case: Path) -> None:
+        # forces1, forceCoeffs1 and the interface-power object all sample every step; the
+        # readout pairs them by time, so a mismatched cadence would silently misalign them.
         control = _read(case, "system/controlDict")
-        assert control.count("writeControl    timeStep;\n        writeInterval   1;") == 2
+        assert control.count("writeControl    timeStep;\n        writeInterval   1;") == 3
+
+
+class TestTheInterfacePowerObject:
+    """P2 -- the rate at which the fluid does work on the DEFORMING structure.
+
+    Verified live on aero-dev before this landed (the I6 probe): the coded object compiles
+    under `setpriv --reuid 1000` and runs, its summed force reproduces `force.dat`'s total
+    to twelve significant figures, and on a stationary mesh the power comes out at 1e-18 --
+    which is the null result that proves it reads the WALL velocity rather than a
+    cell-centre one.
+    """
+
+    def test_it_sums_openfoams_own_force_field(self, case: Path) -> None:
+        # Re-deriving the stress tensor would be a second implementation of the quantity
+        # being gated; summing the registered `force` field means P2 and C_T come from one
+        # computation. That requires writeFields on the force object.
+        control = _read(case, "system/controlDict")
+        assert "writeFields     yes;" in control
+        assert 'lookupObject<volVectorField>("force")' in control
+
+    def test_it_names_the_same_walls_as_the_force_object(self, case: Path) -> None:
+        control = _read(case, "system/controlDict")
+        coded = control.split("interfacePower", 1)[1]
+        named = set(re.findall(r'"(\w+)"', coded.split("wordList patchNames", 1)[1][:200]))
+        assert named == set(WALL_PATCHES)
+
+    def test_a_missing_patch_is_fatal_inside_the_solver(self, case: Path) -> None:
+        # A silently-skipped patch would under-report P2 on one arm only.
+        assert "FatalErrorInFunction" in _read(case, "system/controlDict")
+
+    def test_it_runs_after_the_force_object_that_registers_the_field(self, case: Path) -> None:
+        control = _read(case, "system/controlDict")
+        assert control.index("forces1") < control.index("interfacePower"), (
+            "function objects execute in declaration order; the power object looks up a "
+            "field the force object registers"
+        )
+
+    def test_it_reports_through_the_log_with_a_greppable_tag(self, case: Path) -> None:
+        assert f'Info<< "{INTERFACE_POWER_TAG} ' in _read(case, "system/controlDict")
 
 
 class TestTheMeshIsThePreRegisteredOne:
