@@ -68,6 +68,7 @@ __all__ = [
     "assert_calculix_deck",
     "read_adapter_config",
     "read_calculix_deck",
+    "watch_points",
     "write_adapter_config",
     "write_calculix_deck",
 ]
@@ -213,7 +214,16 @@ class CalculiXSolidSpec(BaseModel):
     n_through_thickness: int = Field(
         default=4,
         ge=2,
-        description="Elements across the section's thickness. >=2 for a bending member.",
+        multiple_of=2,
+        description=(
+            "Elements across the section's thickness. >=2 for a bending member, and EVEN so "
+            "a mid-surface node column exists: `_grid` lays nodes at "
+            "`eta = linspace(-1, 1, n+1)`, which contains 0.0 only for even `n`. Both "
+            "watch-points sit on the mid-surface, and preCICE SNAPS a watch-point to the "
+            "nearest mesh vertex without saying so -- at an odd count D0 would silently "
+            "become the angle of a surface fibre rather than of the mid-surface, offset by "
+            "the plate half-thickness times the local rotation."
+        ),
     )
 
     plate: CalculiXMaterial
@@ -464,6 +474,41 @@ def _interface_nodes(spec: CalculiXSolidSpec) -> list[int]:
             ids.add(_node_id(0, j, k, n_eta=n_eta))  # nose cap
             ids.add(_node_id(n_x - 1, j, k, n_eta=n_eta))  # blunt trailing edge
     return sorted(ids)
+
+
+def watch_points(spec: CalculiXSolidSpec) -> tuple[tuple[float, float], tuple[float, float]]:
+    """The ``(nose, trailing-edge)`` mid-surface points the rendered configuration watches.
+
+    Lives here, beside :func:`_interface_nodes`, rather than in the renderer: a watch-point
+    that is not a vertex of ``Solid-Mesh`` is **snapped to the nearest one by preCICE, with
+    no diagnostic**, so the coordinate and the node set have to be derived from one place or
+    D0 is measured somewhere other than where it was declared. Both points are asserted to
+    be interface vertices before they are returned.
+
+    Both sit at ``eta = 0`` -- the mid-surface -- which exists as a node column only because
+    ``n_through_thickness`` is required to be even. The nose point samples the PRESCRIBED
+    leading-edge plunge (so the kinematics are checkable against the record rather than
+    assumed); the TE point carries the D0 deflection.
+    """
+    nodes, _ = _grid(spec)
+    n_eta = spec.n_through_thickness + 1
+    mid = spec.n_through_thickness // 2
+    last = len(spec.surface_x) - 1
+    nose = (float(nodes[0, mid, 0, 0]), float(nodes[0, mid, 0, 1]))
+    trailing_edge = (float(nodes[last, mid, 0, 0]), float(nodes[last, mid, 0, 1]))
+
+    interface = set(_interface_nodes(spec))
+    missing = [
+        f"{label} {point}"
+        for label, point, i in (("nose", nose, 0), ("trailing-edge", trailing_edge, last))
+        if _node_id(i, mid, 0, n_eta=n_eta) not in interface
+    ]
+    if missing:
+        raise CalculiXDeckError(
+            f"watch-point(s) {', '.join(missing)} are not vertices of the interface node set, "
+            "so preCICE would snap them to a different node without reporting it"
+        )
+    return nose, trailing_edge
 
 
 def _nose_nodes(spec: CalculiXSolidSpec) -> list[int]:

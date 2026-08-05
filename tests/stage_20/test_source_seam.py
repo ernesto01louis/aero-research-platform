@@ -35,6 +35,8 @@ from aero.adapters.precice.manifest import (
 from aero.provenance.four_fold import config_hash
 from aero.vv.fsi.turek_hron_fsi3 import fsi3_case_spec
 
+from tests.stage_20._hg2007 import authored_source, authored_spec
+
 pytestmark = pytest.mark.stage_20
 
 
@@ -47,16 +49,26 @@ def _tutorial_source() -> TutorialSource:
 
 
 def _authored_source() -> AuthoredSource:
-    return AuthoredSource(
-        case_dir_name="hg2007-flexible-foil",
-        solid_participant_dir="solid-calculix",
-        template="hg2007-precice-config.xml.in",
-        template_sha256="c" * 64,
-        renderer_version="1",
-    )
+    """A REAL authored source, from the shared builders.
+
+    Since ADR-037 an authored source carries the complete fluid and solid specs, and they
+    must agree on eight numbers plus the whole station list -- so there is no such thing as
+    a placeholder one, and a hand-built pair here would drift from the real cross-checks.
+    """
+    return authored_source()
 
 
 def _spec(source: TutorialSource | AuthoredSource) -> CoupledCaseSpec:
+    """A spec around either source.
+
+    The authored branch goes through the shared builder because
+    `CoupledCaseSpec._an_authored_source_describes_these_participants` now binds the source
+    to the participants that will actually be launched -- workdirs, the solid's deck name,
+    `max_time` and the uids -- so the tutorial path's placeholder participants are no longer
+    valid for an authored case.
+    """
+    if source.kind == "authored":
+        return authored_spec(source=source)
     return CoupledCaseSpec(
         name="x",
         source=source,

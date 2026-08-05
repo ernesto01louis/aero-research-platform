@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from aero.adapters.precice.case import (
     CASE_ROOT_DIRNAME,
+    EXCHANGE_DIRECTORY,
     AuthoredSource,
     CoupledCaseError,
     CoupledCaseSpec,
@@ -35,8 +36,11 @@ from aero.adapters.precice.case import (
     ParticipantSpec,
     TutorialPin,
     TutorialSource,
+    assert_authored_consistent,
+    assert_provenance_describes,
     materialize_tutorial,
     select_fluid_mesh,
+    spec_config_digest,
 )
 from aero.adapters.precice.config import (
     PreciceConfig,
@@ -98,6 +102,7 @@ PINNED_OPENFOAM_ADAPTER_COMMIT = "2c3062ce941915616ac763371805c57e15e02466"
 __all__ = [
     "CASE_ROOT_DIRNAME",
     "DEFAULT_PRECICE_SIF_PATH",
+    "EXCHANGE_DIRECTORY",
     "HG2007_TEMPLATE",
     "PINNED_OPENFOAM_ADAPTER_COMMIT",
     "PINNED_PRECICE_VERSION",
@@ -125,8 +130,10 @@ __all__ = [
     "TutorialSource",
     "WatchpointError",
     "WatchpointTrace",
+    "assert_authored_consistent",
     "assert_config",
     "assert_coupling_converged",
+    "assert_provenance_describes",
     "build_participant_command",
     "hg2007_expectation",
     "launch_coupled",
@@ -139,6 +146,7 @@ __all__ = [
     "render_supervisor_script",
     "rewrite_max_time",
     "select_fluid_mesh",
+    "spec_config_digest",
     "template_sha256",
     "write_precice_config",
 ]

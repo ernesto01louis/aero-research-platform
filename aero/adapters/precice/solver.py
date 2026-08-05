@@ -24,6 +24,7 @@ distribution to return, and returning an empty one would be a silent fallback.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from typing import assert_never
@@ -44,15 +45,32 @@ from aero.adapters._base import (
     WallDistribution,
     build_apptainer_exec,
 )
+from aero.adapters.openfoam.flexible_foil import write_flexible_foil_case
 from aero.adapters.precice.analysis import TIP_UX, TIP_UY, analyse_displacement_watchpoint
+from aero.adapters.precice.calculix import (
+    INTERFACE_PATCH,
+    CalculiXAdapterConfig,
+    CalculiXDeck,
+    assert_adapter_config,
+    write_adapter_config,
+    write_calculix_deck,
+)
 from aero.adapters.precice.case import (
     CASE_ROOT_DIRNAME,
+    EXCHANGE_DIRECTORY,
+    AuthoredSource,
     CoupledCaseError,
     CoupledCaseSpec,
+    DeclaredMutation,
+    MaterializedFile,
     MaterializedTree,
+    TutorialSource,
+    assert_authored_consistent,
+    assert_wetted_curve_matches,
     materialize_tutorial,
     record_max_time_mutation,
     select_fluid_mesh,
+    spec_config_digest,
 )
 from aero.adapters.precice.config import (
     PreciceConfig,
@@ -73,7 +91,11 @@ from aero.adapters.precice.logs import (
     find_iterations_logs,
     read_iterations_log,
 )
-from aero.adapters.precice.manifest import render_tutorial_manifest_json
+from aero.adapters.precice.manifest import (
+    render_authored_manifest_json,
+    render_tutorial_manifest_json,
+)
+from aero.adapters.precice.template import PreciceConfigValues, write_precice_config
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
 from aero.orchestration._base import Executor, describe_failure
 
@@ -100,6 +122,91 @@ def _chown_tree(root: Path, *, uid: int) -> None:
 
     for path in (root, *root.rglob("*")):
         os.chown(path, uid, uid)
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _provided_mesh(config: PreciceConfig, participant: str) -> str:
+    """The one mesh `participant` provides, read out of the PARSED configuration.
+
+    Exists so ``assert_adapter_config`` is fed the configuration's own mesh name rather than
+    the spec's: comparing the adapter config's ``nodes-mesh`` against the spec it was built
+    from is a value compared with itself, and it passes for a deck the coupling can never
+    find.
+    """
+    provided = config.participant(participant).provide_mesh
+    if len(provided) != 1:
+        raise PreciceSolverError(
+            f"{config.source_path}: participant {participant!r} provides {len(provided)} "
+            f"meshes {provided}; the authored case expects exactly one"
+        )
+    return provided[0]
+
+
+def _authored_mutations(
+    source: AuthoredSource,
+    *,
+    case_dir: Path,
+    values: PreciceConfigValues,
+    produced: PreciceConfig,
+    deck: CalculiXDeck,
+) -> tuple[DeclaredMutation, ...]:
+    """The authorship acts, described from what was READ BACK rather than from the spec.
+
+    Three entries, not one per file. ``files`` is already the machine-checkable column
+    (every path with its digest); ``declared_mutations`` is the human "what did this
+    platform deliberately do" column, and forty-odd rows of "authored" would collapse the
+    two into one unreadable list. Each entry names an artefact whose provenance a digest
+    alone does not explain: the rendered configuration (from which template, by which
+    renderer, with which tokens), the solid deck (what the deck actually says), and the
+    fluid's ``controlDict`` (the time-stepping and function-object roster that decide
+    whether the run is coupled at all).
+
+    ``before_sha256`` is ``None`` throughout: authored bytes replaced nothing, and
+    ``sha256("")`` would read in a bundle like a real prior version.
+    """
+    case = source.case_dir_name
+    tokens = " ".join(
+        f"{name.lower().replace('_', '-')}={raw}" for name, raw in sorted(values.tokens().items())
+    )
+    control_dict = case_dir / source.fluid_participant_dir / "system" / "controlDict"
+    return (
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/precice-config.xml",
+            detail=(
+                f"rendered from template {source.template!r} "
+                f"(sha256 {source.template_sha256[:12]}...) by renderer "
+                f"v{source.renderer_version}; tokens {tokens}"
+            ),
+            after_sha256=produced.source_sha256,
+        ),
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/{source.solid_participant_dir}/{deck.path.name}",
+            detail=(
+                f"authored CalculiX deck, re-read: {deck.n_nodes} nodes / {deck.n_elements} "
+                f"{deck.element_type}, INC={deck.max_increments}, dt={deck.dt!r}, "
+                f"total_time={deck.total_time!r}, span={deck.span!r}, nlgeom={deck.nlgeom}, "
+                f"alpha={deck.dynamic_alpha!r}"
+            ),
+            after_sha256=_sha256_file(deck.path),
+        ),
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/{source.fluid_participant_dir}/system/controlDict",
+            detail=(
+                f"authored dimensional fluid deck: endTime={source.fluid.max_time!r} "
+                f"deltaT={source.fluid.time_window_size!r} over {source.fluid.n_windows} "
+                f"coupling windows, adjustTimeStep no, ddtSchemes {source.fluid.ddt_scheme}; "
+                "the preCICE adapter function object is present (without it pimpleFoam runs "
+                "an uncoupled solve to endTime and exits 0)"
+            ),
+            after_sha256=_sha256_file(control_dict),
+        ),
+    )
 
 
 def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tuple[int, int]:
@@ -223,23 +330,39 @@ class PreciceCoupledSolver(Solver):
     ) -> tuple[MaterializedTree, PreciceConfig]:
         """Lay the case's bytes down under `root` and return the tree plus its config.
 
-        A METHOD, not a free function in ``case.py``: an authored case's materializer has to
-        drive the OpenFOAM and CalculiX writers, and ``launcher.py`` imports ``case.py``, so
+        A METHOD, not a free function in ``case.py``: an authored case's materializer drives
+        the OpenFOAM and CalculiX writers, and ``launcher.py`` imports ``case.py``, so
         anything ``case.py`` imports at module level is transitively pulled into every
-        launcher consumer.
+        launcher consumer. (Since ADR-037 ``case.py`` carries the two writers' *specs*
+        anyway, for provenance; keeping the *writing* here still bounds what else follows.)
 
         It does NOT write the manifest. ``_write_case`` owns that tail
         (`assert_config` -> chown -> manifest) because the chown must not touch
         ``aero-manifest.json``: the case belongs to the unprivileged participants, but the
         manifest is the platform's own record and stays root-owned. That ordering is pinned
         by absence in ``test_the_case_is_chowned_before_the_manifest_is_written``.
+
+        Dispatched exhaustively, so a third source kind in a future stage is a type error
+        rather than a silent fall-through into the wrong integrity contract.
         """
         source = spec.source
-        if source.kind != "tutorial":
-            raise PreciceSolverError(
-                f"case {spec.name!r}: authored-case materialization lands in Stage 20 "
-                "Phase 3B; no writer is registered for it yet"
-            )
+        match source.kind:
+            case "tutorial":
+                return self._materialize_tutorial(spec, source, root)
+            case "authored":
+                return self._materialize_authored(spec, source, root)
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _materialize_tutorial(
+        self, spec: CoupledCaseSpec, source: TutorialSource, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Extract the pinned upstream tutorial and apply the two declared mutations.
+
+        The integrity contract is "these bytes ARE the pinned bytes". Unchanged since
+        Stage 19 and pinned byte-for-byte by
+        ``tests/stage_20/test_stage19_materialization_is_byte_identical.py``.
+        """
         tree = materialize_tutorial(source, dest=root)
         tree = select_fluid_mesh(
             tree,
@@ -260,7 +383,89 @@ class PreciceCoupledSolver(Solver):
         )
         return tree, produced
 
-    def _render_manifest(self, tree: MaterializedTree) -> str:
+    def _materialize_authored(
+        self, spec: CoupledCaseSpec, source: AuthoredSource, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Render a case this platform authored, and re-read everything it wrote.
+
+        The integrity contract inverts: there is no pin, so the claim becomes "these bytes
+        are exactly what this spec renders, and re-reading them reproduces the spec"
+        (ADR-037). Every writer below returns what it wrote back from disk -- the rendered
+        configuration re-parsed, the deck re-read -- so the tree records what the files SAY
+        rather than what the writers meant.
+
+        Layout, one level of nesting so all four relative paths resolve to the same file::
+
+            <root>/<case_dir_name>/precice-config.xml
+            <root>/<case_dir_name>/<fluid_participant_dir>/{system,constant,0}/...
+            <root>/<case_dir_name>/<solid_participant_dir>/{<name>.inp,all.msh,...,config.yml}
+
+        ``config_for`` reads ``<root>/<case_subdir>/precice-config.xml``; the fluid's
+        ``preciceConfig`` and the adapter's ``precice-config-file`` are both
+        ``../precice-config.xml`` from one directory in; and ``EXCHANGE_DIRECTORY`` puts
+        ``precice-run/`` beside the configuration, which is where the supervisor's pre-run
+        cleanup looks.
+        """
+        # First statement, before a single byte: `model_copy(update=...)` bypasses the
+        # after-validator that also calls this, and this is the one door every byte
+        # goes through. Nothing below can produce a half-written tree for a spec pair
+        # that was never well-posed.
+        assert_authored_consistent(source)
+
+        case_dir = root / source.case_dir_name
+        case_dir.mkdir(parents=True, exist_ok=True)
+
+        # The coupling configuration. `write_precice_config` renders, re-reads and asserts
+        # the parsed model against `hg2007_expectation(values)` itself, so every rendered
+        # token is proved observable in the parsed configuration before anything else runs.
+        values = source.coupling_values()
+        produced = write_precice_config(
+            values, dest=case_dir / "precice-config.xml", template=source.template
+        )
+
+        write_flexible_foil_case(source.fluid, case_dir / source.fluid_participant_dir)
+
+        solid_dir = case_dir / source.solid_participant_dir
+        deck = write_calculix_deck(source.solid, dest_dir=solid_dir)
+        adapter = write_adapter_config(
+            CalculiXAdapterConfig(
+                participant=source.solid.participant,
+                nodes_mesh=source.solid.mesh_name,
+                patch=INTERFACE_PATCH,
+                read_data=("Force",),
+                write_data=("Displacement",),
+                precice_config_file=f"{EXCHANGE_DIRECTORY}/precice-config.xml",
+            ),
+            dest=solid_dir / "config.yml",
+        )
+        # The mesh name comes from the PARSED configuration, not from the spec the adapter
+        # config was built from: fed `source.solid.mesh_name` the check would compare a
+        # value against itself and pass on a deck the coupling could never find.
+        assert_adapter_config(
+            adapter,
+            spec=source.solid,
+            deck=deck,
+            mesh_name=_provided_mesh(produced, source.solid.participant),
+        )
+        assert_wetted_curve_matches(deck, source)
+
+        files = tuple(
+            MaterializedFile(path=str(path.relative_to(root)), sha256=_sha256_file(path))
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        )
+        tree = MaterializedTree(
+            root=root,
+            case_dir=case_dir,
+            source=source,
+            files=files,
+            mutations=_authored_mutations(
+                source, case_dir=case_dir, values=values, produced=produced, deck=deck
+            ),
+        )
+        return tree, produced
+
+    def _render_manifest(self, tree: MaterializedTree, spec: CoupledCaseSpec) -> str:
         """Select the manifest schema by an exhaustive match on the source discriminator."""
         source = tree.source
         case_dir_rel = str(tree.case_dir.relative_to(tree.root))
@@ -273,9 +478,12 @@ class PreciceCoupledSolver(Solver):
                     mutations=tree.mutations,
                 )
             case "authored":
-                raise PreciceSolverError(
-                    "the authored manifest emitter lands with the authored writer "
-                    "(Stage 20 Phase 3B)"
+                return render_authored_manifest_json(
+                    source=source,
+                    case_dir_rel=case_dir_rel,
+                    files=tree.files,
+                    mutations=tree.mutations,
+                    spec_sha256=spec_config_digest(spec),
                 )
             case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
                 assert_never(unreachable)
@@ -294,7 +502,9 @@ class PreciceCoupledSolver(Solver):
             # so digest verification still runs against the bytes as acquired.
             _chown_tree(root, uid=spec.run_as_uid)
 
-        (root / "aero-manifest.json").write_text(self._render_manifest(tree), encoding="utf-8")
+        (root / "aero-manifest.json").write_text(
+            self._render_manifest(tree, spec), encoding="utf-8"
+        )
         self._trees[Path(host_path).name] = tree
         pin = spec.tutorial_pin
         logger.info(

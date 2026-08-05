@@ -53,8 +53,15 @@ jobs:
               # geometry helpers and the flapping kinematics, so this also fences the
               # path by which a solver dependency could reach the precice adapter.
               "aero.adapters.precice.calculix", "aero.adapters.precice.template",
-              "aero.adapters.precice.ccx_dat",
+              "aero.adapters.precice.ccx_dat", "aero.adapters.precice.manifest",
               "aero.adapters.openfoam.force_io", "aero.vv.alignment",
+              # ADR-037: `case.py` carries the fluid and solid specs so `config_hash`
+              # covers the geometry, which pulls the OpenFOAM writer into every consumer
+              # of the coupled case -- including `launcher.py`. Named explicitly rather
+              # than left to ride in transitively, so a future `import scipy` inside it
+              # is a named failure instead of a mystery.
+              "aero.adapters.openfoam.flexible_foil",
+              "aero.adapters.precice.case", "aero.adapters.precice.solver",
           ):
               importlib.import_module(mod)
 
