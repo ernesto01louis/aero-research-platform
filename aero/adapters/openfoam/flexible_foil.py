@@ -36,9 +36,13 @@ GCI remains admissible.
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.adapters.openfoam._foam_common import (
@@ -49,12 +53,16 @@ from aero.adapters.openfoam._foam_common import (
     turbulence_properties,
 )
 from aero.adapters.openfoam.case_writer import _blockmeshdict
+from aero.adapters.openfoam.force_io import last_occurrence_mask, strictly_increasing_mask
 from aero.adapters.openfoam.schemas import CaseSpec, TeardropPlateSection
 
 __all__ = [
     "FLUID_PARTICIPANT",
+    "INTERFACE_POWER_TAG",
     "WALL_PATCHES",
     "FlexibleFoilSpec",
+    "InterfacePowerHistory",
+    "read_interface_power",
     "write_flexible_foil_case",
 ]
 
@@ -520,3 +528,64 @@ def write_flexible_foil_case(spec: FlexibleFoilSpec, dest: Path) -> None:
     (constant / "dynamicMeshDict").write_text(_dynamic_mesh_dict(spec), encoding="utf-8")
     for name, text in _fields(spec).items():
         (zero / name).write_text(text, encoding="utf-8")
+
+
+# --------------------------------------------------------------------------------------
+# Reading the interface power back
+# --------------------------------------------------------------------------------------
+
+#: One emitted line: the tag, the time, the power, and the summed force components. The
+#: force columns are not decoration -- they are the cross-check that the object summed the
+#: SAME per-face force the `forces` object wrote to `force.dat`, measured at twelve
+#: significant figures on the session-5 spike.
+_INTERFACE_POWER_RE = re.compile(
+    rf"^{INTERFACE_POWER_TAG}\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s*$", re.MULTILINE
+)
+
+
+@dataclass(frozen=True, slots=True)
+class InterfacePowerHistory:
+    """P2 and the summed interface force, recovered from the solver log."""
+
+    t: NDArray[np.float64]
+    power: NDArray[np.float64]
+    force: NDArray[np.float64]
+    n_dropped: int
+
+
+def read_interface_power(log: str | Path, *, repeats: str = "last") -> InterfacePowerHistory:
+    """Parse the coded object's tagged lines out of the fluid participant's log.
+
+    Read from the LOG rather than from a file of its own because ``OFstream``'s append
+    signature has moved between OpenFOAM releases while ``Info`` has not, and a coded object
+    that fails to compile takes the whole campaign with it. The launcher captures the log
+    and it ships in the bundle either way.
+
+    ``repeats`` defaults to ``"last"``, unlike :func:`read_force_history`, because this
+    object exists only on the coupled path: under implicit coupling it executes once per
+    coupling ITERATION (its own docstring says so), and only the last row at a window time
+    is the converged one. Callers that want to classify the repeats first ask for ``"raw"``.
+    """
+    text = Path(log).read_text(encoding="utf-8") if isinstance(log, Path) else log
+    rows = _INTERFACE_POWER_RE.findall(text)
+    if not rows:
+        raise ValueError(
+            f"no {INTERFACE_POWER_TAG!r} lines in the fluid log. The coded interface-power "
+            "object did not run: either it failed to compile (OpenFOAM refuses to compile a "
+            "coded object as root -- the participant must drop to run_as_uid), or the "
+            "controlDict that was written is not the one that ran."
+        )
+    t = np.asarray([float(r[0]) for r in rows], dtype=np.float64)
+    power = np.asarray([float(r[1]) for r in rows], dtype=np.float64)
+    force = np.asarray([[float(r[2]), float(r[3])] for r in rows], dtype=np.float64)
+    if repeats == "raw":
+        keep = np.ones(t.size, dtype=bool)
+    elif repeats == "last":
+        keep = last_occurrence_mask(t)
+    elif repeats == "first":
+        keep = strictly_increasing_mask(t)
+    else:  # pragma: no cover - a typo in a literal
+        raise ValueError(f"unknown repeats policy {repeats!r}")
+    return InterfacePowerHistory(
+        t[keep], power[keep], force[keep], int(t.size - int(np.count_nonzero(keep)))
+    )
