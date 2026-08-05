@@ -49,6 +49,11 @@ jobs:
           for mod in (
               "aero", "aero.adapters._base", "aero.vv", "aero.cli", "aero.geometry",
               "aero.adapters.precice", "aero.vv.fsi",
+              # Stage 20: the authored-case modules. calculix imports the OpenFOAM
+              # geometry helpers and the flapping kinematics, so this also fences the
+              # path by which a solver dependency could reach the precice adapter.
+              "aero.adapters.precice.calculix", "aero.adapters.precice.template",
+              "aero.adapters.openfoam.force_io",
           ):
               importlib.import_module(mod)
 
