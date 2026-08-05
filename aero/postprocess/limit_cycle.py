@@ -120,10 +120,14 @@ class LimitCycleAnalysis(BaseModel):
         ...,
         min_length=1,
         description=(
-            "Per-signal PER-CYCLE samples over the analysis window. Kept rather than "
-            "collapsed to a mean because a paired-difference uncertainty is computed on "
-            "the per-cycle difference series, so discarding these made the paired path "
-            "uncallable -- the statistics alone cannot reconstruct them."
+            "Per-signal PER-CYCLE samples over the whole POST-DISCARD record -- anchored "
+            "at the discard, NOT at the settled tail. That is what pairs with "
+            "`convergence`: paired_delta_uncertainty checks n_cycles against the report "
+            "and slices [max(converged_from_cycle), min(n_cycles)) itself, so a tail-"
+            "anchored series would both fail its length check and apply the offset twice. "
+            "Kept rather than collapsed to a mean because the paired uncertainty is "
+            "computed on the per-cycle difference series; the statistics cannot "
+            "reconstruct them."
         ),
     )
     convergence: CycleConvergenceReport = Field(
@@ -286,7 +290,17 @@ def analyse_limit_cycle(
         series = values[window]
         signal = Signal.from_arrays(t_window, series, name=name)
         cycles = segment_cycles(signal, period=period)
-        per_signal_cycles[name] = cycles
+        # `cycles` is anchored at the POST-DISCARD origin, not at the settled tail, and
+        # deliberately so: `paired_delta_uncertainty` pairs it with `convergence` and
+        # slices [max(converged_from_cycle), min(n_cycles)) itself. Handing it the tail
+        # segmentation instead would fail its own report/samples length check whenever the
+        # tail starts after cycle 0 -- and, worse, would apply the converged-from offset
+        # twice, pairing cycle k of one arm against a different physical cycle of the other.
+        # The statistics below still come from the TAIL; the two are different objects for
+        # different jobs.
+        per_signal_cycles[name] = segment_cycles(
+            Signal.from_arrays(t_kept, values, name=name), period=period
+        )
         statistics[name] = SignalStatistics(
             name=name,
             mean=float(np.mean(cycles.per_cycle_mean)),

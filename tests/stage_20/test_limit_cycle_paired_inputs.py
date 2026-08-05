@@ -55,6 +55,29 @@ def _record(
     return t, {"thrust": thrust, "power": power}
 
 
+def _settling_record(
+    *,
+    offset: float = 0.4,
+    amplitude: float = 1.0,
+    cycles: int = 24,
+    transient_cycles: float = 1.0,
+    seed: int = 0,
+):
+    """A record with a REAL decaying transient, so the settled tail starts after cycle 0.
+
+    A fixture that is a limit cycle from the first sample makes the post-discard anchor and
+    the tail anchor identical, which hides exactly the misalignment these tests exist to
+    catch.
+    """
+    t = np.linspace(0.0, cycles * PERIOD, cycles * 400, endpoint=False)
+    rng = np.random.default_rng(seed)
+    decay = 0.3 * np.exp(-t / (transient_cycles * PERIOD))
+    jitter = rng.normal(0.0, 0.01 * max(abs(offset), 0.1), size=t.size)
+    thrust = offset + decay + amplitude * np.cos(2.0 * np.pi * t / PERIOD) + jitter
+    power = 2.0 * offset + decay + amplitude * np.sin(2.0 * np.pi * t / PERIOD) + jitter
+    return t, {"thrust": thrust, "power": power}
+
+
 class TestTheDefaultPathIsUnchanged:
     def test_the_detected_period_is_still_the_default(self) -> None:
         t, signals = _record()
@@ -121,15 +144,47 @@ class TestThePairedPathIsNowCallable:
         assert delta.mean_candidate - delta.mean_baseline == pytest.approx(0.15, abs=5e-3)
         assert delta.period == PERIOD  # the arms were segmented on the SAME prescribed period
 
-    def test_the_statistics_still_agree_with_the_kept_cycles(self) -> None:
-        # The cycles are the objects the statistics were computed FROM, so a mean of the
-        # per-cycle means must reproduce the reported mean exactly.
-        t, signals = _record(offset=0.3)
+    def test_the_cycles_are_anchored_where_the_report_expects(self) -> None:
+        """The kept samples must be POST-DISCARD anchored, not tail-anchored.
+
+        This is the one that bites on real data and not on a clean fixture. A record that
+        settles at cycle 0 makes the two anchorings identical, so a tail-anchored series
+        passes every check by luck; a record with a real transient does not.
+        `paired_delta_uncertainty` compares `report.n_cycles` against `samples.n_cycles`
+        and applies the converged-from offset ITSELF, so handing it the tail would fail
+        that check -- and, if the lengths happened to match, would apply the offset twice
+        and pair cycle k of one arm against a different physical cycle of the other.
+        """
+        t, signals = _settling_record()
         analysis = analyse_limit_cycle(t, signals, fundamental="thrust", period=PERIOD)
-        cycles = analysis.cycles_of("thrust")
-        assert float(np.mean(cycles.per_cycle_mean)) == pytest.approx(
-            analysis.of("thrust").mean, rel=1e-12
+        assert analysis.convergence.converged_from_cycle > 0, "fixture must actually settle late"
+        assert analysis.cycles_of("thrust").n_cycles == analysis.convergence.n_cycles
+        assert analysis.cycles_of("thrust").n_cycles > analysis.n_settled_cycles
+
+    def test_the_paired_path_accepts_two_arms_that_settle_at_different_cycles(self) -> None:
+        t_a, sig_a = _settling_record(offset=0.40, transient_cycles=0.8, seed=1)
+        t_b, sig_b = _settling_record(offset=0.55, transient_cycles=1.6, seed=2)
+        a = analyse_limit_cycle(t_a, sig_a, fundamental="thrust", period=PERIOD)
+        b = analyse_limit_cycle(t_b, sig_b, fundamental="thrust", period=PERIOD)
+        assert a.convergence.converged_from_cycle != b.convergence.converged_from_cycle
+
+        delta = paired_delta_uncertainty(
+            a.cycles_of("thrust"), a.convergence, b.cycles_of("thrust"), b.convergence
         )
+        # The window starts at the LATER of the two anchors, so cycle k means the same
+        # physical forcing cycle on both arms.
+        assert delta.pair_start == max(
+            a.convergence.converged_from_cycle, b.convergence.converged_from_cycle
+        )
+        assert delta.mean_candidate - delta.mean_baseline == pytest.approx(0.15, abs=1e-2)
+
+    def test_the_statistics_still_come_from_the_settled_tail(self) -> None:
+        # The statistics average the TAIL; `cycles` covers the whole post-discard record.
+        # Different objects for different jobs -- so on a settling record they differ.
+        t, signals = _settling_record(offset=0.3)
+        analysis = analyse_limit_cycle(t, signals, fundamental="thrust", period=PERIOD)
+        assert analysis.of("thrust").n_cycles == analysis.n_settled_cycles
+        assert analysis.of("thrust").n_cycles < analysis.cycles_of("thrust").n_cycles
 
     def test_an_unknown_signal_is_refused_by_name(self) -> None:
         t, signals = _record()
