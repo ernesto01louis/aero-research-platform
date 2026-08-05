@@ -38,14 +38,23 @@ coupled case — plus the pre-registration and a multi-day campaign.
 
 ## 1. Deliverables status
 
-| # | Deliverable (verbatim from the stage prompt) | Status | Note |
+*Current as of the end of session 4 (2026-08-04). Verified against the tree, not against
+the prose — every ❌ below was confirmed by `ls`.*
+
+| # | Deliverable (verbatim from the stage prompt) | Status | What exists / what does not |
 |---|---|:-:|---|
-| 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ⚠️ | Smoke **PASSES** on two containers; the *writers* are not built. Element choice now settled by evidence (§6.1) |
-| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ⚠️ | Reference **COMPLETE**: text-sourced exact, figures digitized, reference of record written, R2 passes, operating point fixed (§7.1). Two corrections to the committed file (§6.6, §6.7). The V&V case itself is not built |
-| 3 | Pre-registered gate block (ADR-037+) before any campaign run | ❌ | **Not started.** No campaign has run, so nothing is out of order |
-| 4 | Flexible-vs-rigid delta with `compose_improvement()` | ❌ | Not started |
-| 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, and exercised by a real run |
-| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-038 `proposed`; this handoff; **no tag, no verdict** |
+| 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ⚠️ | **Smoke PASSES on two containers** (upstream's bytes, `a9a2355`); element choice settled by evidence (§6.1). **`aero/adapters/precice/calculix.py` does not exist**, nor `templates/`. The writers are the single largest remaining chunk |
+| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ⚠️ | **Reference COMPLETE**: text-sourced exact, 208 markers digitized, `hg2007_recomputed.csv` written, R2 passes, operating point fixed (§7.1), two corrections landed (§6.6, §6.7). **`aero/vv/fsi/` still contains only `turek_hron_fsi3.py`** — the V&V case object does not exist |
+| 3 | Pre-registered gate block (ADR-039) before any campaign run | ❌ | **Not started.** ADR-037 and ADR-039 do not exist. Bands are *computed* (§6.13) but not pre-registered. No campaign has run, so nothing is out of order |
+| 4 | Flexible-vs-rigid delta with `compose_improvement()` | ❌ | Not started. `aero/vv/alignment.py`, `aero/adapters/openfoam/{flexible_foil,force_io}.py` do not exist |
+| 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, migration `005` applied, exercised by a real run. Two residuals: ADR-038 is still `proposed`, and **the CLI path never calls `assert_provenance_describes`** — a live gap, closed in Phase 3D |
+| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-038 `proposed`; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
+
+**Enabling work not on the deliverable list, done in session 4 because everything above
+depends on it:** the `source` seam under `CoupledCaseSpec` (`1bd7011` — an authored case
+had nowhere to live), the additive `PreciceConfigExpectation` extension (`10fcb70` —
+the C-family claim was not expressible), and the `transient_fvschemes` byte pin
+(`c682671` — the pin the plan relied on did not exist). Suite 348 → **418**.
 
 ## 2. Decisions made
 
