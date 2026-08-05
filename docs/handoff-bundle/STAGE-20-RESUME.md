@@ -1,4 +1,4 @@
-Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 5).
+Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 6).
 
 **THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR STAGE 20.** Four sessions have run and each left a
 resume prompt behind; the earlier ones are superseded and must not be followed. If you find
@@ -35,8 +35,9 @@ It is the last physics stage before the v0.1.0 checkpoint.
 | 2 | 2026-07-31 | `a161903`..`4765683` (11) + operator `85e0b32` | migration verified against 1280 rows; **figure digitization COMPLETE** (208 markers) and `hg2007_recomputed.csv` written, R2 passes; **operating point FIXED**; `TeardropPlateSection` in the C-grid, mesh spike passes; operator fixed `run_long.sh` stranding solves |
 | 3 | 2026-08-01 | `30aa126`..`a007689` (4) | **the two non-regression pins** (`67d8e82`) on pre-refactor code — the stage's most important ordering rule, done right; found the campaign does not fit its ceiling (§6.11), proposed **I7**, found `PreciceConfigExpectation` needs extending (§6.12), computed the bands (§6.13) |
 | 4 | 2026-08-04 | `1bd7011`..`b4bc801` (4) | **the `source` seam refactor**, the **`PreciceConfigExpectation` extension**, the **`transient_fvschemes` byte pin**; four operator decisions taken; **I3/I5 static baseline measured**; three corrections to the work-of-record (§6.14-§6.16) |
+| 5 | 2026-08-05 | `397af1c`..`b9f317f` (10) | **EVERY WRITER AND READER THE AUTHORED CASE NEEDS** — config template + renderer, CalculiX deck writer/re-reader, dimensional fluid deck, interface-power FO, force_io, `ddt_scheme=`, per-cycle limit-cycle objects, `alignment.py`, `.dat` reader. Pre-flight **S1, I6 and I3 pulled forward and PASSED**. Host rebooted mid-session; nothing lost |
 
-Suite 348 (Stage-19 close) → 380 (session 3) → **418** (session 4). Branch
+Suite 348 (Stage-19 close) → 380 (session 3) → 418 (session 4) → **581** (session 5). Branch
 `stage-20-flexible-flapping-wing-fsi`, PR **#44** (DRAFT), clean tree, pushed, aero-dev idle.
 
 ## 3. DONE AND VERIFIED — do not redo, do not re-derive
@@ -72,14 +73,28 @@ Suite 348 (Stage-19 close) → 380 (session 3) → **418** (session 4). Branch
 
 ## 4. WHAT DOES NOT EXIST — verified with `ls`, not inferred from prose
 
-    aero/adapters/precice/calculix.py          aero/adapters/precice/templates/
-    aero/adapters/openfoam/flexible_foil.py    aero/adapters/openfoam/force_io.py
-    aero/vv/alignment.py                       aero/vv/fsi/hg2007_flexible_foil.py
+*Session 5 built all the writers. What is left is WIRING, the ADRs, and the campaign.*
+
+    aero/vv/fsi/hg2007_flexible_foil.py        aero/vv/fsi/hg2007_readout.py
     docs/adrs/ADR-037-*.md                     docs/adrs/ADR-039-*.md
-    data/vv/stage20_i4_calibration.json
+    data/vv/stage20_i4_calibration.json        data/vv/stage20_i3_mesh.json
 
 `aero/vv/fsi/` contains only `turek_hron_fsi3.py`. **No campaign has run. No verdict exists and
 none may be made, because ADR-039 does not exist.**
+
+**These now EXIST and are tested (session 5) — do not rebuild them:**
+
+    aero/adapters/precice/template.py          aero/adapters/precice/templates/
+    aero/adapters/precice/calculix.py          aero/adapters/precice/ccx_dat.py
+    aero/adapters/openfoam/flexible_foil.py    aero/adapters/openfoam/force_io.py
+    aero/vv/alignment.py
+
+**The one structural gap between them and a running case:**
+`PreciceCoupledSolver._materialize` (`solver.py:237-242`) still RAISES for an authored
+source, and `_render_manifest`'s `case "authored"` branch (`solver.py:276-279`) raises too.
+That is the next commit; the handoff's §7 item **4b** specifies it, including the design
+decision it turns on (the physical spec must ride on `AuthoredSource`, or `config_hash`
+does not cover the geometry — a provenance hole).
 
 ## 5. NINE THINGS THAT WILL BITE YOU IF YOU SKIP THE HANDOFF
 
@@ -154,12 +169,45 @@ From session 4:
   rungs. Cutting settled cycles and accepting a budget NO-GO are the last resorts, in that order,
   and only if 14 days per wave is also exceeded.
 
+## 6b. FIVE MORE THINGS MEASURED IN SESSION 5 (handoff §6.17-§6.21) — do not re-derive
+
+1. **CalculiX truncates every numeric field at 20 characters.** A deck written at `%.16e`
+   (22 chars) made ccx 2.20 reject EVERY numeric card with rc=201 before a single increment.
+   `%.13e` works. A double needs 17 significant digits and does not fit, so chosen values
+   (dt, max_time, span) are required to be exactly representable and derived ones are
+   asserted to 1e-12 m.
+2. **A 70 005-row `*AMPLITUDE` table reads fine** (rc=0, ~2.9 s). Per-window sampling stays.
+3. **The `.dat` is a four-line record with a SEVEN-significant-digit time**, not a table.
+   Ten real records are committed as a fixture. Under implicit coupling a time repeats per
+   ITERATION — classified structurally, never assumed.
+4. **The coded interface-power FO compiles under `setpriv --reuid 1000`** and its force sum
+   matches `force.dat` to 12 significant figures; on a stationary mesh its power is −4.3e-18,
+   which proves it reads the WALL velocity.
+5. **At `farfield_extent_chords = 20` all six decks pass checkMesh outright.** Cell counts
+   reproduce §6.16 exactly (45 682 / 77 240 / 130 032) and non-ortho to four significant
+   figures, but aspect ratio is 309.9 not 1884.4, so `Mesh OK` PASSES. §6.16's argument still
+   stands; Stage 20's own mesh simply has no pre-existing failing check. Still a
+   measurement, not a record — the I3/I5 pre-flight must re-run it into `data/vv/`.
+
 ## 7. YOUR TASK, IN THIS ORDER
 
 Each commit must leave `pytest -q tests/unit tests/stage_20` green. The full commit-by-commit
-sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-aurora.md`.
+sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-aurora.md`;
+session 5's own plan, which that sequence was executed from, is
+`/root/.claude/plans/stage-20-flexible-logical-kay.md`.
 
-**Phase 3B — authored-case integrity (2 commits left).**
+**START HERE (session 6): the authored materialization.** `_materialize` and
+`_render_manifest` must stop raising for an authored source. Decide first where the physical
+spec lives — it must be on `AuthoredSource` so `config_hash` covers the geometry — then write
+the fluid case, the solid deck and the rendered XML under `<root>/<case_dir_name>/`, hash every
+file into `MaterializedFile` entries, and call the already-landed
+`render_authored_manifest_json(..., spec_sha256=...)`. Handoff §7 item 4b has the detail.
+Then the V&V case object, then Phase 3D's CLI wiring, then the ADRs, then pre-flight.
+
+**Phases 3B and 3C below are DONE except where noted** — kept for the rationale, which is
+still the specification the code was written against.
+
+**Phase 3B — authored-case integrity (DONE, `397af1c` + `460d972`).**
 
 - **C3 `precice-config.xml` template + renderer.** Committed template under
   `aero/adapters/precice/templates/` + `SHA256SUMS` verified on every read + renderer + re-read +
@@ -187,8 +235,11 @@ sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-
   `Eb^3/12` hand-check is 10 % off. The prescribed nose **is** part of the preCICE interface; with
   `ALPHA=0` and no damping, `<Sum RF.v> = P2` exactly, which is what makes D10 a real closure check.
 
-**Phase 3C — dimensional deck + readout (8 commits).** See the roadmap for the split. Load-bearing
-points the earlier prompts got wrong or omitted:
+**Phase 3C — dimensional deck + readout (DONE except the V&V case object,
+`e229ecf`..`b9f317f`).** Every point below is implemented and tested; they are kept because
+they are the reasons the code looks the way it does. What is NOT done: the V&V case object
+(`hg2007_flexible_foil.py` + `hg2007_readout.py`), which needs the authored materialization
+above first.
 
 - **The `controlDict` MUST carry the preCICE adapter function object** —
   `libs ("libpreciceAdapterFunctionObject.so")` + a `preciceAdapterFunctionObject`. No earlier
@@ -244,7 +295,10 @@ number.** Add shape-7 (every clause id is in the VERDICT line or the reported-on
 two sets are disjoint**) and shape-8 (ORDERED `(clause, band)` parity plus a band-less registry),
 and **mutation-test the tests** in-process on a mutated copy of the block string.
 
-**Phase 5 — pre-flight.** Ordered by leverage, not clause number: **I7 first** (measured max-Courant
+**Phase 5 — pre-flight.** **S1, I6 and I3 are DONE** (session 5, §6b) but have no `data/vv/`
+record with a four-fold tuple, so they are measurements and must be re-run into `data/vv/`
+before ADR-039 cites their numbers. Ordered by leverage, not clause number: **I7 first**
+(measured max-Courant
 — Courant on a moving mesh uses the RELATIVE flux, so §6.11's wall-cell arithmetic is probably
 conservative by a large factor, and `dt` decides the whole campaign), then I8, I6, I1, I3, I5, and
 finally **I4 calibrations that COMPLETE >=200 windows and end `all-exited`, both arms, every rung**.

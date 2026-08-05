@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-08-01
+date_completed: 2026-08-05
 session_duration_hours: 10
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: 67d8e8226b651890529f96a6a498f34b8d5c6c67
+git_sha_end: b9f317f53dfcd780c3d5582378ee3739ba219383
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -49,6 +49,11 @@ the prose — every ❌ below was confirmed by `ls`.*
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ❌ | Not started. `aero/vv/alignment.py`, `aero/adapters/openfoam/{flexible_foil,force_io}.py` do not exist |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, migration `005` applied, exercised by a real run. Two residuals: ADR-038 is still `proposed`, and **the CLI path never calls `assert_provenance_describes`** — a live gap, closed in Phase 3D |
 | 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-038 `proposed`; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
+
+**Session 5 (2026-08-05) moves deliverables 1 and 4 substantially.** Every writer and reader
+the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
+(the solver's authored materialization branch), not authorship. Deliverable 4's machinery —
+the paired path — is now callable, which it provably was not before. Details in §3 and §6.17-§6.21.
 
 **Enabling work not on the deliverable list, done in session 4 because everything above
 depends on it:** the `source` seam under `CoupledCaseSpec` (`1bd7011` — an authored case
@@ -175,6 +180,28 @@ the C-family claim was not expressible), and the `transient_fvschemes` byte pin
   the dict is `dict[str, str]` feeding a single-SIF `compute_provenance`. The container of record
   and the extras are already on `CoupledCaseSpec` (`container_of_record`, `extra_container_sifs`),
   so the CLI must derive them from the spec, not widen the table.
+
+**Session 5 (2026-08-05) — deviations, and why**
+
+- **Phases 3B and 3C landed except the solver's authored-materialization branch and the V&V
+  case object (C13/C14).** Ten commits, `397af1c`..`b9f317f`, suite 418 → **581**. Every
+  writer and reader exists, each with its own re-reader or assertion; what does not exist is
+  the code that CALLS them from `PreciceCoupledSolver._materialize`, which still raises for
+  an authored source. That is the next commit and it is fully specified — see §7 item 4b.
+- **Three pre-flight probes were pulled forward, out of the prompt's order** (S1, I6, and
+  most of I3), for the reason session 4 gave for measuring I3/I5 early: each one could have
+  invalidated something the ADRs would otherwise pre-register. All three changed the code
+  or the record — see §6.17, §6.19, §6.21. This is the same "measure before the ADR freezes"
+  discipline, applied three more times.
+- **`farfield_extent_chords` is 20, not the 100 §6.16's control implicitly used** (§6.21).
+  A deliberate choice with a measured consequence, recorded rather than absorbed.
+- **The Proxmox host rebooted mid-session.** Nothing was lost: all ten commits were already
+  pushed, the one uncommitted file was intact, aero-dev came back with the NFS mount healthy
+  and no stranded solves, and the two-container smoke re-passed on a clean tree. The only
+  casualty was an in-flight background review, which produced no findings and was not
+  re-run.
+- **No adversarial review pass was completed this session.** One was launched and died with
+  the host. Carried as an open item (§7 item 7) rather than quietly dropped.
 
 ## 4. Environment / dependency / schema changes
 
@@ -576,6 +603,102 @@ Raw JSON for both probes is in the session scratchpad; it must be re-run by the 
 into `data/vv/` with its own four-fold tuple before ADR-039 cites it. **These numbers are a
 measurement, not yet a record.**
 
+### 6.17 CalculiX truncates every numeric field at 20 characters — full precision cannot ride in a deck
+
+The solid deck was first written at `%.16e` (22 characters). ccx 2.20 rejected **every
+numeric card it read** — `*NODE`, `*ELASTIC`, `*DENSITY`, `*AMPLITUDE`, `*DYNAMIC` — with
+`*ERROR reading ...` and rc=201, before a single increment. It reads reals as `(1:20)`, so
+a wider field is truncated mid-number. At `%.13e` (19 characters, 14 significant digits)
+the identical deck reads, solves and exits 0 in 2.7 s.
+
+**A double needs 17 significant digits and does not fit**, once a sign and a negative
+exponent are there. So the deck writer splits the difference by ORIGIN: values the campaign
+*chooses* (`time_window_size`, `max_time`, `span`) must be exactly representable — a spec
+validator refuses them otherwise, which keeps the "solid dt equals the coupling window"
+assertion exact and costs nothing, because those numbers are picked and picking a round one
+is free. Values the geometry *derives* (node coordinates, amplitude rows) cannot be chosen,
+so they are asserted to 1e-12 m — eleven orders below the 76.5 µm plate.
+
+Generalise it: **any writer for a fixed-format solver input needs its precision measured,
+not assumed**, and the check belongs in the writer (`_num` refuses a too-wide field) rather
+than in a reviewer's eye.
+
+### 6.18 A 70 005-row `*AMPLITUDE` table is fine
+
+The campaign samples the prescribed plunge once per coupling window, which at the candidate
+`dt` is ~70 000 rows. ccx reads it without complaint: rc=0, ~2.9 s including 100 increments.
+So the S1 question "is there an `*AMPLITUDE` row limit" is answered — **not at this scale** —
+and the per-window sampling can stay, which matters because rows placed exactly where a
+`*DYNAMIC, DIRECT` step evaluates its boundary conditions make the interpolation error at
+the evaluation points zero rather than merely bounded.
+
+### 6.19 The `.dat` is a four-line record, not a table — and the coded FO compiles
+
+Both learned by running, both needed by the readout.
+
+`*NODE PRINT, NSET=Nnose, TOTALS=ONLY` + `RF` emits, per increment:
+
+    <blank>
+     total force (fx,fy,fz) for set NNOSE and time  0.5000000E-02
+    <blank>
+           -6.391247E-10  6.290534E-06 -7.841086E-16
+
+Note the time is printed at **seven significant digits**, so a record cannot be compared
+bitwise against the coupling schedule; `ccx_dat.assert_matches_schedule` maps onto window
+indices with a tolerance derived from that precision. Ten records of the real file are
+committed as a test fixture (`tests/stage_20/fixtures/ccx_dat/`) — a reader tested only
+against bytes its own test generates proves nothing but self-consistency.
+
+**The coded interface-power function object compiles and runs** under
+`setpriv --reuid 1000` (I6, brought forward). Its summed force reproduces `force.dat`'s
+total to **twelve significant figures**, and on a stationary mesh the power comes out at
+−4.3e-18 — the null result that proves it reads the *wall* velocity rather than a
+cell-centre one.
+
+### 6.20 The limit-cycle analysis had to expose per-cycle objects, and anchoring them is subtle
+
+`paired_delta_uncertainty` needs a `CycleSamples` and a `CycleConvergenceReport` per arm;
+`analyse_limit_cycle` computed both and discarded them, so the paired path could not be
+CALLED. Exposing them was the easy half.
+
+The hard half: they must be anchored at the **post-discard origin**, not at the settled
+tail. The estimator checks `report.n_cycles` against `samples.n_cycles` and applies the
+converged-from offset *itself*. A tail-anchored series fails that check whenever the tail
+starts after cycle 0 and — if the lengths ever coincided — would apply the offset twice,
+pairing cycle *k* of one arm against a different physical cycle of the other. **The first
+version of this commit had it wrong and every test passed**, because every fixture was a
+limit cycle from its first sample, so `converged_from_cycle` was 0 and the two anchorings
+coincided. A fixture with a real transient is what catches it. Generalise: *a fixture with
+no transient cannot test transient-dependent indexing.*
+
+Two smaller measured facts from the same work. A perfectly noiseless synthetic record makes
+the per-cycle difference series exactly constant, and the batch-means estimator **refuses**
+it ("not a real limit cycle") — correctly; a credible fixture must carry variance. And an
+exponential transient with too long a time constant leaves enough residual that the
+CUMULATIVE drift bound refuses the record outright, so a settling fixture has to decay
+within about a cycle.
+
+### 6.21 At a 20-chord far field the mesh passes checkMesh outright — §6.16's numbers reproduce otherwise exactly
+
+All six decks (three rungs × two arms) meshed on aero-dev. Cell counts reproduce §6.16
+**exactly** — 45 682 / 77 240 / 130 032, uniform refinement ratio 1.30 — and
+non-orthogonality matches to four significant figures (mid 85.2339 vs the recorded 85.230;
+fine 86.3174 vs 86.315), as do the minimum volumes (4.129e-12 vs 4.133e-12 at mid). The two
+arms differ only in the fifth significant figure of every metric, so **the paired increment
+is not confounded by mesh quality**.
+
+The one difference is aspect ratio: **309.9 here against the recorded 1884.4**, and
+`Mesh OK` therefore **passes** on all six where §6.16 recorded it failing. The cause is
+`farfield_extent_chords = 20` (the Stage-11/13 plunging-foil precedent, and already four
+times more open than HG's own tunnel, whose walls sit 4-5 chords away) rather than the
+`CaseSpec` default of 100.
+
+This does **not** overturn §6.16's argument — an absolute M1/M2 gate is still fragile, and
+I5 still gates degradation against the recorded baseline — but ADR-039 should say plainly
+that at the chosen far field Stage 20's own mesh has no pre-existing failing check to
+explain away. **These numbers are still a measurement, not a record**: the I3/I5 pre-flight
+must re-run them into `data/vv/` with a four-fold tuple before the ADR cites them.
+
 ## 7. Open items for the next stage (and beyond)
 
 **Blocking, in order — this is the resumption path**
@@ -665,18 +788,69 @@ measurement, not yet a record.**
    `host_path/CASE_ROOT_DIRNAME` and assert `tree.root.name == CASE_ROOT_DIRNAME` in a validator,
    or `case_dir` and every mutation `path` shift.
 
-4. **Author the coupled case** — the largest remaining chunk: CalculiX `.inp` writer + re-reader,
-   adapter `config.yml` writer, a committed digest-verified `precice-config.xml` template with a
-   renderer, a **dimensional** OpenFOAM fluid writer (do **not** reuse `plunging_airfoil.py`; it
-   hard-codes `RHO_INF = U_INF = 1.0`), the force/power path on the coupled route
-   (`PreciceCoupledSolver.load()` returns `cd=None, cl=None` today), and the V&V case registered in
-   **all three** `aero/cli.py` sites.
+4. ~~**Author the coupled case**~~ — **the WRITERS are all DONE (session 5, `397af1c`..`b9f317f`).**
+   Landed, each with its own re-reader or assertion: the digest-pinned `precice-config.xml`
+   template + renderer (`aero/adapters/precice/template.py`); the CalculiX `.inp` writer +
+   re-reader + `config.yml` reader (`aero/adapters/precice/calculix.py`); the dimensional
+   fluid deck (`aero/adapters/openfoam/flexible_foil.py`) with the adapter function object,
+   both wall patches everywhere, fixed `dt` and `timePrecision 12`; the interface-power
+   object (P2); the promoted force readers with `n_dropped`
+   (`aero/adapters/openfoam/force_io.py`); `ddt_scheme=` on `transient_fvschemes`; the
+   per-cycle objects and prescribed period on `analyse_limit_cycle`; the cross-arm checks
+   and efficiency helpers (`aero/vv/alignment.py`); and the `.dat` reader with structural
+   cadence classification (`aero/adapters/precice/ccx_dat.py`).
+
+4b. **WHAT IS LEFT OF IT — the next commit, fully specified.**
+   `PreciceCoupledSolver._materialize` (`solver.py:237-242`) still RAISES for an authored
+   source, and `_render_manifest`'s `case "authored"` branch (`solver.py:276-279`) raises
+   too. Wiring them up is the whole remaining gap between "every writer exists" and "the
+   case runs".
+
+   **The design decision to make first, because it has a provenance consequence.** The
+   physical spec — geometry, materials, kinematics, the flow state — must be reachable from
+   `CoupledCaseSpec`, i.e. carried ON `AuthoredSource`. If it is not, `config_hash` does not
+   cover it, and two runs with different plate thicknesses hash identically: a provenance
+   hole of exactly the class ADR-038 exists to close. That means `case.py` importing
+   `FlexibleFoilSpec` and `CalculiXSolidSpec`. Both are pure stdlib+numpy+pydantic and the
+   import fence already covers them, so the cost is module weight, not correctness — but
+   `_materialize`'s own docstring warns about what `case.py` pulls into every launcher
+   consumer, so make the call deliberately and record it in ADR-037.
+
+   Then: `_materialize` for authored writes the fluid case, the solid deck and the rendered
+   XML under `<root>/<case_dir_name>/`, hashes every written file into `MaterializedFile`
+   entries, and returns the tree plus the parsed config. `_render_manifest` calls the
+   already-landed `render_authored_manifest_json(..., spec_sha256=...)`
+   (`manifest.py:107-144`). Note `MaterializedTree.files` has `min_length=1` and
+   `DeclaredMutation.kind` already accepts `"authored"` with `before_sha256=None`.
+
+   Only then the V&V case object (`aero/vv/fsi/hg2007_flexible_foil.py` + a
+   `hg2007_readout.py`) and the CLI wiring (§7 item 5 of the RESUME's Phase 3D).
 5. **ADR-039, before any campaign run.** Families P/C/I/R/K/S/**A**/D/**M**/X, byte-bound to the
    driver, with the two deliberate improvements on ADR-036: every gated clause named in the VERDICT
    line (ADR-036 omitted S5 — the clause its own review had just added), and a shape-7 test
    asserting every clause identifier is either in the VERDICT line or the reported-only list.
 6. **Pre-flight + I4**, then the campaign. **Do not extrapolate a rate from the transient**: Stage
    19 was off by 3.5-9.6× in one direction and the B3 diagnostic by ~1.8× in the other.
+
+   **Three probes are already done** (session 5, pulled forward): **S1** — the ccx spike, see
+   §6.17/§6.18/§6.19; **I6** — the coded FO compiles under `setpriv --reuid 1000` and its
+   force sum matches `force.dat` to 12 significant figures, §6.19; **I3** — all six decks
+   mesh, counts reproduce §6.16 exactly, §6.21. None of the three has a `data/vv/` record
+   with a four-fold tuple yet, so **they are measurements, not records**, and the pre-flight
+   must re-run them into `data/vv/` before ADR-039 cites any of their numbers.
+
+   **I7 is still the first thing to run and still decides the campaign** — the measured
+   max-Courant fixes `dt`, and `dt` fixes B2, the ladder and the waves. Everything needed to
+   run it now exists: the decks write, they mesh, and `moveDynamicMesh`/`pimpleFoam` can be
+   pointed at them.
+
+7. **No adversarial review pass has been run over the session-5 code.** One was launched and
+   died with the host reboot, producing nothing. Ten commits of new writers and readers have
+   had only their own tests over them. Worth a pass before the ADRs freeze — with attention
+   to the two places a defect would be invisible: the token/expectation agreement in
+   `template.py` (the expectation and the committed template state the coupling numerics
+   twice, and only their agreement is checked), and `calculix.py`'s `assert_calculix_deck`,
+   whose clauses are the only thing standing between a wrong deck and a plausible number.
 
 **Design decisions already taken, do not re-litigate**
 
@@ -716,9 +890,11 @@ Stage 20 rather than starting 21.
 - **Do not re-derive:** the `ccx_preCICE` conventions (§6.1 — they came from upstream's bytes), the
   HG geometry and uncertainties (`reference.md`, text-sourced and exact), or the provenance
   decision (ADR-038 records the rejected alternative and why).
-- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**418** pass), then
-  `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to end;
-  re-verified PASS on 2026-08-04, `stopped_by=all-exited`, both participants rc=0, 2790 cells).
+- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**581** pass as of session 5),
+  then `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to
+  end; re-verified PASS on 2026-08-05 after the host reboot, `stopped_by=all-exited`, both
+  participants rc=0, 2790 cells). Note the smoke REFUSES a dirty tree — that is the provenance
+  gate, not a fault; commit first.
 - **Do NOT re-derive:** the ADR-036 band-regex defects. Measured this session, and the
   work-of-record had them wrong: `r"^\s+(D\d) [^\n]*within (\d+) %"` **silently DROPS** `D9` and
   `D10` (it needs a literal space after the id, so `D10 ` never matches), the phantom pair comes
@@ -737,10 +913,27 @@ Stage 20 rather than starting 21.
   session's roadmap, with the two operator decisions folded in, is
   `/root/.claude/plans/stage-20-flexible-cryptic-umbrella.md`.
 
+- **Session-5 additions to "do not re-derive":** the CalculiX 20-character field limit and the
+  representable-value split it forces (§6.17); the `.dat` four-line record shape and its
+  seven-digit time (§6.19); that the coded FO compiles under `setpriv --reuid 1000` and that
+  its force sum matches `force.dat` (§6.19); that a 70 k-row `*AMPLITUDE` table is fine
+  (§6.18); and the mesh table at `farfield_extent_chords = 20` (§6.21). All five were
+  measured on aero-dev, and four of them changed the code.
+
 ## 9. Artifacts produced
 
-7 commits on `stage-20-flexible-flapping-wing-fsi`, PR **#44** (draft, all 10 host-side required
-checks green). New: ADR-038; `db/migrations/005_container_set.{py,sql}`;
+**Session 5 (2026-08-05): 10 commits, `397af1c`..`b9f317f`, suite 418 → 581.** New modules:
+`aero/adapters/precice/{template.py,calculix.py,ccx_dat.py}`,
+`aero/adapters/precice/templates/{hg2007-precice-config.xml.in,SHA256SUMS}`,
+`aero/adapters/openfoam/{flexible_foil.py,force_io.py}`, `aero/vv/alignment.py`. Modified:
+`aero/postprocess/limit_cycle.py` (per-cycle objects + prescribed period),
+`aero/adapters/openfoam/{_foam_common.py,solver.py}`, `import-platform-only.yml` (five new
+fenced modules). New tests: `tests/stage_20/test_{precice_config_template,calculix_deck,
+force_io,ddt_scheme,flexible_foil_deck,limit_cycle_paired_inputs,alignment,ccx_dat}.py` plus
+the real-bytes fixture `tests/stage_20/fixtures/ccx_dat/ccx220-node-print-totals.dat`.
+
+Earlier sessions: 7 commits on `stage-20-flexible-flapping-wing-fsi`, PR **#44** (draft, all 10
+host-side required checks green). New: ADR-038; `db/migrations/005_container_set.{py,sql}`;
 `scripts/stage20_{acquire_perpendicular_flap,calculix_smoke}.py`;
 `scripts/grant_aero_build_ssh_to_aero_dev.sh` + its runbook; `tests/stage_20/` (45 tests);
 `data/references/fsi/{heathcote_gursul_2007,precice_perpendicular_flap}/`;
