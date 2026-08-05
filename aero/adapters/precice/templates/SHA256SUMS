@@ -1,0 +1,13 @@
+# sha256 digests of the committed coupling-configuration templates.
+#
+# Verified on EVERY read by aero.adapters.precice.template.read_template, and carried
+# into each authored run's manifest as AuthoredSource.template_sha256. Everything in a
+# template that is not an @TOKEN@ is pinned by these bytes: max-iterations, both
+# convergence limits and every IQN-ILS knob cannot be loosened without moving a digest
+# that ships in the bundle. That is the authored-case analogue of ADR-036 gate C2.
+#
+# Regenerate (only alongside a deliberate template change, and bump
+# template.RENDERER_VERSION in the same commit):
+#     cd aero/adapters/precice/templates && sha256sum *.xml.in > /tmp/sums
+#
+f8fecb3e8271d6db0d40381bb2934cd661be0c9c5c516ac6c15811cbd16709c9  hg2007-precice-config.xml.in
