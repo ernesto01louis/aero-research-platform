@@ -1,6 +1,7 @@
 # ADR-038 — Multi-container provenance: a container roster, not a composite digest
 
-- **Status:** proposed
+- **Status:** accepted (2026-08-06, Stage 20 — the roster is exercised by a real two-container
+  run and the CLI now enforces the obligation it defines; see the ratification note at the end)
 - **Date:** 2026-07-30
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 20)
 - **Stage:** 20
@@ -173,3 +174,30 @@ that actually matters.
 - Code: `aero/provenance/four_fold.py`, `aero/provenance/db.py`, `aero/provenance/mlflow.py`,
   `aero/adapters/precice/case.py`, `db/migrations/005_container_set.{py,sql}`,
   `tests/stage_20/test_multi_container_provenance.py`
+
+## Ratification note (2026-08-06)
+
+`proposed` since 2026-07-30, held open deliberately: the decision's whole claim is that a roster
+says what happened rather than encoding it, and that is only demonstrable against a real
+two-container run.
+
+What closed it:
+
+- **The roster is exercised end to end.** The CalculiX smoke re-ran at `21840e0` on a clean tree
+  and logged `container_sif_set` naming both SIFs with their real digests beside a
+  `container_sif_sha256` for the container of record. Migration `005_container_set` has been
+  applied since 2026-07-31 and verified against 1280 historical rows, all correctly `NULL`.
+- **The obligation now has a call site.** ADR-038's substance is not the field — it is
+  `assert_provenance_describes`, the property that replaced Stage 19's blanket refusal of gated
+  multi-container runs. It had **zero call sites** until Stage 20's Phase 3D (`7f1d584`), which
+  means the roster could have been silently empty on a two-SIF run for as long as it existed.
+  It is now called immediately after `compute_provenance` and before anything runs, with the
+  SIFs derived from the spec's own `container_of_record` / `extra_container_sifs` rather than
+  from `_SOLVER_SIF` — which is `dict[str, str]` and structurally cannot name two containers.
+- **Backward compatibility held.** Every pre-Stage-20 record carries an empty roster and a
+  single `container_sif_sha256`, unchanged; a single-container case with a non-empty roster is
+  refused, so the two shapes cannot blur.
+
+Option 3 (keep multi-container runs non-gated) is therefore **not taken**, and the contingency
+it described — a NO-GO-with-partial-delivery on the grounds that the gated claim could not be
+expressed — does not apply.
