@@ -36,9 +36,9 @@ It is the last physics stage before the v0.1.0 checkpoint.
 | 3 | 2026-08-01 | `30aa126`..`a007689` (4) | **the two non-regression pins** (`67d8e82`) on pre-refactor code — the stage's most important ordering rule, done right; found the campaign does not fit its ceiling (§6.11), proposed **I7**, found `PreciceConfigExpectation` needs extending (§6.12), computed the bands (§6.13) |
 | 4 | 2026-08-04 | `1bd7011`..`b4bc801` (4) | **the `source` seam refactor**, the **`PreciceConfigExpectation` extension**, the **`transient_fvschemes` byte pin**; four operator decisions taken; **I3/I5 static baseline measured**; three corrections to the work-of-record (§6.14-§6.16) |
 | 5 | 2026-08-05 | `397af1c`..`b9f317f` (10) | **EVERY WRITER AND READER THE AUTHORED CASE NEEDS** — config template + renderer, CalculiX deck writer/re-reader, dimensional fluid deck, interface-power FO, force_io, `ddt_scheme=`, per-cycle limit-cycle objects, `alignment.py`, `.dat` reader. Pre-flight **S1, I6 and I3 pulled forward and PASSED**. Host rebooted mid-session; nothing lost |
-| 6 | 2026-08-06 | `227ffed`..`21840e0` (4) | **THE AUTHORED CASE MATERIALIZES AND HAS A V&V OBJECT.** `_materialize`/`_render_manifest`/`load` all dispatch on the source; 18 files written and re-read; `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`, both arms registered. **Two silent-wrong-number defects fixed** (§6.22, §6.23), one from the adversarial review. Smoke re-passed at HEAD |
+| 6 | 2026-08-06 | `227ffed`..`d6f0b99` (7) | **THE AUTHORED CASE MATERIALIZES, HAS A V&V OBJECT, AND IS WIRED.** `_materialize`/`_render_manifest`/`load` all dispatch on the source; 18 files written and re-read; `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`, both arms registered; Phase 3D closed ADR-038's residual. **Two silent-wrong-number defects fixed** (§6.22, §6.23), one from the adversarial review. **ADR-037 written, ADR-038 accepted.** Smoke re-passed at HEAD |
 
-Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **664** (session 6). Branch
+Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **672** (session 6). Branch
 `stage-20-flexible-flapping-wing-fsi`, PR **#44** (DRAFT), clean tree, pushed, aero-dev idle.
 
 ## 3. DONE AND VERIFIED — do not redo, do not re-derive
@@ -77,8 +77,9 @@ Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **664** (s
 *Sessions 5 and 6 built every writer, the materializer, the readout and the V&V case object.
 What is left is the CLI wiring, the ADRs, the pre-flight and the campaign.*
 
-    docs/adrs/ADR-037-*.md                     docs/adrs/ADR-039-*.md
+    docs/adrs/ADR-039-*.md                     (the gate block — NOTHING may run before it)
     scripts/stage20_hg2007_flexible_foil.py    (the campaign driver)
+    tests/unit/test_adr039_*.py                (the binding tests — tests/unit, NOT stage_20)
     data/vv/stage20_i4_calibration.json        data/vv/stage20_i3_mesh.json
 
 **No campaign has run. No verdict exists and none may be made, because ADR-039 does not
@@ -233,9 +234,24 @@ sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-
 session 5's own plan, which that sequence was executed from, is
 `/root/.claude/plans/stage-20-flexible-logical-kay.md`.
 
-**START HERE (session 7): Phase 3D, the CLI.** It is one commit, and it closes two live
-provenance faults rather than adding a feature — see below. Then the ADRs, then pre-flight,
-then wave 1. Phases 3A/3B/3C and the V&V case object are DONE (sessions 4-6).
+**START HERE (session 7): ADR-039, then the campaign driver, then pre-flight, then wave 1.**
+Phases 3A/3B/3C, the V&V case object and Phase 3D are all DONE (sessions 4-6), and **ADR-037
+and ADR-038 are both `accepted`**. What is left is the pre-registration, the driver that
+byte-duplicates it, the I-clauses and the campaign.
+
+Three things make ADR-039 cheaper than it looks, and one makes it safer:
+
+- the ORDERED band registry already exists as `hg2007_flexible_foil.CLAUSE_BANDS`, with
+  `(no band)` as a first-class value — shape-8 has a real object to compare against;
+- shape-7's property (gated XOR reported-only, disjoint and exhaustive) is already asserted
+  against that registry by `test_the_gated_and_reported_only_sets_are_disjoint_and_exhaustive`;
+  what is missing is the ADR side;
+- **the binding tests go in `tests/unit/`** — `tests/stage_20` is not in CI (§6c item 3), so a
+  parity test living there would never run;
+- **`GATED_TIME_WINDOW_S` / `GATED_MAX_TIME_S` are already `None`** and
+  `is_gated_configuration` returns False while they are, so no configuration can claim the
+  gated verdict until the pre-flight fills them. The "pre-register before any campaign run"
+  ordering is structural now, not a rule to remember.
 
 **Phases 3B and 3C below are DONE except where noted** — kept for the rationale, which is
 still the specification the code was written against.
@@ -321,6 +337,9 @@ above first.
   like FSI3's, so the registry holds a callable or the solver builds it per case.
 - The three `FSI_CASES` sites and `import-platform-only.yml` are **already done** (session 6:
   both arms registered, and the fence names the six new modules).
+
+**Phase 3D is DONE** (`7f1d584`). Both faults above are closed and pinned by
+`tests/stage_20/test_cli_coupled_provenance.py`.
 
 **Phase 4 — ADRs, BEFORE any campaign run.** ADR-037 (authored-case architecture; record the two
 honest divergences — FSI3's `config_hash` moved `c524faff...` → `3f94f394...`, and the driver's K1

@@ -8,7 +8,7 @@ session_duration_hours: 14
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: 21840e095e3675c224c3129e81585add221b387c
+git_sha_end: d6f0b99ee0f5b0ee2d1f8b3e0f2a5c7b9d4e6a13
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -47,23 +47,26 @@ the prose — every ❌ below was confirmed by `ls`.*
 | 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ✅ | **Reference COMPLETE**: text-sourced exact, 208 markers digitized, `hg2007_recomputed.csv` written, R2 passes, operating point fixed (§7.1), two corrections landed (§6.6, §6.7). `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py` landed session 6 (`21840e0`); both arms registered in all three `FSI_CASES` sites' source of truth |
 | 3 | Pre-registered gate block (ADR-039) before any campaign run | ❌ | **Not started.** ADR-037 and ADR-039 do not exist. Bands are *computed* (§6.13) but not pre-registered. No campaign has run, so nothing is out of order |
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ⚠️ | Every input exists and is measured per arm (`ArmReadout` carries the per-cycle series the paired estimator needs). `align_arms` was hardened in session 6 (§6.23). The composition itself is the campaign driver's and lands with ADR-039 |
-| 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, migration `005` applied, exercised by a real run. Two residuals: ADR-038 is still `proposed`, and **the CLI path never calls `assert_provenance_describes`** — a live gap, closed in Phase 3D |
-| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-038 `proposed`; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
+| 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038 `accepted` 2026-08-06.** Both residuals closed in session 6: the CLI derives the SIFs from the spec and calls `assert_provenance_describes` (`7f1d584`), and a per-CASE stage/solver-version override stops a Stage-20 bundle claiming a Nutils solid |
+| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | **ADR-037 `accepted`, ADR-038 `accepted`** (session 6); **ADR-039 NOT written**; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
 
 **Session 5 (2026-08-05) moves deliverables 1 and 4 substantially.** Every writer and reader
 the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
 (the solver's authored materialization branch), not authorship. Deliverable 4's machinery —
 the paired path — is now callable, which it provably was not before. Details in §3 and §6.17-§6.21.
 
-**Session 6 (2026-08-06) closes deliverables 1 and 2.** The authored case **materializes end
+**Session 6 (2026-08-06) closes deliverables 1, 2 and 5.** The authored case **materializes end
 to end** (`227ffed`): `_materialize` and `_render_manifest` no longer raise, an authored spec
 writes 18 files under `<root>/<case_dir_name>/`, every one is re-read, and the schema-v2
 manifest binds `spec_sha256` to the digest `config_hash` will compute. **`aero/vv/fsi/` now
 holds the Heathcote-Gursul case** (`21840e0`) — both arms registered, the band-less predicate
 registry, and a readout that structurally cannot skip the gates. Two silent-wrong-number
 defects were fixed on the way (§6.22, §6.23), one of them found by the adversarial review
-this stage had been carrying as an open item. Suite **581 → 664**. What remains: the CLI
-wiring, the ADRs, the pre-flight and the campaign.
+this stage had been carrying as an open item. **Phase 3D wired the CLI** (`7f1d584`), which
+closed ADR-038's live residual — `assert_provenance_describes` had zero call sites — and
+stopped a Stage-20 bundle claiming a Nutils solid. **ADR-037 written and ADR-038 ratified**
+(`d6f0b99`). Suite **581 → 672**, mypy clean, seven commits `227ffed`..`d6f0b99`.
+**What remains: ADR-039, the pre-flight, and the campaign.**
 
 **Enabling work not on the deliverable list, done in session 4 because everything above
 depends on it:** the `source` seam under `CoupledCaseSpec` (`1bd7011` — an authored case
@@ -1010,19 +1013,39 @@ object; all three were unreachable before.
    resumeFromRunId: "wf_3d8de5fa-a13"})` replays the completed agents from cache and re-runs
    only the ones that died.
 
-8. **Phase 3D CLI wiring — NOT started, and it carries two live provenance faults.**
-   - `_SOLVER_VERSIONS["precice"]` reads `"preCICE 3.4.1 (OpenFOAM-ESI v2412 + Nutils 9.2)"`
-     (`cli.py:47-51`) and `stage_str = "19"` for every precice run (`cli.py:650-659`). Both
-     ride into MLflow tags, so **a Stage-20 bundle would claim a Nutils solid**. Key both by
-     CASE, not by solver name.
-   - **`assert_provenance_describes` still has zero call sites** (`case.py`). Without it a
-     two-container run logs an empty roster and silently omits CalculiX — the ADR-038 residual
-     this stage opened with. Derive `container_sif` / `extra_container_sifs` FROM THE SPEC; do
-     not widen `_SOLVER_SIF`, which is `dict[str, str]` feeding a single-SIF
-     `compute_provenance`.
-   - Move the expectation off the `cli.py:115-121` hard-wire into a name-keyed registry with
-     `Field(exclude=True)`. Note the HG expectation is DERIVED from the spec
-     (`hg2007_expectation(source.coupling_values())`), not a module constant like FSI3's.
+8. ~~**Phase 3D CLI wiring**~~ — **DONE 2026-08-06 at `7f1d584`.** Both provenance faults
+   closed: `_CASE_PROVENANCE` overrides stage and solver_version by CASE (a Stage-20 bundle
+   said "Nutils 9.2" and stage 19), and `assert_provenance_describes` is called immediately
+   after `compute_provenance` with the SIFs derived from the spec. The expectation is resolved
+   by name; an authored case gets `None`, because its expectation is derived from its own spec
+   and the materializer asserts it inside `write_precice_config` — asserting the same thing
+   from two sources is how two copies drift.
+
+9. **ADR-039 — THE NEXT THING, and nothing may run before it.** Not started. Everything it
+   needs is now in place and machine-checkable:
+   - the ORDERED band registry is `hg2007_flexible_foil.CLAUSE_BANDS`, with `(no band)` as a
+     first-class value — so the shape-8 parity test has a real object to compare against, and
+     D9/D10 cannot vanish the way ADR-036's did;
+   - the gated/reported-only partition is already asserted disjoint and exhaustive by
+     `test_the_gated_and_reported_only_sets_are_disjoint_and_exhaustive`, which is shape-7's
+     property — the ADR side of it is what is missing;
+   - **the binding tests go in `tests/unit/`** (§6.24), beside `test_stage19_gate_block_sync.py`.
+     `tests/stage_20` is not in CI, so a parity test there would not run;
+   - B2 carries `<<B2-PENDING-I4>>` and a committed pure sizing function. The **`GATED_TIME_WINDOW_S`
+     / `GATED_MAX_TIME_S` sentinels are already `None`**, so no configuration can claim the
+     gated verdict until the pre-flight fills them — the ordering is structural, not a rule;
+   - the band regex must be anchored at exactly two spaces (`^ {2}`), use `[A-Z]\d{1,2}`, be
+     NON-greedy, accept fractional percents and `\(no band\)`, and guard one band token per
+     line. Do not re-derive ADR-036's four defects; they are measured (§6.13, §8).
+   - **ADR-039 must state that the D3/D4 increment has no V&V dashboard row** — it needs both
+     arms, so it is composed by the driver, and the registry-driven report cannot see it.
+
+10. **The campaign driver `scripts/stage20_hg2007_flexible_foil.py` does not exist.** It is
+   what byte-duplicates ADR-039's gate block into every bundle (the ADR-036 pattern, and the
+   thing `test_adr039_gate_block_sync.py` compares against). It also owns the D3/D4 increment,
+   because that needs both arms, and the D5/D6/D7 predicate results, because
+   `BenchmarkRunner.run` computes status from `metrics()` alone and would otherwise
+   under-report the two clauses carrying HG's headline claim.
 
 
 **Design decisions already taken, do not re-litigate**
