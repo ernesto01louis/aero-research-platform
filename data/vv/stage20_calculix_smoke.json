@@ -1,0 +1,126 @@
+{
+  "case": "calculix_perpendicular_flap_smoke",
+  "coupled_status": {
+    "executor_returncode": 0,
+    "outcomes": [
+      {
+        "ended_epoch": 1785447958.0,
+        "log_path": "/mnt/aero/runs/calculix_perpendicular_flap_smoke-20260730-214518/tutorial/Fluid.log",
+        "log_tail": "Time = 0.5\n\nPIMPLE: iteration 1\nsmoothSolver:  Solving for cellDisplacementx, Initial residual = 0.0121315, Final residual = 5.31626e-18, No Iterations 2\nsmoothSolver:  Solving for cellDisplacementy, Initial residual = 0.0101465, Final residual = 5.55281e-18, No Iterations 2\nDICPCG:  Solving for pcorr, Initial residual = 1, Final residual = 0.000835765, No Iterations 66\nDICPCG:  Solving for pcorr, Initial residual = 0.0287042, Final residual = 7.14106e-09, No Iterations 87\ntime step continuity errors : sum local = 1.62575e-12, global = 3.6675e-14, cumulative = -2.77964e-08\nsmoothSolver:  Solving for Ux, Initial residual = 0.000656831, Final residual = 6.79599e-07, No Iterations 12\nsmoothSolver:  Solving for Uy, Initial residual = 0.00168596, Final residual = 8.69409e-07, No Iterations 14\nDICPCG:  Solving for p, Initial residual = 0.000803097, Final residual = 7.51209e-07, No Iterations 65\nDICPCG:  Solving for p, Initial residual = 0.000166204, Final residual = 1.24059e-07, No Iterations 64\ntime step continuity errors : sum local = 4.02938e-09, global = 1.82409e-10, cumulative = -2.7614e-08\nDICPCG:  Solving for p, Initial residual = 0.000257398, Final residual = 2.52164e-07, No Iterations 60\nDICPCG:  Solving for p, Initial residual = 1.20705e-05, Final residual = 8.04046e-09, No Iterations 62\ntime step continuity errors : sum local = 2.6117e-10, global = 7.22014e-13, cumulative = -2.76133e-08\nDICPCG:  Solving for p, Initial residual = 0.000184497, Final residual = 1.74852e-07, No Iterations 58\nDICPCG:  Solving for p, Initial residual = 8.46521e-06, Final residual = 9.62702e-09, No Iterations 61\ntime step continuity errors : sum local = 3.12697e-10, global = 5.65346e-12, cumulative = -2.76077e-08\nDICPCG:  Solving for p, Initial residual = 0.000154372, Final residual = 1.44924e-07, No Iterations 60\nDICPCG:  Solving for p, Initial residual = 7.18027e-06, Final residual = 9.31562e-09, No Iterations 60\ntime step continuity errors : sum local = 3.0258e-10, global = 6.40237e-12, cumulative = -2.76013e-08\nExecutionTime = 2.95 s  ClockTime = 5 s\n\n---[precice] \u001b[0m Mapping \"Force\" for t=0.5 from \"Fluid-Mesh\" to \"Solid-Mesh\"\n---[precice] \u001b[0m Time window completed\n---[precice] \u001b[0m Mapping \"Displacement\" for t=0.5 from \"Solid-Mesh\" to \"Fluid-Mesh\"\n---[precice] \u001b[0m Reached end at: final time-window: 50, final time: 0.5\n---[preciceAdapter] The coupling timestep completed. Writing the updated results.\n---[preciceAdapter] The coupling completed.\n---[precice] \u001b[0m Close communication channels\n---[preciceAdapter] The simulation was ended by preCICE. Calling the end() methods of any functionObject explicitly.\n---[preciceAdapter] Great that you are using the OpenFOAM-preCICE adapter! Next to the preCICE library and any other components, please also cite this adapter. Find how on https://precice.org/adapter-openfoam-overview.html.\nEnd\n\nCleaning up any time directories without results\nDone.\nStarted on:  Thu, 30 Jul 2026 21:45:28 +0000\nFinished on: Thu, 30 Jul 2026 21:45:34 +0000\nDuration:    6 seconds (wall-clock time, including time waiting for participants)",
+        "name": "Fluid",
+        "returncode": 0,
+        "started_epoch": 1785447928.0,
+        "state": "exited-ok"
+      },
+      {
+        "ended_epoch": 1785447958.0,
+        "log_path": "/mnt/aero/runs/calculix_perpendicular_flap_smoke-20260730-214518/tutorial/Solid.log",
+        "log_tail": "Adapter writing coupling data...\nWriting DISPLACEMENTS coupling data.\nAdapter calling advance()...\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Displacement\" = 5.89e-07, limit = 5.00e-03, normalization = 1.30e+00, conv = true\n---[precice] \u001b[0m relative convergence measure: relative two-norm diff of data \"Force\" = 7.09e-04, limit = 5.00e-03, normalization = 5.54e+01, conv = true\n---[precice] \u001b[0m All converged\n---[precice] \u001b[0m Time window completed\n---[precice] \u001b[0m Reached end at: final time-window: 50, final time: 0.5\n initial energy (at start of step) = 0.000000e+00\n\n since start of the step: \n external work = 1.854013e+01\n work performed by the damping forces = 0.000000e+00\n netto work = 1.854013e+01\n\n actual energy: \n internal energy = 1.506264e+01\n kinetic energy = 1.330221e+00\n elastic contact energy = 0.000000e+00\n energy lost due to friction = 0.000000e+00\n total energy  = 1.639286e+01\n\n energy increase = 1.639286e+01\n\n energy balance (absolute) = -2.147270e+00 \n energy balance (relative) = 12.635369 % \n\n Using up to 1 cpu(s) for the stress calculation.\n\n---[precice] \u001b[0m Close communication channels\n\n Job finished\n\n________________________________________\n\nTotal CalculiX Time: 4.472022\n________________________________________\nStarted on:  Thu, 30 Jul 2026 21:45:28 +0000\nFinished on: Thu, 30 Jul 2026 21:45:34 +0000\nDuration:    6 seconds (wall-clock time, including time waiting for participants)",
+        "name": "Solid",
+        "returncode": 0,
+        "started_epoch": 1785447928.0,
+        "state": "exited-ok"
+      }
+    ],
+    "run_id": "calculix_perpendicular_flap_smoke-20260730-214518",
+    "status_json_path": "/mnt/aero-nfs/runs/calculix_perpendicular_flap_smoke-20260730-214518/tutorial/coupled-status.json",
+    "stopped_by": "all-exited",
+    "wall_clock_s": 30.0
+  },
+  "coupling": {
+    "Fluid": {
+      "max_iterations": 4,
+      "mean_iterations": 2.14,
+      "n_nonconverged": 0,
+      "n_windows": 50
+    },
+    "Solid": {
+      "max_iterations": 4,
+      "mean_iterations": 2.14,
+      "n_nonconverged": 0,
+      "n_windows": 50
+    }
+  },
+  "finished_at": "2026-07-30T21:46:00.351000+00:00",
+  "gated": false,
+  "host": "aero-dev",
+  "mesh": {
+    "failure": "",
+    "n_cells": 2790,
+    "ok": true
+  },
+  "provenance": {
+    "config_hash": "8222464214adf29f374924a7f0a1cae8f8cffc8bc8af64f9ec5de50f70c978b3",
+    "container_sif_sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8",
+    "containers": [
+      {
+        "name": "calculix-precice.sif",
+        "sha256": "4ca47da2961d8d6a6033fb216a542165b04419e2527d5d5b8c94cd2771d28668"
+      },
+      {
+        "name": "precice-fsi.sif",
+        "sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8"
+      }
+    ],
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "git_sha": "9a62e9bdba4ed52df5f38097033dcb47de5c9a76"
+  },
+  "run_id": "calculix_perpendicular_flap_smoke-20260730-214518",
+  "spec": {
+    "analysis_discard_s": 0.0,
+    "analysis_min_cycles": 4,
+    "archive_path": "/root/projects/aero-research-platform/data/references/fsi/precice_perpendicular_flap/precice-tutorials-perpendicular-flap.tar.gz",
+    "container_of_record": "precice-fsi.sif",
+    "fluid_mesh_dict": "blockMeshDict",
+    "fluid_participant_dir": "fluid-openfoam",
+    "gated": false,
+    "max_time": 0.5,
+    "name": "calculix_perpendicular_flap_smoke",
+    "participants": [
+      {
+        "command": "./run.sh",
+        "env": {},
+        "name": "Fluid",
+        "run_as_uid": 1000,
+        "sif": "precice-fsi.sif",
+        "workdir": "fluid-openfoam",
+        "writable_tmpfs": false
+      },
+      {
+        "command": "./run.sh",
+        "env": {},
+        "name": "Solid",
+        "run_as_uid": 1000,
+        "sif": "calculix-precice.sif",
+        "workdir": "solid-calculix",
+        "writable_tmpfs": false
+      }
+    ],
+    "pin": {
+      "archive_sha256": "6f1c7b9b0b849845ff8ebab6a97753adfbab280d739774da2ac1b70a98917c62",
+      "branch": "develop",
+      "commit": "cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e",
+      "manifest_path": "/root/projects/aero-research-platform/data/references/fsi/precice_perpendicular_flap/tutorials_pin_manifest.csv",
+      "repo": "precice/tutorials"
+    },
+    "run_as_uid": 1000,
+    "tutorial_case": "perpendicular-flap",
+    "wall_clock_ceiling_s": 1800
+  },
+  "started_at": "2026-07-30T21:45:18.058409+00:00",
+  "verdict": "SMOKE PASS (non-gated; proves the two-container plumbing, nothing about physics)",
+  "watchpoint": {
+    "columns": [
+      "Time",
+      "Coordinate0",
+      "Coordinate1",
+      "Displacement0",
+      "Displacement1",
+      "Force0",
+      "Force1"
+    ],
+    "n_rows": 51,
+    "path": "/mnt/aero-nfs/runs/calculix_perpendicular_flap_smoke-20260730-214518/tutorial/perpendicular-flap/solid-calculix/precice-Solid-watchpoint-Flap-Tip.log",
+    "t_end": 0.5
+  }
+}

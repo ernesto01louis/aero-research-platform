@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.19  ·  **Status:** complete  ·  **Completed:** 2026-07-28
+**Latest tag:** v0.0.20 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-08-06
 
-**Stage 19 — preCICE FSI Core (Turek-Hron FSI3)** — most recent stage.
+**Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)** — most recent stage.
 
-**Next:** Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul).
+**Next:** resume Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul) — partial, not finished.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

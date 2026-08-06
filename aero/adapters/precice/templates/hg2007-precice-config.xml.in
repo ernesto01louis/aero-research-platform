@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Stage-20 authored coupling configuration: chordwise-flexible plunging foil
+  (Heathcote & Gursul 2007), OpenFOAM fluid + CalculiX solid.
+
+  This file is a TEMPLATE, not a configuration. Every at-delimited placeholder below is
+  substituted by aero.adapters.precice.template.render_precice_config, and the renderer
+  refuses to substitute unless the token set found here is EXACTLY the set it knows.
+  (This comment carries no placeholder of its own, deliberately: the token scanner reads
+  the whole file, and a token named in prose would be indistinguishable from one meant to
+  be substituted.)
+
+  Everything that is NOT a token is pinned by this file's sha256 (templates/SHA256SUMS,
+  and AuthoredSource.template_sha256 in the run's manifest). That is the authored-case
+  analogue of ADR-036 gate C2: on the tutorial path the only permitted mutation is
+  <max-time>; here the only permitted variation is the token set, and loosening a
+  convergence limit, max-iterations or an acceleration knob cannot be done without
+  moving a digest that is recorded in the bundle.
+
+  The coupling numerics below are upstream's own, taken verbatim from
+  precice/tutorials @ cd33e2db perpendicular-flap/precice-config.xml — the case the
+  Stage-20 smoke proved works across these two containers. Two deliberate deviations
+  from those bytes, both recorded in ADR-037:
+
+    1. the RBF support-radius is a TOKEN, because upstream's literal "1." is one metre
+       on a 0.09 m chord (11 chords) and would smear the mapping across the whole foil;
+    2. <profiling> is omitted — a multi-day campaign does not need per-window profiling
+       files, and the element carries no coupling semantics.
+
+  The Solid participant reads Force (NOT Turek-Hron FSI3's Stress): the calculix-adapter
+  consumes forces. Solid-Mesh's use-data ORDER fixes the watch-point column order, so it
+  is part of the pinned bytes and is asserted, never assumed.
+-->
+<precice-configuration>
+  <log>
+    <sink
+      filter="%Severity% > debug and %Rank% = 0"
+      format="---[precice] %ColorizedSeverity% %Message%"
+      enabled="true" />
+  </log>
+
+  <data:vector name="Force" />
+  <data:vector name="Displacement" />
+
+  <mesh name="Fluid-Mesh" dimensions="2">
+    <use-data name="Force" />
+    <use-data name="Displacement" />
+  </mesh>
+
+  <mesh name="Solid-Mesh" dimensions="2">
+    <use-data name="Displacement" />
+    <use-data name="Force" />
+  </mesh>
+
+  <participant name="Fluid">
+    <provide-mesh name="Fluid-Mesh" />
+    <receive-mesh name="Solid-Mesh" from="Solid" />
+    <write-data name="Force" mesh="Fluid-Mesh" />
+    <read-data name="Displacement" mesh="Fluid-Mesh" />
+    <mapping:rbf direction="write" from="Fluid-Mesh" to="Solid-Mesh" constraint="conservative">
+      <basis-function:compact-polynomial-c6 support-radius="@SUPPORT_RADIUS@" />
+    </mapping:rbf>
+    <mapping:rbf direction="read" from="Solid-Mesh" to="Fluid-Mesh" constraint="consistent">
+      <basis-function:compact-polynomial-c6 support-radius="@SUPPORT_RADIUS@" />
+    </mapping:rbf>
+  </participant>
+
+  <participant name="Solid">
+    <provide-mesh name="Solid-Mesh" />
+    <write-data name="Displacement" mesh="Solid-Mesh" />
+    <read-data name="Force" mesh="Solid-Mesh" />
+    <watch-point mesh="Solid-Mesh" name="Nose" coordinate="@NOSE_WATCH_POINT@" />
+    <watch-point mesh="Solid-Mesh" name="Trailing-Edge" coordinate="@TE_WATCH_POINT@" />
+  </participant>
+
+  <m2n:sockets acceptor="Fluid" connector="Solid" exchange-directory="@EXCHANGE_DIRECTORY@" />
+
+  <coupling-scheme:parallel-implicit>
+    <time-window-size value="@TIME_WINDOW_SIZE@" />
+    <max-time value="@MAX_TIME@" />
+    <participants first="Fluid" second="Solid" />
+    <exchange data="Force" mesh="Solid-Mesh" from="Fluid" to="Solid" />
+    <exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />
+    <max-iterations value="50" />
+    <relative-convergence-measure limit="5e-3" data="Displacement" mesh="Solid-Mesh" />
+    <relative-convergence-measure limit="5e-3" data="Force" mesh="Solid-Mesh" />
+    <acceleration:IQN-ILS>
+      <data name="Displacement" mesh="Solid-Mesh" />
+      <data name="Force" mesh="Solid-Mesh" />
+      <filter type="QR2" limit="1e-2" />
+      <initial-relaxation value="0.5" />
+      <max-used-iterations value="100" />
+      <time-windows-reused value="15" />
+    </acceleration:IQN-ILS>
+  </coupling-scheme:parallel-implicit>
+</precice-configuration>

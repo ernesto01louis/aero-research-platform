@@ -22,15 +22,27 @@ name: moving-vv
 # nightly, and why `workflow_dispatch` exists for a deliberate run. Registering a
 # second runner on aero-build removed part of that tradeoff (registered 2026-07-29).
 #
-# HOST: the solves run on aero-build, NOT aero-dev. The `aero-*` SSH aliases are
-# defined in ~/.ssh/config.d/aero on the PROXMOX HOST; they do not exist inside the
-# LXCs. From the runner, `ssh root@aero-dev` fails with "Could not resolve hostname"
-# and the executor surfaces it as rc=255 with EMPTY stderr -- which the adapter then
-# reports as "blockMesh failed", pointing at the mesher rather than at DNS. The first
-# dispatch of this workflow (run 30568971572, 2026-07-30) died that way in 18 s.
-# Only `aero-build` (192.168.2.232) is in the runner's /etc/hosts, which is why
-# vv-smoke submits to root@aero-build too. Giving aero-build an SSH config + key for
-# aero-dev would allow the 16-core box to be used instead, and is ledgered.
+# HOST: the solves run on aero-dev (16 cores), restored 2026-07-31.
+#
+# History, because this line has moved twice. The `aero-*` SSH aliases are defined in
+# ~/.ssh/config.d/aero on the PROXMOX HOST and did not exist inside the LXCs, so from
+# the runner `ssh root@aero-dev` failed with "Could not resolve hostname"; the executor
+# returned rc=255 with EMPTY stderr, and the adapter reported it as "blockMesh failed",
+# pointing at the mesher rather than at DNS. The first dispatch of this workflow
+# (run 30568971572, 2026-07-30) died that way in 18 s, and PR #43 repointed it at
+# aero-build (8 cores) as the only host the runner could reach.
+#
+# Stage 20 removed both the cause and the misreport:
+#   * scripts/grant_aero_build_ssh_to_aero_dev.sh installs a dedicated, from=-restricted
+#     key plus an ssh config block, so `aero-dev` and `root@aero-dev` both resolve from
+#     the runner (docs/operator/aero-build-to-aero-dev-ssh.md);
+#   * ExecResult.transport_failed now distinguishes "the command never ran" from "the
+#     command ran and failed", so a repeat of the DNS fault names itself.
+# aero-dev is also the only box carrying the AppArmor inet-socket change, without which
+# every Apptainer AF_INET socket is denied (docs/operator/apptainer-inet-sockets.md).
+#
+# If this ever regresses to "blockMesh failed" in 18 s again, check the SSH trust FIRST
+# (the runbook's symptom table), not the mesher.
 #
 # Not a required status check, and it must never become one — a multi-hour job
 # cannot gate a pull request.
@@ -71,6 +83,11 @@ jobs:
       # a solver process indefinitely — the mechanism that accumulated 2690 job
       # directories and 31 GB of dead logs on aero-build.
       AERO_RUN_LONG_REAP: "1"
+      # ONE definition of the solve host, used by both the driver and the reap step.
+      # They were two literals when this workflow was repointed at aero-dev and the
+      # reap kept listing aero-build — i.e. cleaning up a host no solve had run on.
+      # Same drift that let vv-smoke lose its `and not moving` clause for 23 days.
+      AERO_SOLVE_HOST: aero-dev
     steps:
       - uses: actions/checkout@v5
 
@@ -95,7 +112,7 @@ jobs:
           rc=0
           for c in $CASES; do
             echo "::group::moving-vv $c"
-            if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host aero-build; then
+            if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host "$AERO_SOLVE_HOST"; then
               echo "$c: PASS"
             else
               echo "$c: FAIL (exit $?)"
@@ -110,4 +127,4 @@ jobs:
         # crash). Reports what it found; never fails the job on cleanup alone.
         if: always()
         run: |
-          scripts/run_long.sh list root@aero-build || true
+          scripts/run_long.sh list "root@$AERO_SOLVE_HOST" || true

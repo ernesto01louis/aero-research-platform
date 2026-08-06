@@ -361,6 +361,7 @@ markers = [
     "stage_17: tests gated to stage 17 deliverables",
     "stage_18: tests gated to stage 18 deliverables",
     "stage_19: tests gated to stage 19 deliverables",
+    "stage_20: tests gated to stage 20 deliverables",
 ]
 
 [tool.uv]

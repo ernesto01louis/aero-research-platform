@@ -77,6 +77,90 @@ def naca0012_coordinates(
     return np.asarray(np.column_stack([x, y]), dtype=np.float64)
 
 
+def hg2007_half_thickness(
+    x: NDArray[np.float64],
+    *,
+    chord: float,
+    nose_length: float,
+    max_half_thickness: float,
+    join_x: float,
+    plate_half_thickness: float,
+) -> NDArray[np.float64]:
+    """Half-thickness of the Heathcote-Gursul (2007) teardrop/flat-plate section.
+
+    Three analytic pieces, C1-continuous where they meet:
+
+    * ``0 <= x <= nose_length`` -- elliptical nose, ``t(0) = 0`` with a vertical tangent
+      (a rounded leading edge) rising to ``max_half_thickness`` with zero slope;
+    * ``nose_length <= x <= join_x`` -- a cubic smoothstep tapering to the plate with zero
+      slope at BOTH ends, so the teardrop fairs into the plate rather than kinking into it;
+    * ``join_x <= x <= chord`` -- the constant-thickness steel plate.
+
+    This is a **declared approximation** of a shape the thesis draws to scale (Fig 2.5) but
+    never tabulates. The lengths are text-sourced and exact (30 mm teardrop + 60 mm plate on
+    a 90 mm chord; plate thickness ``b = (b/c) * c``); only ``max_half_thickness`` and the
+    location of maximum thickness are measured off the figure, and ``reference.md`` carries
+    ~5 % on the former. The functional form between those measured points is ours, not
+    Heathcote's, and is recorded as such -- an invented outline would be an invented
+    experiment, because preCICE maps between the fluid and solid *surfaces*.
+    """
+    if not 0.0 < nose_length < join_x < chord:
+        raise ValueError(
+            f"need 0 < nose_length ({nose_length}) < join_x ({join_x}) < chord ({chord})"
+        )
+    if not 0.0 < plate_half_thickness < max_half_thickness:
+        raise ValueError(
+            f"need 0 < plate_half_thickness ({plate_half_thickness}) < "
+            f"max_half_thickness ({max_half_thickness})"
+        )
+    xc = np.asarray(x, dtype=np.float64)
+    t = np.full(xc.shape, plate_half_thickness, dtype=np.float64)
+
+    nose = xc <= nose_length
+    # Ellipse with semi-axes (nose_length, max_half_thickness), centred at x=nose_length.
+    u = np.clip((nose_length - xc[nose]) / nose_length, 0.0, 1.0)
+    t[nose] = max_half_thickness * np.sqrt(np.clip(1.0 - u * u, 0.0, None))
+
+    taper = (xc > nose_length) & (xc < join_x)
+    s = (xc[taper] - nose_length) / (join_x - nose_length)
+    smoothstep = s * s * (3.0 - 2.0 * s)  # 0->1, zero slope at both ends
+    t[taper] = max_half_thickness + (plate_half_thickness - max_half_thickness) * smoothstep
+    return t
+
+
+def hg2007_coordinates(
+    n_points: int = 200,
+    *,
+    chord: float,
+    nose_length: float,
+    max_half_thickness: float,
+    join_x: float,
+    plate_half_thickness: float,
+) -> NDArray[np.float64]:
+    """Upper-surface (x, y) of the HG2007 section, leading edge to trailing edge.
+
+    Cosine-spaced like :func:`naca0012_coordinates` so the eight-block C-grid clusters
+    points at the leading and trailing edges. The section is SYMMETRIC, so the lower
+    surface is the exact mirror -- which is what lets it drop straight into the existing
+    mirror path in the C-grid writer.
+    """
+    if n_points < 2:
+        raise ValueError(f"n_points must be >= 2, got {n_points}")
+    beta = np.linspace(0.0, np.pi, n_points)
+    x = 0.5 * (1.0 - np.cos(beta)) * chord
+    y = hg2007_half_thickness(
+        x,
+        chord=chord,
+        nose_length=nose_length,
+        max_half_thickness=max_half_thickness,
+        join_x=join_x,
+        plate_half_thickness=plate_half_thickness,
+    )
+    y[0] = 0.0  # snap the leading edge onto the chord line
+    y[-1] = plate_half_thickness  # the TE is the blunt plate edge, never closed
+    return np.asarray(np.column_stack([x, y]), dtype=np.float64)
+
+
 # NACA-4 baseline: zero camber, 12% thickness. `naca4_coordinates(max_camber=0,
 # max_thickness_frac=0.12)` is byte-identical to `naca0012_coordinates` — the shape-optimizer's
 # baseline recovery, so a matched-condition delta against the NACA 0012 is exact (Stage 15).

@@ -120,6 +120,22 @@ class CouplingIterationReport(BaseModel):
     def mean_iterations(self) -> float:
         return sum(w.iterations for w in self.windows) / len(self.windows)
 
+    @property
+    def iterations_per_window(self) -> tuple[int, ...]:
+        """Iterations each window took, in window order.
+
+        The record any per-iteration output file has to be reconciled against: under
+        implicit coupling a function object re-executes once per iteration, so the number
+        of repeated times in its output is ``sum(iterations) - n_windows`` exactly. Both
+        the CalculiX ``.dat`` reader and the fluid force reader classify their cadence
+        against this rather than assuming one.
+        """
+        return tuple(w.iterations for w in self.windows)
+
+    @property
+    def total_iterations(self) -> int:
+        return sum(w.iterations for w in self.windows)
+
     def within(self, *, first_window: int, last_window: int) -> CouplingIterationReport:
         """The sub-report covering ``first_window <= TimeWindow <= last_window``.
 
