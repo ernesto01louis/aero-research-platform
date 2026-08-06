@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-08-05
-session_duration_hours: 10
+date_completed: 2026-08-06
+session_duration_hours: 14
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: b9f317f53dfcd780c3d5582378ee3739ba219383
+git_sha_end: 21840e095e3675c224c3129e81585add221b387c
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -43,10 +43,10 @@ the prose — every ❌ below was confirmed by `ls`.*
 
 | # | Deliverable (verbatim from the stage prompt) | Status | What exists / what does not |
 |---|---|:-:|---|
-| 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ⚠️ | **Smoke PASSES on two containers** (upstream's bytes, `a9a2355`); element choice settled by evidence (§6.1). **`aero/adapters/precice/calculix.py` does not exist**, nor `templates/`. The writers are the single largest remaining chunk |
-| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ⚠️ | **Reference COMPLETE**: text-sourced exact, 208 markers digitized, `hg2007_recomputed.csv` written, R2 passes, operating point fixed (§7.1), two corrections landed (§6.6, §6.7). **`aero/vv/fsi/` still contains only `turek_hron_fsi3.py`** — the V&V case object does not exist |
+| 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ✅ | **Smoke PASSES on two containers** (upstream's bytes, `a9a2355`); element choice settled by evidence (§6.1). Writers landed session 5; the solver's authored branch landed session 6 (`227ffed`) and the case materializes end to end — 18 files, every one re-read, schema-v2 manifest |
+| 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ✅ | **Reference COMPLETE**: text-sourced exact, 208 markers digitized, `hg2007_recomputed.csv` written, R2 passes, operating point fixed (§7.1), two corrections landed (§6.6, §6.7). `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py` landed session 6 (`21840e0`); both arms registered in all three `FSI_CASES` sites' source of truth |
 | 3 | Pre-registered gate block (ADR-039) before any campaign run | ❌ | **Not started.** ADR-037 and ADR-039 do not exist. Bands are *computed* (§6.13) but not pre-registered. No campaign has run, so nothing is out of order |
-| 4 | Flexible-vs-rigid delta with `compose_improvement()` | ❌ | Not started. `aero/vv/alignment.py`, `aero/adapters/openfoam/{flexible_foil,force_io}.py` do not exist |
+| 4 | Flexible-vs-rigid delta with `compose_improvement()` | ⚠️ | Every input exists and is measured per arm (`ArmReadout` carries the per-cycle series the paired estimator needs). `align_arms` was hardened in session 6 (§6.23). The composition itself is the campaign driver's and lands with ADR-039 |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038**, landed, tested, migration `005` applied, exercised by a real run. Two residuals: ADR-038 is still `proposed`, and **the CLI path never calls `assert_provenance_describes`** — a live gap, closed in Phase 3D |
 | 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-038 `proposed`; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
 
@@ -54,6 +54,16 @@ the prose — every ❌ below was confirmed by `ls`.*
 the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
 (the solver's authored materialization branch), not authorship. Deliverable 4's machinery —
 the paired path — is now callable, which it provably was not before. Details in §3 and §6.17-§6.21.
+
+**Session 6 (2026-08-06) closes deliverables 1 and 2.** The authored case **materializes end
+to end** (`227ffed`): `_materialize` and `_render_manifest` no longer raise, an authored spec
+writes 18 files under `<root>/<case_dir_name>/`, every one is re-read, and the schema-v2
+manifest binds `spec_sha256` to the digest `config_hash` will compute. **`aero/vv/fsi/` now
+holds the Heathcote-Gursul case** (`21840e0`) — both arms registered, the band-less predicate
+registry, and a readout that structurally cannot skip the gates. Two silent-wrong-number
+defects were fixed on the way (§6.22, §6.23), one of them found by the adversarial review
+this stage had been carrying as an open item. Suite **581 → 664**. What remains: the CLI
+wiring, the ADRs, the pre-flight and the campaign.
 
 **Enabling work not on the deliverable list, done in session 4 because everything above
 depends on it:** the `source` seam under `CoupledCaseSpec` (`1bd7011` — an authored case
@@ -202,6 +212,34 @@ the C-family claim was not expressible), and the `transient_fvschemes` byte pin
   re-run.
 - **No adversarial review pass was completed this session.** One was launched and died with
   the host. Carried as an open item (§7 item 7) rather than quietly dropped.
+
+**Session 6 (2026-08-06) — deviations, and why**
+
+- **Four commits, and two of them are defect fixes that were not in the plan.** The session's
+  plan was materialization → V&V case → CLI → ADRs. The adversarial review (carried since
+  session 5 as open item 7) and a design-validation pass together surfaced thirteen defects,
+  three of the silent-wrong-number class. Two were in code the next commits would immediately
+  depend on, so they were fixed first rather than recorded and deferred: §6.22 (the fluid and
+  solid readers kept DIFFERENT coupling iterates) and §6.23 (an `AlignedPair` could attest to
+  a time base it never compared). Both would have produced plausible numbers in the gated
+  increment.
+- **The adversarial review ran only partially.** 25 of 79 agents completed before the run hit
+  a usage limit; the `template.py` and `calculix.py` refuter panels — the two blind spots
+  handoff §7 item 7 names — died with it, and the synthesis stage never ran. What survived is
+  one defect confirmed by six independent refuter votes across two lenses (§6.23). **The two
+  named blind spots remain unreviewed** and are carried forward in §7 item 7.
+- **The pre-flight and the campaign did not start.** The session went into materialization,
+  the case object and the two defect fixes instead. That is the sessions-2-through-5 precedent
+  — the work that was done was done to the standard the stage demands rather than more of it
+  done thinly — and it means ADR-037/038/039 and every I-clause are still ahead.
+- **`n_samples` on `AlignedPair` is now `int | None`, and `AlignedPair` gained two fields.**
+  A schema change to a model landed in session 5, made deliberately rather than absorbed:
+  the field could not distinguish a verified pair from an unverified one, which is the one
+  thing the object exists to do. See §6.23.
+- **`tests/stage_20` is NOT in CI** (§6.24). Discovered while deciding where ADR-039's binding
+  tests go. Not fixed in-stage — the ADR-039 tests will live in `tests/unit/` beside
+  `test_stage19_gate_block_sync.py`, which is where the Stage-19 precedent already puts them —
+  and carried in the ledger.
 
 ## 4. Environment / dependency / schema changes
 
@@ -699,6 +737,99 @@ that at the chosen far field Stage 20's own mesh has no pre-existing failing che
 explain away. **These numbers are still a measurement, not a record**: the I3/I5 pre-flight
 must re-run them into `data/vv/` with a four-fold tuple before the ADR cites them.
 
+### 6.22 The fluid and the solid kept DIFFERENT coupling iterates, and the bias differed between arms
+
+`force_io.strictly_increasing_mask` keeps the **first** row at a repeated time;
+`ccx_dat._last_occurrence` keeps the **last**. Both files describe the same phenomenon and
+under `parallel-implicit` coupling both see it: preCICE re-does a window until it converges,
+the OpenFOAM adapter rewinds `runTime`, and the `forces` object re-executes and re-appends.
+Only the last row at a window time is the converged iterate — and `flexible_foil.py:252-255`
+already states that rule for its own coded object.
+
+So `C_T` and `C_P1` would have come from the accelerator's first guess while `P2` and `P3`
+came from the converged solve. **Nothing downstream could see it.** After de-duplication both
+arms carry one row per window at identical times, so `assert_common_time_base` passes; D10
+compares `P3` against `P2`, both from the last iterate, so the closure check stays consistent;
+`eta` merely mixes the two. And because the flexible arm needs more coupling iterations than
+the rigid one, **the bias differs between arms** and lands in `dC_T` (D3) and `d_eta` (D4).
+
+Fixed additively: `repeats="first"` stays the default and is byte-for-byte what Stage 10/11/13
+did, so no existing record moves. `classify_repeat_cadence` then proves the repeat count is
+exactly what the participant's own iterations log accounts for — `duplicates == 0` per-window,
+`== sum(iterations) - n_windows` per-iteration, **anything else RAISES**, because an
+unexplained repeat is a `timePrecision` collapse and that is silent data loss. Generalise it:
+*two readers of one phenomenon must be written against each other, not each against its own
+file format.*
+
+### 6.23 An `AlignedPair` could attest to a time base it never compared
+
+Found by the adversarial review, independently by two lenses, with six refuter votes. The
+whole point of `AlignedPair` is to be the evidence that two arms are comparable — and it
+could not distinguish evidence from its absence.
+
+`align_arms` guarded its bitwise raw-time comparison on **both** `baseline_t` and
+`candidate_t` being supplied, but derived `n_samples` from `baseline_t` **alone**. Measured by
+the reviewers: `align_arms(a, b, baseline_t=t)` returns an object *bitwise identical* to a
+fully checked one while never having compared a single instant; `align_arms(a, b)` records
+`n_samples = 2`, a fabricated number that clears its own `ge=2` floor and reads as a
+measurement; and `align_arms(a, b, candidate_t=t)` reports 2 for a 9600-sample record.
+Reproduced end to end: a one-time-step shift that the two-sided call refuses loudly is
+accepted silently by the one-sided call.
+
+Three changes. The arrays are all-or-nothing. `n_samples` is `int | None`, bound to a new
+`time_base_checked` by a validator — honest absence over a fabricated number, the ADR-025
+precedent. And **the segmentation-anchor clause, which RESUME §7 requires and which was
+missing entirely, is now unconditional**: the reviewers' correction is what makes it cheap —
+`LimitCycleAnalysis.t_start` is `t_kept[0] + converged_from_cycle * period`, so the
+post-discard origin comes back as `t_start - converged_from_cycle * period` from fields both
+analyses already carry, with no raw times needed. **Equal `discard_s` does NOT imply equal
+origins**: the origin is the first *sample* at or after the discard, so one dropped row moves
+it by a time step and every index-`k` pair then compares different physical intervals.
+
+Generalise both: *a field that records what was verified must be unable to claim more than
+was verified*, and *an optional argument that silently disables a check is a check that will
+eventually not run.*
+
+### 6.24 `tests/stage_20` has never been in CI
+
+`.github/workflows/test.yml:37` runs `pytest -q tests/unit` and nothing else. The mandated
+`pytest -q tests/unit tests/stage_20` suite is a local and PR-author discipline; **664 green
+is not 664 enforced**. Consequences, both acted on:
+
+- **ADR-039's binding tests go in `tests/unit/`**, beside `tests/unit/test_stage19_gate_block_sync.py`
+  — which is where the Stage-19 precedent already put them, and is why the ADR-036 gate block
+  IS CI-enforced. A pre-registration whose parity test does not run is not a pre-registration.
+- **`config_hash` for the FSI3 spec embeds absolute host paths** (`TutorialPin.manifest_path`,
+  `TutorialSource.archive_path` are `Path` fields and serialize as absolute strings), so
+  `3f94f394…` is a property of *this checkout*, not a portable fact. ADR-037 must say so where
+  it records the move. `AuthoredSource` is path-free and a test pins that it stays so.
+
+The CI job itself was NOT widened in-stage: doing that mid-stage would run fixtures that have
+never executed on a GitHub runner. Carried in the ledger.
+
+### 6.25 Three more silent failures closed while both specs were in one place
+
+All three became *possible* to check only because ADR-037 put the fluid and solid specs on one
+object; all three were unreachable before.
+
+- **Nothing cross-checked the solid's geometry against the fluid's.** `assert_calculix_deck`
+  compares a deck against the spec it was written from — self-consistent by construction — and
+  `grep -rn surface_x` outside `calculix.py` and its own test returned nothing. A pair with the
+  flexible plate on the fluid and the rigid plate on the solid validated, wrote, meshed,
+  coupled, converged, and would have reported a thrust coefficient somewhere between the two
+  arms. **Plate thickness is the only thing distinguishing the arms.**
+- **`n_through_thickness` could be odd.** `_grid` lays nodes at `eta = linspace(-1, 1, n+1)`,
+  which contains `0.0` only for even `n`. At an odd count there is no mid-surface node and
+  **preCICE snaps a watch-point to the nearest vertex with no diagnostic**, so D0 became the
+  angle of a surface fibre — offset by the plate half-thickness times the local rotation, and
+  entirely plausible.
+- **Mixed participant uids.** Nothing required every `ParticipantSpec.run_as_uid` to equal
+  `spec.run_as_uid`. A root participant creating `precice-run/` its unprivileged peer cannot
+  write into hangs both, and the ceiling stop that follows is an ending **gate K2 admits** as a
+  budget outcome. Cost: one full 14-day wave before anything complains. The same shape applies
+  to a wrong `exchange_directory`, which is why `EXCHANGE_DIRECTORY` is now one constant
+  asserted against the launcher's cleanup path.
+
 ## 7. Open items for the next stage (and beyond)
 
 **Blocking, in order — this is the resumption path**
@@ -800,31 +931,42 @@ must re-run them into `data/vv/` with a four-fold tuple before the ADR cites the
    and efficiency helpers (`aero/vv/alignment.py`); and the `.dat` reader with structural
    cadence classification (`aero/adapters/precice/ccx_dat.py`).
 
-4b. **WHAT IS LEFT OF IT — the next commit, fully specified.**
-   `PreciceCoupledSolver._materialize` (`solver.py:237-242`) still RAISES for an authored
-   source, and `_render_manifest`'s `case "authored"` branch (`solver.py:276-279`) raises
-   too. Wiring them up is the whole remaining gap between "every writer exists" and "the
-   case runs".
+4b. ~~**WHAT IS LEFT OF IT — the next commit, fully specified.**~~ — **DONE 2026-08-06 at
+   `227ffed`.** `_materialize` and `_render_manifest` dispatch exhaustively on the source
+   kind; an authored spec writes 18 files, each re-read; the schema-v2 manifest carries
+   `spec_sha256` computed by CALLING `config_hash` (not `sha256(model_dump_json())`, which is
+   a different number — sorted keys, no whitespace).
 
-   **The design decision to make first, because it has a provenance consequence.** The
-   physical spec — geometry, materials, kinematics, the flow state — must be reachable from
-   `CoupledCaseSpec`, i.e. carried ON `AuthoredSource`. If it is not, `config_hash` does not
-   cover it, and two runs with different plate thicknesses hash identically: a provenance
-   hole of exactly the class ADR-038 exists to close. That means `case.py` importing
-   `FlexibleFoilSpec` and `CalculiXSolidSpec`. Both are pure stdlib+numpy+pydantic and the
-   import fence already covers them, so the cost is module weight, not correctness — but
-   `_materialize`'s own docstring warns about what `case.py` pulls into every launcher
-   consumer, so make the call deliberately and record it in ADR-037.
+   **The provenance decision was taken as specified: the physical spec rides ON
+   `AuthoredSource`.** `config_hash` is computed over the serialized spec, so anything built
+   inside the materializer is invisible to it — and the rung knobs, the wall spacing and the
+   plate thickness are all inputs no bundle could otherwise recover. Cost: `case.py` imports
+   the OpenFOAM and CalculiX writers, which every `launcher.py` consumer inherits (~250 → ~457
+   modules). **Module weight, not correctness** — traced step by step, no cycle, no banned
+   dependency, and the fence names both. Rejected alternatives, for ADR-037:
+   derive-at-materialization (the rung knobs leave `config_hash`, so the three GCI rungs would
+   hash identically — a strictly worse hole than the one being closed), and a canonical-JSON
+   string plus digest (defeats `extra="forbid"`, and duplicates what `config_hash` already
+   covers).
 
-   Then: `_materialize` for authored writes the fluid case, the solid deck and the rendered
-   XML under `<root>/<case_dir_name>/`, hashes every written file into `MaterializedFile`
-   entries, and returns the tree plus the parsed config. `_render_manifest` calls the
-   already-landed `render_authored_manifest_json(..., spec_sha256=...)`
-   (`manifest.py:107-144`). Note `MaterializedTree.files` has `min_length=1` and
-   `DeclaredMutation.kind` already accepts `"authored"` with `before_sha256=None`.
+   Carrying both specs on one object is also what made §6.25's three checks possible at all.
 
-   Only then the V&V case object (`aero/vv/fsi/hg2007_flexible_foil.py` + a
-   `hg2007_readout.py`) and the CLI wiring (§7 item 5 of the RESUME's Phase 3D).
+4c. **The V&V case object — DONE 2026-08-06 at `21840e0`.** `aero/vv/fsi/hg2007_readout.py`
+   (the only module importing both adapters) and `hg2007_flexible_foil.py`. `read_arm` calls
+   `solver.load()` FIRST and takes its analysis window from the returned `SolveResult`, so K2,
+   C4 and K1 have run before any number exists and the window cannot be widened — the gate is
+   structural, not conventional.
+
+   **Both arms are registered as separate cases.** `evaluate` sees one result, so `metrics()`
+   carries only what one arm can measure and the D3/D4 increment is the driver's. Registering
+   each arm is what stops one going quiet in the registry-driven report. **ADR-039 must state
+   that the increment has no dashboard row.**
+
+   **No default time step, deliberately.** `GATED_TIME_WINDOW_S` / `GATED_MAX_TIME_S` are
+   `None` until ADR-039 B2 records the I7 and I4 measurements, and `is_gated_configuration`
+   returns `False` while they are. `gated` is DERIVED, so **no configuration can claim the
+   gated verdict before the pre-flight has run.**
+
 5. **ADR-039, before any campaign run.** Families P/C/I/R/K/S/**A**/D/**M**/X, byte-bound to the
    driver, with the two deliberate improvements on ADR-036: every gated clause named in the VERDICT
    line (ADR-036 omitted S5 — the clause its own review had just added), and a shape-7 test
@@ -844,13 +986,44 @@ must re-run them into `data/vv/` with a four-fold tuple before the ADR cites the
    run it now exists: the decks write, they mesh, and `moveDynamicMesh`/`pimpleFoam` can be
    pointed at them.
 
-7. **No adversarial review pass has been run over the session-5 code.** One was launched and
-   died with the host reboot, producing nothing. Ten commits of new writers and readers have
-   had only their own tests over them. Worth a pass before the ADRs freeze — with attention
-   to the two places a defect would be invisible: the token/expectation agreement in
-   `template.py` (the expectation and the committed template state the coupling numerics
-   twice, and only their agreement is checked), and `calculix.py`'s `assert_calculix_deck`,
-   whose clauses are the only thing standing between a wrong deck and a plausible number.
+7. **The adversarial review RAN, partially — and the two named blind spots are still
+   unreviewed.** 25 of 79 agents completed before the run hit a usage limit. Of six lenses,
+   `limit-cycle` and `alignment-ccxdat` completed with their refuter panels; **`template-numerics`
+   and `calculix-clauses` — precisely the two places this item said a defect would be invisible
+   — lost every refuter**, and `fluid-deck` lost its finder. The synthesis stage never ran.
+
+   What it produced is worth having: 24 candidates, and one defect confirmed by six independent
+   refuter votes across two lenses (§6.23), fixed at `8813bdd` before its first caller existed.
+
+   **Still to review, and the reason it matters has not changed:**
+   - `template.py` — the committed template bytes and `hg2007_expectation()` state the coupling
+     numerics TWICE (`_MAX_ITERATIONS`, `_CONVERGENCE_LIMIT`, the `_ACCELERATION_*` set, the
+     basis function, both mesh names). Only their AGREEMENT is checked, so if both copies are
+     wrong in the same way every assertion passes. Check them against upstream's
+     perpendicular-flap bytes, which is where they were transcribed from.
+   - `calculix.py:assert_calculix_deck` — its clauses are the only thing between a wrong deck
+     and a plausible number. Look for a clause that compares a value against itself, or that is
+     skipped when a parsed field is absent.
+
+   Re-running: the workflow script is preserved and resumable —
+   `Workflow({scriptPath: .../stage20-session5-adversarial-review-wf_3d8de5fa-a13.js,
+   resumeFromRunId: "wf_3d8de5fa-a13"})` replays the completed agents from cache and re-runs
+   only the ones that died.
+
+8. **Phase 3D CLI wiring — NOT started, and it carries two live provenance faults.**
+   - `_SOLVER_VERSIONS["precice"]` reads `"preCICE 3.4.1 (OpenFOAM-ESI v2412 + Nutils 9.2)"`
+     (`cli.py:47-51`) and `stage_str = "19"` for every precice run (`cli.py:650-659`). Both
+     ride into MLflow tags, so **a Stage-20 bundle would claim a Nutils solid**. Key both by
+     CASE, not by solver name.
+   - **`assert_provenance_describes` still has zero call sites** (`case.py`). Without it a
+     two-container run logs an empty roster and silently omits CalculiX — the ADR-038 residual
+     this stage opened with. Derive `container_sif` / `extra_container_sifs` FROM THE SPEC; do
+     not widen `_SOLVER_SIF`, which is `dict[str, str]` feeding a single-SIF
+     `compute_provenance`.
+   - Move the expectation off the `cli.py:115-121` hard-wire into a name-keyed registry with
+     `Field(exclude=True)`. Note the HG expectation is DERIVED from the spec
+     (`hg2007_expectation(source.coupling_values())`), not a module constant like FSI3's.
+
 
 **Design decisions already taken, do not re-litigate**
 
@@ -921,6 +1094,20 @@ Stage 20 rather than starting 21.
   measured on aero-dev, and four of them changed the code.
 
 ## 9. Artifacts produced
+
+**Session 6 (2026-08-06): 4 commits, `227ffed`..`21840e0`, suite 581 → 664.** New modules:
+`aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`. Modified: `aero/adapters/precice/`
+(`case.py` — `AuthoredSource` carries `fluid`/`solid`, `assert_authored_consistent`,
+`assert_wetted_curve_matches`, `spec_config_digest`, `EXCHANGE_DIRECTORY`, the participant/uid
+validator; `solver.py` — `_materialize` and `load` both split and dispatched exhaustively,
+`_materialize_authored`, `_authored_mutations`, `_provided_mesh`; `calculix.py` — even
+`n_through_thickness`, `watch_points`; `logs.py` — `iterations_per_window`/`total_iterations`;
+`template.py`, `analysis.py` — the watch-point and signal names), `aero/adapters/openfoam/`
+(`force_io.py` — the `repeats` policy, `last_occurrence_mask`, `classify_repeat_cadence`;
+`flexible_foil.py` — `read_interface_power`), `aero/vv/alignment.py` (the attestation fix and
+the unconditional origin check), `aero/vv/fsi/__init__.py`, `import-platform-only.yml`.
+New tests: `tests/stage_20/{_hg2007.py,test_authored_materialization.py,
+test_coupled_force_cadence.py,test_hg2007_case.py}` plus additions to `test_alignment.py`.
 
 **Session 5 (2026-08-05): 10 commits, `397af1c`..`b9f317f`, suite 418 → 581.** New modules:
 `aero/adapters/precice/{template.py,calculix.py,ccx_dat.py}`,

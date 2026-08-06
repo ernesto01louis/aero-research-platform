@@ -1,6 +1,6 @@
-Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 6).
+Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 7).
 
-**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR STAGE 20.** Four sessions have run and each left a
+**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR STAGE 20.** Six sessions have run and each left a
 resume prompt behind; the earlier ones are superseded and must not be followed. If you find
 instructions anywhere else that contradict this file, this file wins. In particular:
 
@@ -36,8 +36,9 @@ It is the last physics stage before the v0.1.0 checkpoint.
 | 3 | 2026-08-01 | `30aa126`..`a007689` (4) | **the two non-regression pins** (`67d8e82`) on pre-refactor code — the stage's most important ordering rule, done right; found the campaign does not fit its ceiling (§6.11), proposed **I7**, found `PreciceConfigExpectation` needs extending (§6.12), computed the bands (§6.13) |
 | 4 | 2026-08-04 | `1bd7011`..`b4bc801` (4) | **the `source` seam refactor**, the **`PreciceConfigExpectation` extension**, the **`transient_fvschemes` byte pin**; four operator decisions taken; **I3/I5 static baseline measured**; three corrections to the work-of-record (§6.14-§6.16) |
 | 5 | 2026-08-05 | `397af1c`..`b9f317f` (10) | **EVERY WRITER AND READER THE AUTHORED CASE NEEDS** — config template + renderer, CalculiX deck writer/re-reader, dimensional fluid deck, interface-power FO, force_io, `ddt_scheme=`, per-cycle limit-cycle objects, `alignment.py`, `.dat` reader. Pre-flight **S1, I6 and I3 pulled forward and PASSED**. Host rebooted mid-session; nothing lost |
+| 6 | 2026-08-06 | `227ffed`..`21840e0` (4) | **THE AUTHORED CASE MATERIALIZES AND HAS A V&V OBJECT.** `_materialize`/`_render_manifest`/`load` all dispatch on the source; 18 files written and re-read; `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`, both arms registered. **Two silent-wrong-number defects fixed** (§6.22, §6.23), one from the adversarial review. Smoke re-passed at HEAD |
 
-Suite 348 (Stage-19 close) → 380 (session 3) → 418 (session 4) → **581** (session 5). Branch
+Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **664** (session 6). Branch
 `stage-20-flexible-flapping-wing-fsi`, PR **#44** (DRAFT), clean tree, pushed, aero-dev idle.
 
 ## 3. DONE AND VERIFIED — do not redo, do not re-derive
@@ -73,28 +74,38 @@ Suite 348 (Stage-19 close) → 380 (session 3) → 418 (session 4) → **581** (
 
 ## 4. WHAT DOES NOT EXIST — verified with `ls`, not inferred from prose
 
-*Session 5 built all the writers. What is left is WIRING, the ADRs, and the campaign.*
+*Sessions 5 and 6 built every writer, the materializer, the readout and the V&V case object.
+What is left is the CLI wiring, the ADRs, the pre-flight and the campaign.*
 
-    aero/vv/fsi/hg2007_flexible_foil.py        aero/vv/fsi/hg2007_readout.py
     docs/adrs/ADR-037-*.md                     docs/adrs/ADR-039-*.md
+    scripts/stage20_hg2007_flexible_foil.py    (the campaign driver)
     data/vv/stage20_i4_calibration.json        data/vv/stage20_i3_mesh.json
 
-`aero/vv/fsi/` contains only `turek_hron_fsi3.py`. **No campaign has run. No verdict exists and
-none may be made, because ADR-039 does not exist.**
+**No campaign has run. No verdict exists and none may be made, because ADR-039 does not
+exist** — and, since session 6, that is also STRUCTURAL: `GATED_TIME_WINDOW_S` and
+`GATED_MAX_TIME_S` in `hg2007_flexible_foil.py` are `None` until ADR-039 B2 records the I7 and
+I4 measurements, `is_gated_configuration` returns `False` while they are, and `gated` is
+DERIVED. No configuration can claim the gated verdict before the pre-flight has run.
 
-**These now EXIST and are tested (session 5) — do not rebuild them:**
+**These now EXIST and are tested — do not rebuild them:**
 
     aero/adapters/precice/template.py          aero/adapters/precice/templates/
     aero/adapters/precice/calculix.py          aero/adapters/precice/ccx_dat.py
     aero/adapters/openfoam/flexible_foil.py    aero/adapters/openfoam/force_io.py
     aero/vv/alignment.py
+    aero/vv/fsi/hg2007_flexible_foil.py        aero/vv/fsi/hg2007_readout.py
 
-**The one structural gap between them and a running case:**
-`PreciceCoupledSolver._materialize` (`solver.py:237-242`) still RAISES for an authored
-source, and `_render_manifest`'s `case "authored"` branch (`solver.py:276-279`) raises too.
-That is the next commit; the handoff's §7 item **4b** specifies it, including the design
-decision it turns on (the physical spec must ride on `AuthoredSource`, or `config_hash`
-does not cover the geometry — a provenance hole).
+**The authored case materializes end to end** (`227ffed`). `PreciceCoupledSolver._materialize`,
+`_render_manifest` and `load` all dispatch exhaustively on `source.kind`; an authored spec
+writes 18 files under `<root>/<case_dir_name>/`, every one re-read, with a schema-v2 manifest
+whose `spec_sha256` is computed by CALLING `config_hash`. The **physical spec rides on
+`AuthoredSource`** (ADR-037): `config_hash` covers the geometry, and the two arms — which
+differ in one number — no longer hash identically.
+
+**Both arms are registered V&V cases** (`21840e0`). `metrics()` carries only what ONE arm can
+measure; the D3/D4 increment needs both and belongs to the campaign driver, so **it has no V&V
+dashboard row and ADR-039 must say so**. D5/D6/D7 live in a band-less `predicates()` registry
+carrying a literal `(no band)` token; D7 raises, D5/D6 report.
 
 ## 5. NINE THINGS THAT WILL BITE YOU IF YOU SKIP THE HANDOFF
 
@@ -189,6 +200,32 @@ From session 4:
    stands; Stage 20's own mesh simply has no pre-existing failing check. Still a
    measurement, not a record — the I3/I5 pre-flight must re-run it into `data/vv/`.
 
+## 6c. FOUR THINGS SESSION 6 FIXED OR FOUND — do not re-derive (handoff §6.22-§6.25)
+
+1. **The fluid and solid readers kept DIFFERENT coupling iterates.** `force_io` kept the
+   FIRST row at a repeated time, `ccx_dat` the LAST; under implicit coupling `force.dat`
+   repeats per iteration, so `C_T` came from the accelerator's first guess and `P2`/`P3` from
+   the converged solve. Invisible to every downstream check, and **the bias differs between
+   arms**, so it landed in `dC_T` and `d_eta`. Fixed additively — `repeats="first"` is still
+   the default so no Stage-10/11/13 record moves; the coupled readout passes `"last"` and
+   `classify_repeat_cadence` proves the repeat count against the iterations log, RAISING on
+   anything unexplained.
+2. **`align_arms` could attest to a time base it never compared** (adversarial review, six
+   refuter votes). The raw-time check needed BOTH arrays; `n_samples` was derived from one.
+   Now all-or-nothing, `n_samples` is `int | None` bound to `time_base_checked`, and **the
+   segmentation-anchor clause is unconditional** — `t_start - converged_from_cycle * period`
+   recovers the post-discard origin from fields both analyses already carry, so no raw times
+   are needed. Equal `discard_s` does NOT imply equal origins.
+3. **`tests/stage_20` is not in CI.** `test.yml` runs `pytest -q tests/unit` only, so 664
+   green is not 664 enforced. **ADR-039's binding tests must go in `tests/unit/`**, beside
+   `test_stage19_gate_block_sync.py`. Corollary: FSI3's `config_hash` embeds absolute host
+   paths, so `3f94f394...` is a property of THIS checkout — ADR-037 must say so.
+4. **`forces1` writes its registered fields every time step** (`writeFields yes` at
+   `writeControl timeStep; writeInterval 1`), which `purgeWrite 2` does not track. `writeFields`
+   is REQUIRED — the interface-power object looks the field up — so **I4 must count the time
+   directories and `du` them before B2 is sized.** A full NFS four days into a 14-day wave is
+   the failure mode.
+
 ## 7. YOUR TASK, IN THIS ORDER
 
 Each commit must leave `pytest -q tests/unit tests/stage_20` green. The full commit-by-commit
@@ -196,13 +233,9 @@ sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-
 session 5's own plan, which that sequence was executed from, is
 `/root/.claude/plans/stage-20-flexible-logical-kay.md`.
 
-**START HERE (session 6): the authored materialization.** `_materialize` and
-`_render_manifest` must stop raising for an authored source. Decide first where the physical
-spec lives — it must be on `AuthoredSource` so `config_hash` covers the geometry — then write
-the fluid case, the solid deck and the rendered XML under `<root>/<case_dir_name>/`, hash every
-file into `MaterializedFile` entries, and call the already-landed
-`render_authored_manifest_json(..., spec_sha256=...)`. Handoff §7 item 4b has the detail.
-Then the V&V case object, then Phase 3D's CLI wiring, then the ADRs, then pre-flight.
+**START HERE (session 7): Phase 3D, the CLI.** It is one commit, and it closes two live
+provenance faults rather than adding a feature — see below. Then the ADRs, then pre-flight,
+then wave 1. Phases 3A/3B/3C and the V&V case object are DONE (sessions 4-6).
 
 **Phases 3B and 3C below are DONE except where noted** — kept for the rationale, which is
 still the specification the code was written against.
@@ -271,12 +304,23 @@ above first.
   `duplicates == sum(iterations) - n_windows` ⇒ per-iteration, keep the **LAST** row at each time;
   anything else RAISES.
 
-**Phase 3D — CLI (1 commit).** Move the expectation off the `_build_solver` hard-wire (a name-keyed
-registry, `Field(exclude=True)` so it does not enter `config_hash`); a `_CASE_STAGE` table rather
-than a Protocol change; **derive `container_sif` + `extra_container_sifs` FROM THE SPEC** — do not
-widen `_SOLVER_SIF`, which is `dict[str, str]` feeding a single-SIF `compute_provenance`; call
-`assert_provenance_describes`; register in **all three** `FSI_CASES` sites. Add
-`aero.vv.alignment` and `aero.adapters.openfoam.force_io` to `import-platform-only.yml`.
+**Phase 3D — CLI (1 commit). START HERE.** Two of these are live faults, not tidying:
+
+- **`_SOLVER_VERSIONS["precice"]` says `"... + Nutils 9.2"`** (`cli.py:47-51`) and
+  `stage_str = "19"` for every precice run (`cli.py:650-659`). Both ride into MLflow tags, so a
+  Stage-20 bundle would claim a **Nutils solid** and Stage-19 provenance. Key both by CASE
+  (`_CASE_STAGE` + a per-case solver version), not by solver name — a table, not a Protocol change.
+- **`assert_provenance_describes` still has ZERO call sites.** Without it a two-container run
+  logs an empty roster and silently omits CalculiX: the ADR-038 residual this stage opened with.
+  Derive `container_sif` + `extra_container_sifs` FROM THE SPEC (both are already properties on
+  `CoupledCaseSpec`); do NOT widen `_SOLVER_SIF`, which is `dict[str, str]` feeding a single-SIF
+  `compute_provenance`. Call it immediately after `compute_provenance`, before anything runs.
+- Move the expectation off the `cli.py:115-121` hard-wire into a name-keyed registry with
+  `Field(exclude=True)` so it stays out of `config_hash`. **Note the HG expectation is DERIVED
+  from the spec** — `hg2007_expectation(spec.source.coupling_values())` — not a module constant
+  like FSI3's, so the registry holds a callable or the solver builds it per case.
+- The three `FSI_CASES` sites and `import-platform-only.yml` are **already done** (session 6:
+  both arms registered, and the fence names the six new modules).
 
 **Phase 4 — ADRs, BEFORE any campaign run.** ADR-037 (authored-case architecture; record the two
 honest divergences — FSI3's `config_hash` moved `c524faff...` → `3f94f394...`, and the driver's K1
@@ -305,8 +349,13 @@ finally **I4 calibrations that COMPLETE >=200 windows and end `all-exited`, both
 **Never extrapolate a rate from a transient.** Pre-flight FAILS on `Co > 1`; it never adjusts.
 
 **Phase 6 — launch wave 1** (the paired-increment rung, both arms) via `run_long.sh` with unique
-session names and `AERO_RUN_LONG_REAP=1`. Then update the handoff (`status: partial`, no tag, no
-verdict).
+session names. **SUBMIT DETACHED; do NOT hold an owning `wait` across the session boundary.**
+`AERO_RUN_LONG_REAP=1` makes `wait` the OWNER of the job's lifetime — on timeout or
+SIGTERM/SIGINT/SIGHUP it kills the remote tmux session — which is right for CI and wrong for a
+14-day campaign launched from a session that will end. Submitting is unaffected by the flag.
+Poll with `run_long.sh status|logs` only, and record the session names and the poll commands in
+the handoff so the next session resumes by polling. (Operator decision, session 6.) Then update
+the handoff (`status: partial`, no tag, no verdict).
 
 ## 8. HARD DON'TS
 
