@@ -62,6 +62,12 @@ jobs:
               # is a named failure instead of a mystery.
               "aero.adapters.openfoam.flexible_foil",
               "aero.adapters.precice.case", "aero.adapters.precice.solver",
+              # The HG2007 case and its readout -- the readout is the ONE module that
+              # imports both adapters, so if a solver dependency is ever going to reach the
+              # platform core it comes through here. Named explicitly: `aero.vv.fsi` would
+              # pull the case in transitively, but not the readout (it is lazily imported
+              # from `evaluate`), and a transitive failure names the wrong module.
+              "aero.vv.fsi.hg2007_flexible_foil", "aero.vv.fsi.hg2007_readout",
           ):
               importlib.import_module(mod)
 
