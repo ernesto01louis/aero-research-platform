@@ -52,8 +52,10 @@ from aero.adapters.precice.config import (
 
 __all__ = [
     "HG2007_TEMPLATE",
+    "NOSE_WATCH_POINT_NAME",
     "RENDERER_VERSION",
     "TEMPLATES_DIR",
+    "TE_WATCH_POINT_NAME",
     "PreciceConfigValues",
     "hg2007_expectation",
     "read_template",
@@ -70,6 +72,14 @@ HG2007_TEMPLATE = "hg2007-precice-config.xml.in"
 #: Bumped whenever a rendered byte changes, so two bundles are comparable at a glance.
 #: It rides in ``AuthoredSource.renderer_version`` and therefore in the manifest.
 RENDERER_VERSION = "1"
+
+#: The NAMES of the two watch-points the template declares on ``Solid-Mesh`` -- distinct
+#: from the ``@NOSE_WATCH_POINT@`` token, which carries their COORDINATES. Named here
+#: because the template's bytes carry them and the readout opens the files preCICE derives
+#: from them (``precice-Solid-watchpoint-<name>.log``): a mismatch is a FileNotFoundError at
+#: the END of a multi-day run, which is the most expensive moment to learn about a typo.
+NOSE_WATCH_POINT_NAME = "Nose"
+TE_WATCH_POINT_NAME = "Trailing-Edge"
 
 #: Every token the renderer knows. The template must contain exactly this set.
 _TOKENS = frozenset(

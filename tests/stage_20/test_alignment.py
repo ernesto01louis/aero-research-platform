@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 from aero.postprocess.limit_cycle import analyse_limit_cycle
 from aero.vv.alignment import (
+    AlignedPair,
     AlignmentError,
     align_arms,
     assert_common_time_base,
@@ -116,6 +117,97 @@ class TestAlignArms:
         a, b = _analysis(t_a, sig_a), _analysis(t_b, sig_b)
         with pytest.raises(AlignmentError, match="different sample counts"):
             align_arms(a, b, baseline_t=t_a, candidate_t=t_b[:-1])
+
+
+class TestTheEvidenceObjectCannotOverstateWhatWasChecked:
+    """An `AlignedPair` is the evidence that two arms are comparable.
+
+    Found by adversarial review of session 5, before the first caller existed. The bitwise
+    raw-time comparison was conditional on BOTH arrays being supplied, while `n_samples` was
+    derived from `baseline_t` alone -- so `align_arms(a, b, baseline_t=t)` returned an object
+    bitwise identical to a fully checked one while never having compared a single instant,
+    and the no-times call recorded a fabricated `n_samples = 2` that clears its own `ge=2`
+    floor and reads like a measurement.
+    """
+
+    def test_a_one_sided_call_is_refused_rather_than_silently_unchecked(self) -> None:
+        t_a, sig_a = _arm(seed=1)
+        t_b, sig_b = _arm(seed=2)
+        a, b = _analysis(t_a, sig_a), _analysis(t_b, sig_b)
+        for kwargs in ({"baseline_t": t_a}, {"candidate_t": t_b}):
+            with pytest.raises(AlignmentError, match="Pass both or neither"):
+                align_arms(a, b, **kwargs)
+
+    def test_the_one_sided_call_would_have_hidden_a_real_mismatch(self) -> None:
+        """The exact scenario: a shifted candidate that the two-sided call refuses loudly."""
+        t_a, sig_a = _arm(seed=1)
+        t_b, sig_b = _arm(seed=2)
+        a, b = _analysis(t_a, sig_a), _analysis(t_b, sig_b)
+        shifted = t_b + (t_b[1] - t_b[0])
+        with pytest.raises(AlignmentError, match="same instants"):
+            align_arms(a, b, baseline_t=t_a, candidate_t=shifted)
+        # ...and the one-sided form that used to accept it now cannot be spelled at all.
+        with pytest.raises(AlignmentError, match="Pass both or neither"):
+            align_arms(a, b, baseline_t=t_a)
+
+    def test_no_raw_times_means_an_absent_count_not_a_fabricated_one(self) -> None:
+        t_a, sig_a = _arm(offset=0.40, transient_cycles=0.8, seed=1)
+        t_b, sig_b = _arm(offset=0.55, transient_cycles=1.6, seed=2)
+        pair = align_arms(_analysis(t_a, sig_a), _analysis(t_b, sig_b))
+        assert pair.n_samples is None
+        assert pair.time_base_checked is False
+
+    def test_a_checked_pair_says_so(self) -> None:
+        t_a, sig_a = _arm(offset=0.40, transient_cycles=0.8, seed=1)
+        t_b, sig_b = _arm(offset=0.55, transient_cycles=1.6, seed=2)
+        pair = align_arms(
+            _analysis(t_a, sig_a), _analysis(t_b, sig_b), baseline_t=t_a, candidate_t=t_b
+        )
+        assert pair.time_base_checked is True
+        assert pair.n_samples == t_a.size
+
+    def test_a_sample_count_without_a_check_cannot_be_constructed(self) -> None:
+        """The two fields are bound, so a hand-built AlignedPair cannot claim more than it did."""
+        from pydantic import ValidationError
+
+        common = {
+            "period": PERIOD,
+            "pair_start": 2,
+            "n_pairs": 8,
+            "baseline_anchor": 1,
+            "candidate_anchor": 2,
+            "post_discard_origin": 0.0,
+        }
+        with pytest.raises(ValidationError, match="disagree"):
+            AlignedPair(**common, time_base_checked=False, n_samples=9600)
+        with pytest.raises(ValidationError, match="disagree"):
+            AlignedPair(**common, time_base_checked=True, n_samples=None)
+
+
+class TestTheSegmentationAnchorsAreCheckedWithoutRawTimes:
+    """The RESUME's third clause, and the one that was missing entirely.
+
+    Equal `discard_s` does NOT imply equal origins: the origin is the first SAMPLE at or
+    after the discard, so one dropped row moves it by a time step. The check needs no raw
+    times -- `t_start - converged_from_cycle * period` recovers the origin from fields both
+    analyses already carry -- so it is unconditional.
+    """
+
+    def test_matched_arms_share_an_origin(self) -> None:
+        t_a, sig_a = _arm(offset=0.40, transient_cycles=0.8, seed=1)
+        t_b, sig_b = _arm(offset=0.55, transient_cycles=1.6, seed=2)
+        pair = align_arms(_analysis(t_a, sig_a), _analysis(t_b, sig_b))
+        assert pair.post_discard_origin == pytest.approx(0.0, abs=1e-9 * PERIOD)
+
+    def test_a_shifted_origin_is_refused_with_no_raw_times_at_all(self) -> None:
+        t_a, sig_a = _arm(offset=0.40, transient_cycles=0.8, seed=1)
+        t_b, sig_b = _arm(offset=0.55, transient_cycles=1.6, seed=2)
+        # One arm's record starts one time step later -- what a dropped leading row does.
+        dt = t_b[1] - t_b[0]
+        a = _analysis(t_a, sig_a)
+        b = _analysis(t_b + dt, sig_b)
+        with pytest.raises(AlignmentError, match="different origins"):
+            align_arms(a, b)
 
 
 class TestEfficiencyIsARatioOfMeans:

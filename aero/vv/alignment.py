@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.postprocess.limit_cycle import LimitCycleAnalysis
 
@@ -58,6 +58,13 @@ class AlignmentError(RuntimeError):
     """Two arms of a paired comparison are not comparable."""
 
 
+#: How far two arms' post-discard origins may sit apart, as a fraction of one period.
+#: Not bitwise: the origin is RECOVERED as ``t_start - converged_from_cycle * period``, so a
+#: non-zero anchor costs a rounding of order 1e-16 of the period. The bound is still twelve
+#: orders tighter than the one time step a dropped row would move the origin by.
+_ORIGIN_TOL_CYCLES = 1.0e-9
+
+
 class AlignedPair(BaseModel):
     """The common window two aligned arms share, and the evidence that they are aligned."""
 
@@ -72,7 +79,42 @@ class AlignedPair(BaseModel):
     n_pairs: int = Field(..., ge=1, description="Cycles in the common converged window.")
     baseline_anchor: int = Field(..., ge=0)
     candidate_anchor: int = Field(..., ge=0)
-    n_samples: int = Field(..., ge=2, description="Raw samples on the shared time base.")
+    post_discard_origin: float = Field(
+        ...,
+        description=(
+            "The instant both arms' cycle-0 boundaries sit at -- the first SAMPLE at or "
+            "after the discard, which is what `analyse_limit_cycle` segments from. Compared "
+            "unconditionally, because index-k pairing means 'the same physical forcing "
+            "cycle' only if the two arms count cycles from the same origin."
+        ),
+    )
+    time_base_checked: bool = Field(
+        ...,
+        description=(
+            "Whether the raw sample instants were compared bitwise. NOT a formality: an "
+            "AlignedPair is this comparison's evidence, so it must be able to say when the "
+            "comparison did not happen rather than looking the same either way."
+        ),
+    )
+    n_samples: int | None = Field(
+        default=None,
+        ge=2,
+        description=(
+            "Raw samples on the shared time base -- `None` when no raw times were supplied. "
+            "Honest absence rather than a fabricated number (the ADR-025 precedent): the "
+            "field previously read 2 in that case, which clears its own floor and reads "
+            "like a measurement."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _a_sample_count_means_the_samples_were_compared(self) -> AlignedPair:
+        if (self.n_samples is None) == self.time_base_checked:
+            raise ValueError(
+                "n_samples and time_base_checked disagree: a sample count is only "
+                "meaningful when the two arms' instants were actually compared"
+            )
+        return self
 
 
 def assert_common_time_base(
@@ -120,9 +162,20 @@ def align_arms(
 ) -> AlignedPair:
     """Check every way two arms can fail to be comparable, then report the common window.
 
-    `baseline_t` / `candidate_t` are the RAW sample times. They are optional only because
-    an analysis does not carry them; pass them whenever they exist, which for the Stage-20
-    readout is always.
+    `baseline_t` / `candidate_t` are the RAW sample times. They stay optional because a
+    `LimitCycleAnalysis` does not carry them, but they are now **all-or-nothing**: supplying
+    one and not the other used to skip the bitwise comparison entirely while still stamping
+    a real-looking `n_samples` on the result, so a pair whose instants were never compared
+    was indistinguishable from one that passed. An `AlignedPair` is this function's evidence;
+    it has to be able to say what was not checked.
+
+    The **segmentation-anchor** clause needs no raw times at all and is therefore
+    unconditional. `LimitCycleAnalysis.t_start` is the settled tail's start, built as
+    ``t_kept[0] + converged_from_cycle * period``, so the post-discard origin -- the instant
+    cycle 0 begins at -- comes back as ``t_start - converged_from_cycle * period`` from
+    fields both arms already carry. Equal `discard_s` does NOT imply equal origins: the
+    origin is the first SAMPLE at or after the discard, so one dropped row on one arm moves
+    it by a time step and every index-k pair then compares different physical intervals.
     """
     if baseline.period_source != "prescribed" or candidate.period_source != "prescribed":
         raise AlignmentError(
@@ -143,8 +196,33 @@ def align_arms(
             f"{candidate.discard_s!r}), so their cycle indices count from different "
             "origins and index-k pairing is meaningless."
         )
+    if (baseline_t is None) != (candidate_t is None):
+        supplied = "baseline_t" if candidate_t is None else "candidate_t"
+        raise AlignmentError(
+            f"only {supplied} was supplied. The raw-time comparison needs both arms, so a "
+            "one-sided call silently skipped it while the returned AlignedPair still looked "
+            "checked. Pass both or neither."
+        )
     if baseline_t is not None and candidate_t is not None:
         assert_common_time_base(baseline_t, candidate_t)
+
+    # The segmentation anchors, unconditionally. `t_start` is the settled tail's start, so
+    # the post-discard origin -- where cycle 0 begins -- is `t_start` minus the whole cycles
+    # discarded before it. Equal `discard_s` does not imply equal origins, because the origin
+    # is the first SAMPLE at or after the discard.
+    origins = tuple(
+        arm.t_start - arm.convergence.converged_from_cycle * arm.period
+        for arm in (baseline, candidate)
+    )
+    if abs(origins[0] - origins[1]) > _ORIGIN_TOL_CYCLES * baseline.period:
+        raise AlignmentError(
+            f"the arms segment from different origins ({origins[0]!r} vs {origins[1]!r}, "
+            f"a difference of {abs(origins[0] - origins[1]):.3e} s). Cycle k of one arm is "
+            "then a different physical interval from cycle k of the other, and the paired "
+            "difference measures the offset rather than the physics. The usual cause is one "
+            "arm losing a row -- read_force_history reports n_dropped -- or the two records "
+            "not starting at the same instant."
+        )
 
     start = max(
         baseline.convergence.converged_from_cycle, candidate.convergence.converged_from_cycle
@@ -158,14 +236,15 @@ def align_arms(
             f"{candidate.convergence.converged_from_cycle} of "
             f"{candidate.convergence.n_cycles}. Extend BOTH runs."
         )
-    n_samples = 2 if baseline_t is None else int(np.asarray(baseline_t).size)
     return AlignedPair(
         period=baseline.period,
         pair_start=start,
         n_pairs=end - start,
         baseline_anchor=baseline.convergence.converged_from_cycle,
         candidate_anchor=candidate.convergence.converged_from_cycle,
-        n_samples=n_samples,
+        post_discard_origin=origins[0],
+        time_base_checked=baseline_t is not None,
+        n_samples=None if baseline_t is None else int(np.asarray(baseline_t).size),
     )
 
 

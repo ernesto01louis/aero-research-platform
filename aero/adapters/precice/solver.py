@@ -46,7 +46,16 @@ from aero.adapters._base import (
     build_apptainer_exec,
 )
 from aero.adapters.openfoam.flexible_foil import write_flexible_foil_case
-from aero.adapters.precice.analysis import TIP_UX, TIP_UY, analyse_displacement_watchpoint
+from aero.adapters.precice.analysis import (
+    D0_PITCH,
+    DISPLACEMENT_X_COLUMN,
+    DISPLACEMENT_Y_COLUMN,
+    NOSE_UY,
+    TE_UX,
+    TIP_UX,
+    TIP_UY,
+    analyse_displacement_watchpoint,
+)
 from aero.adapters.precice.calculix import (
     INTERFACE_PATCH,
     CalculiXAdapterConfig,
@@ -95,9 +104,15 @@ from aero.adapters.precice.manifest import (
     render_authored_manifest_json,
     render_tutorial_manifest_json,
 )
-from aero.adapters.precice.template import PreciceConfigValues, write_precice_config
+from aero.adapters.precice.template import (
+    NOSE_WATCH_POINT_NAME,
+    TE_WATCH_POINT_NAME,
+    PreciceConfigValues,
+    write_precice_config,
+)
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
 from aero.orchestration._base import Executor, describe_failure
+from aero.postprocess import analyse_limit_cycle
 
 DEFAULT_PRECICE_SIF_PATH = "/opt/aero/containers/precice-fsi.sif"
 DEFAULT_SIF_DIR = "/opt/aero/containers"
@@ -636,13 +651,154 @@ class PreciceCoupledSolver(Solver):
         )
 
     def load(self, result: ResultHandle) -> SolveResult:
-        """Parse the coupled run into a `SolveResult` carrying the flag-tip history.
+        """Parse the coupled run into a `SolveResult`, gates first.
 
-        The coupling-convergence gate (ADR-036 K1) is enforced HERE, not in the V&V case,
-        so that no path to a number can bypass it — the same placement the moving-mesh
-        adapter uses for its periodic-steady-state check.
+        The coupling-convergence gate (ADR-036 K1) and the status gate (K2) are enforced
+        HERE, not in the V&V case, so that no path to a number can bypass them — the same
+        placement the moving-mesh adapter uses for its periodic-steady-state check.
+
+        Dispatched on the source, because what a coupled run MEASURES depends on which case
+        it is while what makes it reportable does not. The tutorial branch is Stage 19's
+        body, moved with no edits and pinned by
+        ``tests/stage_20/test_stage19_load_path_unchanged.py``. The authored branch reads
+        only what preCICE and the solid wrote; the fluid's force history belongs to the V&V
+        layer, which can reach it only by calling this method first (ADR-037).
         """
         spec = self._coupled_spec(result.case_dir.spec)
+        source = spec.source
+        match source.kind:
+            case "tutorial":
+                return self._load_tutorial(spec, result)
+            case "authored":
+                return self._load_authored(spec, source, result)
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _load_authored(
+        self, spec: CoupledCaseSpec, source: AuthoredSource, result: ResultHandle
+    ) -> SolveResult:
+        """The authored case's coupling-and-structure measurement.
+
+        Emits the quantities that come from files preCICE and the solid wrote: the pitch
+        the plate developed (D0), the plunge it was actually driven through, and the
+        analysis window every downstream statistic must be confined to. It does NOT read
+        the fluid's forces -- ``C_T``, ``C_P`` and ``eta`` need ``postProcessing/`` and the
+        solver log, which is :mod:`aero.vv.fsi.hg2007_readout`'s job. Keeping the split
+        there is what lets the readout live where it may import both adapters while the
+        gates stay in the one method every path to a number goes through.
+
+        **The pitch is measured, not prescribed.** ``theta`` is the angle of the line from
+        the nose watch-point to the trailing-edge watch-point, which is the chord line: the
+        teardrop is kinematically rigid and plunges without rotating, so this angle IS the
+        plate's deformation. That is the D0 quantity, and it exists only because the
+        experiment's flexibility produced it.
+        """
+        status = self.coupled_status(result)
+        _assert_status_gate(status, run_id=result.case_dir.run_id, solver_log=result.solver_log)
+
+        nose = self.watchpoint(
+            result, participant=source.solid.participant, name=NOSE_WATCH_POINT_NAME
+        )
+        tip = self.watchpoint(
+            result, participant=source.solid.participant, name=TE_WATCH_POINT_NAME
+        )
+        if nose.t != tip.t:
+            raise PreciceSolverError(
+                f"{result.case_dir.run_id}: the two Solid watch-points cover different "
+                f"instants ({nose.n_rows} vs {tip.n_rows} rows). They are written by one "
+                "participant in one loop, so this means one file is truncated."
+            )
+
+        t = np.asarray(nose.t, dtype=np.float64)
+        nose_uy = np.asarray(nose.values[DISPLACEMENT_Y_COLUMN], dtype=np.float64)
+        nose_ux = np.asarray(nose.values[DISPLACEMENT_X_COLUMN], dtype=np.float64)
+        tip_uy = np.asarray(tip.values[DISPLACEMENT_Y_COLUMN], dtype=np.float64)
+        tip_ux = np.asarray(tip.values[DISPLACEMENT_X_COLUMN], dtype=np.float64)
+        chordwise = (source.solid.chord - source.solid.surface_x[0]) + (tip_ux - nose_ux)
+        theta_deg = np.degrees(np.arctan2(tip_uy - nose_uy, chordwise))
+
+        # analyse_limit_cycle directly, NOT analyse_displacement_watchpoint: the latter has
+        # no `period=` and therefore always DETECTS one, and two independently detected
+        # periods can never agree to the 1e-9 the paired estimator demands -- so the
+        # flexible-vs-rigid comparison would be refused, correctly, at the last step.
+        analysis = analyse_limit_cycle(
+            t,
+            {
+                D0_PITCH: theta_deg,
+                NOSE_UY: nose_uy,
+                TE_UX: tip_ux,
+            },
+            fundamental=D0_PITCH,
+            discard_s=spec.analysis_discard_s,
+            min_cycles=spec.analysis_min_cycles,
+            period=source.solid.kinematics.period,
+        )
+
+        window_size = self.config_for(result.case_dir).coupling_scheme.time_window_size
+        first_window, last_window = _window_indices(
+            analysis.t_start, analysis.t_end, window_size=window_size
+        )
+        reports = _assert_coupling_converged_over(
+            self.coupling_report(result), first_window=first_window, last_window=last_window
+        )
+        pitch = analysis.statistics[D0_PITCH]
+        plunge = analysis.statistics[NOSE_UY]
+
+        scalars: dict[str, float] = {
+            # D0 -- the gated quantity this method can see.
+            "d0_pitch_amplitude_deg": pitch.amplitude,
+            # The prescribed plunge, measured. The solid was DRIVEN through it, so a
+            # disagreement with the kinematics spec means the amplitude table is wrong --
+            # which is otherwise a perfectly convergent run of a different experiment.
+            "nose_uy_amplitude": plunge.amplitude,
+            "nose_uy_mean": plunge.mean,
+            "nose_ux_max_abs": float(np.max(np.abs(nose_ux))),
+            "te_ux_mean": analysis.statistics[TE_UX].mean,
+            "pitch_frequency": analysis.fundamental_frequency,
+            "detected_frequency": analysis.detected_frequency,
+            "prescribed_period": analysis.period,
+            # The analysis window every downstream statistic is confined to.
+            "analysis_t_start": analysis.t_start,
+            "analysis_t_end": analysis.t_end,
+            "analysis_n_settled_cycles": float(analysis.n_settled_cycles),
+            "analysis_n_cycles_after_discard": float(analysis.n_cycles_after_discard),
+            "analysis_mean_drift": analysis.mean_drift,
+            "analysis_amplitude_drift": analysis.amplitude_drift,
+            "analysis_cumulative_mean_drift": analysis.cumulative_mean_drift,
+            "analysis_cumulative_amplitude_drift": analysis.cumulative_amplitude_drift,
+            "coupling_first_window": float(first_window),
+            "coupling_last_window": float(last_window),
+            "coupling_mean_iterations": float(np.mean([r.mean_iterations for r in reports])),
+            "coupling_max_iterations": float(max(r.max_observed_iterations for r in reports)),
+            "coupling_total_iterations": float(sum(r.total_iterations for r in reports[:1])),
+            "max_iterations_configured": float(reports[0].max_iterations_configured),
+            "t_end": float(t[-1]),
+            "n_windows": float(nose.n_rows),
+            "wall_clock_s": status.wall_clock_s,
+            "stopped_by_ceiling": 1.0 if status.hit_ceiling else 0.0,
+            "max_time_configured": spec.max_time,
+        }
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=None,
+            cl=None,
+            cd_pressure=None,
+            cd_viscous=None,
+            iterations_to_convergence=nose.n_rows,
+            final_residual=0.0,
+            history=TimeHistory(
+                kind="time",
+                t=tuple(float(v) for v in t),
+                monitor=tuple(float(v) for v in theta_deg),
+                monitor_name=D0_PITCH,
+            ),
+            scalars=scalars,
+            source=str(tip.path),
+        )
+
+    def _load_tutorial(self, spec: CoupledCaseSpec, result: ResultHandle) -> SolveResult:
+        """Stage 19's measurement, unchanged: the flag-tip displacement bands."""
         status = self.coupled_status(result)
         _assert_status_gate(status, run_id=result.case_dir.run_id, solver_log=result.solver_log)
 
