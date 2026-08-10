@@ -68,6 +68,7 @@ jobs:
               # pull the case in transitively, but not the readout (it is lazily imported
               # from `evaluate`), and a transitive failure names the wrong module.
               "aero.vv.fsi.hg2007_flexible_foil", "aero.vv.fsi.hg2007_readout",
+              "aero.vv.fsi.hg2007_sizing",
           ):
               importlib.import_module(mod)
 
