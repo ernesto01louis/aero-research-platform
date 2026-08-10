@@ -57,7 +57,7 @@ from aero.adapters.precice.ccx_dat import read_reaction_forces
 from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.postprocess import LimitCycleAnalysis, analyse_limit_cycle
 from aero.vv._base import BenchmarkError
-from aero.vv.alignment import per_cycle_efficiency, window_efficiency
+from aero.vv.alignment import per_cycle_efficiency
 
 __all__ = [
     "C_P",
@@ -66,6 +66,7 @@ __all__ = [
     "D0_DEG",
     "P3",
     "ArmReadout",
+    "gated_means",
     "read_arm",
 ]
 
@@ -163,8 +164,22 @@ def _one_force_file(fluid_dir: Path) -> Path:
     return matches[0]
 
 
-def _within(t: NDArray[np.float64], *, t_start: float, t_end: float) -> NDArray[np.bool_]:
-    return (t >= t_start) & (t <= t_end)
+def gated_means(analysis: LimitCycleAnalysis) -> tuple[float, float, float, float]:
+    """The (C_T, C_P, C_P1, P3) means every gated number is built from.
+
+    Each is the SETTLED-TAIL, INTEGER-CYCLE estimator — ``of(name).mean``, the mean over
+    full cycles of the per-cycle mean on the re-segmentation anchored at ``t_start``. A
+    flat sample mean over ``[t_start, t_end]`` generically spans a fractional trailing
+    cycle, and on an oscillating signal that fraction is a phase-dependent bias that
+    lands straight in D1, D5 and both legs of the D10 closure ratio (session-7
+    adversarial review, candidate 13; candidate 12 is the same error class on eta).
+    """
+    return (
+        analysis.of(C_T).mean,
+        analysis.of(C_P).mean,
+        analysis.of(C_P1).mean,
+        analysis.of(P3).mean,
+    )
 
 
 def read_arm(
@@ -263,11 +278,7 @@ def read_arm(
         min_cycles=spec.analysis_min_cycles,
         period=solid.kinematics.period,
     )
-    keep = _within(forces.t, t_start=analysis.t_start, t_end=analysis.t_end)
-    mean_c_t = float(np.mean(c_t[keep]))
-    mean_c_p = float(np.mean(c_p[keep]))
-    mean_c_p1 = float(np.mean(c_p1[keep]))
-    mean_p3 = float(np.mean(p3[keep]))
+    mean_c_t, mean_c_p, mean_c_p1, mean_p3 = gated_means(analysis)
     mean_p2 = mean_c_p * q * area * fluid.u_inf
     if mean_c_p == 0.0 or mean_p2 == 0.0:
         raise BenchmarkError(
@@ -286,10 +297,12 @@ def read_arm(
         n_windows=int(solve.scalars["n_windows"]),
         c_t=mean_c_t,
         c_p=mean_c_p,
-        eta=window_efficiency(
-            np.asarray(analysis.cycles[C_T].per_cycle_mean, dtype=np.float64),
-            np.asarray(analysis.cycles[C_P].per_cycle_mean, dtype=np.float64),
-        ),
+        # The ratio of the SAME two settled-tail integer-cycle means D1 and C_P report —
+        # not a ratio over the whole post-discard record, which would mix unconverged
+        # cycles into the D2-gated quantity while every sibling field excluded them
+        # (session-7 adversarial review, candidate 12). Ratio of means, never mean of
+        # ratios; the zero guard above already refused mean_c_p == 0.
+        eta=mean_c_t / mean_c_p,
         d0_pitch_amplitude_deg=solve.scalars["d0_pitch_amplitude_deg"],
         c_p1=mean_c_p1,
         p1_p2_bias=(mean_c_p1 - mean_c_p) / mean_c_p,
