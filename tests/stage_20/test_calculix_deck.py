@@ -212,7 +212,16 @@ class TestTheSilentFailuresAreRefused:
 
     def test_the_increment_cap_is_computed_from_the_window_count(self, tmp_path: Path) -> None:
         spec, deck = _written(tmp_path)
-        assert deck.max_increments == 10 * math.ceil(spec.max_time / spec.time_window_size)
+        # 50, not 10: ccx counts every implicit-coupling ATTEMPT and the rendered
+        # coupling legally permits max-iterations attempts per window, so a smaller
+        # margin certifies a budget the coupling may exceed (review candidate 5).
+        assert deck.max_increments == 50 * math.ceil(spec.max_time / spec.time_window_size)
+
+    def test_the_increment_margin_covers_the_couplings_own_iteration_cap(self) -> None:
+        from aero.adapters.precice.calculix import _INC_MARGIN
+        from aero.adapters.precice.template import _MAX_ITERATIONS
+
+        assert _INC_MARGIN >= _MAX_ITERATIONS
 
     def test_a_slab_thicker_than_the_fluid_span_is_refused(self, tmp_path: Path) -> None:
         spec, deck = _written(tmp_path)
@@ -498,3 +507,109 @@ def _hex_volume(corners) -> float:
                         )
                 volume += float(np.linalg.det(nodes.T @ grads))
     return volume
+
+
+class TestTheReviewsSilentPassesAreNowRefused:
+    """Session-7 adversarial review, candidates 4 and 6-11.
+
+    Each of these decks PASSED ``assert_calculix_deck`` before this class existed,
+    converged, and produced a plausible number. Each test replays the review's tamper
+    trial and requires a loud refusal.
+    """
+
+    def test_nlgeom_no_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        _tamper(tmp_path, {"NLGEOM": "NLGEOM=NO"})
+        with pytest.raises(CalculiXDeckError, match="NLGEOM"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)
+
+    def test_a_tampered_plate_modulus_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        inp = tmp_path / "hg2007_flexible.inp"
+        original = inp.read_text(encoding="utf-8")
+        # Degrade E_steel (2.05e11) by one decade via its exponent, exactly the review's
+        # trial; the mantissa digits stay so every other clause still passes.
+        tampered = original.replace("+11", "+10", 1)
+        assert tampered != original, "expected the plate modulus in the main deck"
+        inp.write_text(tampered, encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="mis-typed modulus"):
+            assert_calculix_deck(read_calculix_deck(inp), spec)
+
+    def test_a_truncated_interface_include_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        nam = tmp_path / "interface.nam"
+        lines = nam.read_text(encoding="utf-8").splitlines(keepends=True)
+        header = [ln for ln in lines if ln.lstrip().startswith("*")]
+        rows = [ln for ln in lines if not ln.lstrip().startswith("*")]
+        nam.write_text("".join(header + rows[: len(rows) // 2]), encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="under-forced"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)
+
+    def test_an_emptied_nose_include_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        nam = tmp_path / "nose.nam"
+        lines = nam.read_text(encoding="utf-8").splitlines(keepends=True)
+        header = [ln for ln in lines if ln.lstrip().startswith("*")]
+        rows = [ln for ln in lines if not ln.lstrip().startswith("*")]
+        nam.write_text("".join(header + rows[: len(rows) // 2]), encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="partial nose set"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)
+
+    def test_a_self_consistent_but_coarse_amplitude_table_is_refused(self, tmp_path: Path) -> None:
+        spec, deck = _written(tmp_path)
+        amp = tmp_path / "plunge.amp"
+        lines = amp.read_text(encoding="utf-8").splitlines(keepends=True)
+        header = [ln for ln in lines if ln.lstrip().startswith("*")]
+        coarse_t = np.arange(
+            0.0,
+            deck.amplitude.t[-1] + 20.0 * spec.time_window_size,
+            20.0 * spec.time_window_size,
+        )
+        y = spec.kinematics.evaluate(coarse_t)["y"]
+        rows = "".join(f"{t:.13e}, {v:.13e}\n" for t, v in zip(coarse_t, y, strict=True))
+        amp.write_text("".join(header) + rows, encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match=r"rows|coarser"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)
+
+    def test_a_mixed_element_deck_with_a_trailing_compliant_block_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        spec, _ = _written(tmp_path)
+        msh = tmp_path / "all.msh"
+        text = msh.read_text(encoding="utf-8").replace("C3D8I", "C3D8")
+        lines = text.splitlines()
+        first_element = next(
+            lines[i + 1] for i, ln in enumerate(lines) if ln.startswith("*ELEMENT")
+        )
+        node_ids = [v.strip() for v in first_element.split(",")[1:]]
+        trailing = "*ELEMENT, TYPE=C3D8I, ELSET=Etrailing\n999999, " + ", ".join(node_ids) + "\n"
+        msh.write_text(text + trailing, encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="element types"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)
+
+    def test_a_stray_cload_on_another_set_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        inp = tmp_path / "hg2007_flexible.inp"
+        inp.write_text(inp.read_text(encoding="utf-8") + "*CLOAD\nNall, 2, 0.5\n", encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="only permitted load"):
+            assert_calculix_deck(read_calculix_deck(inp), spec)
+
+    def test_a_corrupted_lower_surface_is_refused(self, tmp_path: Path) -> None:
+        spec, _ = _written(tmp_path)
+        msh = tmp_path / "all.msh"
+        out_lines: list[str] = []
+        in_nodes = False
+        for ln in msh.read_text(encoding="utf-8").splitlines(keepends=True):
+            stripped = ln.strip()
+            if stripped.startswith("*"):
+                in_nodes = stripped.upper().startswith("*NODE")
+                out_lines.append(ln)
+                continue
+            if in_nodes and stripped:
+                nid, x, y, z = (v.strip() for v in stripped.split(","))
+                if float(y) < 0.0:
+                    ln = f"{nid}, {x}, {float(y) * 0.5:.17e}, {z}\n"
+            out_lines.append(ln)
+        msh.write_text("".join(out_lines), encoding="utf-8")
+        with pytest.raises(CalculiXDeckError, match="LOWER wetted curve"):
+            assert_calculix_deck(read_calculix_deck(tmp_path / "hg2007_flexible.inp"), spec)

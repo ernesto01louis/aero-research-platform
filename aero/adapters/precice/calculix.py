@@ -97,9 +97,14 @@ _AMPLITUDE_NAME = "PLUNGE"
 _ELEMENT_TYPE = "C3D8I"
 
 #: ``INC`` is sized at this multiple of the number of coupled windows. An implicit
-#: coupling re-does a window many times, and ccx counts every attempt, so the margin is
-#: over the ITERATION count rather than the window count.
-_INC_MARGIN = 10
+#: coupling re-does a window many times, and ccx counts every attempt, so the margin must
+#: cover the ITERATION count — and the rendered coupling permits ``max-iterations`` (50,
+#: ``template._MAX_ITERATIONS``) attempts per window, so anything smaller certifies a
+#: budget the coupling is legally allowed to exceed. At the old value of 10 a
+#: worst-case-legal run exhausts INC, ccx finishes its step and exits ZERO, and the K2
+#: status gate passes (session-7 adversarial review, candidate 5). INC is a ceiling, not
+#: an allocation, so the larger margin costs nothing.
+_INC_MARGIN = 50
 
 #: Extra amplitude rows written past ``max_time`` so the final increment can never query
 #: beyond the table (the ADR-024 ``tabulated6DoFMotion`` precedent).
@@ -362,6 +367,14 @@ class CalculiXDeck(BaseModel):
 
     path: Path
     element_type: str
+    element_types: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "EVERY *ELEMENT TYPE the deck declares, sorted. element_type keeps only the "
+            "last block, so a C3D8 bulk behind a trailing C3D8I block would otherwise "
+            "pass the shear-lock clause (session-7 adversarial review, candidate 9)."
+        ),
+    )
     n_nodes: int = Field(..., ge=8)
     n_elements: int = Field(..., ge=1)
     z_levels: tuple[float, ...] = Field(..., min_length=2)
@@ -384,6 +397,14 @@ class CalculiXDeck(BaseModel):
     amplitude: AmplitudeTable
     wetted_upper: tuple[tuple[float, float], ...] = Field(
         ..., description="(x, y) of the upper wetted curve, read back from the written nodes."
+    )
+    wetted_lower: tuple[tuple[float, float], ...] = Field(
+        default=(),
+        description=(
+            "(x, y) of the LOWER wetted curve. The section is symmetric, and checking "
+            "only the upper curve let an asymmetric (corrupted-lower-surface) deck pass "
+            "(session-7 adversarial review, candidate 11)."
+        ),
     )
 
     @property
@@ -745,6 +766,7 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
     nodes: dict[int, tuple[float, float, float]] = {}
     elements: dict[int, tuple[int, ...]] = {}
     element_type = ""
+    element_types: set[str] = set()
     nsets: dict[str, list[int]] = {}
     elsets: dict[str, list[int]] = {}
     materials: dict[str, list[float]] = {}
@@ -774,6 +796,7 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
                 nsets.setdefault(parameters.get("NSET", ""), [])
             elif keyword == "ELEMENT":
                 element_type = parameters.get("TYPE", "")
+                element_types.add(element_type)
             elif keyword == "NSET":
                 nsets.setdefault(parameters.get("NSET", ""), [])
             elif keyword == "ELSET":
@@ -786,7 +809,10 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
             elif keyword == "AMPLITUDE":
                 amplitude_name = parameters.get("NAME", "")
             elif keyword == "STEP":
-                nlgeom = "NLGEOM" in parameters
+                # Value-aware: ccx accepts NLGEOM=NO, which explicitly DEACTIVATES
+                # geometric nonlinearity — a presence test read it as on (session-7
+                # adversarial review, candidate 6).
+                nlgeom = "NLGEOM" in parameters and parameters["NLGEOM"].upper() != "NO"
                 max_increments = int(parameters.get("INC", "100"))
             elif keyword == "DYNAMIC":
                 dynamic_alpha = float(parameters.get("ALPHA", "nan"))
@@ -836,10 +862,11 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
     if dangling:
         raise CalculiXDeckError(f"{path}: node set(s) name nodes that do not exist: {dangling}")
 
-    upper = _wetted_upper(nodes)
+    upper, lower = _wetted_curves(nodes)
     return CalculiXDeck(
         path=path,
         element_type=element_type,
+        element_types=tuple(sorted(element_types)),
         n_nodes=len(nodes),
         n_elements=len(elements),
         z_levels=tuple(sorted({round(c[2], 15) for c in nodes.values()})),
@@ -866,20 +893,31 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
             value=tuple(row[1] for row in amplitude_rows),
         ),
         wetted_upper=upper,
+        wetted_lower=lower,
     )
 
 
-def _wetted_upper(
+def _wetted_curves(
     nodes: dict[int, tuple[float, float, float]],
-) -> tuple[tuple[float, float], ...]:
-    """The maximum ``y`` at each ``x`` station on the ``z = min`` face — the upper curve."""
+) -> tuple[tuple[tuple[float, float], ...], tuple[tuple[float, float], ...]]:
+    """The extreme ``y`` at each ``x`` station on the ``z = min`` face — BOTH curves.
+
+    Checking only the upper curve let a deck whose lower half was corrupted pass the
+    geometry gate while the section it meshed was not the experiment's (session-7
+    adversarial review, candidate 11).
+    """
     z_min = min(c[2] for c in nodes.values())
-    by_x: dict[float, float] = {}
+    upper_by_x: dict[float, float] = {}
+    lower_by_x: dict[float, float] = {}
     for x, y, z in nodes.values():
         if z != z_min:
             continue
-        by_x[x] = max(by_x.get(x, -math.inf), y)
-    return tuple((x, by_x[x]) for x in sorted(by_x))
+        upper_by_x[x] = max(upper_by_x.get(x, -math.inf), y)
+        lower_by_x[x] = min(lower_by_x.get(x, math.inf), y)
+    return (
+        tuple((x, upper_by_x[x]) for x in sorted(upper_by_x)),
+        tuple((x, lower_by_x[x]) for x in sorted(lower_by_x)),
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -899,6 +937,12 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
         problems.append(
             f"element type {deck.element_type!r} != {_ELEMENT_TYPE!r} — C3D8 shear-locks in a "
             "thin bending member and would under-predict the deflection"
+        )
+    if set(deck.element_types) != {_ELEMENT_TYPE}:
+        problems.append(
+            f"the deck declares element types {sorted(deck.element_types)}, expected exactly "
+            f"[{_ELEMENT_TYPE!r}] — element_type keeps only the LAST *ELEMENT block, so a "
+            "shear-locking bulk behind a trailing compliant block would otherwise pass"
         )
     if not deck.nlgeom:
         problems.append("*STEP is missing NLGEOM")
@@ -937,11 +981,36 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
         )
     if magnitudes and magnitudes != {0.0}:
         problems.append(f"*CLOAD magnitudes {sorted(magnitudes)} are not all exactly 0.0")
+    stray_cload = sorted({nset for nset, _, _ in deck.cload if nset != INTERFACE_NSET})
+    if stray_cload:
+        problems.append(
+            f"*CLOAD rows on {stray_cload} — the only permitted load is the adapter's "
+            f"zero block on {INTERFACE_NSET}; any other row is a constant force the "
+            "coupling never sees and the readout cannot explain"
+        )
 
+    n_x = len(spec.surface_x)
+    n_eta = spec.n_through_thickness + 1
+    expected_interface = 2 * (2 * (n_x + n_eta) - 4)
+    n_nose_stations = sum(1 for x in spec.surface_x if x <= spec.join_x)
+    expected_nose = n_nose_stations * n_eta * 2
     if INTERFACE_NSET not in deck.nsets:
         problems.append(f"no *NSET named {INTERFACE_NSET} — the adapter's patch would not resolve")
+    elif deck.nsets[INTERFACE_NSET] != expected_interface:
+        problems.append(
+            f"{INTERFACE_NSET} names {deck.nsets[INTERFACE_NSET]} nodes, expected "
+            f"{expected_interface} (the section perimeter at both z faces) — a truncated "
+            "include maps a PARTIAL interface: the coupling converges and the plate is "
+            "quietly under-forced"
+        )
     if NOSE_NSET not in deck.nsets:
         problems.append(f"no *NSET named {NOSE_NSET} — nothing would prescribe the plunge")
+    elif deck.nsets[NOSE_NSET] != expected_nose:
+        problems.append(
+            f"{NOSE_NSET} names {deck.nsets[NOSE_NSET]} nodes, expected {expected_nose} "
+            f"({n_nose_stations} stations x {n_eta} through-thickness x 2 faces) — a "
+            "partial nose set plunges only part of the prescribed region"
+        )
 
     plane_strain = [b for b in deck.boundaries if b[0] == _ALL_NSET and b[1] == 3]
     if not plane_strain:
@@ -978,6 +1047,13 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
             f"{_PLATE_ELSET} is made of {deck.section_materials.get(_PLATE_ELSET)!r}, "
             f"expected {spec.plate.name!r}"
         )
+    nose_present = _NOSE_ELSET in deck.section_materials or _NOSE_ELSET in deck.elsets
+    if nose_present and deck.section_materials.get(_NOSE_ELSET) != spec.nose.name:
+        problems.append(
+            f"{_NOSE_ELSET} is made of {deck.section_materials.get(_NOSE_ELSET)!r}, "
+            f"expected {spec.nose.name!r}"
+        )
+    problems.extend(_material_problems(deck, spec))
 
     problems.extend(_geometry_problems(deck, spec))
 
@@ -988,19 +1064,69 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
         )
 
 
+def _material_problems(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> list[str]:
+    """Material VALUES, not just names: a 10x-too-soft plate passed the name check.
+
+    The writer emits every value at the CalculiX-safe field width, so the comparison is
+    against the written representation, exact (session-7 adversarial review, candidate 4
+    — *ELASTIC E tampered by 10x, *DENSITY swapped to lead, and a nose section renamed to
+    steel all passed the previous clauses silently).
+    """
+    problems: list[str] = []
+    for material in (spec.plate, spec.nose):
+        if material.name not in deck.materials:
+            problems.append(f"material {material.name!r} is not declared in the deck")
+            continue
+        got = deck.materials[material.name]
+        want = (
+            float(format(material.youngs_modulus, ".13e")),
+            float(format(material.poisson_ratio, ".13e")),
+            float(format(material.density, ".13e")),
+        )
+        if got != want:
+            problems.append(
+                f"material {material.name!r} is (E, nu, rho) = {got!r} in the deck, "
+                f"expected {want!r} — a mis-typed modulus changes the pitch amplitude "
+                "while everything still converges"
+            )
+    return problems
+
+
 def _amplitude_problems(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> list[str]:
-    """The table must reproduce the analytic plunge to well inside the plunge amplitude."""
+    """The table must BE the per-window sampling, not merely self-consistent.
+
+    Evaluating the kinematics at the table's OWN times proves internal consistency at any
+    sampling rate — a 20x-coarser table passed it while ccx interpolated 4.8 percent of
+    the plunge amplitude away between rows (session-7 adversarial review, candidate 8).
+    The row count and the cadence are what make the interpolation error zero at the
+    evaluation points, so both are asserted here, not only in the writer's tests.
+    """
+    problems: list[str] = []
+    expected_rows = spec.n_windows + 1 + _AMPLITUDE_MARGIN_ROWS
+    if deck.amplitude.n_rows != expected_rows:
+        problems.append(
+            f"the amplitude table has {deck.amplitude.n_rows} rows, expected "
+            f"{expected_rows} (one per coupling window, plus the start row and "
+            f"{_AMPLITUDE_MARGIN_ROWS} margin rows past max_time)"
+        )
     t = np.asarray(deck.amplitude.t, dtype=np.float64)
+    max_step = float(np.max(np.diff(t))) if t.size > 1 else math.inf
+    if max_step > spec.time_window_size * (1.0 + 1.0e-9):
+        problems.append(
+            f"the amplitude table's largest step is {max_step!r} s, coarser than the "
+            f"coupling window {spec.time_window_size!r} s — ccx interpolates linearly "
+            "between rows, so a coarse table smooths the prescribed motion silently"
+        )
     written = np.asarray(deck.amplitude.value, dtype=np.float64)
     analytic = spec.kinematics.evaluate(t)["y"]
     error = float(np.max(np.abs(written - analytic)))
     tolerance = 1.0e-6 * spec.kinematics.stroke_amplitude
     if error > tolerance:
-        return [
+        problems.append(
             f"the amplitude table strays {error:.3e} m from the analytic plunge, over the "
             f"{tolerance:.3e} m allowed"
-        ]
-    return []
+        )
+    return problems
 
 
 def _geometry_problems(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> list[str]:
@@ -1017,6 +1143,23 @@ def _geometry_problems(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> list[str]
     error = float(np.max(np.abs(y - want_y)))
     if error > _GEOMETRY_TOLERANCE:
         return [f"the solid's wetted curve differs from the fluid's by {error:.3e} m"]
+
+    lower_x = np.asarray([point[0] for point in deck.wetted_lower], dtype=np.float64)
+    lower_y = np.asarray([point[1] for point in deck.wetted_lower], dtype=np.float64)
+    if lower_x.shape != want_x.shape or not np.allclose(
+        lower_x, want_x, rtol=0.0, atol=_GEOMETRY_TOLERANCE
+    ):
+        return [
+            f"the deck's lower curve has {lower_x.size} x-stations against the fluid's "
+            f"{want_x.size} — the wetted curves cannot be compared, let alone equal"
+        ]
+    lower_error = float(np.max(np.abs(lower_y - (-want_y))))
+    if lower_error > _GEOMETRY_TOLERANCE:
+        return [
+            f"the solid's LOWER wetted curve differs from the fluid's mirror by "
+            f"{lower_error:.3e} m — the section is symmetric, and checking only the upper "
+            "curve let an asymmetric deck pass"
+        ]
     return []
 
 

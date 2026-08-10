@@ -285,9 +285,12 @@ def hg2007_expectation(values: PreciceConfigValues) -> PreciceConfigExpectation:
             "Displacement": _CONVERGENCE_KIND,
             "Force": _CONVERGENCE_KIND,
         },
+        # Derived from the SAME constants solver.py builds the watch-point log paths
+        # from — a hand-typed literal here was a third copy of the names that nothing
+        # tied to the template bytes (session-7 adversarial review, candidate 2).
         watch_points={
-            "Solid/Nose": values.nose_watch_point,
-            "Solid/Trailing-Edge": values.te_watch_point,
+            f"Solid/{NOSE_WATCH_POINT_NAME}": values.nose_watch_point,
+            f"Solid/{TE_WATCH_POINT_NAME}": values.te_watch_point,
         },
         acceleration_kind=_ACCELERATION_KIND,
         max_time=values.max_time,
