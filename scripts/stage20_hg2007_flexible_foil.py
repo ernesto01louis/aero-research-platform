@@ -404,6 +404,15 @@ def _provenance(spec: Any, *, allow_dirty: bool) -> dict[str, Any]:
     return dumped
 
 
+def _solver(args: argparse.Namespace) -> PreciceCoupledSolver:
+    kwargs: dict[str, Any] = {}
+    if args.host_nfs_root:
+        kwargs["host_nfs_root"] = Path(args.host_nfs_root)
+    if args.remote_nfs_root:
+        kwargs["remote_nfs_root"] = Path(args.remote_nfs_root)
+    return PreciceCoupledSolver(**kwargs)
+
+
 def _executor(args: argparse.Namespace, *, timeout_s: int) -> LocalSSHExecutor:
     return LocalSSHExecutor(
         host=args.host, ssh_user="root", repo_root=_REPO_ROOT, long_timeout_s=timeout_s
@@ -452,9 +461,7 @@ def _prepare_and_submit(
         )
     provenance = _provenance(spec, allow_dirty=args.allow_dirty)
 
-    solver = PreciceCoupledSolver(
-        host_nfs_root=args.host_nfs_root, remote_nfs_root=args.remote_nfs_root
-    )
+    solver = _solver(args)
     executor = _executor(args, timeout_s=args.timeout)
     print(f"prepare: materializing the authored case ({arm}, rung {rung})")
     case_dir = solver.prepare(spec)
@@ -543,9 +550,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
             "campaign (sentinel fill, rung edit, or default drift); the record no longer "
             "describes the run and collecting would silently mix configurations"
         )
-    solver = PreciceCoupledSolver(
-        host_nfs_root=args.host_nfs_root, remote_nfs_root=args.remote_nfs_root
-    )
+    solver = _solver(args)
     case_dir = CaseDir(
         run_id=submission["run_id"],
         spec=spec,
