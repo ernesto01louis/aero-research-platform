@@ -578,15 +578,20 @@ def _collect_probe(args: argparse.Namespace) -> int:
     fluid_log = case_root / "Fluid.log"
     period = 1.0 / FREQUENCY_HZ
     history = read_courant_history(fluid_log)
+    # A run shorter than the post-ramp window is a CALIBRATION record (I4), not an I7
+    # pass: max Co over its own span is reported, and `passed` stays None so nothing
+    # downstream can mistake a short record for a post-ramp Courant measurement.
+    covers_post_ramp = max(history.t) >= period
     record["i7"] = {
         "dt": submission["spec_knobs"]["time_window_size"],
         "arm": submission["arm"],
         "rung": submission["rung"],
         "courant_lines": history.n_lines,
-        "max_courant_post_ramp": history.max_over(t_start=period),
+        "max_courant_post_ramp": history.max_over(t_start=period) if covers_post_ramp else None,
         "max_courant_anywhere": max(history.max),
         "post_ramp_window_starts_at": period,
-        "passed": history.max_over(t_start=period) <= 1.0,
+        "covers_post_ramp_window": covers_post_ramp,
+        "passed": (history.max_over(t_start=period) <= 1.0) if covers_post_ramp else None,
     }
 
     reports = solver.coupling_report(result)
