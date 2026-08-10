@@ -576,12 +576,44 @@ class PreciceCoupledSolver(Solver):
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Launch every participant concurrently under the supervisor script."""
+        plan = self.launch_plan(case_dir)
+        case_root_host = self._case_root(case_dir)
+        outcome = launch_coupled(
+            plan, executor, run_id=case_dir.run_id, case_root_host=case_root_host
+        )
+        logger.info(
+            "coupled run {} stopped_by={} after {:.0f}s",
+            case_dir.run_id,
+            outcome.stopped_by,
+            outcome.wall_clock_s,
+        )
+        return ResultHandle(
+            case_dir=case_dir,
+            returncode=outcome.executor_returncode,
+            output_host_path=case_root_host,
+            solver_log="\n\n".join(
+                f"===== {o.name} ({o.state}, rc={o.returncode}) =====\n{o.log_tail}"
+                for o in outcome.outcomes
+            ),
+        )
+
+    def launch_plan(self, case_dir: CaseDir) -> CoupledLaunchPlan:
+        """The launch plan ``run()`` executes — exposed so a driver can stage it detached.
+
+        The campaign seam (ADR-039 B3): ``run()`` holds an owning ``run_long.sh wait``
+        for the whole solve, which a 14-day wave must not do. A driver calls this, then
+        ``stage_coupled`` (writes the supervisor), then
+        ``LocalSSHExecutor.submit_detached``, and a LATER session re-enters through
+        ``reattach``. The plan construction lives here and nowhere else — the subtlest
+        field, ``exchange_dir``, targets the stale-socket cleanup, and a driver-side
+        copy drifting from this one is a hang that gate K2 admits as a budget outcome.
+        """
         spec = self._coupled_spec(case_dir.spec)
         # Bind the tutorial ROOT, not the case directory: upstream's run.sh scripts source
         # ../../tools/log.sh and call ../../tools/run-openfoam.sh, which resolve OUTSIDE
         # the case directory. Binding only the case would leave those paths pointing at a
         # /tools that does not exist inside the container.
-        plan = CoupledLaunchPlan(
+        return CoupledLaunchPlan(
             case_root_remote=self._remote_case_root(case_dir),
             participants=tuple(
                 p.model_copy(update={"workdir": f"{spec.case_subdir}/{p.workdir}"})
@@ -592,15 +624,20 @@ class PreciceCoupledSolver(Solver):
             # preCICE writes precice-run/ beside the config, one level in from the root.
             exchange_dir=spec.case_subdir,
         )
+
+    def reattach(self, case_dir: CaseDir, *, executor_returncode: int) -> ResultHandle:
+        """Rebuild the ``ResultHandle`` ``run()`` would have returned, from disk alone.
+
+        For ``--collect`` after a detached submit: everything ``load()`` needs is on the
+        NFS case tree plus the run's exit code (``~/.aero-jobs/<session>/rc``). The
+        handle is constructed exactly as ``run()`` constructs it, so the downstream path
+        is byte-identical either way.
+        """
         case_root_host = self._case_root(case_dir)
-        outcome = launch_coupled(
-            plan, executor, run_id=case_dir.run_id, case_root_host=case_root_host
-        )
-        logger.info(
-            "coupled run {} stopped_by={} after {:.0f}s",
-            case_dir.run_id,
-            outcome.stopped_by,
-            outcome.wall_clock_s,
+        outcome = read_coupled_status(
+            case_root_host / "coupled-status.json",
+            case_root_host=case_root_host,
+            executor_returncode=executor_returncode,
         )
         return ResultHandle(
             case_dir=case_dir,

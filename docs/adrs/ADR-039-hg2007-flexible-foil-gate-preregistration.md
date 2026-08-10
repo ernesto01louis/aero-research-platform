@@ -114,8 +114,10 @@ C - configuration integrity (authored case: these bytes are what the spec render
      unconditionally; *DYNAMIC DIRECT with the solid dt exactly the coupling window;
      ALPHA present and 0.0; *CLOAD declared all-zero on the interface nset, dofs 1,2,3
      (the adapter overwrites it - absent, the run is silently force-free); INC computed
-     >= 10*ceil(max_time/dt), never copied; n_through_thickness even (odd has no
-     mid-surface node and preCICE snaps the watch-point silently).
+     >= 50 x n_windows, never copied - 50 is the coupling's own max-iterations and ccx
+     counts every attempt, so a smaller margin certifies a budget the coupling may
+     legally exceed; n_through_thickness even (odd has no mid-surface node and preCICE
+     snaps the watch-point silently).
   C3 ONE span feeds both writers: the emitted slab z-extent equals the emitted
      blockMeshDict span exactly (upstream's 1 m default under-loads this plate 400x
      while checkMesh passes and the coupling converges).

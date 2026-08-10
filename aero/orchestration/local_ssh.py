@@ -139,12 +139,33 @@ class LocalSSHExecutor(BaseModel):
             ),
         )
 
-    def _run_detached(self, command: str, timeout_s: int, session: str | None) -> ExecResult:
-        """Submit a long job via run_long.sh, poll it to completion."""
-        session = session or f"aero-{int(time.time())}"
+    def submit_detached(self, command: str, *, session: str) -> ExecResult:
+        """Submit a long job via run_long.sh and RETURN — no owning ``wait``.
+
+        The campaign seam (ADR-039 B3): ``run_long.sh wait`` under ``AERO_RUN_LONG_REAP=1``
+        owns the job's lifetime, which is right for CI and wrong for a 14-day wave
+        launched from a session that will end. Submission never consults the flag, so the
+        job survives this process unconditionally; poll with ``run_long.sh status|logs``.
+        A zero-returncode result means SUBMITTED, not finished.
+        """
+        submit, result = self._submit(command, session=session)
+        if result is not None:
+            return result
+        return ExecResult(
+            command=command,
+            returncode=0,
+            stdout=submit.stdout,
+            stderr=submit.stderr,
+            duration_s=0.0,
+            host=self.host,
+        )
+
+    def _submit(
+        self, command: str, *, session: str
+    ) -> tuple[subprocess.CompletedProcess[str], ExecResult | None]:
+        """The shared submit step; the second element is a transport-fault result, if any."""
         run_long = str(self._run_long_script)
         started = time.monotonic()
-
         submit = subprocess.run(
             [run_long, self.ssh_target, session, command],
             capture_output=True,
@@ -157,7 +178,7 @@ class LocalSSHExecutor(BaseModel):
             # connection. That is a transport fault, not a solver one, and it must
             # not reach the caller wearing an ordinary non-zero exit code.
             unreachable = "cannot reach" in submit.stderr
-            return ExecResult(
+            return submit, ExecResult(
                 command=command,
                 returncode=submit.returncode or 1,
                 stdout=submit.stdout,
@@ -172,6 +193,17 @@ class LocalSSHExecutor(BaseModel):
                 ),
             )
         logger.info("submitted long job '{}' on {}", session, self.ssh_target)
+        return submit, None
+
+    def _run_detached(self, command: str, timeout_s: int, session: str | None) -> ExecResult:
+        """Submit a long job via run_long.sh, poll it to completion."""
+        session = session or f"aero-{int(time.time())}"
+        run_long = str(self._run_long_script)
+        started = time.monotonic()
+
+        _, fault = self._submit(command, session=session)
+        if fault is not None:
+            return fault
 
         # run_long.sh wait polls sentinel files (no held connection): exit 0
         # done, 1 failed, 2 timeout, 4 vanished. Guard with a slightly larger

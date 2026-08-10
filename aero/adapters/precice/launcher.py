@@ -407,6 +407,45 @@ def read_coupled_status(
     )
 
 
+class StagedCoupledLaunch(BaseModel):
+    """A written-but-not-launched coupled run: everything a detached submit needs.
+
+    The campaign seam (ADR-039 B3): the supervisor script is on disk, and the caller
+    submits ``command`` under ``session`` itself — via
+    ``LocalSSHExecutor.submit_detached`` — so no ``run_long.sh wait`` ever owns a
+    multi-day wave's lifetime. ``launch_coupled`` below is the original
+    write-run-and-wait path, byte-for-byte unchanged in behaviour, for callers whose
+    runs fit inside one process's lifetime (the smoke, the pre-flight probes).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    session: str
+    command: str
+    remote_script: str
+    executor_timeout_s: int
+
+
+def stage_coupled(
+    plan: CoupledLaunchPlan,
+    *,
+    run_id: str,
+    case_root_host: Path,
+) -> StagedCoupledLaunch:
+    """Write the supervisor into the case and return the submit handle — never runs it."""
+    script_host = case_root_host / "run-coupled.sh"
+    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
+    script_host.chmod(0o755)
+
+    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
+    return StagedCoupledLaunch(
+        session=f"fsi-{run_id}",
+        command=f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}",
+        remote_script=remote_script,
+        executor_timeout_s=plan.executor_timeout_s,
+    )
+
+
 def launch_coupled(
     plan: CoupledLaunchPlan,
     executor: Executor,
@@ -415,17 +454,12 @@ def launch_coupled(
     case_root_host: Path,
 ) -> CoupledRunResult:
     """Write the supervisor into the case, run it detached, and read back its verdict."""
-    script_host = case_root_host / "run-coupled.sh"
-    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
-    script_host.chmod(0o755)
-
-    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
-    command = f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}"
+    staged = stage_coupled(plan, run_id=run_id, case_root_host=case_root_host)
     result = executor.run(
-        command,
+        staged.command,
         long_running=True,
-        session=f"fsi-{run_id}",
-        timeout_s=plan.executor_timeout_s,
+        session=staged.session,
+        timeout_s=staged.executor_timeout_s,
     )
     return read_coupled_status(
         case_root_host / "coupled-status.json",
