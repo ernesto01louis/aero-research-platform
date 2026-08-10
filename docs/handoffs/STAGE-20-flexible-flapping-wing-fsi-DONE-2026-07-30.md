@@ -946,17 +946,21 @@ The stage's central session-7 result, in four measured steps:
    (Co → 239.8, GAMG FPE, rc=136); the rigid arm was killed clean after the bound was
    shown unpassable. `suggest_next_dt(9.61, headroom 0.8)` → **2e-5 s**, and the re-probe
    measured window-1 Co **0.549 on both arms** — the linear scaling held to three digits.
-2. **A Courant-passing window is expensive.** Post-startup the coupling converges in 4-5
-   iterations/window (healthy IQN, `Convergence 1` throughout — NOT added-mass distress),
-   at ~3.8 s wall per coupling iteration under two-arm contention: **~19 s/window
-   (flexible), ~5.7 s/window (rigid)**, measured over a 301 s interval at windows 30-70.
-3. **The arithmetic is fatal at every scale.** The gated campaign needs
-   `(3 + 20) x T = 23.33 s` of physical time = **1.18M windows** at dt 2e-5; at the
-   measured rates that is **78-260 days per arm** against the 14-day wave ceiling
-   (needs <= 1.02 s/window; <= ~2 s even at the 10-cycle last resort). The 1.5-period I7
-   probe itself (76,090 windows) projects 120-398 h against its frozen 43,200 s
-   submission ceiling — so it was killed, recorded, and replaced by 500-window
-   calibrations, which I4's own criterion admits.
+2. **A Courant-passing window is expensive.** The completed 500-window calibrations
+   (both arms, all-exited, wave-1 contention shape — I4's own criterion) measured
+   **16.08 s/window at 5.25 coupling iterations (flexible)** and **9.12 s/window at
+   4.18 (rigid)** — ~3.1 s wall per coupling iteration, with healthy IQN convergence
+   (`Convergence 1` throughout, NOT added-mass distress).
+3. **The arithmetic is fatal, in the committed rule's own words.** The gated campaign
+   needs `(3 + 20) x T = 23.33 s` of physical time = **1.18M windows** at dt 2e-5;
+   `size_gated_campaign` on the real record: *"flexible projects 18762387s > 1209600s,
+   rigid projects 10640030s > 1209600s - a budget NO-GO is a recorded outcome (ADR-039
+   B4), not a band change"* — **217 and 123 days against the 14-day ceiling** (15.5x and
+   8.8x; still 7.8x/4.4x at the 10-cycle last resort). The 1.5-period I7 probe itself
+   (76,090 windows) projects 120-398 h against its frozen 43,200 s submission ceiling —
+   killed, recorded, replaced by the calibrations. And the F4 disk warning is now a
+   number: **497 time directories retained for 500 windows** (purgeWrite does not track
+   FO-written fields), 343 MB per 500 windows → **~810 GB per arm** at campaign scale.
 4. **The committed sizing rule refuses**, by design: no completed post-ramp I7 exists and
    the projection exceeds the ceiling, so `size_gated_campaign` raises, B2 stays
    `<<B2-PENDING-I4>>`, the sentinels stay `None`, and no configuration can claim the
