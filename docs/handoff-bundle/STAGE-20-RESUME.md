@@ -1,4 +1,17 @@
-Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 7).
+Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 8).
+
+**SESSION 7 (2026-08-10) CHANGED THE STAGE'S SHAPE — read handoff §6.26-§6.30 and §7's
+SESSION-8 RESUMPTION PATH before anything else in this file.** In one line: ADR-039 is
+`accepted` and byte-bound to the campaign driver; eleven review defects are fixed; the
+detached submit/collect seam works end to end on the real cluster; and the pre-flight
+MEASURED the pre-registered campaign infeasible by 1-2 orders of magnitude (window-1
+Courant 9.61 at the candidate dt; ~19 s/window at the Courant-passing dt against a
+needed <= 1.02) — so the sizing rule refuses, `GATED_TIME_WINDOW_S`/`GATED_MAX_TIME_S`
+are STILL `None`, B2 still reads `<<B2-PENDING-I4>>`, and NO wave was launched. That is
+the pre-registration machinery working, not a failure to execute. **Session 8's first
+deliverable is ADR-040** (handoff §7 item 1: subcycling / parallel fluid / write
+scheduling / rung revisit, each with the arithmetic it must beat), then the pre-flight
+ladder re-run under it, then wave 1 through the existing driver.
 
 **THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR STAGE 20.** Six sessions have run and each left a
 resume prompt behind; the earlier ones are superseded and must not be followed. If you find
@@ -36,6 +49,7 @@ It is the last physics stage before the v0.1.0 checkpoint.
 | 3 | 2026-08-01 | `30aa126`..`a007689` (4) | **the two non-regression pins** (`67d8e82`) on pre-refactor code — the stage's most important ordering rule, done right; found the campaign does not fit its ceiling (§6.11), proposed **I7**, found `PreciceConfigExpectation` needs extending (§6.12), computed the bands (§6.13) |
 | 4 | 2026-08-04 | `1bd7011`..`b4bc801` (4) | **the `source` seam refactor**, the **`PreciceConfigExpectation` extension**, the **`transient_fvschemes` byte pin**; four operator decisions taken; **I3/I5 static baseline measured**; three corrections to the work-of-record (§6.14-§6.16) |
 | 5 | 2026-08-05 | `397af1c`..`b9f317f` (10) | **EVERY WRITER AND READER THE AUTHORED CASE NEEDS** — config template + renderer, CalculiX deck writer/re-reader, dimensional fluid deck, interface-power FO, force_io, `ddt_scheme=`, per-cycle limit-cycle objects, `alignment.py`, `.dat` reader. Pre-flight **S1, I6 and I3 pulled forward and PASSED**. Host rebooted mid-session; nothing lost |
+| 7 | 2026-08-10 | `8d59d27`..(see git) (9+) | **ADR-039 `accepted` + byte-bound driver + detached seam; ELEVEN review defects fixed (three silent-wrong-number, in the GATED readout); pre-flight run in leverage order and the campaign measured INFEASIBLE (handoff §6.29)** — I7 FAIL recorded at both dts (Courant / budget), I1 PASS (§6.27 deviation), I3 all six exact, I8 → Euler, I9: RF EXCLUDES applied *CLOAD (D10 residual real) + amplitude clean at 1.2M rows. Five `data/vv/stage20_*.json` records + I4 calibrations. e1b35b5 rebased to `docs/atlas-pointer`. No B2 fill, no wave — the sizing rule refuses by design |
 | 6 | 2026-08-06 | `227ffed`..`d6f0b99` (7) | **THE AUTHORED CASE MATERIALIZES, HAS A V&V OBJECT, AND IS WIRED.** `_materialize`/`_render_manifest`/`load` all dispatch on the source; 18 files written and re-read; `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`, both arms registered; Phase 3D closed ADR-038's residual. **Two silent-wrong-number defects fixed** (§6.22, §6.23), one from the adversarial review. **ADR-037 written, ADR-038 accepted.** Smoke re-passed at HEAD |
 
 Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **672** (session 6). Branch
@@ -77,10 +91,19 @@ Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **672** (s
 *Sessions 5 and 6 built every writer, the materializer, the readout and the V&V case object.
 What is left is the CLI wiring, the ADRs, the pre-flight and the campaign.*
 
-    docs/adrs/ADR-039-*.md                     (the gate block — NOTHING may run before it)
-    scripts/stage20_hg2007_flexible_foil.py    (the campaign driver)
-    tests/unit/test_adr039_*.py                (the binding tests — tests/unit, NOT stage_20)
-    data/vv/stage20_i4_calibration.json        data/vv/stage20_i3_mesh.json
+    docs/adrs/ADR-040-*.md                     (the re-pre-registration — session 8's first job)
+    ADR-039 B2's numbers                       (still <<B2-PENDING-I4>>; the sizing rule
+                                                REFUSES at the measured rates — correct)
+    the campaign                               (no wave has run; sentinels still None)
+
+**These EXISTED as of session 7 — do not rebuild:** ADR-039 (accepted, 58 clauses),
+`scripts/stage20_hg2007_flexible_foil.py` (probe/submit/status/collect/verdict modes),
+`tests/unit/test_adr039_{gate_block_shape,gate_block_sync,sizing_function,
+b2_marker_state}.py`, `aero/vv/fsi/{hg2007_sizing,preflight}.py`,
+`aero/adapters/openfoam/solver_log.py`, the seam (`LocalSSHExecutor.submit_detached`,
+`PreciceCoupledSolver.{launch_plan,reattach}`, `launcher.stage_coupled`), and the
+records `data/vv/stage20_{i7_courant,i3_mesh,i1_solverdummy,i8_checkpoint,
+i9_ccx_conventions,i4_calibration}.json`.
 
 **No campaign has run. No verdict exists and none may be made, because ADR-039 does not
 exist** — and, since session 6, that is also STRUCTURAL: `GATED_TIME_WINDOW_S` and
@@ -227,7 +250,34 @@ From session 4:
    directories and `du` them before B2 is sized.** A full NFS four days into a 14-day wave is
    the failure mode.
 
-## 7. YOUR TASK, IN THIS ORDER
+## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 7
+
+**START HERE (session 8): ADR-040, then the pre-flight ladder under it, then wave 1.**
+The order below is the whole task list; the original section is kept beneath for the
+rationale it still carries.
+
+1. **ADR-040** — re-pre-register the campaign numerics against handoff §6.29's
+   measurements. The options and the arithmetic each must beat are in handoff §7's
+   SESSION-8 RESUMPTION PATH. Measure the §6.29 cost split FIRST (one instrumented
+   short run: PIMPLE share vs adapter checkpoint vs forces1 write vs exchange) — do not
+   choose between subcycling / parallel fluid / write scheduling on hypotheses.
+   Subcycling changes the deltaT == time-window-size identity that C2, the
+   force-cadence classifier and the readout's one-row-per-window logic all assume;
+   treat it as a real pre-registration with its own binding tests.
+2. **Re-run the pre-flight ladder under ADR-040** (I7 at the new numerics both arms +
+   fine rung, I4 at campaign shape). The I1/I3/I8/I9 records STAND (they are
+   numerics-independent) — do not re-run them; cite them.
+3. **Fill ADR-040's B2 via `size_gated_campaign`** (or its ADR-040 successor), fill the
+   sentinels, land the derivation test.
+4. **Launch wave 1 detached** via `scripts/stage20_hg2007_flexible_foil.py --submit
+   {flexible,rigid}` — the driver, the seam (`submit_detached` / `stage_coupled` /
+   `reattach`), `--collect` and `--verdict` are BUILT AND TESTED; do not rebuild them.
+   Record session names + poll commands in the handoff before session end.
+
+Everything below this line is session 6's original task text, superseded where it
+conflicts (notably: ADR-039 exists; the driver exists; tests/unit/test_adr039_* exist).
+
+## 7b. THE ORIGINAL TASK TEXT (history + rationale)
 
 Each commit must leave `pytest -q tests/unit tests/stage_20` green. The full commit-by-commit
 sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-aurora.md`;

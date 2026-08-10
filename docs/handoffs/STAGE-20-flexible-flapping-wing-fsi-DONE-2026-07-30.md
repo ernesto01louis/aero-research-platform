@@ -45,10 +45,10 @@ the prose — every ❌ below was confirmed by `ls`.*
 |---|---|:-:|---|
 | 1 | CalculiX in the loop — `.inp` writer, adapter `config.yml`, element choice | ✅ | **Smoke PASSES on two containers** (upstream's bytes, `a9a2355`); element choice settled by evidence (§6.1). Writers landed session 5; the solver's authored branch landed session 6 (`227ffed`) and the case materializes end to end — 18 files, every one re-read, schema-v2 manifest |
 | 2 | The Heathcote-Gursul case in `aero/vv/fsi/` + DVC reference data | ✅ | **Reference COMPLETE**: text-sourced exact, 208 markers digitized, `hg2007_recomputed.csv` written, R2 passes, operating point fixed (§7.1), two corrections landed (§6.6, §6.7). `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py` landed session 6 (`21840e0`); both arms registered in all three `FSI_CASES` sites' source of truth |
-| 3 | Pre-registered gate block (ADR-039) before any campaign run | ❌ | **Not started.** ADR-037 and ADR-039 do not exist. Bands are *computed* (§6.13) but not pre-registered. No campaign has run, so nothing is out of order |
+| 3 | Pre-registered gate block (ADR-039) before any campaign run | ⚠️ | **ADR-039 EXISTS and is frozen** (session 7, `94c2b98`): 58 clauses across ten families, byte-duplicated in the campaign driver, binding tests in `tests/unit/`, B2 carrying `<<B2-PENDING-I4>>` + the committed pure sizing rule. **B2 cannot honestly be filled**: the pre-flight measured the pre-registered configuration infeasible by 1-2 orders of magnitude (§6.29) and the sizing rule refuses by design |
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ⚠️ | Every input exists and is measured per arm (`ArmReadout` carries the per-cycle series the paired estimator needs). `align_arms` was hardened in session 6 (§6.23). The composition itself is the campaign driver's and lands with ADR-039 |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038 `accepted` 2026-08-06.** Both residuals closed in session 6: the CLI derives the SIFs from the spec and calls `assert_provenance_describes` (`7f1d584`), and a per-CASE stage/solver-version override stops a Stage-20 bundle claiming a Nutils solid |
-| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | **ADR-037 `accepted`, ADR-038 `accepted`** (session 6); **ADR-039 NOT written**; this handoff; **no tag, no verdict, and none is possible until ADR-039 exists** |
+| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-037/038 `accepted`; **ADR-039 `accepted` (session 7)**; this handoff; **no tag, no verdict**. The gated sentinels remain `None` — structurally correct, because the pre-flight found the pre-registered campaign does not fit its own ceilings (§6.29). The resumption path is an ADR-040 re-pre-registration (§7 item 1), honest because **no gated campaign ever ran** |
 
 **Session 5 (2026-08-05) moves deliverables 1 and 4 substantially.** Every writer and reader
 the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
@@ -67,6 +67,22 @@ closed ADR-038's live residual — `assert_provenance_describes` had zero call s
 stopped a Stage-20 bundle claiming a Nutils solid. **ADR-037 written and ADR-038 ratified**
 (`d6f0b99`). Suite **581 → 672**, mypy clean, seven commits `227ffed`..`d6f0b99`.
 **What remains: ADR-039, the pre-flight, and the campaign.**
+
+**Session 7 (2026-08-10) freezes the pre-registration, hardens three modules against
+thirteen review candidates, builds the detached campaign seam — and the pre-flight then
+finds the pre-registered campaign infeasible before a single wave burned.** ADR-039
+landed with `<<B2-PENDING-I4>>` (`94c2b98`), the driver byte-duplicates it with
+submit-detached/collect/verdict modes and the additive launcher seam (`a0312e1`), and
+eleven of the resumed adversarial review's fourteen candidates were verified and fixed
+(`b222c18`, `94c3306`) — three of them silent-wrong-number defects in the GATED readout.
+The pre-flight then ran in leverage order: I7's candidate dt FAILED Co <= 1 at window 1
+(measured 9.61, §6.29), the rule-suggested dt passes Courant (0.549) but prices the
+campaign at 1-2 orders of magnitude over the frozen ceilings, and the committed sizing
+rule refuses to size — so `GATED_TIME_WINDOW_S`/`GATED_MAX_TIME_S` remain `None`, no
+wave launched, and the structural guarantee did exactly what it was built to do.
+Suite 672 → 726 (mypy clean repo-wide); e1b35b5 rebased off the branch (preserved on `docs/atlas-pointer`,
+§3). **What remains: an ADR-040 re-pre-registration informed by §6.29's measurements
+(§7 item 1), then the campaign.**
 
 **Enabling work not on the deliverable list, done in session 4 because everything above
 depends on it:** the `source` seam under `CoupledCaseSpec` (`1bd7011` — an authored case
@@ -134,6 +150,29 @@ the C-family claim was not expressible), and the `transient_fvschemes` byte pin
   Cutting settled cycles below 10 and accepting a budget NO-GO are the declared last resorts, in
   that order, and only if 14 days per wave is also exceeded. aero-dev is otherwise idle, so wall
   clock is the cheapest thing to spend.
+
+**Session 7 (2026-08-10) — decisions**
+
+- **e1b35b5 off the branch before pushing.** `commit-lint.yml` requires a `stage-NN`
+  scope on EVERY PR commit; the unscoped atlas commit would have flipped PR #44 red.
+  Rebased out (both commits were local-only, no force-push), preserved verbatim on
+  branch `docs/atlas-pointer` for the operator to land wherever it belongs.
+- **The review's fourteen candidates were verified by hand** after the refuters died on
+  a usage limit a second time — dispositions in §6.26, all BEFORE ADR-039 froze.
+- **I7 is a cycle-scale COUPLED probe, not "a few fluid-only steps"**: no fluid-only
+  vehicle exists (the authored controlDict carries the adapter FO with `errors strict`),
+  and the (1-cos) ramp spans a full cycle so a short probe measures the wrong regime.
+- **dt fixed across rungs** (the I8 common-mode rationale beats §6.11's scaled-dt
+  sketch), which is why I7 also demands a fine-rung Courant measurement.
+- **B2's projection uses the contention-measured rate** — the mid-rung probes run both
+  arms concurrently, the wave-1 shape.
+- **ddt = Euler** (I8 measured; §6.29 note 2 and `data/vv/stage20_i8_checkpoint.json`):
+  the probe bounds the checkpoint discrepancy at coupling-tolerance scale but cannot
+  prove round-off fidelity, and the frozen rule demands proof for `backward`.
+- **The stuck probes were killed, the wave was NOT launched.** A probe that structurally
+  cannot finish inside its frozen ceiling records nothing further by burning 12 h; the
+  500-window calibrations it was replaced by satisfy I4's own completion criterion. No
+  gated wave launched because the sizing rule refuses — the system, not discipline.
 
 ## 3. Deviations from the stage plan
 
@@ -243,6 +282,28 @@ the C-family claim was not expressible), and the `transient_fvschemes` byte pin
   tests go. Not fixed in-stage — the ADR-039 tests will live in `tests/unit/` beside
   `test_stage19_gate_block_sync.py`, which is where the Stage-19 precedent already puts them —
   and carried in the ledger.
+
+**Session 7 (2026-08-10) — deviations, and why**
+
+- **The gate block is 271 lines against ADR-036's measured 150.** Ten families and 58
+  clauses against eight and ~30; every extra line is a clause or its rationale, not
+  padding. The binding tests assert the byte SHAPE (width, indents, ASCII), not a count.
+- **ADR-039's C2 was corrected one commit after it landed** (`a0312e1`): the block said
+  the INC margin was 10x while `94c3306` had already hardened the code to 50x. The code
+  was stricter than the block, never looser; both copies now state 50, and the
+  correction rode in the same commit as the byte-identical driver copy.
+- **I1's dummies ran in one SIF** — measured: `calculix-precice.sif` ships no pyprecice
+  (§6.27). The cross-SIF property is carried by the same-day smoke.
+- **The fine-rung probe and the coarse/fine calibrations were NOT run.** The budget
+  conclusion is rung-independent (§6.29: mid misses by >= 20x; coarse is ~1.7x cheaper
+  per window) — a declared bounded-coverage decision, not an oversight.
+- **B1 was set at 172800 s with a 43200 s per-submission ceiling** (the prompt's floor
+  was 21600 s): B1 froze before I7 ran and the probes were known to be cycle-scale.
+  Even so, the 1.5-period probe at the Courant-passing dt does not fit — that finding
+  IS §6.29.
+- **N3 declares one resubmission on participant-died**, a recorded deviation from
+  ADR-036's no-restart rule, argued from the 14-day exposure (a died run carries no
+  gated numbers to retry). Unused this session.
 
 ## 4. Environment / dependency / schema changes
 
@@ -833,7 +894,123 @@ object; all three were unreachable before.
   to a wrong `exchange_directory`, which is why `EXCHANGE_DIRECTORY` is now one constant
   asserted against the launcher's cleanup path.
 
+### 6.26 The resumed adversarial review: fourteen candidates, refuters dead again, verified by hand
+
+The session-5 review resumed from cache; its finder panels for the two named blind spots
+COMPLETED, then all 46 remaining agents (every refuter, the synthesis) died on a usage limit
+— the second time. The fourteen candidates were verified against the code by hand instead.
+Eleven were real and are fixed: `b222c18` (candidates 12/13 — **eta was a ratio over the
+whole post-discard record while every sibling mean used the settled window, and the sibling
+means themselves were flat sample means over a window that generically ends mid-cycle**;
+both landed straight in gated quantities; every gated mean now rides `of(name).mean`, the
+settled integer-cycle estimator) and `94c3306` (candidates 1-2, 4-11 — material VALUES never
+compared so a 10x-softer plate passed; `NLGEOM=NO` parsed as on; truncated node-set includes
+passed; a self-consistent 20x-coarser amplitude table passed; mixed-element decks passed;
+stray `*CLOAD`s invisible; only the upper wetted curve checked; `_INC_MARGIN` 10 vs the
+coupling's own max-iterations 50; the template's watch-point names were a third hand copy;
+and the 'verbatim from upstream' numerics were only ever checked copy-vs-copy — now closed
+against the pinned archive's own bytes). Candidate 3 (`PreciceConfigExpectation` cannot
+observe the convergence-measure mesh, m2n acceptor/connector, provide/receive-mesh, or
+extra watch-points) is ledgered. Candidate 14 (convergence certified on the fundamental
+only) became ADR-039's per-signal S5 plus `aero/vv/fsi/preflight.signal_drift_reports`.
+
+### 6.27 calculix-precice.sif ships no pyprecice — I1's dummies cannot run there
+
+Measured: `apptainer exec calculix-precice.sif python3 -c "import precice"` →
+`ModuleNotFoundError`. The I1 solverdummies therefore ran (and PASSED) in
+`precice-fsi.sif` through the real launcher, and the cross-SIF m2n property is carried by
+the same-day two-container smoke at HEAD. Recorded as a deviation in
+`data/vv/stage20_i1_solverdummy.json`, not silently absorbed.
+
+### 6.28 ccx's printed RF at a prescribed dof EXCLUDES the applied *CLOAD — D10's residual is real
+
+The F12 question, answered by a differential pair of uncoupled runs: a known dof-2 load on
+the 534 non-prescribed interface nodes (run A) versus all 876 including the 342 nose-cap
+nodes that are in BOTH `Nsurface` and `Nnose` (run B) prints **identical** `Nnose` RF
+totals. So `<RF.v> = <P2>` closes with a residual equal to the applied-force work at the
+prescribed overlap — and the nose carries a large share of the fluid force, so **expect D10
+to miss on bookkeeping at verdict time**, with `data/vv/stage20_i9_ccx_conventions.json` as
+the explanation and the fluid-side nose-share force as the X-family diagnostic beside it.
+The band froze before the answer arrived; that ordering is what pre-registration means.
+Also measured there: `*AMPLITUDE` reads clean at 120,005 AND 1,200,005 rows (rc=0), so the
+table is not the binding constraint at any surviving dt.
+
+### 6.29 THE BUDGET WALL: the pre-registered campaign misses its own ceilings by 1-2 orders of magnitude
+
+The stage's central session-7 result, in four measured steps:
+
+1. **The candidate dt fails Courant immediately.** At `dt = 3.5e-4` the FIRST window
+   prints max Co 9.61 (flexible) / 9.62 (rigid) — the steady convective Courant at the
+   19 um TE base cells. §6.11's wall-cell arithmetic was right, and the hoped-for
+   relative-flux slack did not materialize. The flexible arm then diverged at window 5
+   (Co → 239.8, GAMG FPE, rc=136); the rigid arm was killed clean after the bound was
+   shown unpassable. `suggest_next_dt(9.61, headroom 0.8)` → **2e-5 s**, and the re-probe
+   measured window-1 Co **0.549 on both arms** — the linear scaling held to three digits.
+2. **A Courant-passing window is expensive.** Post-startup the coupling converges in 4-5
+   iterations/window (healthy IQN, `Convergence 1` throughout — NOT added-mass distress),
+   at ~3.8 s wall per coupling iteration under two-arm contention: **~19 s/window
+   (flexible), ~5.7 s/window (rigid)**, measured over a 301 s interval at windows 30-70.
+3. **The arithmetic is fatal at every scale.** The gated campaign needs
+   `(3 + 20) x T = 23.33 s` of physical time = **1.18M windows** at dt 2e-5; at the
+   measured rates that is **78-260 days per arm** against the 14-day wave ceiling
+   (needs <= 1.02 s/window; <= ~2 s even at the 10-cycle last resort). The 1.5-period I7
+   probe itself (76,090 windows) projects 120-398 h against its frozen 43,200 s
+   submission ceiling — so it was killed, recorded, and replaced by 500-window
+   calibrations, which I4's own criterion admits.
+4. **The committed sizing rule refuses**, by design: no completed post-ramp I7 exists and
+   the projection exceeds the ceiling, so `size_gated_campaign` raises, B2 stays
+   `<<B2-PENDING-I4>>`, the sentinels stay `None`, and no configuration can claim the
+   gated verdict. The pre-flight bought this knowledge for ~3 hours of box time instead
+   of a burned 14-day wave.
+
+Cost decomposition (hypotheses with their evidence, for ADR-040): the ~3.8 s/iteration
+plausibly splits between serial pimpleFoam on 77k cells (~1-1.5 s/step measured on
+comparable decks), per-iteration adapter checkpointing of full fields, the ccx increment
+(~0.03 s, measured in the spike), preCICE exchange, and `forces1`'s registered-field
+writes at every step (`writeControl timeStep`) hitting NFS ~5x per window. None of these
+fractions is separately measured yet — measuring them is ADR-040's first job.
+
+### 6.30 76125 x 2e-5 = 1.5225000000000002 — window counts must be chosen through the round-trip check
+
+`2e-5` is not dyadic, so `n * dt` accumulates binary error and the CalculiX
+field-width validator (§6.17) rightly refused the first re-probe spec. 76090 x 2e-5
+= 1.5218 survives `%.13e` exactly. The sizing rule already bumps its window count to the
+first round-tripping value; hand-chosen probe counts must do the same
+(`float(format(n*dt, '.13e')) == n*dt`).
+
 ## 7. Open items for the next stage (and beyond)
+
+**SESSION-8 RESUMPTION PATH (supersedes the items below, which are kept as history):**
+
+1. **ADR-040 — re-pre-register the campaign numerics against §6.29's measurements,
+   BEFORE any campaign run.** Honest because no gated campaign ever ran; ADR-039's
+   FORBIDDEN list binds post-campaign changes, and its own P4 mechanism (sentinels None,
+   sizing refuses) is what stopped the launch. The design space, each option with the
+   §6.29 arithmetic it must beat (14 d/wave at >= 10 settled cycles => <= ~2 s/window,
+   i.e. >= a 10x-30x improvement on the measured 19 s/window flexible):
+   - **Fluid subcycling inside the coupling window** (the standard preCICE resolution):
+     window size back at O(3.5e-4) — 67k windows/campaign — with the fluid taking K
+     internal Euler steps per window at dt_f <= 2e-5. Coupling overhead amortizes ~17x;
+     PIMPLE cost stays. Requires: the deck's `DIRECT dt == window` stays TRUE (the SOLID
+     still steps per window), but `FlexibleFoilSpec`'s `deltaT == time_window_size`
+     identity, C2's wording, the force-cadence classifier and the readout's
+     one-row-per-window assumptions all need revisiting — a real pre-registration, not a
+     knob.
+   - **Parallel fluid participant** (decomposePar + parallel pimpleFoam under the
+     adapter): I1 proves MPI_Init works in-SIF; Stage 19 simply ran serial. 8-way could
+     buy ~4-6x on the PIMPLE share alone. Measure the §6.29 cost split first.
+   - **forces1 write scheduling**: the interface-power FO needs the force field
+     REGISTERED (execute-time), not serialized every step; if `writeControl` can drop to
+     `writeTime` without starving the FO, the per-step NFS writes vanish. Verify against
+     the coded FO's lookup semantics before touching the frozen deck bytes.
+   - **The rung family's TE cells** (19 um at n_te=4) are the Courant binder; any change
+     re-opens M4's counts and the GCI ladder — the most invasive option, last resort.
+2. **Then re-run the pre-flight ladder under ADR-040** (I7 at the new numerics, I4 at
+   campaign shape, fine-rung Courant), fill its B2, and launch wave 1 detached via the
+   session-7 driver (`--submit`, `--collect`; the seam and modes are built and tested).
+3. **Carry-forward measurements that stand regardless**: I1/I3/I8/I9 records
+   (`data/vv/stage20_*.json`), the Euler decision, the D10-residual convention, the
+   1.2M-row amplitude bound, and the review-hardened deck/template/readout gates.
 
 **Blocking, in order — this is the resumption path**
 
@@ -1150,6 +1327,18 @@ host-side required checks green). New: ADR-038; `db/migrations/005_container_set
 `data/vv/stage20_calculix_smoke.json`. Modified: the provenance package, `CoupledCaseSpec`, the
 executor and the three adapters' failure paths, `CONSTITUTION.md`.
 
+**Session 7 (2026-08-10): 8+ commits `b222c18`..(see git log), suite 672 → 726, mypy clean repo-wide.**
+New: ADR-039 (+ its correction in `a0312e1`), `scripts/stage20_hg2007_flexible_foil.py`,
+`aero/vv/fsi/{hg2007_sizing,preflight}.py`, `aero/adapters/openfoam/solver_log.py`,
+`tests/unit/test_adr039_{gate_block_shape,gate_block_sync,sizing_function,
+b2_marker_state}.py`, `tests/stage_20/{_settling,test_hg2007_readout_windows,
+test_solver_log,test_preflight_helpers,test_template_matches_upstream_bytes}.py`,
+six `data/vv/stage20_*.json` records. Modified: `hg2007_readout.py` (gated_means),
+`calculix.py` (eight new clauses + parser fixes), `template.py` (watch-point constants),
+`local_ssh.py`/`launcher.py`/`solver.py` (the additive detached seam),
+`import-platform-only.yml` (three new fenced modules), `test_calculix_deck.py`
+(+10 tamper tests). Branch history: e1b35b5 → `docs/atlas-pointer`; f704c38 → `8d59d27`.
+
 ## 10. Confidence / risk
 
 **Confident.** The two-container coupling is real and measured, not inferred: 50/50 windows
@@ -1174,3 +1363,17 @@ absolute fidelity, GO on the flexibility increment" reads as the honest result i
 CalculiX conventions, learned from bytes rather than documentation. §6.2's two reference traps are
 second: a `C_T/St²` axis under a "thrust coefficient" caption has already cost this repo one
 wrong reference file.
+
+**Session-7 revision.** *Confident:* the pre-registration machinery is now real — ADR-039
+byte-bound and CI-parity-tested, the gated sentinels structurally refusing an unsized
+campaign, and the pre-flight's central finding (§6.29) resting on four independent
+measurements that agree (window-1 Courant both arms and both dts, the linear dt scaling,
+the iterations logs, two rate intervals at different loads). The detached seam is proven
+on the cluster end to end. *The honest state of the claim:* Stage 20's application-fidelity
+verdict is still unmade, and the pre-registered NUMERICS — fluid dt locked to the coupling
+window on this rung family — cannot reach it on this hardware. That is a finding about the
+configuration, not about the physics; the reference, the case, the gates and the driver all
+stand, and ADR-040 re-registers only the numerics with the full evidence trail in hand.
+*Risk:* the ~3.8 s/coupling-iteration cost decomposition is hypothesis-ranked, not measured
+— if the dominant term is PIMPLE itself rather than overhead, subcycling alone buys less
+than the arithmetic suggests, and parallel-fluid becomes the load-bearing option.
