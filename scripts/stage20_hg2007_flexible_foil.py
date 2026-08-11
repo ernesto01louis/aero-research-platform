@@ -14,6 +14,9 @@ session 6).
 Modes:
   --probe ARM RUNG      prepare + mesh + submit ONE I7/I4 probe, detached; writes a
                         submission JSON next to --out.
+  --collect-cost I4     attribute a finished run's per-step CPU to the linear-solver
+                        work that caused it (I10), from logs already on disk - no
+                        cluster, no new solve.
   --collect-probe SUB   read a finished probe: coupled status, max post-ramp Courant
                         (I7), seconds/window + iterations/window + du + time-directory
                         count (I4), into a data/vv-shaped record.
@@ -36,6 +39,7 @@ copies go under ``data/vv/`` by hand.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -48,7 +52,10 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 import numpy as np  # noqa: E402
 from aero.adapters._base import CaseDir  # noqa: E402
-from aero.adapters.openfoam.solver_log import read_courant_history  # noqa: E402
+from aero.adapters.openfoam.solver_log import (  # noqa: E402
+    read_courant_history,
+    read_fluid_cost_history,
+)
 from aero.adapters.precice.case import (  # noqa: E402
     CASE_ROOT_DIRNAME,
     assert_provenance_describes,
@@ -59,6 +66,7 @@ from aero.adapters.precice.solver import PreciceCoupledSolver  # noqa: E402
 from aero.orchestration.local_ssh import LocalSSHExecutor  # noqa: E402
 from aero.provenance.four_fold import compute_provenance  # noqa: E402
 from aero.vv.alignment import align_arms  # noqa: E402
+from aero.vv.fsi.cost_model import attribute_step_cost  # noqa: E402
 from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     ARMS,
     FREQUENCY_HZ,
@@ -638,6 +646,184 @@ def _collect_probe(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+#: The regressor grouping the cost split uses. `p` and `pcorr` are ONE pressure-solve
+#: regressor: they are the same GAMG on the same matrix structure, they move together
+#: across the record, and asking for their separate coefficients is exactly the
+#: rank-deficient question `attribute_step_cost` refuses.
+_COST_GROUPS = {"gamg_pressure": ("p", "pcorr"), "momentum": ("Ux", "Uy")}
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _tree_bytes(root: Path) -> int:
+    """Apparent size of a subtree, matching ``du -sb`` (which counts ``st_size``)."""
+    if root.is_file():
+        return root.stat().st_size
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file() and not path.is_symlink():
+            total += path.stat().st_size
+    return total
+
+
+def _disk_decomposition(case_root: Path) -> dict[str, Any]:
+    """Split a finished case's footprint into terms that GROW and terms that do not.
+
+    I4 recorded one number (343 MB per 500 windows) and the handoff attributed it to
+    ``forces1``'s untracked field writes. That attribution decides which lever is worth
+    building, so it is split here rather than assumed.
+    """
+    participants = [
+        d for d in case_root.iterdir() if d.is_dir() and not d.name.startswith("precice-")
+    ]
+    if len(participants) != 1:
+        raise SystemExit(
+            f"{case_root}: expected exactly one case subdirectory, found "
+            f"{[d.name for d in participants]}"
+        )
+    case = participants[0]
+    fluid = case / "fluid-openfoam"
+    solid = case / "solid-calculix"
+    time_dirs = [d for d in fluid.iterdir() if d.is_dir() and d.name.replace(".", "", 1).isdigit()]
+    frd = list(solid.glob("*.frd"))
+    terms = {
+        "solid_results_frd": sum(_tree_bytes(f) for f in frd),
+        "solid_other": _tree_bytes(solid) - sum(_tree_bytes(f) for f in frd),
+        "fluid_time_directories": sum(_tree_bytes(d) for d in time_dirs),
+        "fluid_post_processing": _tree_bytes(fluid / "postProcessing"),
+        "fluid_mesh_static": _tree_bytes(fluid / "constant") + _tree_bytes(fluid / "system"),
+        "participant_logs": sum(_tree_bytes(f) for f in case_root.glob("*.log")),
+    }
+    total = _tree_bytes(case_root)
+    return {
+        "total_bytes": total,
+        "bytes_by_term": terms,
+        "n_fluid_time_directories": len(time_dirs),
+        "share_by_term": {name: value / total for name, value in terms.items()},
+        # Everything except the static mesh grows with window count; the mesh does not.
+        "growing_bytes": total - terms["fluid_mesh_static"],
+    }
+
+
+def _collect_cost(args: argparse.Namespace) -> int:
+    """I10: where the measured seconds-per-window actually went, from logs already written.
+
+    Reads the committed I4 record, finds the runs it describes, and attributes each arm's
+    per-step CPU. No cluster, no new solve: the evidence was written by a run that has
+    already happened, which is the only reason a cost split is affordable at all.
+    """
+    record_path = Path(args.collect_cost).resolve()
+    i4 = json.loads(record_path.read_text(encoding="utf-8"))
+    arms: dict[str, Any] = {}
+    logs: dict[str, Any] = {}
+
+    for arm, bundle in sorted(i4["collection_bundles"].items()):
+        submission = bundle["submission"]
+        case_root = Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME
+        fluid_log = case_root / "Fluid.log"
+        if not fluid_log.exists():
+            raise SystemExit(
+                f"{fluid_log} is gone — the cost split reads the run's own bytes, and a "
+                "record derived from a log that no longer exists cannot be re-checked"
+            )
+        history = read_fluid_cost_history(fluid_log)
+        attribution = attribute_step_cost(history, groups=_COST_GROUPS)
+        calibration = bundle["i4"]
+        windows = int(calibration["windows_completed"])
+        logs[arm] = {
+            "path": str(fluid_log),
+            "sha256": _sha256(fluid_log),
+            "bytes": fluid_log.stat().st_size,
+        }
+        arms[arm] = {
+            "run_id": submission["run_id"],
+            # Copied VERBATIM from the run that produced these bytes. Recomputing the
+            # four-tuple here would staple today's git SHA to a run from 2026-08-10.
+            "provenance": submission["provenance"],
+            "windows_completed": windows,
+            "wall_clock_s": calibration["wall_clock_s"],
+            "seconds_per_window": calibration["wall_clock_s"] / windows,
+            "iterations_per_window_mean": calibration["iterations_per_window_mean"],
+            "cost": {
+                "n_fluid_step_solves": history.n_steps,
+                "total_execution_s": history.total_execution_s,
+                "total_clock_s": history.total_clock_s,
+                "cpu_fraction_of_wall": history.cpu_fraction_of_wall,
+                "mean_seconds_per_step": history.mean_seconds_per_step,
+                "fields_solved": list(history.fields()),
+                "pressure_solves_per_step": sorted(
+                    {s.solves_by_field.get("p", 0) for s in history.steps}
+                ),
+                "solver_by_field": history.steps[-1].solver_by_field,
+            },
+            "attribution": json.loads(attribution.model_dump_json()),
+            "disk": _disk_decomposition(case_root),
+        }
+
+    flexible = arms["flexible"]
+    non_compute = {arm: 1.0 - a["cost"]["cpu_fraction_of_wall"] for arm, a in sorted(arms.items())}
+    record = {
+        "kind": "cost-split",
+        "clause": "I10",
+        "gated": False,
+        "derived_from": {
+            "record": {
+                "path": str(record_path.relative_to(_REPO_ROOT)),
+                "sha256": _sha256(record_path),
+            },
+            "logs": logs,
+        },
+        "cost_groups": {k: list(v) for k, v in _COST_GROUPS.items()},
+        "arms": arms,
+        "bounds": {
+            "non_compute_wall_fraction": non_compute,
+            "per_step_overhead_share": {
+                arm: a["attribution"]["intercept_share"] for arm, a in sorted(arms.items())
+            },
+            "note": (
+                "Both are bounds AT THE MEASURED RATE. Halving the compute leaves the same "
+                "absolute overhead seconds against half the wall, so every share here must "
+                "be re-read at each rung of a speed-up ladder rather than carried forward."
+            ),
+        },
+        "verdict": (
+            "MEASURED. The fluid participant's own CPU is "
+            f"{flexible['cost']['cpu_fraction_of_wall'] * 100:.2f} percent of the flexible "
+            "arm's wall clock, so EVERY lever that attacks I/O, preCICE exchange or waiting "
+            f"on the solid is bounded by {non_compute['flexible'] * 100:.2f} percent - "
+            "forces1 write scheduling is refuted as a cost lever by that bound. Fluid "
+            "subcycling is bounded by the same figure plus the per-step overhead share "
+            f"({flexible['attribution']['intercept_share'] * 100:.1f} percent, of which only "
+            "1 in K recurs), because the total fluid step-solve count is invariant in the "
+            "subcycling factor. What remains is the pressure solve: "
+            f"{flexible['attribution']['share_by_group']['gamg_pressure'] * 100:.1f} percent "
+            f"of fluid CPU at "
+            f"{flexible['attribution']['seconds_per_iteration_by_group']['gamg_pressure'] * 1e3:.2f}"
+            " ms per GAMG iteration and "
+            f"{flexible['attribution']['mean_iterations_by_group']['gamg_pressure']:.0f} "
+            "iterations per fluid step. Disk growth is dominated by the CalculiX .frd "
+            f"({flexible['disk']['share_by_term']['solid_results_frd'] * 100:.0f} percent), "
+            "which nothing in this repo reads, not by the fluid field writes "
+            f"({flexible['disk']['share_by_term']['fluid_time_directories'] * 100:.0f} percent)."
+        ),
+    }
+    _write_bundle(record, Path(args.out or "/tmp/stage20_cost_split.json"))
+    for arm, entry in sorted(arms.items()):
+        print(
+            f"{arm}: {entry['cost']['mean_seconds_per_step']:.3f} s/step over "
+            f"{entry['cost']['n_fluid_step_solves']} solves; CPU "
+            f"{entry['cost']['cpu_fraction_of_wall'] * 100:.2f}% of wall; "
+            f"pressure share {entry['attribution']['share_by_group']['gamg_pressure'] * 100:.1f}%"
+        )
+    return 0
+
+
 def _collect_arm(args: argparse.Namespace) -> int:
     """One gated arm: reattach, load (K/C/S gates), read_arm, bundle."""
     submission = _submission(Path(args.collect))
@@ -824,6 +1010,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--probe-dt", type=float, default=PROBE_DT_S)
     parser.add_argument("--probe-windows", type=int, default=PROBE_N_WINDOWS)
     parser.add_argument("--collect-probe", type=Path)
+    parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
     parser.add_argument("--status", type=Path)
@@ -850,6 +1037,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.collect_probe:
         return _collect_probe(args)
+    if args.collect_cost:
+        return _collect_cost(args)
     if args.submit:
         if GATED_TIME_WINDOW_S is None or GATED_MAX_TIME_S is None:
             raise SystemExit(
@@ -880,7 +1069,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.verdict:
         return _verdict(args)
     parser.error(
-        "choose a mode: --probe / --collect-probe / --submit / --status / --collect / --verdict"
+        "choose a mode: --probe / --collect-probe / --collect-cost / --submit / "
+        "--status / --collect / --verdict"
     )
 
 
