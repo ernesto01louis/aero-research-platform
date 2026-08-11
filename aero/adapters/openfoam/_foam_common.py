@@ -14,6 +14,8 @@ discriminated specs can drive them.
 
 from __future__ import annotations
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
 U_INF = 1.0  # reference freestream speed; the solve is dimensionless (Re fixes nu)
 RHO_INF = 1.0  # reference density (incompressible: forceCoeffs dimensionalising)
 
@@ -341,8 +343,99 @@ snGradSchemes   { default corrected; }
     )
 
 
+#: Linear solvers the pressure equation may be given. A closed set, so a typo is a
+#: ``ValidationError`` at write time rather than an OpenFOAM abort hours into a solve.
+_P_SOLVERS = frozenset({"GAMG", "PCG", "PBiCGStab"})
+#: Smoothers GAMG may use. ``DICGaussSeidel`` measured 2.2x faster than ``GaussSeidel``
+#: on this mesh (ADR-040 screening) — GAMG's coarse-grid correction was not working under
+#: a plain Gauss-Seidel smoother at cell aspect ratios near 310.
+_P_SMOOTHERS = frozenset({"GaussSeidel", "DICGaussSeidel", "symGaussSeidel", "DIC"})
+
+
+class FluidNumericsSpec(BaseModel):
+    """The fluid linear-solver stack and PIMPLE corrector counts, AS SPEC DATA.
+
+    These were literals inside this writer until ADR-040. That was a provenance hole:
+    ``config_hash`` is computed over the *spec*, so two campaigns run at different numerics
+    hashed identically and the four-tuple could not tell them apart — the same hole ADR-037
+    closed for the rung knobs, one layer down. Worse, the campaign driver's ``_reattach``
+    guard re-derives the config digest precisely to catch "the code moved under a live
+    campaign", and it was blind to exactly this class of edit.
+
+    Every value is a **token string**, not a float. ``f"{1e-7:.12g}"`` renders ``1e-07``
+    while the pinned deck says ``1e-7``; a float-typed field would silently move bytes that
+    six writers and five stages' records depend on.
+
+    The defaults are the ADR-039 numerics exactly, so the rendered dictionary is
+    byte-identical until a caller asks for something else (pinned by
+    ``tests/unit/test_fvsolution_bytes_before_numerics_spec.py``).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_default=True)
+
+    label: str = Field(
+        default="adr039-baseline",
+        min_length=1,
+        description="Names the stack in bundles and screening tables; enters config_hash.",
+    )
+    p_solver: str = Field(default="GAMG", description="Pressure-equation linear solver.")
+    p_smoother: str = Field(default="GaussSeidel", description="Smoother, when the solver is GAMG.")
+    p_tolerance: str = Field(default="1e-7", min_length=1, description="Absolute tolerance token.")
+    p_rel_tol: str = Field(default="0.01", min_length=1, description="Relative tolerance token.")
+    pcorr_tolerance: str = Field(default="0.02", min_length=1)
+    gamg_controls: tuple[tuple[str, str], ...] = Field(
+        default=(),
+        description=(
+            "Extra GAMG entries (nCellsInCoarsestLevel, agglomerator, cacheAgglomeration, "
+            "sweep counts) as ordered key/value token pairs. Ordered rather than a mapping "
+            "so the serialization - and therefore config_hash - is deterministic. Empty "
+            "renders nothing, which is what keeps the default bytes unmoved."
+        ),
+    )
+    n_outer_correctors: int = Field(default=2, ge=1, le=50)
+    n_correctors: int = Field(default=2, ge=1, le=10)
+    n_non_orthogonal_correctors: int = Field(default=1, ge=0, le=10)
+
+    @model_validator(mode="after")
+    def _tokens_are_known(self) -> FluidNumericsSpec:
+        problems = []
+        if self.p_solver not in _P_SOLVERS:
+            problems.append(f"p_solver {self.p_solver!r} not in {sorted(_P_SOLVERS)}")
+        if self.p_solver == "GAMG" and self.p_smoother not in _P_SMOOTHERS:
+            problems.append(f"p_smoother {self.p_smoother!r} not in {sorted(_P_SMOOTHERS)}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+    @property
+    def cell_displacement_key(self) -> str:
+        """``cellDisplacement``, or the regex form when every inner iteration is final.
+
+        MEASURED (ADR-040 screening, variant s6): at ``nOuterCorrectors 1`` OpenFOAM tags
+        every inner iteration final and looks up ``cellDisplacementFinal``, which a deck
+        carrying only ``cellDisplacement`` does not have — ``FOAM FATAL IO ERROR`` on the
+        first time step. So a single-outer-corrector deck is not just a PIMPLE knob; it
+        needs the regex key. Conditional rather than unconditional because the regex form
+        would move the bytes of five other stages' decks.
+        """
+        return '"cellDisplacement.*"' if self.n_outer_correctors == 1 else "cellDisplacement"
+
+    def gamg_lines(self, indent: str = "        ") -> str:
+        """Extra GAMG entries, padded to the deck's column and ALWAYS space-separated.
+
+        ``{key:<16}{value}`` would work for every key in the base blocks and fail for
+        ``nCellsInCoarsestLevel`` (21 characters), which renders as
+        ``nCellsInCoarsestLevel100;`` — a token OpenFOAM cannot parse. Pad to 15 and add
+        the separator, so a long key degrades to one space instead of none.
+        """
+        return "".join(f"{indent}{key:<15} {value};\n" for key, value in self.gamg_controls)
+
+
 def transient_fvsolution(
-    *, cell_displacement: bool = False, turbulence_model: str = "laminar"
+    *,
+    cell_displacement: bool = False,
+    turbulence_model: str = "laminar",
+    numerics: FluidNumericsSpec | None = None,
 ) -> str:
     """PIMPLE controls for a transient solve, optionally with a mesh-motion solver.
 
@@ -354,7 +447,11 @@ def transient_fvsolution(
     (``k``/``omega`` and, for ``kOmegaSSTLM``, ``gammaInt``/``ReThetat``) + their ``Final``
     variants is added. With ``cell_displacement=False`` and ``turbulence_model="laminar"`` the
     rendered dictionary is byte-identical to the Stage-10 static cylinder's ``fvSolution``.
+
+    ``numerics`` carries the pressure stack and corrector counts (ADR-040). Omitted, it is
+    ``FluidNumericsSpec()`` — the ADR-039 values — and every byte is unchanged.
     """
+    n = numerics if numerics is not None else FluidNumericsSpec()
     pcorr_block = ""
     cd_block = ""
     correct_phi = ""
@@ -372,21 +469,21 @@ def transient_fvsolution(
     }}
 """
     if cell_displacement:
-        pcorr_block = """    "pcorr.*"
-    {
-        solver          GAMG;
-        smoother        GaussSeidel;
-        tolerance       0.02;
+        pcorr_block = f"""    "pcorr.*"
+    {{
+        solver          {n.p_solver};
+        smoother        {n.p_smoother};
+        tolerance       {n.pcorr_tolerance};
         relTol          0;
-    }
+{n.gamg_lines()}    }}
 """
-        cd_block = """    cellDisplacement
-    {
+        cd_block = f"""    {n.cell_displacement_key}
+    {{
         solver          PCG;
         preconditioner  DIC;
         tolerance       1e-8;
         relTol          0;
-    }
+    }}
 """
         correct_phi = "    correctPhi          yes;\n"
     return (
@@ -396,11 +493,11 @@ solvers
 {{
 {pcorr_block}    p
     {{
-        solver          GAMG;
-        smoother        GaussSeidel;
-        tolerance       1e-7;
-        relTol          0.01;
-    }}
+        solver          {n.p_solver};
+        smoother        {n.p_smoother};
+        tolerance       {n.p_tolerance};
+        relTol          {n.p_rel_tol};
+{n.gamg_lines()}    }}
     pFinal
     {{
         $p;
@@ -417,9 +514,9 @@ solvers
 
 PIMPLE
 {{
-{correct_phi}    nOuterCorrectors    2;
-    nCorrectors         2;
-    nNonOrthogonalCorrectors 1;
+{correct_phi}    nOuterCorrectors    {n.n_outer_correctors};
+    nCorrectors         {n.n_correctors};
+    nNonOrthogonalCorrectors {n.n_non_orthogonal_correctors};
 }}
 """
     )

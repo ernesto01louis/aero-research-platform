@@ -46,6 +46,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.adapters.openfoam._foam_common import (
+    FluidNumericsSpec,
     header,
     transient_fvschemes,
     transient_fvsolution,
@@ -143,7 +144,36 @@ class FlexibleFoilSpec(BaseModel):
         ),
     )
 
+    # --- numerics (ADR-040) ---
+    numerics: FluidNumericsSpec = Field(
+        default=FluidNumericsSpec(),
+        description=(
+            "The fluid linear-solver stack and PIMPLE corrector counts. On the SPEC, not "
+            "in the writer, so config_hash distinguishes an ADR-039-numerics run from an "
+            "ADR-040-numerics run -- the ADR-037 rung-knob argument, one layer down. The "
+            "default is the ADR-039 stack, so every prior record is unmoved."
+        ),
+    )
+
     # --- output ---
+    purge_write: int = Field(
+        default=2,
+        ge=0,
+        description=(
+            "controlDict purgeWrite. Does NOT track the force object's registered-field "
+            "writes (I4 measured 497 retained time directories for 500 windows), so it is "
+            "a knob over the restart files only."
+        ),
+    )
+    forces_write_interval_steps: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Time steps between force-object writes. The readout needs one force.dat row "
+            "per fluid step (hg2007_readout._assert_power_object_saw_the_same_force compares "
+            "row counts), so raising this is a readout change, not a tuning knob."
+        ),
+    )
     field_write_interval_windows: int = Field(
         default=2000,
         ge=1,
@@ -315,7 +345,7 @@ endTime         {spec.max_time:.12g};
 deltaT          {spec.time_window_size:.12g};
 writeControl    timeStep;
 writeInterval   {write_interval};
-purgeWrite      2;
+purgeWrite      {spec.purge_write};
 writeFormat     ascii;
 writePrecision  12;
 writeCompression off;
@@ -345,7 +375,7 @@ functions
         type            forces;
         libs            (forces);
         writeControl    timeStep;
-        writeInterval   1;
+        writeInterval   {spec.forces_write_interval_steps};
         writeFields     yes;
         patches         {_patch_list(WALL_PATCHES)};
         rho             rhoInf;
@@ -518,7 +548,9 @@ def write_flexible_foil_case(spec: FlexibleFoilSpec, dest: Path) -> None:
         encoding="utf-8",
     )
     (system / "fvSolution").write_text(
-        transient_fvsolution(cell_displacement=True, turbulence_model="laminar"),
+        transient_fvsolution(
+            cell_displacement=True, turbulence_model="laminar", numerics=spec.numerics
+        ),
         encoding="utf-8",
     )
     (constant / "transportProperties").write_text(transport_properties(spec.nu), encoding="utf-8")
