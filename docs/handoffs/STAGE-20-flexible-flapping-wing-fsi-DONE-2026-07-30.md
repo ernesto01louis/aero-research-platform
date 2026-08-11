@@ -1046,7 +1046,27 @@ control runs at 1.013 s/step against the campaign's 3.041, so the ratios are ind
 
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-8 RESUMPTION PATH (supersedes the items below, which are kept as history):**
+**SESSION-9 RESUMPTION PATH (supersedes everything below).** Session 8 closed the
+measurement task; `docs/handoff-bundle/STAGE-20-RESUME.md` §6d + §7 is the map, and
+§6.31-§6.33 above are the evidence. In one line: **two of the three named levers are
+refuted by a measured bound, the cost is the pressure solve, the combined lever is 8.04x,
+and the 14-day ceiling is out of reach at any settled-cycle count.**
+
+Landed and pushed (7 commits, `24efcdc`..`c753321`, 774 tests green):
+`solver_log.read_fluid_cost_history` + `aero/vv/fsi/cost_model.py` (the instrument), the
+driver's `--collect-cost`, `data/vv/stage20_i10_cost_split.json` and
+`data/vv/stage20_n2_screening.json` (the evidence), the `fvSolution` byte-pin, and
+`FluidNumericsSpec` on the spec (the provenance hole — two numerics hashed identically).
+
+**NOT started: ADR-040 itself, the parallel launcher seam, the equivalence probe, the
+sizing fork, the coupled confirmation, wave 1.** Session 9's order is RESUME §7 items 1-8.
+
+Screening artefacts are on NFS at `/mnt/aero/runs/stage20-screen` (224 MB, 18 case copies
++ their logs). The `.log` files are the evidence behind
+`data/vv/stage20_n2_screening.json`; the case directories can be reclaimed once ADR-040
+lands. Nothing is running on aero-dev.
+
+**Kept as history below (the session-8 path, now complete):**
 
 1. **ADR-040 — re-pre-register the campaign numerics against §6.29's measurements,
    BEFORE any campaign run.** Honest because no gated campaign ever ran; ADR-039's

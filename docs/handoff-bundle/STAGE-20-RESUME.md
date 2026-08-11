@@ -279,29 +279,59 @@ byte-pin, and `FluidNumericsSpec` on the spec so `config_hash` can tell two nume
 fork, the coupled confirmation, and wave 1.** ADR-040 needs its OWN sentinels and its own
 `--submit-040`: ADR-039's can never be filled (handoff §6.33 item 3).
 
-## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 7
+## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 8
 
-**START HERE (session 8): ADR-040, then the pre-flight ladder under it, then wave 1.**
-The order below is the whole task list; the original section is kept beneath for the
-rationale it still carries.
+**START HERE (session 9): ADR-040, then the parallel seam, then the coupled
+confirmation, then the ceiling decision, then wave 1.** Session 8's measurement task is
+DONE and landed — §6d above and handoff §6.31-§6.33 are the map. Do not re-measure the
+cost split and do not re-open write scheduling or subcycling.
 
-1. **ADR-040** — re-pre-register the campaign numerics against handoff §6.29's
-   measurements. The options and the arithmetic each must beat are in handoff §7's
-   SESSION-8 RESUMPTION PATH. Measure the §6.29 cost split FIRST (one instrumented
-   short run: PIMPLE share vs adapter checkpoint vs forces1 write vs exchange) — do not
-   choose between subcycling / parallel fluid / write scheduling on hypotheses.
-   Subcycling changes the deltaT == time-window-size identity that C2, the
-   force-cadence classifier and the readout's one-row-per-window logic all assume;
-   treat it as a real pre-registration with its own binding tests.
-2. **Re-run the pre-flight ladder under ADR-040** (I7 at the new numerics both arms +
-   fine rung, I4 at campaign shape). The I1/I3/I8/I9 records STAND (they are
-   numerics-independent) — do not re-run them; cite them.
-3. **Fill ADR-040's B2 via `size_gated_campaign`** (or its ADR-040 successor), fill the
-   sentinels, land the derivation test.
-4. **Launch wave 1 detached** via `scripts/stage20_hg2007_flexible_foil.py --submit
-   {flexible,rigid}` — the driver, the seam (`submit_detached` / `stage_coupled` /
-   `reattach`), `--collect` and `--verdict` are BUILT AND TESTED; do not rebuild them.
-   Record session names + poll commands in the handoff before session end.
+1. **ADR-040 — the numerics re-pre-registration.** Its own gate block, byte-duplicated
+   into the driver as a SECOND constant (`PREREGISTERED_GATE_BLOCK_040`), with its own
+   byte-identity / shape / marker-state tests in `tests/unit/`. **ADR-039's block and
+   constant are not touched**, and a new test pins their sha256 so a future edit is a
+   named CI failure. Same byte form as ADR-039 (ASCII, ` - ` not em-dashes, family
+   headers at column 0, clauses at two spaces, continuations at five, indents ⊂ {0,2,5},
+   ≤ 90 cols). Families: **N** (the numerics under re-pre-registration), **L** (the live
+   MPI ladder — L1/L2 already PASSED, see `data/vv/stage20_n2_screening.json`), **Q**
+   (equivalence), **B** (budget, with `<<B1-PENDING-N3>>` and `<<B2-PENDING-ADR040>>`).
+   It must state clause by clause what carries over UNCHANGED — every D band, S, R, K, A,
+   M, C1-C6, the rungs, dt — and why changing the sizing rule is admissible: **no gated
+   campaign ever ran, so no verdict exists; the only thing seen is a cost, never a
+   result.** ADR-039's B2 marker stands unfilled PERMANENTLY and ADR-040 says so.
+2. **The parallel seam** (see handoff §6.33 item 1 for why the obvious seam is wrong):
+   `mpi_ranks` on the frozen `ParticipantSpec`; `mpirun -n N <command> -parallel` as the
+   last element of `parts` INSIDE `build_participant_command` — never
+   `build_apptainer_exec(mpi_n=…)`, which would hoist it outside the `setpriv` drop; a
+   `decomposeParDict` writer using `_foam_common.header()`; a `decompose()` seam beside
+   `PreciceCoupledSolver.mesh()`. Extend `tests/unit/test_precice_launcher.py` with a
+   parallel sibling — do not edit the serial byte-pin.
+3. **The equivalence probe (Q).** Q1: 500 coupled windows at the I4 shape under the
+   ADR-040 stack, both arms, compared against the SURVIVING ADR-039-numerics I4 record
+   (`/mnt/aero-nfs/runs/hg2007_*_foil-20260810-1447*` — `force.dat`, the
+   `aeroInterfacePower` log series and the watch-point traces are all still there, so the
+   baseline side costs nothing). Band and REJECTION outcome pre-registered before running.
+4. **The coupled confirmation (N3) — the ONLY thing that may size.** Both arms
+   concurrently at 6 ranks each (14 of 16 cores, operator-approved), gated rung, past the
+   ramp. The screening record may not size; nor may a ramp-phase rate.
+5. **Bring the operator the measured rate and take the ceiling decision** (their Q1
+   answer: the smallest ceiling that fits 20 settled cycles, approved before B2 is
+   filled). At the screening projection of ~2 s/window that is ~27 days, so **expect this
+   conversation to be real** — the 14-day ceiling is out of reach at any cycle count.
+6. **Re-run the pre-flight under ADR-040**: the merged I7+I4 campaign-shape run
+   (`--collect-probe` already emits both blocks from one run), both arms at the gated rung
+   plus the flexible arm at the fine rung. **B1's ceilings must rise first**: I7 needs
+   ≥ 50 725 windows to reach the post-ramp window, which against ADR-039 B1's 43 200 s
+   demands ≤ 0.85 s/window — tighter than B2's own target, so B1 was never satisfiable.
+   `n·dt` must survive `float(format(x, '.13e')) == x`. I1/I3/I8/I9 are cited, never
+   re-run.
+7. **Fill ADR-040's B2**, fill the **ADR-040** sentinels (never ADR-039's — handoff §6.33
+   item 3), land the derivation test. The new calibration goes in a **NEW** `data/vv`
+   file: `_merge_base_guard` resolves commits with `git log --diff-filter=A`, so
+   overwriting `stage20_i4_calibration.json` would leave it comparing against session 7's
+   add-commit and passing on the wrong ordering.
+8. **Launch wave 1 detached** via `--submit-040 {flexible,rigid}`. Submit only, NO owning
+   wait. Record session names + poll commands in the handoff before session end.
 
 Everything below this line is session 6's original task text, superseded where it
 conflicts (notably: ADR-039 exists; the driver exists; tests/unit/test_adr039_* exist).
