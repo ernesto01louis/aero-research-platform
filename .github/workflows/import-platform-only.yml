@@ -70,6 +70,10 @@ jobs:
               "aero.vv.fsi.hg2007_flexible_foil", "aero.vv.fsi.hg2007_readout",
               "aero.vv.fsi.hg2007_sizing", "aero.vv.fsi.preflight",
               "aero.adapters.openfoam.solver_log",
+              # ADR-040: the cost attribution the numerics re-pre-registration argues
+              # from. Pure numpy least squares -- named so that reaching for scipy.stats
+              # here (the obvious next step for confidence intervals) fails loudly.
+              "aero.vv.fsi.cost_model",
           ):
               importlib.import_module(mod)
 
