@@ -279,6 +279,37 @@ byte-pin, and `FluidNumericsSpec` on the spec so `config_hash` can tell two nume
 fork, the coupled confirmation, and wave 1.** ADR-040 needs its OWN sentinels and its own
 `--submit-040`: ADR-039's can never be filled (handoff §6.33 item 3).
 
+## 6e. SESSION 9 SO FAR — the two leads are dead and the collect path is broken
+
+Read handoff §6.34-§6.35. Two results, both landed (`bc24e08`, `870e116`):
+
+1. **Both operator-named leads are REFUTED**, on a committed harness
+   (`scripts/stage20_numerics_screen.py`, `data/vv/stage20_n4_deforming_screen.json`) that
+   reproduces N2's `s0_control` to four significant figures first. `cacheAgglomeration no`
+   removes no iterations on a moving mesh and costs 6.8-18.4 %; a fully-Dirichlet farfield
+   `p` — the strongest possible form of the pressure-reference fix — is worth 3 %, inside
+   scatter. **Do not re-open either.** No campaign BC changes.
+   §6.31's "the deforming mesh makes the pressure system three times harder" is **wrong**:
+   the campaign's foil moved 0.006 of ONE wall cell over the whole I4 run, the screen moved
+   it 167x further and still reproduced almost none of the cost. The cost is
+   **startup-transient difficulty sustained forever** — every coupling iteration restores
+   the window-start checkpoint, so the pressure solve never warms up. That lever is
+   ADR-039 C1, frozen: REPORT it, do not act on it.
+   **The ~2.00 s/window projection stands and is conservative** (the candidate stack is
+   5.29x cold-started vs 4.25x warm). The 14-day ceiling is still out of reach at any
+   settled-cycle count, so §7 item 5's conversation is unchanged.
+2. **`--collect` -> `read_arm` would raise after wave 1's weeks of wall clock**, verified on
+   both surviving I4 arms. The fluid FOs stamp the window START and CalculiX the window END,
+   so there is a one-window phase offset sitting under D10 and P2/P3. Fix it structurally
+   and prove it against those bytes BEFORE wave 1. This is a new §7 item, between 7 and 8.
+
+**Operator decisions taken this session** (do not re-litigate): the deforming screen ran
+BEFORE ADR-040 (deviation from §7's order, recorded in handoff §3); ADR-040 pre-registers
+dt = 2e-5 as the candidate plus a CONDITIONAL re-probe — if measured post-ramp Co <= 0.4,
+one probe at the next larger round-tripping dt is pre-authorised and the campaign dt is the
+largest probed dt with post-ramp Co <= 0.8; the pressure BC was admissible only under a
+pre-registered rule, and that rule is now moot because N5 is refuted.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 8
 
 **START HERE (session 9): ADR-040, then the parallel seam, then the coupled

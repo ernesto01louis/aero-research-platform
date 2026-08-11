@@ -1044,6 +1044,77 @@ control runs at 1.013 s/step against the campaign's 3.041, so the ratios are ind
    ADR-040 calibration must go in a NEW file or the guard compares against session 7's
    add-commit and passes on the wrong ordering.
 
+### 6.34 SESSION 9 — both named leads are refuted, and §6.31's attribution was wrong
+
+Session 8's N2 record explains the campaign's 961 GAMG iterations/step against the static
+screen's 302 by "the deforming mesh makes the pressure system about three times harder".
+That was a hypothesis, and it is **false**. Measured on a committed harness
+(`scripts/stage20_numerics_screen.py`, `data/vv/stage20_n4_deforming_screen.json`) that
+reproduces N2's `s0_control` to four significant figures before measuring anything new:
+
+| variant | s/step | `p` it/**solve** |
+|---|---|---|
+| `d0` static, ADR-039 stack | 1.089 | 35.6 |
+| `d1` **moving**, ADR-039 stack | 1.249 | **40.3** |
+| `d2` `d1` + `cacheAgglomeration no` | 1.334 | 41.3 |
+| `d3` moving, candidate stack | 0.294 | 5.6 |
+| `d4` `d3` + `cacheAgglomeration no` | 0.348 | 5.7 |
+| `d5` `d1` + fully-Dirichlet farfield `p` | 1.223 | 39.0 |
+
+1. **N4 (`cacheAgglomeration`) is refuted.** On a mesh that *does* move it removes no
+   iterations at all and costs 6.8 % wall time (18.4 % on the candidate stack). The knob was
+   untestable on N2's static screen; it is now tested and dead.
+2. **N5 (the near-pure-Neumann pressure system) is refuted.** `0/p`'s farfield really is
+   `freestreamPressure` on one 20-chord patch with `zeroGradient` walls. Pinning the WHOLE
+   farfield — the strongest possible form of the fix, deliberately over-constrained — is
+   worth 3 %, inside scatter. **No campaign boundary condition changes.**
+3. **The refutation is a fortiori.** Under the (1-cos) ramp the campaign's foil had moved
+   **2.6e-7 m by its 0.01 s end time — 0.006 of ONE wall cell**. The screen has no ramp and
+   moved it **167x further**, and still reproduced almost none of the cost. Both sides of
+   §6.31's 3x in fact ran on an effectively static mesh.
+4. **What the cost actually is: startup-transient difficulty, sustained forever.** The
+   screen's own first five steps cost 78.2 it/solve from uniform fields and decay to 40.3 by
+   step five, because a marching solve warms up from the previous step's converged field.
+   The campaign's first five step-solves sit at **91.2 — the screen's STARTUP number, not
+   its settled one — and never decay** (113.0 over all 2627 solves). Under implicit coupling
+   every iteration restores the window-start checkpoint, so the pressure solve is
+   permanently cold-started. This fits all four measured signatures: present from the first
+   solve, flat across position in the window (987 on iteration 1 vs 977 on iteration 3),
+   flat in time, and untouched by both refuted knobs. The lever it implies is the
+   per-iteration initial guess, which lives in the coupling scheme **ADR-039 C1 freezes** —
+   so it is REPORTED, not acted on.
+5. **The budget projection is conservative, not optimistic.** The candidate stack's
+   advantage is LARGER cold-started (5.29x) than warm (4.25x), and its moving-mesh ratio
+   (4.25x vs the moving control, 3.70x vs the static one) brackets N2's 3.73x. So
+   ~2.00 s/window stands, the 14-day ceiling is still out of reach at any settled-cycle
+   count, and the ceiling conversation is unchanged. It remains a PROJECTION and still may
+   not size — only a coupled, contended confirmation past the ramp may.
+
+N2's committed record is left untouched; the correction lives in the new record with its
+evidence, per §9's rule that a measurement record is never edited in place.
+
+### 6.35 SESSION 9 — `--collect` would have failed after wave 1's weeks of wall clock
+
+Verified by hand on **both** surviving I4 arms, from bytes already on disk:
+
+- `classify_repeat_cadence` **RAISES**. `force.dat` carries `sum(iterations)` rows over
+  `n_windows + 1` distinct times, so repeats are `sum(iter) - n_windows - 1`, one short of
+  what the classifier requires. Its error message blames `timePrecision`, which is wrong.
+- `_assert_one_schedule` **RAISES**. The fluid-side records carry 501 instants starting at
+  `t = 0`; the CalculiX `.dat` carries 500 starting at `t = dt`.
+
+The structure is exact and reproducible: per-time row counts **equal** the per-window
+coupling-iteration counts for every window `k >= 1` (499/500 exact on both arms),
+`cnt[0] = it[0] - 1`, plus one trailing row at `max_time`. So the fluid function objects
+stamp the window **START** and CalculiX stamps the window **END** — a one-window phase
+offset between the fluid force and the solid reaction, sitting directly under **D10**
+(`|P3-P2|/P2`) and under P2/P3. This is the §6.22 defect class again.
+
+`--collect` -> `read_arm` has **never been run on a real coupled run** — the I4 pair was
+collected through `--collect-probe` and `--collect-cost` only. It must be fixed
+structurally (never with a `+1`) and proved against these bytes BEFORE wave 1, or a 20-day
+campaign ends in a raise.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-9 RESUMPTION PATH (supersedes everything below).** Session 8 closed the
