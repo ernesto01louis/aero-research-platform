@@ -250,6 +250,35 @@ From session 4:
    directories and `du` them before B2 is sized.** A full NFS four days into a 14-day wave is
    the failure mode.
 
+## 6d. SESSION 8 MEASURED THE COST SPLIT — read handoff §6.31-§6.33 before ADR-040
+
+The three levers session 7 named were ranked on hypotheses. Measured (handoff §6.31/§6.32,
+`data/vv/stage20_{i10_cost_split,n2_screening}.json`):
+
+1. **`forces1` write scheduling and fluid subcycling are BOTH REFUTED**, by a bound rather
+   than an argument: 99.42 % of the wave's wall clock is fluid CPU, so every I/O-shaped
+   lever is capped at 0.58 %, and subcycling at ~6.6 % (the fluid step-solve count is
+   invariant in K). Do not re-open either.
+2. **The cost is the pressure solve** — 90.8 % of fluid CPU, 961 GAMG iterations per step.
+   **`smoother GaussSeidel` → `DICGaussSeidel` alone is 2.22x**; with Tier 2 (one outer
+   corrector, looser `p` tolerance) 3.73x. **PCG+DIC is 1.07x** — do not re-derive it,
+   `_foam_common.fvsolution`'s docstring recommends it and it is wrong here.
+3. **Parallel fluid is the WEAKER lever**: 2.18x at 6 ranks, 36 % efficiency, *slower* at 8.
+4. **Combined 8.04x ⇒ ~2.00 s/window uncontended**, against 1.037 needed for 20 settled
+   cycles inside 14 days. **The 14-day ceiling is out of reach at any settled-cycle count**;
+   the operator's deferred ceiling decision is live.
+5. The disk trap is the CalculiX `.frd` (78 %, read by nothing), not the fluid field writes
+   (7.6 %). §6c item 4's attribution is wrong.
+
+Landed this session: the cost reader + attribution (`solver_log.read_fluid_cost_history`,
+`aero/vv/fsi/cost_model.py`), the driver's `--collect-cost`, both records, the `fvSolution`
+byte-pin, and `FluidNumericsSpec` on the spec so `config_hash` can tell two numerics apart
+(it could not — the same hole ADR-037 closed for the rung knobs).
+
+**Still to do: ADR-040 itself, the parallel launcher seam, the equivalence probe, the sizing
+fork, the coupled confirmation, and wave 1.** ADR-040 needs its OWN sentinels and its own
+`--submit-040`: ADR-039's can never be filled (handoff §6.33 item 3).
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 7
 
 **START HERE (session 8): ADR-040, then the pre-flight ladder under it, then wave 1.**

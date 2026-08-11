@@ -982,6 +982,68 @@ field-width validator (§6.17) rightly refused the first re-probe spec. 76090 x 
 first round-tripping value; hand-chosen probe counts must do the same
 (`float(format(n*dt, '.13e')) == n*dt`).
 
+### 6.31 SESSION 8 — the cost split, measured: two of the three named levers are dead
+
+§6.29 left four candidate cost terms "hypothesis-ranked, not measured". Measured now, from
+the I4 runs' own surviving logs at **zero box cost** (`data/vv/stage20_i10_cost_split.json`,
+produced by the committed `--collect-cost` mode):
+
+- **99.42 %** of the flexible arm's wall clock is fluid-participant CPU (7988.69 s of
+  8035 s). All I/O, preCICE exchange and waiting on CalculiX totals **46.3 s over 500
+  windows**. `forces1` **write scheduling is refuted** by that bound — and it was also
+  mis-specified: `writeControl writeTime` would stop the `force.dat` rows the readout is
+  built on, not just the field dumps.
+- **Fluid subcycling is refuted** by the same bound plus the 6.0 % per-step overhead share
+  (only 1 in K recurs). Total fluid step-solves are `T_phys/dt_f × iterations` — invariant
+  in K, because each coupling iteration re-solves every substep. State the ~6.6 % ceiling,
+  not 0.58 %: a reviewer who computes the intercept term will otherwise think it was missed.
+- **90.8 %** of fluid CPU is the pressure solve: 961 GAMG iterations per fluid step over 8
+  pressure solves, at 2.87 ms each, a per-iteration convergence factor of **0.89**.
+- The disk attribution in §6c item 4 is **wrong**. Growth is the CalculiX `.frd` at **78 %**,
+  which nothing in this repo reads, not `forces1`'s field writes at 7.6 %. The lever is a
+  `FREQUENCY` card on the solid deck.
+- **Both bounds are rate-dependent and the record says so.** A 0.58 % residual at
+  16 s/window is not one at 1.5 s/window; the ccx `.frd` write becomes a real wall-clock
+  term the moment the fluid is parallel.
+
+### 6.32 SESSION 8 — one token is worth 2.22x, and parallelism is the weaker lever
+
+`data/vv/stage20_n2_screening.json` (RANKS ONLY — fluid-only, static mesh, 20 steps; its
+control runs at 1.013 s/step against the campaign's 3.041, so the ratios are indicative).
+
+- `smoother GaussSeidel` → **`DICGaussSeidel`** is **2.22x** and drops GAMG iterations per
+  step from 302 to 51. GAMG's coarse-grid correction was not working under a plain
+  Gauss-Seidel smoother at aspect ratio ~310.
+- **PCG+DIC is 1.07x.** `_foam_common.fvsolution`'s own docstring recommends it for extreme
+  aspect ratios; here it takes 1114 iterations where tuned GAMG takes 51. Do not re-derive.
+- Agglomeration tuning **hurt** relative to fixing the smoother alone (1.78x vs 2.22x).
+- Tier 2: one outer corrector → 3.37x; plus a looser `p` tolerance → **3.73x** serial.
+- **Strong scaling turns over**: 2.18x at 6 ranks (36 % efficiency), *slower* at 8.
+- **Combined 8.04x** ⇒ ~2.00 s/window uncontended, against 1.037 needed for 20 settled
+  cycles in 14 days and 1.834 for 10. **The 14-day ceiling is out of reach at any
+  settled-cycle count**; the deferred ceiling decision is live and will be taken on the
+  coupled, contended confirmation.
+
+### 6.33 SESSION 8 — three traps found by building it
+
+1. **`mpirun` must sit INSIDE the `setpriv` uid drop.** Measured: as root OpenMPI refuses
+   outright. So `build_apptainer_exec(mpi_n=…)` is the WRONG seam for the coupled launcher —
+   at that call site `command` is the compound `cd … && … && pimpleFoam` (or the whole
+   `setpriv … bash -lc '…'` wrapper), so it would emit `mpirun -n 6 cd fluid-openfoam`,
+   run the solver serial and **exit 0**, or run `mkdir` as root six times. The seam is
+   `build_participant_command`.
+2. **`nOuterCorrectors 1` is a deck change, not a knob.** OpenFOAM then tags every inner
+   iteration final and demands `cellDisplacementFinal`; a deck carrying only
+   `cellDisplacement` dies with `FOAM FATAL IO ERROR` on the first time step.
+3. **ADR-039's sentinels can never be filled.**
+   `test_adr039_b2_marker_state.py::test_the_gated_sentinels_track_the_marker` asserts
+   `GATED_TIME_WINDOW_S is None` *while* `<<B2-PENDING-I4>>` stands — and it must stand
+   forever, since that campaign was measured infeasible and never ran. So **ADR-040 needs
+   its own sentinels and its own `--submit-040`**, and `--submit` keeps refusing forever.
+   Also: `_merge_base_guard` resolves commits with `git log --diff-filter=A`, so the
+   ADR-040 calibration must go in a NEW file or the guard compares against session 7's
+   add-commit and passes on the wrong ordering.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-8 RESUMPTION PATH (supersedes the items below, which are kept as history):**
