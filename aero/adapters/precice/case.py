@@ -464,6 +464,14 @@ class CoupledCaseSpec(BaseModel):
             problems.append(
                 f"spec max_time {self.max_time!r} != the fluid's {source.fluid.max_time!r}"
             )
+        fluid = [p for p in self.participants if p.workdir == source.fluid_participant_dir]
+        if fluid and (fluid[0].mpi_ranks or 1) != source.fluid.mpi_ranks:
+            problems.append(
+                f"the fluid participant launches at {fluid[0].mpi_ranks or 1} rank(s) but "
+                f"its deck decomposes into {source.fluid.mpi_ranks} -- decomposePar writes "
+                "one processor* set and mpirun asks for another, and OpenFOAM dies at t=0 "
+                "on a case that materialized cleanly"
+            )
         mixed = {p.name: p.run_as_uid for p in self.participants if p.run_as_uid != self.run_as_uid}
         if mixed:
             problems.append(

@@ -47,6 +47,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.adapters.openfoam._foam_common import (
     FluidNumericsSpec,
+    decompose_par_dict,
     header,
     transient_fvschemes,
     transient_fvsolution,
@@ -152,6 +153,18 @@ class FlexibleFoilSpec(BaseModel):
             "in the writer, so config_hash distinguishes an ADR-039-numerics run from an "
             "ADR-040-numerics run -- the ADR-037 rung-knob argument, one layer down. The "
             "default is the ADR-039 stack, so every prior record is unmoved."
+        ),
+    )
+    mpi_ranks: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Fluid ranks. On the SPEC because system/decomposeParDict is a DECK file, and "
+            "ADR-037's contract is that a case's bytes are what its spec renders -- a rank "
+            "count passed to the writer as an argument would leave the deck unexplained by "
+            "the spec that produced it. The Fluid ParticipantSpec carries the same number "
+            "for the launch side, and CoupledCaseSpec refuses a case where the two "
+            "disagree: a deck decomposed into 4 launched under 6 ranks dies at t=0."
         ),
     )
 
@@ -553,6 +566,12 @@ def write_flexible_foil_case(spec: FlexibleFoilSpec, dest: Path) -> None:
         ),
         encoding="utf-8",
     )
+    if spec.mpi_ranks > 1:
+        # Written only when it is used, so a serial case's file set is byte-for-byte the
+        # one every pre-ADR-040 record was written from.
+        (system / "decomposeParDict").write_text(
+            decompose_par_dict(spec.mpi_ranks), encoding="utf-8"
+        )
     (constant / "transportProperties").write_text(transport_properties(spec.nu), encoding="utf-8")
     (constant / "turbulenceProperties").write_text(
         turbulence_properties("laminar"), encoding="utf-8"

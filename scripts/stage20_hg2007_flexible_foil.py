@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -70,13 +71,19 @@ from aero.vv.fsi.cost_model import attribute_step_cost  # noqa: E402
 from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     ARMS,
     FREQUENCY_HZ,
+    GATED_040_MAX_TIME_S,
+    GATED_040_MPI_RANKS,
+    GATED_040_NUMERICS_LABEL,
+    GATED_040_TIME_WINDOW_S,
     GATED_MAX_TIME_S,
     GATED_RUNG,
     GATED_TIME_WINDOW_S,
+    NUMERICS_STACKS,
     RUNGS,
     evaluate_predicates,
     hg2007_case_spec,
     is_gated_configuration,
+    is_gated_configuration_040,
 )
 from aero.vv.fsi.hg2007_readout import ArmReadout, read_arm  # noqa: E402
 from aero.vv.fsi.preflight import signal_drift_reports  # noqa: E402
@@ -659,7 +666,16 @@ def _utc_now() -> str:
 
 
 def _write_bundle(record: dict[str, Any], out: Path) -> None:
+    """Write a bundle carrying BOTH pre-registrations, additively.
+
+    ``adr`` and ``preregistered_gate_block`` keep their ADR-039 meaning and their
+    ``setdefault`` semantics, so the three committed records that embed the block and are
+    compared against the driver constant in CI stay exactly as they are. ADR-040's block
+    rides alongside under its own key, because a bundle produced under the ADR-040
+    numerics is only self-describing if it carries the document that pre-registered them.
+    """
     record.setdefault("preregistered_gate_block", PREREGISTERED_GATE_BLOCK)
+    record.setdefault("preregistered_gate_block_040", PREREGISTERED_GATE_BLOCK_040)
     record.setdefault("adr", "ADR-039")
     record.setdefault("finished_at", _utc_now())
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -705,10 +721,32 @@ def _run_long(*run_long_args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+SUBMISSION_SCHEMA = "stage20-submission-v2"
+_SUPERSEDED_SCHEMA = "stage20-submission-v1"
+
+
 def _submission(path: Path) -> dict[str, Any]:
+    """Read a submission, refusing the superseded schema by name.
+
+    v1's ``spec_knobs`` carried five keys. ADR-040 adds ``numerics_label`` and
+    ``mpi_ranks``, and ``_reattach`` passes the whole dict to ``hg2007_case_spec`` to
+    rebuild the spec and re-derive its digest. Handed a v1 record it would rebuild an
+    ADR-039-numerics serial spec, get a digest that does not match, and report "the code
+    moved under a live campaign" -- true, but the wrong diagnosis and the wrong action.
+    So the refusal names the bump instead.
+    """
     data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("schema") != "stage20-submission-v1":
-        raise SystemExit(f"{path} is not a stage20-submission-v1 file")
+    schema = data.get("schema")
+    if schema == _SUPERSEDED_SCHEMA:
+        raise SystemExit(
+            f"{path} is a {_SUPERSEDED_SCHEMA} record and the submission schema is now "
+            f"{SUBMISSION_SCHEMA}. v2 carries numerics_label and mpi_ranks in spec_knobs, "
+            "which _reattach must pass to hg2007_case_spec or the digest check compares a "
+            "spec that is not the one that ran. A v1 submission describes a configuration "
+            "this driver can no longer build; re-submit rather than editing the record."
+        )
+    if schema != SUBMISSION_SCHEMA:
+        raise SystemExit(f"{path} is not a {SUBMISSION_SCHEMA} file (schema={schema!r})")
     return dict(data)
 
 
@@ -721,20 +759,24 @@ def _prepare_and_submit(
     max_time: float,
     gated_intent: bool,
     label: str,
+    numerics_label: str = "adr039-baseline",
+    mpi_ranks: int = 1,
 ) -> Path:
-    """prepare -> mesh (sync) -> stage -> submit detached -> persist the submission."""
+    """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
         arm=arm,  # type: ignore[arg-type]
         rung=rung,
         time_window_size=time_window_size,
         max_time=max_time,
         wall_clock_ceiling_s=args.timeout,
+        numerics_label=numerics_label,
+        mpi_ranks=mpi_ranks,
     )
     if gated_intent and not spec.gated:
         raise SystemExit(
-            "refusing a gated submit: is_gated_configuration returned False — either the "
-            "sentinels are unfilled (ADR-039 B2 pending) or this is not the gated "
-            "configuration"
+            "refusing a gated submit: the gate predicate returned False — either the "
+            "sentinels are unfilled or this is not the gated configuration (rung, "
+            "time-window-size, max-time, numerics label, rank count)"
         )
     provenance = _provenance(spec, allow_dirty=args.allow_dirty)
 
@@ -747,6 +789,16 @@ def _prepare_and_submit(
     if not mesh.ok:
         raise SystemExit(f"NO-GO (I3: blockMesh failed): {mesh.failure}")
 
+    decomposition = None
+    if mpi_ranks > 1:
+        # ADR-040 L4/W2: BEFORE the submit, and the processor* count is counted rather
+        # than trusted. decomposePar exits 0 having fallen back to fewer subdomains.
+        print(f"decompose: decomposePar -force into {mpi_ranks} subdomains (sync, as uid)")
+        report = solver.decompose(case_dir, executor, ranks=mpi_ranks)
+        if not report.ok:
+            raise SystemExit(f"NO-GO (ADR-040 W2: decomposition refused): {report.failure}")
+        decomposition = json.loads(report.model_dump_json())
+
     plan = solver.launch_plan(case_dir)
     staged = stage_coupled(
         plan,
@@ -758,21 +810,26 @@ def _prepare_and_submit(
         raise SystemExit(f"submit failed: {submit.stderr}")
 
     submission = {
-        "schema": "stage20-submission-v1",
-        "adr": "ADR-039",
+        "schema": SUBMISSION_SCHEMA,
+        "adr": "ADR-039" if numerics_label == "adr039-baseline" and mpi_ranks == 1 else "ADR-040",
         "label": label,
         "arm": arm,
         "rung": rung,
+        "decomposition": decomposition,
         "run_id": case_dir.run_id,
         "session": staged.session,
         "host": args.host,
         "ssh_user": "root",
+        # EVERY argument hg2007_case_spec needs to rebuild this exact spec. A knob that
+        # does not ride here is a knob that makes _reattach refuse every collect.
         "spec_knobs": {
             "arm": arm,
             "rung": rung,
             "time_window_size": time_window_size,
             "max_time": max_time,
             "wall_clock_ceiling_s": args.timeout,
+            "numerics_label": numerics_label,
+            "mpi_ranks": mpi_ranks,
         },
         "spec_sha256": spec_config_digest(spec),
         "gated": spec.gated,
@@ -812,13 +869,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
         raise SystemExit(f"cannot read {session}'s rc file: {rc_result.stderr}")
     executor_returncode = int(rc_result.stdout.strip())
 
-    spec = hg2007_case_spec(
-        arm=submission["spec_knobs"]["arm"],
-        rung=submission["spec_knobs"]["rung"],
-        time_window_size=submission["spec_knobs"]["time_window_size"],
-        max_time=submission["spec_knobs"]["max_time"],
-        wall_clock_ceiling_s=submission["spec_knobs"]["wall_clock_ceiling_s"],
-    )
+    spec = hg2007_case_spec(**submission["spec_knobs"])
     digest = spec_config_digest(spec)
     if digest != submission["spec_sha256"]:
         raise SystemExit(
@@ -884,8 +935,12 @@ def _collect_probe(args: argparse.Namespace) -> int:
     case_subdir = submission["run_id"]
     remote_case_root = f"{submission['case_remote_path']}/{CASE_ROOT_DIRNAME}"
     du = executor.run(f"du -sb {remote_case_root}")
+    # RANK-AWARE (ADR-040 N5). Under decomposition OpenFOAM writes time directories to
+    # processor*/<time>, one level DEEPER than the serial layout, so the maxdepth-3 form
+    # this replaced counted zero on a parallel run and the F4 disk projection -- the
+    # thing standing between the wave and a full NFS -- silently read as no growth.
     time_dirs = executor.run(
-        f"find {remote_case_root} -maxdepth 3 -type d -regex '.*/[0-9.]+' | wc -l"
+        f"find {remote_case_root} -maxdepth 4 -type d -regex '.*/[0-9.]+' | wc -l"
     )
     windows_requested = round(
         submission["spec_knobs"]["max_time"] / submission["spec_knobs"]["time_window_size"]
@@ -906,13 +961,140 @@ def _collect_probe(args: argparse.Namespace) -> int:
         "coupling": per_participant,
         "case_subdir": case_subdir,
     }
+    if covers_post_ramp:
+        record["n3"] = _n3_block(
+            fluid_log,
+            submission=submission,
+            status_stopped_by=status.stopped_by,
+            windows_completed=int(fluid.get("n_windows", 0)),
+            windows_requested=windows_requested,
+            period_s=period,
+            max_courant_post_ramp=record["i7"]["max_courant_post_ramp"],
+            du_bytes=record["i4"]["du_bytes"],
+            time_dir_count=record["i4"]["time_dir_count"],
+            concurrent_with=list(args.concurrent_with or ()),
+        )
+
     _write_bundle(record, Path(args.out or "/tmp/stage20_probe_collected.json"))
-    ok = record["i7"]["passed"] and status.stopped_by == "all-exited"
+    ok = bool(record["i7"]["passed"]) and status.stopped_by == "all-exited"
+    # `passed` and `max_courant_post_ramp` are BOTH None for a run inside the ramp, which
+    # is the state both committed I4 bundles are in; `f"{None:.4f}"` raised TypeError
+    # AFTER the bundle was written, so the record survived and the mode reported a crash.
+    measured = record["i7"]["max_courant_post_ramp"]
+    shown = "not measured (run did not reach the post-ramp window)"
+    if measured is not None:
+        shown = f"{measured:.4f}"
     print(
-        f"I7 max post-ramp Courant: {record['i7']['max_courant_post_ramp']:.4f} "
-        f"(passed={record['i7']['passed']}); stopped_by={status.stopped_by}"
+        f"I7 max post-ramp Courant: {shown} (passed={record['i7']['passed']}); "
+        f"stopped_by={status.stopped_by}"
     )
+    if "n3" in record:
+        n3 = record["n3"]
+        print(
+            f"N3 post-ramp rate: {n3['post_ramp_seconds_per_window']} s/window over "
+            f"{n3['post_ramp_windows_measured']} windows "
+            f"({n3['post_ramp_quarter_cycles']} quarter-cycle(s))"
+        )
     return 0 if ok else 1
+
+
+def _n3_block(
+    fluid_log: Path,
+    *,
+    submission: dict[str, Any],
+    status_stopped_by: str,
+    windows_completed: int,
+    windows_requested: int,
+    period_s: float,
+    max_courant_post_ramp: float | None,
+    du_bytes: int,
+    time_dir_count: int,
+    concurrent_with: list[str],
+) -> dict[str, Any]:
+    """ADR-040 N3: the POST-RAMP rate, over a whole number of quarter-cycles.
+
+    Read from the fluid log's cumulative ``ClockTime`` rather than from
+    ``status.wall_clock_s / windows``, for two reasons that are both measurements.
+
+    ``wall_clock_s / windows_completed`` is what ADR-039 used, and under the ``(1-cos)``
+    ramp roughly two thirds of an N3 run sits at near-zero plunge -- averaging that in
+    produces a comfortable rate and an unaffordable campaign.
+
+    ``ExecutionTime`` is not usable either: under ``mpirun`` OpenFOAM reports RANK 0's
+    CPU, not the aggregate (ADR-040 N5). ``ClockTime`` is wall clock and is correct at any
+    rank count; it prints at integer-second resolution, which over a run of hours is
+    ample.
+
+    The span is trimmed DOWN to whole quarter-cycles rather than rounded to the nearest,
+    so a ceiling stop mid-stroke yields a shorter honest measurement instead of a longer
+    phase-weighted one.
+    """
+    dt = float(submission["spec_knobs"]["time_window_size"])
+    ramp_windows = math.ceil(period_s / dt)
+    quarter_windows = max(1, round(period_s / 4.0 / dt))
+
+    cost = read_fluid_cost_history(fluid_log)
+    # The log's steps are per fluid STEP-SOLVE (one per coupling iteration), so the
+    # window a step belongs to is read off its own time, never off its index.
+    courant = read_courant_history(fluid_log)
+    if len(courant.t) != len(cost.steps):
+        raise SystemExit(
+            f"{fluid_log}: {len(courant.t)} Courant lines against {len(cost.steps)} "
+            "ExecutionTime lines — the two per-step series must pair one to one, and a "
+            "mismatch means the log was truncated mid-step"
+        )
+
+    completed_post_ramp = max(0, windows_completed - ramp_windows)
+    measured_windows = (completed_post_ramp // quarter_windows) * quarter_windows
+    block: dict[str, Any] = {
+        "arm": submission["arm"],
+        "rung": submission["rung"],
+        "dt": dt,
+        "period_s": period_s,
+        "numerics_label": submission["spec_knobs"]["numerics_label"],
+        "mpi_ranks": submission["spec_knobs"]["mpi_ranks"],
+        "windows_requested": windows_requested,
+        "windows_completed": windows_completed,
+        "stopped_by": status_stopped_by,
+        "ramp_windows": ramp_windows,
+        "quarter_cycle_windows": quarter_windows,
+        "post_ramp_windows_completed": completed_post_ramp,
+        "post_ramp_windows_measured": measured_windows,
+        "post_ramp_quarter_cycles": measured_windows // quarter_windows,
+        "max_courant_post_ramp": max_courant_post_ramp,
+        "time_dir_count": time_dir_count,
+        "du_bytes": du_bytes,
+        "concurrent_with": concurrent_with,
+        "rate_source": "fluid log ClockTime (NOT ExecutionTime: rank 0's CPU under mpirun)",
+    }
+    if measured_windows == 0:
+        block["post_ramp_wall_clock_s"] = 0.0
+        block["post_ramp_seconds_per_window"] = None
+        block["why_no_rate"] = (
+            f"{completed_post_ramp} post-ramp window(s) is less than one quarter-cycle "
+            f"({quarter_windows}); a rate over a fractional quarter-cycle is "
+            "phase-weighted and ADR-040 W3 refuses it"
+        )
+        return block
+
+    t_start = ramp_windows * dt
+    t_end = (ramp_windows + measured_windows) * dt
+    half = 0.5 * dt
+    clocks = [
+        step.clock_time_s
+        for step, t in zip(cost.steps, courant.t, strict=True)
+        if t_start - half <= t <= t_end + half
+    ]
+    if len(clocks) < 2:
+        raise SystemExit(
+            f"{fluid_log}: fewer than two step records inside the post-ramp span "
+            f"[{t_start}, {t_end}] — no wall clock can be differenced over it"
+        )
+    wall = float(clocks[-1] - clocks[0])
+    block["post_ramp_wall_clock_s"] = wall
+    block["post_ramp_step_solves_measured"] = len(clocks)
+    block["post_ramp_seconds_per_window"] = wall / measured_windows
+    return block
 
 
 #: The regressor grouping the cost split uses. `p` and `pcorr` are ONE pressure-solve
@@ -1200,6 +1382,72 @@ def _verdict(args: argparse.Namespace) -> int:
     return 0 if go else 1
 
 
+def _assert_within_probe_ceiling_040(timeout_s: int) -> None:
+    """ADR-040 B0. A pre-declared ceiling that the driver does not enforce is a wish."""
+    if timeout_s > PROBE_CEILING_040_S:
+        raise SystemExit(
+            f"--timeout {timeout_s} exceeds ADR-040 B0's per-submission probe ceiling of "
+            f"{PROBE_CEILING_040_S} s (72 h). Reaching a ceiling is a recorded outcome "
+            "(B4); raising one without a new ADR is not"
+        )
+
+
+def _add_commit(path: Path) -> str | None:
+    """The commit that ADDED `path`, or None. `--diff-filter=A`, oldest-last."""
+    log = (
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(_REPO_ROOT),
+                "log",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.strip()
+        .splitlines()
+    )
+    return log[-1] if log else None
+
+
+def _merge_base_guard_040() -> None:
+    """ADR-040's P5: its first commit must precede the N3 record's first commit.
+
+    A separate function with a separate record path, not a parameter on ADR-039's. The
+    guard resolves commits with ``git log --diff-filter=A``, which returns the commit that
+    ADDED a file -- so pointing it at ``stage20_i4_calibration.json`` would compare
+    ADR-040 against session 7's add-commit and pass on an ordering that says nothing about
+    ADR-040. The N3 record is therefore a NEW file, and this is the guard that makes that
+    matter.
+    """
+    record = _REPO_ROOT / "data/vv/stage20_n3_confirmation.json"
+    if not record.exists():
+        raise SystemExit(
+            "ADR-040 P5/N3: no N3 record exists (data/vv/stage20_n3_confirmation.json) — "
+            "the coupled confirmation has not run and nothing may be gated"
+        )
+    adr = _add_commit(_ADR_040)
+    n3 = _add_commit(record)
+    if not adr or not n3:
+        raise SystemExit(
+            "ADR-040 P5: cannot resolve the ADR-040 or N3 record add-commit — refusing a gated run"
+        )
+    check = subprocess.run(
+        ["git", "-C", str(_REPO_ROOT), "merge-base", "--is-ancestor", adr, n3], check=False
+    )
+    if check.returncode != 0:
+        raise SystemExit(
+            "ADR-040 P5: git merge-base --is-ancestor says ADR-040's first commit does not "
+            "precede the N3 record — the pre-registration ordering is broken"
+        )
+
+
 def _merge_base_guard() -> None:
     """P5: the ADR's first commit must precede the I4 record commit."""
     adr_commit = (
@@ -1278,10 +1526,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--probe", nargs=2, metavar=("ARM", "RUNG"))
     parser.add_argument("--probe-dt", type=float, default=PROBE_DT_S)
     parser.add_argument("--probe-windows", type=int, default=PROBE_N_WINDOWS)
+    parser.add_argument(
+        "--numerics",
+        choices=sorted(NUMERICS_STACKS),
+        default="adr039-baseline",
+        help="the pre-registered linear-solver stack, BY NAME (ADR-040 N1)",
+    )
+    parser.add_argument(
+        "--ranks", type=int, default=1, help="fluid MPI ranks (ADR-040 L3 pre-registers 4)"
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
+    parser.add_argument("--submit-040", choices=sorted(ARMS), dest="submit_040")
     parser.add_argument("--status", type=Path)
     parser.add_argument("--collect", type=Path)
     parser.add_argument("--verdict", nargs=2, metavar=("FLEX_BUNDLE", "RIGID_BUNDLE"))
@@ -1294,6 +1552,14 @@ def main(argv: list[str] | None = None) -> int:
         if rung not in RUNGS:
             raise SystemExit(f"unknown rung {rung!r}; rungs are {sorted(RUNGS)}")
         max_time = args.probe_windows * args.probe_dt
+        if float(format(max_time, ".13e")) != max_time:
+            raise SystemExit(
+                f"{args.probe_windows} x {args.probe_dt} = {max_time!r} does not survive "
+                "the .13e round trip the CalculiX field width requires (handoff 6.17/6.30) "
+                "— 50725 x 2e-5 does not, 50726 does; pick the next window count that does"
+            )
+        if args.numerics != "adr039-baseline" or args.ranks > 1:
+            _assert_within_probe_ceiling_040(args.timeout)
         _prepare_and_submit(
             args,
             arm=arm,
@@ -1302,6 +1568,8 @@ def main(argv: list[str] | None = None) -> int:
             max_time=max_time,
             gated_intent=False,
             label="probe",
+            numerics_label=args.numerics,
+            mpi_ranks=args.ranks,
         )
         return 0
     if args.collect_probe:
@@ -1328,6 +1596,43 @@ def main(argv: list[str] | None = None) -> int:
             label="wave1",
         )
         return 0
+    if args.submit_040:
+        missing = [
+            name
+            for name, value in (
+                ("GATED_040_TIME_WINDOW_S", GATED_040_TIME_WINDOW_S),
+                ("GATED_040_MAX_TIME_S", GATED_040_MAX_TIME_S),
+                ("GATED_040_NUMERICS_LABEL", GATED_040_NUMERICS_LABEL),
+                ("GATED_040_MPI_RANKS", GATED_040_MPI_RANKS),
+            )
+            if value is None
+        ]
+        if missing:
+            raise SystemExit(
+                "refusing --submit-040: the ADR-040 sentinels are None "
+                f"({', '.join(missing)}) — ADR-040 B2 is pending its N3 record; run the "
+                "coupled confirmation first"
+            )
+        _merge_base_guard_040()
+        assert is_gated_configuration_040(
+            rung=GATED_RUNG,
+            time_window_size=GATED_040_TIME_WINDOW_S,
+            max_time=GATED_040_MAX_TIME_S,
+            numerics_label=GATED_040_NUMERICS_LABEL,
+            mpi_ranks=GATED_040_MPI_RANKS,
+        )
+        _prepare_and_submit(
+            args,
+            arm=args.submit_040,
+            rung=GATED_RUNG,
+            time_window_size=GATED_040_TIME_WINDOW_S,
+            max_time=GATED_040_MAX_TIME_S,
+            gated_intent=True,
+            label="wave1",
+            numerics_label=GATED_040_NUMERICS_LABEL,
+            mpi_ranks=GATED_040_MPI_RANKS,
+        )
+        return 0
     if args.status:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
@@ -1339,7 +1644,7 @@ def main(argv: list[str] | None = None) -> int:
         return _verdict(args)
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --submit / "
-        "--status / --collect / --verdict"
+        "--submit-040 / --status / --collect / --verdict"
     )
 
 

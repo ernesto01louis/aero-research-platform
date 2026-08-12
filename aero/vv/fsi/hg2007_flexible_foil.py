@@ -41,6 +41,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aero.adapters.openfoam._foam_common import FluidNumericsSpec
 from aero.adapters.openfoam.flexible_foil import FlexibleFoilSpec
 from aero.adapters.openfoam.geometry import hg2007_coordinates
 from aero.adapters.openfoam.schemas import TeardropPlateSection
@@ -58,6 +59,7 @@ __all__ = [
     "ARMS",
     "CLAUSE_BANDS",
     "HG2007_CASES",
+    "NUMERICS_STACKS",
     "RUNGS",
     "Arm",
     "HeathcoteGursulFoil",
@@ -66,6 +68,7 @@ __all__ = [
     "evaluate_predicates",
     "hg2007_case_spec",
     "is_gated_configuration",
+    "is_gated_configuration_040",
 ]
 
 _STRICT = ConfigDict(
@@ -160,6 +163,29 @@ GATED_040_MAX_TIME_S: float | None = None
 GATED_040_NUMERICS_LABEL: str | None = None
 GATED_040_MPI_RANKS: int | None = None
 
+#: The fluid linear-solver stacks this stage may run, BY NAME.
+#:
+#: A label rather than a free-form spec, for two reasons. It keeps the campaign driver's
+#: ``spec_knobs`` a flat dict of scalars, which is what ``_reattach`` needs to rebuild a
+#: spec weeks later and re-derive its digest. And it makes the gated configuration
+#: enumerable: ``is_gated_configuration_040`` compares a label, so "the right dt with the
+#: wrong numerics" is not a configuration anyone can construct by accident.
+#:
+#: ``adr040-candidate`` is measured 3.73x serial static and 4.36x on a mesh that moves
+#: (``data/vv/stage20_n2_screening.json`` s12_all, ``stage20_n4_deforming_screen.json``
+#: d3). Every token is a measurement: the smoother alone is 2.22x, the looser ``p``
+#: tolerance and the single outer corrector are Tier 2. ``cacheAgglomeration`` is absent
+#: because it was measured to remove no iterations at all on a moving mesh (ADR-040 N2).
+NUMERICS_STACKS: dict[str, FluidNumericsSpec] = {
+    "adr039-baseline": FluidNumericsSpec(),
+    "adr040-candidate": FluidNumericsSpec(
+        label="adr040-candidate",
+        p_smoother="DICGaussSeidel",
+        p_tolerance="1e-6",
+        n_outer_correctors=1,
+    ),
+}
+
 #: Pre-registered analysis rule. The prescribed plunge ramps over one cycle (ADR-024's
 #: ``(1 - cos)`` envelope), and the discard is two further cycles beyond it.
 ANALYSIS_DISCARD_S = 3.0 / FREQUENCY_HZ
@@ -182,6 +208,48 @@ def is_gated_configuration(*, rung: str, time_window_size: float, max_time: floa
         rung == GATED_RUNG
         and time_window_size == GATED_TIME_WINDOW_S
         and max_time == GATED_MAX_TIME_S
+    )
+
+
+def is_gated_configuration_040(
+    *,
+    rung: str,
+    time_window_size: float,
+    max_time: float,
+    numerics_label: str,
+    mpi_ranks: int,
+) -> bool:
+    """Is this the ONE configuration ADR-040 B2 pre-registers as gated?
+
+    The live predicate. :func:`is_gated_configuration` above is ADR-039's and returns
+    ``False`` permanently, because ADR-039's ``<<B2-PENDING-I4>>`` stands forever; it is
+    left byte-untouched rather than widened, so every test written against it stays green
+    and ``--submit`` keeps refusing.
+
+    FIVE required keywords, not three. ADR-039 identified the gated configuration by
+    (rung, dt, max-time), which was sufficient while there was one numerics stack and one
+    rank count. There are now two of each, and the campaign's cost -- the whole reason
+    ADR-040 exists -- is a property of both. A run at the gated rung, at the gated dt, for
+    the gated duration, on the ADR-039 stack, or at one rank, would have claimed the gated
+    verdict while measuring a different campaign. Required rather than defaulted so that a
+    caller who has not thought about it gets a ``TypeError``, not a silent baseline.
+
+    Pure and filesystem-free, like its ADR-039 sibling, so the required CI job can guard
+    it without a DVC pull.
+    """
+    if (
+        GATED_040_TIME_WINDOW_S is None
+        or GATED_040_MAX_TIME_S is None
+        or GATED_040_NUMERICS_LABEL is None
+        or GATED_040_MPI_RANKS is None
+    ):
+        return False
+    return (
+        rung == GATED_RUNG
+        and time_window_size == GATED_040_TIME_WINDOW_S
+        and max_time == GATED_040_MAX_TIME_S
+        and numerics_label == GATED_040_NUMERICS_LABEL
+        and mpi_ranks == GATED_040_MPI_RANKS
     )
 
 
@@ -226,6 +294,8 @@ def hg2007_case_spec(
     run_as_uid: int = 1000,
     fluid_sif: str = "precice-fsi.sif",
     solid_sif: str = "calculix-precice.sif",
+    numerics_label: str = "adr039-baseline",
+    mpi_ranks: int = 1,
 ) -> CoupledCaseSpec:
     """Build one arm's authored coupled case.
 
@@ -233,9 +303,28 @@ def hg2007_case_spec(
     time step is decided by the I7 max-Courant measurement and its end time by the I4
     calibrations; a default here would be an estimate that looks like a decision, and
     :func:`is_gated_configuration` would have nothing to compare against.
+
+    ``numerics_label`` and ``mpi_ranks`` DO have defaults, and the defaults are the
+    ADR-039 configuration -- serial, baseline stack -- so every record written before
+    ADR-040 is reproduced by this function unchanged. They are scalars rather than objects
+    because they have to survive a round trip through a submission JSON: ``_reattach``
+    rebuilds the spec from ``spec_knobs`` weeks later and refuses to collect if the digest
+    moved, so a knob that cannot ride in that dict is a knob that breaks every collect.
+
+    ``mpi_ranks`` reaches the Fluid participant only. CalculiX has no ``-parallel`` flag
+    (ADR-040 U1), so the Solid stays serial whatever this says.
     """
     if rung not in RUNGS:
         raise BenchmarkError(f"unknown rung {rung!r}; have {', '.join(sorted(RUNGS))}")
+    if numerics_label not in NUMERICS_STACKS:
+        raise BenchmarkError(
+            f"unknown numerics stack {numerics_label!r}; have "
+            f"{', '.join(sorted(NUMERICS_STACKS))}. The stack is pre-registered by NAME "
+            "(ADR-040 N1) so that a campaign's numerics is enumerable and its label can "
+            "ride in the gated predicate"
+        )
+    if mpi_ranks < 1:
+        raise BenchmarkError(f"mpi_ranks must be >= 1, got {mpi_ranks}")
     section = section_for(arm)
     knobs = RUNGS[rung]
     name = f"hg2007_{arm}_foil"
@@ -256,6 +345,8 @@ def hg2007_case_spec(
         n_front=knobs["n_front"],
         n_wake=knobs["n_wake"],
         n_te=knobs["n_te"],
+        numerics=NUMERICS_STACKS[numerics_label],
+        mpi_ranks=mpi_ranks,
     )
     # The solid stands on the FLUID's stations, leading-edge point excluded, so "the solid's
     # wetted curve IS the fluid's" is an identity rather than an interpolation. Enforced
@@ -308,6 +399,9 @@ def hg2007_case_spec(
                 command="pimpleFoam",
                 sif=fluid_sif,
                 run_as_uid=run_as_uid,
+                # None at one rank, so the serial command stays byte-identical to every
+                # record written before ADR-040.
+                mpi_ranks=None if mpi_ranks == 1 else mpi_ranks,
             ),
             ParticipantSpec(
                 name="Solid",
@@ -315,6 +409,8 @@ def hg2007_case_spec(
                 command=f"ccx_preCICE -i {solid.name} -precice-participant Solid",
                 sif=solid_sif,
                 run_as_uid=run_as_uid,
+                # ccx has no -parallel flag; the solid is serial at any rank count.
+                mpi_ranks=None,
             ),
         ),
         container_of_record=fluid_sif,
@@ -323,9 +419,20 @@ def hg2007_case_spec(
         analysis_discard_s=ANALYSIS_DISCARD_S,
         analysis_min_cycles=ANALYSIS_MIN_CYCLES,
         run_as_uid=run_as_uid,
-        # DERIVED, never passed in -- so a diagnostic rung cannot claim the gated verdict.
+        # DERIVED, never passed in -- so a diagnostic rung cannot claim the gated
+        # verdict. ADR-040's predicate, not ADR-039's: ADR-039's B2 marker stands
+        # permanently, so its predicate is permanently False and the live gate is the
+        # five-input one. Both are checked, so filling either one's sentinels arms the
+        # gate and neither can be bypassed by the other's absence.
         gated=is_gated_configuration(
             rung=rung, time_window_size=time_window_size, max_time=max_time
+        )
+        or is_gated_configuration_040(
+            rung=rung,
+            time_window_size=time_window_size,
+            max_time=max_time,
+            numerics_label=numerics_label,
+            mpi_ranks=mpi_ranks,
         ),
     )
 
