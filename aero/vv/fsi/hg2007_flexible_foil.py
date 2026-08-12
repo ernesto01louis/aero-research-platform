@@ -145,6 +145,21 @@ GATED_RUNG = "mid"
 GATED_TIME_WINDOW_S: float | None = None
 GATED_MAX_TIME_S: float | None = None
 
+#: ADR-040's OWN sentinels. ADR-039's two above stay ``None`` FOREVER: the campaign they
+#: would have armed was measured infeasible by 1-2 orders of magnitude (handoff 6.29) and
+#: will never run, so ``<<B2-PENDING-I4>>`` stands permanently and ``--submit`` refuses
+#: permanently. That is a recorded state, not an oversight, and
+#: ``test_adr039_b2_marker_state.py`` keeps it true.
+#:
+#: These four are the live pre-registration, and there are FOUR rather than two because
+#: ADR-040 L5 widens what identifies the gated configuration: a run at the right rung and
+#: the right time step but the WRONG linear-solver stack, or the wrong fluid rank count,
+#: is a different campaign, and without these it could claim the gated verdict.
+GATED_040_TIME_WINDOW_S: float | None = None
+GATED_040_MAX_TIME_S: float | None = None
+GATED_040_NUMERICS_LABEL: str | None = None
+GATED_040_MPI_RANKS: int | None = None
+
 #: Pre-registered analysis rule. The prescribed plunge ramps over one cycle (ADR-024's
 #: ``(1 - cos)`` envelope), and the discard is two further cycles beyond it.
 ANALYSIS_DISCARD_S = 3.0 / FREQUENCY_HZ
