@@ -303,6 +303,14 @@ Read handoff §6.34-§6.35. Two results, both landed (`bc24e08`, `870e116`):
    so there is a one-window phase offset sitting under D10 and P2/P3. Fix it structurally
    and prove it against those bytes BEFORE wave 1. This is a new §7 item, between 7 and 8.
 
+3. **The core budget changed: 4 fluid ranks per arm, not 6.** The pre-approved 6 came from
+   session 8's ladder, which was UNCONTENDED and on a STATIC mesh. Measured in the wave-1
+   shape (two arms concurrently, moving mesh, binding on the slower arm): 4+4 = 0.1655 s/step
+   on 10 of 16 cores against 6+6's 0.1860 on 14. Six is past the peak. The uncontended
+   moving-mesh ladder agrees and is sharper - pressure iterations per solve rise monotonically
+   5.6 / 9.2 / 11.4 / 18.4 / 36.1 across 1/2/4/6/8 ranks. **ADR-040 pre-registers 4**, and
+   wave 1 leaves 6 cores free rather than 2.
+
 **Operator decisions taken this session** (do not re-litigate): the deforming screen ran
 BEFORE ADR-040 (deviation from §7's order, recorded in handoff §3); ADR-040 pre-registers
 dt = 2e-5 as the candidate plus a CONDITIONAL re-probe — if measured post-ramp Co <= 0.4,

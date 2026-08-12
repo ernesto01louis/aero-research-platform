@@ -1093,6 +1093,33 @@ reproduces N2's `s0_control` to four significant figures before measuring anythi
 N2's committed record is left untouched; the correction lives in the new record with its
 evidence, per §9's rule that a measurement record is never edited in place.
 
+### 6.36 SESSION 9 — the rank count: 6 was measured in the wrong conditions
+
+ADR-040 must pre-register ONE rank count with no free knob. The standing operator decision
+(6 fluid ranks per arm, 14 of 16 cores) rests on §6.32's ladder, which was **uncontended** and
+on a **static** mesh — both wrong conditions, since wave 1 runs both arms on one box and the
+campaign mesh moves. Re-measured in the wave-1 shape (two arms concurrently, moving mesh,
+binding on the slower arm because the wave is not done until both are):
+
+| config | cores incl. ccx | binding s/step | `p` it/solve |
+|---|---|---|---|
+| 1+1 | 4 of 16 | 0.2867 | 5.6 |
+| 2+2 | 6 of 16 | 0.2844 | 6.1 |
+| **4+4** | **10 of 16** | **0.1655** | 9.1 |
+| 6+6 | 14 of 16 | 0.1860 | 12.1 |
+
+**4 ranks per arm**, about 10 % faster than 6 while leaving four more cores free. The
+uncontended moving-mesh ladder agrees and is sharper: pressure iterations per solve rise
+monotonically 5.6 / 9.2 / 11.4 / 18.4 / 36.1 across 1/2/4/6/8 ranks, and an iteration count is
+a far more robust witness than a wall clock on a shared box. Both contenders carry repeats and
+the record reports the MEDIAN — a rank count chosen off its luckiest run is chosen off noise.
+
+Caught by the new tests, not hypothetically: the rank-ladder pass wrote to the same filename as
+the canonical serial run, so `--run d3 --ranks 6` silently overwrote d3's serial baseline and
+the record compared the candidate stack against itself at six ranks. Non-canonical runs are now
+keyed, and `--record` REFUSES to assemble a variant table from anything but the serial
+configuration.
+
 ### 6.35 SESSION 9 — `--collect` would have failed after wave 1's weeks of wall clock
 
 Verified by hand on **both** surviving I4 arms, from bytes already on disk:
