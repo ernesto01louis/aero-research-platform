@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-08-10
-session_duration_hours: 19
+date_completed: 2026-08-12
+session_duration_hours: 23
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: 3a7491deed7a0d955940abc3c61bc851d22a028c
+git_sha_end: c4069bc205240f27a435398c1b5866d976224e06
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -1144,11 +1144,26 @@ campaign ends in a raise.
 
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-9 RESUMPTION PATH (supersedes everything below).** Session 8 closed the
-measurement task; `docs/handoff-bundle/STAGE-20-RESUME.md` §6d + §7 is the map, and
-§6.31-§6.33 above are the evidence. In one line: **two of the three named levers are
-refuted by a measured bound, the cost is the pressure solve, the combined lever is 8.04x,
-and the 14-day ceiling is out of reach at any settled-cycle count.**
+**SESSION-10 RESUMPTION PATH (supersedes everything below).** Session 9 closed the
+attribution question and settled the two knobs ADR-040 could not have pre-registered
+honestly without measuring. `docs/handoff-bundle/STAGE-20-RESUME.md` §6e + §7 is the map;
+§6.34-§6.36 above are the evidence. In one line: **both named leads are refuted, the 3x is
+the coupling's permanent cold start and not the mesh, the rank count is 4 and not 6, and
+`--collect` would have raised after wave 1's weeks of wall clock.**
+
+Landed and pushed (5 commits, `bc24e08`..`c4069bc`, **789** tests green, mypy clean):
+`scripts/stage20_numerics_screen.py` (the harness session 8 never committed, plus the
+variable it could not vary), `data/vv/stage20_n4_deforming_screen.json`,
+`tests/unit/test_stage20_n4_deforming_screen_record.py` (13 tests), and §6.34-§6.36 here.
+
+**NOT started: ADR-040 itself, the parallel launcher seam, the readout fix, the equivalence
+probe, the coupled confirmation, wave 1.** Session 10's order is RESUME §7 items 1-8 as
+rewritten there, and the ordering rationale is that **N3 is the only multi-day item** — get
+it submitted, then do local work while it burns.
+
+Screen artefacts are on NFS at `/mnt/aero/runs/stage20-screen9` (session 8's
+`stage20-screen` is untouched and is still the evidence behind the N2 record). Nothing is
+running on aero-dev.
 
 Landed and pushed (7 commits, `24efcdc`..`c753321`, 774 tests green):
 `solver_log.read_fluid_cost_history` + `aero/vv/fsi/cost_model.py` (the instrument), the
@@ -1511,6 +1526,19 @@ host-side required checks green). New: ADR-038; `db/migrations/005_container_set
 `data/vv/stage20_calculix_smoke.json`. Modified: the provenance package, `CoupledCaseSpec`, the
 executor and the three adapters' failure paths, `CONSTITUTION.md`.
 
+**Session 9 (2026-08-12): 5 commits, `bc24e08`..`c4069bc`, suite 774 → 789, mypy clean.**
+New: `scripts/stage20_numerics_screen.py` (the committed screening harness, with `--prepare`
+/ `--run` / `--pair` / `--record`; `--pair` runs two arms CONCURRENTLY, which is the shape a
+rank count has to be chosen in), `data/vv/stage20_n4_deforming_screen.json`,
+`tests/unit/test_stage20_n4_deforming_screen_record.py` (13 tests). Modified: this handoff
+(§6.34-§6.36), `docs/handoff-bundle/STAGE-20-RESUME.md` (§6e + §7). No `aero/` module
+changed — the screen composes existing writers and reads through
+`solver_log.read_fluid_cost_history`, so nothing in the import fence moved.
+
+**Session 8 (2026-08-11): 7 commits `24efcdc`..`c753321`, suite 726 → 774.** The cost reader
+and attribution, the driver's `--collect-cost`, the I10 and N2 records, the `fvSolution`
+byte-pin, and `FluidNumericsSpec` on the spec.
+
 **Session 7 (2026-08-10): 8+ commits `b222c18`..(see git log), suite 672 → 726, mypy clean repo-wide.**
 New: ADR-039 (+ its correction in `a0312e1`), `scripts/stage20_hg2007_flexible_foil.py`,
 `aero/vv/fsi/{hg2007_sizing,preflight}.py`, `aero/adapters/openfoam/solver_log.py`,
@@ -1561,3 +1589,21 @@ stand, and ADR-040 re-registers only the numerics with the full evidence trail i
 *Risk:* the ~3.8 s/coupling-iteration cost decomposition is hypothesis-ranked, not measured
 — if the dominant term is PIMPLE itself rather than overhead, subcycling alone buys less
 than the arithmetic suggests, and parallel-fluid becomes the load-bearing option.
+
+**Session-9 revision.** *Confident:* the two knobs the operator flagged are now measured
+rather than argued, on a harness that re-derives N2's control to four significant figures
+before it measures anything new, and both are dead — with the refutation holding a fortiori,
+since the screen deformed the mesh 167x further than the campaign ever did and still missed.
+The rank count is measured in the shape it gets used in. The candidate stack's ratio survives
+the moving mesh and is *better* cold-started than warm, so the budget projection is
+conservative. *Corrected:* §6.31's attribution of the 3x to the deforming mesh was wrong, and
+the correction lives in a new record rather than an edit to the committed one. *Newly known
+and load-bearing:* `--collect` -> `read_arm` has never run on a real coupled run and would
+raise on both surviving I4 arms; the fluid function objects stamp the window START and
+CalculiX the window END, so a one-window phase offset sits under D10 and P2/P3. That is a
+silent-wrong-number defect discovered before it could cost a campaign rather than after.
+*Still not established:* everything the stage is for. ADR-040 does not exist, no coupled
+confirmation has run, the ceiling decision is unmade, and no gated claim may be made.
+*Risk:* the residual factor is attributed to the implicit coupling's permanent cold start on
+four consistent signatures but is NOT confirmed — a fluid-only screen structurally cannot
+test it, and the probe that would lives in ADR-039 C1, which is frozen and carried over.

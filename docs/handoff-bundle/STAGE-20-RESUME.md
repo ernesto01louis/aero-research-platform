@@ -318,12 +318,36 @@ one probe at the next larger round-tripping dt is pre-authorised and the campaig
 largest probed dt with post-ramp Co <= 0.8; the pressure BC was admissible only under a
 pre-registered rule, and that rule is now moot because N5 is refuted.
 
-## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 8
+## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
-**START HERE (session 9): ADR-040, then the parallel seam, then the coupled
-confirmation, then the ceiling decision, then wave 1.** Session 8's measurement task is
-DONE and landed — §6d above and handoff §6.31-§6.33 are the map. Do not re-measure the
-cost split and do not re-open write scheduling or subcycling.
+**START HERE (session 10): the parallel seam, then ADR-040, then the L-smoke, then N3
+SUBMITTED, then the readout fix while it burns.** The order below is NOT item order — it is
+critical-path order, and the reason is that **N3 is the only multi-day item on the list**.
+It needs >= 50 726 windows to clear the ramp (~28-40 h at any plausible rate), it is the only
+measurement allowed to size B2, and the operator's ceiling decision waits on it. Everything
+else is local work that can happen while it runs. So: get N3 out the door, then work the rest.
+
+Session 9's screening task is DONE and landed — §6e above and handoff §6.34-§6.36 are the
+map. **Do not re-open cacheAgglomeration or the pressure reference level**, do not re-measure
+the cost split, and do not re-open write scheduling or subcycling. The rank count is 4.
+
+**Set the expectation up front, in the handoff, not at hour 40:** items 5-8 below will very
+likely NOT land in session 10. The realistic deliverable is the seam, ADR-040, the L-smoke,
+N3 submitted, and the readout fix.
+
+**Ordering constraints that are not negotiable:**
+- the ADR-039 block digest pin lands FIRST, alone, on pre-change code (the Phase-3A
+  precedent: pin the thing you are about to work beside, before you work beside it);
+- ADR-040's add-commit must precede the new calibration record's add-commit
+  (`_merge_base_guard` resolves with `git log --diff-filter=A`);
+- the L-smoke precedes N3 — two minutes to de-risk a day and a half;
+- the readout fix precedes wave 1, and is proved against the surviving I4 bytes.
+
+**EXECUTION ORDER over the items below** (they are numbered by topic, not by order):
+**item 2** (the parallel seam) -> **item 1** (ADR-040) -> the driver half of **item 8**
+(spec knobs v2 + `--submit-040`) -> the **L-smoke** (item 2's last bullet) -> **item 4**
+(N3, SUBMITTED detached, no owning wait) -> **item 9** (the readout fix) while it burns ->
+then **items 5, 6, 7** once N3 lands -> **item 8** (wave 1).
 
 1. **ADR-040 — the numerics re-pre-registration.** Its own gate block, byte-duplicated
    into the driver as a SECOND constant (`PREREGISTERED_GATE_BLOCK_040`), with its own
@@ -371,6 +395,24 @@ cost split and do not re-open write scheduling or subcycling.
    add-commit and passing on the wrong ordering.
 8. **Launch wave 1 detached** via `--submit-040 {flexible,rigid}`. Submit only, NO owning
    wait. Record session names + poll commands in the handoff before session end.
+
+9. **THE READOUT FIX — new in session 9, and it BLOCKS WAVE 1** (handoff §6.35). `--collect`
+   -> `read_arm` has never been run on a real coupled run and would RAISE on both surviving
+   I4 arms. Free to verify: the bytes are on NFS. Two symptoms, one cause.
+   - `classify_repeat_cadence` raises: `force.dat` carries `sum(iterations)` rows over
+     `n_windows + 1` distinct times, so repeats are `sum(iter) - n_windows - 1`. Its error
+     message blames `timePrecision` and that is WRONG — do not chase precision.
+   - `_assert_one_schedule` raises: fluid-side records carry 501 instants from `t = 0`, the
+     ccx `.dat` carries 500 from `t = dt`.
+   - The cause, measured: per-time row counts EQUAL the per-window coupling-iteration counts
+     for every window `k >= 1` (499/500 exact, both arms), `cnt[0] = it[0] - 1`, plus one
+     trailing row at `max_time`. **The fluid function objects stamp the window START; ccx
+     stamps the window END.** So the two series are offset by one window, which lands
+     directly in **D10** (`|P3-P2|/P2`) and in P2/P3.
+   - Fix it STRUCTURALLY — a `+1` would be exactly the §6.22 defect wearing a fix's clothes.
+     Additive and defaulted so no Stage-10/11/13 record moves; binding test in `tests/unit/`
+     (`tests/stage_20` is not in CI); **prove it against both arms' real bytes**, not only a
+     fixture.
 
 Everything below this line is session 6's original task text, superseded where it
 conflicts (notably: ADR-039 exists; the driver exists; tests/unit/test_adr039_* exist).
