@@ -1142,6 +1142,93 @@ collected through `--collect-probe` and `--collect-cost` only. It must be fixed
 structurally (never with a `+1`) and proved against these bytes BEFORE wave 1, or a 20-day
 campaign ends in a raise.
 
+### 6.37 SESSION 10 — the parallel seam works, and the L-smoke earned its two minutes
+
+`mpi_ranks` on `ParticipantSpec`, and `mpirun -n N <command> -parallel` appended as the
+LAST element of `parts` INSIDE `build_participant_command`. Session 8 measured why the
+obvious seam is wrong in two different ways; both are now also pinned as negatives in
+`tests/unit/test_precice_launcher.py`, beside the serial byte-pin, which is untouched.
+
+`decompose()` lands beside `mesh()` and differs from it deliberately. `blockMesh` runs as
+container root because `constant/polyMesh` is only read afterwards; `decomposePar` WRITES
+`processor*/` and `pimpleFoam` writes into them every step, so it routes through
+`build_participant_command` with the participant's own uid. Its `model_copy` CLEARS
+`mpi_ranks` — `decomposePar` is serial, and the seam would otherwise wrap it in `mpirun`.
+
+**The L-smoke passed all four clauses on the real coupled deck**
+(`data/vv/stage20_l6_smoke.json`, run `hg2007_flexible_foil-20260812-214956`, 20 windows at
+4 ranks): the staged supervisor carries the mpirun element exactly once, after the `cd` and
+inside the `setpriv` drop, with nothing before the drop mentioning mpirun; four `processor*`
+directories for four requested ranks; `all-exited` with both participants rc=0 and zero
+non-converged windows; and **L2 re-measured on the coupled deck** — `force.dat` lands in the
+case root, so the readout needs no change under decomposition. Session 9's L2 was a
+fluid-only screen.
+
+The cost block in that record **may not size anything** and says so: 322 step-solves over 20
+windows is 16.1 iterations/window, the coupling's start-up transient rather than the
+campaign's 5.25, and the wall clock includes the coded FO's first compilation. What it does
+show as a sanity check is **0.795 s per step-solve against the ADR-039 baseline's 3.041**,
+which brackets the screen's 4.36x.
+
+### 6.38 SESSION 10 — the fluid stamps the window START, and the proof is iterate convergence
+
+Session 9 established the one-window offset from row counts. Session 10 measured it to a
+sharper standard, because the fix depends on which reading is right and the row counts alone
+admit more than one.
+
+Re-measured on both surviving I4 arms:
+
+- `force.dat` carries `sum(iterations)` rows over `n_windows + 1` distinct times;
+- the row count at distinct time `k·dt` **equals** the coupling's iteration count for window
+  `k+1`, for every `k >= 1` — **499/500 exact on both arms** — with `count[0] = it[0] - 1`
+  and one trailing row at `max_time`;
+- **the decisive check**: grouping the rows that way yields a monotonically converging
+  `|dF|` sequence in **100 %** of windows (500/500 flexible, 465/465 rigid), and the
+  alternative grouping — converged iterate at the window END — in **0 %**.
+
+So the rows at one stamp ARE one window's fixed-point iteration, and `repeats="last"` at
+`(w-1)·dt` correctly returns window `w`'s converged force. §6.22's fix stands. What does not
+is the pairing: the fluid's converged force for window `w` is stamped `(w-1)·dt` and the
+solid's reaction for the SAME window is stamped `w·dt`.
+
+Window 1's one-row deficit is the coded FO not emitting on its very first execution — a
+missing row INSIDE window 1, not a row belonging to another window, so it shifts nothing.
+
+**Two things that look like they should discriminate, and do not.** The summed reaction
+against the interface force cannot: §6.28's `*CLOAD` exclusion makes the printed RF a
+residual, not the total, and the correlation is 0.13 on the flexible arm. Neither can
+`power / F_y` against the analytic plunge velocity: the FO reads the WALL velocity, which
+deep in the impulsive start is dominated by the plate's own deformation rate and runs
+1e-2 m/s against the ramped plunge's 1e-6. Both were tried; only the iterate-convergence
+structure settles it.
+
+The fix is `aero/adapters/precice/schedule.py`: every series DECLARES its convention, the
+1-based window index is derived from that declaration, and the join is on an integer. A
+`+1` at one call site would have been the §6.22 defect wearing a fix's clothes. The
+analysis time base is now the window-END instant — the moment each window advanced the
+solution to — so **P1 and P3 are evaluated at the same instant**, where before they differed
+by one window. That was a signed bias in the very quantity D9 exists to expose.
+
+### 6.39 SESSION 10 — two latent faults in the collector, both of which would have fired
+
+Neither was hypothetical and neither was in §7's list.
+
+1. **`_collect_probe` crashed on every run inside the ramp.**
+   `f"{record['i7']['max_courant_post_ramp']:.4f}"` raises `TypeError` when the run did not
+   reach the post-ramp window, and both fields are `None` in exactly that case. **Both
+   committed I4 bundles are in that state.** The bundle is written before the print, which
+   is why the records exist and the mode reported a crash. Q1 would have hit it again.
+2. **The time-directory count read essentially zero under decomposition.** `find -maxdepth 3`
+   found **1** directory on the L-smoke's parallel case against **69** at `-maxdepth 4`:
+   OpenFOAM writes `processor*/<time>`, one level deeper than the serial layout. That count
+   is the input to the F4 disk projection, which is the thing standing between a 20-day wave
+   and a full NFS four days in.
+
+Related, and recorded rather than fixed: under `mpirun`, OpenFOAM's `ExecutionTime` is
+**rank 0's CPU**, not the aggregate, so I10's 99.42 % bound does not transfer to a parallel
+run. The N3 rate is read from `ClockTime`, which is wall clock at any rank count and prints
+at integer-second resolution — ample over a run of hours.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-10 RESUMPTION PATH (supersedes everything below).** Session 9 closed the

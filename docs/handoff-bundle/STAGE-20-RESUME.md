@@ -318,6 +318,42 @@ one probe at the next larger round-tripping dt is pre-authorised and the campaig
 largest probed dt with post-ramp Co <= 0.8; the pressure BC was admissible only under a
 pre-registered rule, and that rule is now moot because N5 is refuted.
 
+## 6f. SESSION 10 — the seam, ADR-040 and N3; and two latent faults that would have fired
+
+Read handoff §6.37-§6.41. Session 10 executed §7's EXECUTION ORDER and deviated from it
+once, deliberately and with the operator's approval.
+
+1. **ADR-039's gate block is digest-pinned** — 19898 bytes,
+   `c9cdde9463a4bf202dd3b692dded86242814268b8ac62c8c8d3b4e1cc569863d` — landed ALONE on
+   pre-change code before a second block existed. It is FROZEN and carries over.
+2. **The parallel seam exists and the L-smoke PASSED all four L clauses on the real
+   coupled deck** (`data/vv/stage20_l6_smoke.json`). `mpi_ranks` on `ParticipantSpec`,
+   `mpirun` appended inside `build_participant_command`, `decompose()` beside `mesh()`
+   running under the participant uid with the `processor*` count counted host-side.
+   **FSI3's `config_hash` moved a second time**, `3f94f394…` → `4222f481…`, recorded the
+   way ADR-037 recorded the first; `test_stage19_materialization_is_byte_identical.py`
+   stays green untouched, which is the proof it is a record move.
+3. **ADR-040 is `accepted`** with families U/N/L/Q/VERDICT/BUDGET/CONTINGENCIES(W)/
+   FORBIDDEN, its own delimiters, its own driver constant, and 27 binding tests. The U
+   family names all 58 of ADR-039's clause ids and the shape test checks that list is
+   EXHAUSTIVE. B0 = 259200 s is concrete; B1/B2/B3 carry markers.
+4. **Spec knobs v2**: `numerics_label` and `mpi_ranks` ride in `spec_knobs`,
+   `is_gated_configuration_040` takes FIVE required keywords, `--submit-040` is its own
+   mode with its own merge-base guard, and `--submit` is untouched and refuses forever.
+5. **The readout fix landed BEFORE N3, not after** — the one deviation from §7's order,
+   and it was the right one: the measurement it rests on needed the box only for reading,
+   and it is what would otherwise have ended wave 1 in a raise. §6.38 has the proof.
+6. **Two latent faults found by running the code, neither in §7's list** (§6.39):
+   `_collect_probe` crashed with a `TypeError` on every run inside the ramp — the state
+   BOTH committed I4 bundles are in — and the time-directory count read 1 instead of 69
+   under decomposition, which would have made the F4 disk projection blind.
+
+**Operator decisions taken this session** (do not re-litigate): N3 runs ramp + one full
+half-stroke, 76090 windows = 1.5218 s, 25364 post-ramp — a full half-stroke, so |v| is
+phase-complete by symmetry; ADR-040 B0 = 259200 s (72 h) per submission; **Q1 runs BEFORE
+N3**, a sub-hour probe to de-risk two days, which is a deliberate deviation from §7's
+execution order on the same argument that puts the L-smoke ahead of N3.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
 **START HERE (session 10): the parallel seam, then ADR-040, then the L-smoke, then N3
@@ -375,8 +411,9 @@ then **items 5, 6, 7** once N3 lands -> **item 8** (wave 1).
    `aeroInterfacePower` log series and the watch-point traces are all still there, so the
    baseline side costs nothing). Band and REJECTION outcome pre-registered before running.
 4. **The coupled confirmation (N3) — the ONLY thing that may size.** Both arms
-   concurrently at 6 ranks each (14 of 16 cores, operator-approved), gated rung, past the
-   ramp. The screening record may not size; nor may a ramp-phase rate.
+   concurrently at **4 ranks each** (10 of 16 cores; the pre-approved 6 came from an
+   UNCONTENDED, STATIC ladder and is superseded — §6e item 3), gated rung, past the ramp.
+   The screening record may not size; nor may a ramp-phase rate.
 5. **Bring the operator the measured rate and take the ceiling decision** (their Q1
    answer: the smallest ceiling that fits 20 settled cycles, approved before B2 is
    filled). At the screening projection of ~2 s/window that is ~27 days, so **expect this

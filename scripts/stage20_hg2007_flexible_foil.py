@@ -53,6 +53,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 import numpy as np  # noqa: E402
 from aero.adapters._base import CaseDir  # noqa: E402
+from aero.adapters.openfoam.force_io import read_force_history  # noqa: E402
 from aero.adapters.openfoam.solver_log import (  # noqa: E402
     read_courant_history,
     read_fluid_cost_history,
@@ -63,6 +64,12 @@ from aero.adapters.precice.case import (  # noqa: E402
     spec_config_digest,
 )
 from aero.adapters.precice.launcher import stage_coupled  # noqa: E402
+from aero.adapters.precice.logs import find_iterations_logs, read_iterations_log  # noqa: E402
+from aero.adapters.precice.schedule import (  # noqa: E402
+    common_windows,
+    select_windows,
+    window_indices,
+)
 from aero.adapters.precice.solver import PreciceCoupledSolver  # noqa: E402
 from aero.orchestration.local_ssh import LocalSSHExecutor  # noqa: E402
 from aero.provenance.four_fold import compute_provenance  # noqa: E402
@@ -85,12 +92,17 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     is_gated_configuration,
     is_gated_configuration_040,
 )
-from aero.vv.fsi.hg2007_readout import ArmReadout, read_arm  # noqa: E402
+from aero.vv.fsi.hg2007_readout import (  # noqa: E402
+    FLUID_STAMP,
+    ArmReadout,
+    read_arm,
+)
 from aero.vv.fsi.preflight import signal_drift_reports  # noqa: E402
 from aero.vv.paired_difference import (  # noqa: E402
     paired_delta_uncertainty,
     paired_delta_uncertainty_from_samples,
 )
+from numpy.typing import NDArray  # noqa: E402
 
 _ADR = _REPO_ROOT / "docs/adrs/ADR-039-hg2007-flexible-foil-gate-preregistration.md"
 _BEGIN = "<!-- GATE-BLOCK:BEGIN -->"
@@ -1165,6 +1177,160 @@ def _disk_decomposition(case_root: Path) -> dict[str, Any]:
     }
 
 
+#: ADR-040 Q1's three pre-registered comparisons, fixed in the ADR before the probe ran.
+_Q1_SPAN_MEAN_BAND = 0.02
+_Q1_TRACE_BAND = 0.05
+_Q1_INCREMENT_BAND = 0.05
+
+#: The surviving ADR-039-numerics runs Q1 compares against. Named here rather than
+#: discovered, because "whichever run is in that directory" is not a baseline.
+_Q1_BASELINE_RUNS = {
+    "flexible": "hg2007_flexible_foil-20260810-144742",
+    "rigid": "hg2007_rigid_foil-20260810-144747",
+}
+
+
+def _q1_series(case_root: Path) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """One run's per-window streamwise interface force, on the coupling's window grid.
+
+    Reads through the window-index join rather than off raw times, for the reason
+    `precice.schedule` exists: the two records do not share a float axis. Returns the
+    window indices and the CONVERGED streamwise total force for each.
+    """
+    case = next(case_root.glob("hg2007-*-foil"))
+    fluid_dir = case / "fluid-openfoam"
+    report = read_iterations_log(
+        find_iterations_logs(case)["Fluid"], participant="Fluid", max_iterations_configured=50
+    )
+    forces = read_force_history(fluid_dir / "postProcessing/forces1/0/force.dat", repeats="last")
+    dt = float(np.median(np.diff(np.unique(forces.t))))
+    index = window_indices(forces.t, time_window_size=dt, stamp=FLUID_STAMP, label=str(case_root))
+    fx = (forces.pressure + forces.viscous)[:, 0]
+    # Drop the trailing stamp, which maps to a window that does not exist.
+    keep = index <= report.n_windows
+    return index[keep], fx[keep]
+
+
+def _record_q1(args: argparse.Namespace) -> int:
+    """ADR-040 Q1: does the candidate stack reproduce the ADR-039 numerics' forces?
+
+    Compares the two ADR-040 probes against the two surviving ADR-039-numerics I4 runs,
+    window for window. The baseline side costs nothing -- its bytes are still on NFS -- and
+    the bands and the rejection outcome were fixed in ADR-040 before either probe ran.
+
+    Q2's limit is carried in the record, not left to a reader: the I4 shape sits inside the
+    ramp, where the foil moved 0.006 of one wall cell, and the comparison is of the
+    configuration AS DELIVERED (numerics AND the 4-way decomposition together), so a
+    rejection does not localize.
+    """
+    arms: dict[str, Any] = {}
+    span_means: dict[str, dict[str, float]] = {}
+    for arm, path in (("flexible", args.record_q1[0]), ("rigid", args.record_q1[1])):
+        submission = _submission(Path(path))
+        if submission["arm"] != arm:
+            raise SystemExit(f"{path} is the {submission['arm']!r} arm, expected {arm!r}")
+        if submission["spec_knobs"]["numerics_label"] != "adr040-candidate":
+            raise SystemExit(
+                f"{path} ran on {submission['spec_knobs']['numerics_label']!r}; Q1 compares "
+                "the adr040-candidate stack against the ADR-039 baseline"
+            )
+        candidate_root = Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME
+        baseline_root = Path("/mnt/aero-nfs/runs") / _Q1_BASELINE_RUNS[arm] / CASE_ROOT_DIRNAME
+        if not baseline_root.is_dir():
+            raise SystemExit(
+                f"{baseline_root} is gone — Q1's baseline is the surviving ADR-039-numerics "
+                "I4 run, and a comparison against a run that no longer exists cannot be "
+                "re-checked"
+            )
+        c_idx, c_fx = _q1_series(candidate_root)
+        b_idx, b_fx = _q1_series(baseline_root)
+        windows = common_windows({"candidate": c_idx, "baseline": b_idx})
+        c = c_fx[select_windows(c_idx, windows, label="candidate")]
+        b = b_fx[select_windows(b_idx, windows, label="baseline")]
+
+        span_mean_c, span_mean_b = float(np.mean(c)), float(np.mean(b))
+        amplitude = float(np.max(b) - np.min(b))
+        max_dev = float(np.max(np.abs(c - b)))
+        span_means[arm] = {"candidate": span_mean_c, "baseline": span_mean_b}
+        arms[arm] = {
+            "candidate_run_id": submission["run_id"],
+            "baseline_run_id": _Q1_BASELINE_RUNS[arm],
+            "n_windows_compared": int(windows.size),
+            "span_mean_fx_candidate": span_mean_c,
+            "span_mean_fx_baseline": span_mean_b,
+            "span_mean_relative_difference": abs(span_mean_c - span_mean_b)
+            / max(abs(span_mean_b), 1e-300),
+            "baseline_trace_peak_to_peak": amplitude,
+            "max_absolute_deviation": max_dev,
+            "trace_deviation_over_amplitude": max_dev / max(amplitude, 1e-300),
+        }
+        arms[arm]["q1a_span_mean_within_band"] = bool(
+            arms[arm]["span_mean_relative_difference"] <= _Q1_SPAN_MEAN_BAND
+        )
+        arms[arm]["q1b_trace_within_band"] = bool(
+            arms[arm]["trace_deviation_over_amplitude"] <= _Q1_TRACE_BAND
+        )
+
+    d_candidate = span_means["flexible"]["candidate"] - span_means["rigid"]["candidate"]
+    d_baseline = span_means["flexible"]["baseline"] - span_means["rigid"]["baseline"]
+    increment_rel = abs(d_candidate - d_baseline) / max(abs(d_baseline), 1e-300)
+    clauses = {
+        "Q1a_span_mean_per_arm": all(a["q1a_span_mean_within_band"] for a in arms.values()),
+        "Q1b_trace_per_arm": all(a["q1b_trace_within_band"] for a in arms.values()),
+        "Q1c_increment_of_span_means": bool(increment_rel <= _Q1_INCREMENT_BAND),
+    }
+    record: dict[str, Any] = {
+        "adr": "ADR-040",
+        "clause": "Q1-equivalence",
+        "kind": "equivalence-probe",
+        "gated": False,
+        "started_at": _utc_now(),
+        "bands": {
+            "Q1a_span_mean": _Q1_SPAN_MEAN_BAND,
+            "Q1b_trace_over_baseline_amplitude": _Q1_TRACE_BAND,
+            "Q1c_increment_of_span_means": _Q1_INCREMENT_BAND,
+            "note": "fixed in ADR-040 Q1 BEFORE either probe ran; not widened, ever",
+        },
+        "arms": arms,
+        "increment": {
+            "d_span_mean_candidate": d_candidate,
+            "d_span_mean_baseline": d_baseline,
+            "relative_difference": increment_rel,
+            "why_separate": (
+                "stated on its own so a common-mode shift is not read as an increment "
+                "failure and an anti-symmetric one is not read as a pass"
+            ),
+        },
+        "clauses": clauses,
+        "accepted": all(clauses.values()),
+        "q2_limits": (
+            "The I4 shape sits INSIDE the ramp: over its whole 0.01 s the foil moved "
+            "2.6e-07 m, 0.006 of ONE wall cell. So Q1 certifies that the stack reproduces "
+            "the ADR-039 numerics' forces IN THAT REGIME, not post-ramp. And it compares "
+            "the configuration AS DELIVERED - the N1 numerics and the 4-way decomposition "
+            "together - so a rejection does not localize; the declared localizing "
+            "follow-up is a serial run at the N1 numerics (ADR-040 Q2)."
+        ),
+        "rejection_outcome": (
+            "ADR-040 W4: if Q1 rejects, the N1 stack is INADMISSIBLE and N3's rate may not "
+            "size B2 even if N3 itself succeeded. The declared alternatives, in order: "
+            "re-run the campaign confirmation on ADR-039's numerics under the B3 ceiling, "
+            "or record a budget NO-GO. The band is not widened."
+        ),
+    }
+    _write_bundle(record, Path(args.out or _REPO_ROOT / "data/vv/stage20_q1_equivalence.json"))
+    for name, passed in sorted(clauses.items()):
+        print(f"  {'PASS' if passed else 'FAIL'}  {name}")
+    for arm, a in sorted(arms.items()):
+        print(
+            f"  {arm}: span-mean rel {a['span_mean_relative_difference']:.4%}, "
+            f"trace/amplitude {a['trace_deviation_over_amplitude']:.4%}, "
+            f"{a['n_windows_compared']} windows"
+        )
+    print(f"  increment rel {increment_rel:.4%}")
+    return 0 if record["accepted"] else 1
+
+
 def _record_l6(args: argparse.Namespace) -> int:
     """ADR-040 L6: the parallel coupled smoke, recorded as evidence rather than an anecdote.
 
@@ -1662,6 +1828,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
+    parser.add_argument(
+        "--record-q1", nargs=2, metavar=("FLEX_SUBMISSION", "RIGID_SUBMISSION"), dest="record_q1"
+    )
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
     parser.add_argument("--submit-040", choices=sorted(ARMS), dest="submit_040")
@@ -1703,6 +1872,8 @@ def main(argv: list[str] | None = None) -> int:
         return _collect_cost(args)
     if args.record_l6:
         return _record_l6(args)
+    if args.record_q1:
+        return _record_q1(args)
     if args.submit:
         if GATED_TIME_WINDOW_S is None or GATED_MAX_TIME_S is None:
             raise SystemExit(
@@ -1771,7 +1942,7 @@ def main(argv: list[str] | None = None) -> int:
         return _verdict(args)
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
-        "--submit / --submit-040 / --status / --collect / --verdict"
+        "--record-q1 / --submit / --submit-040 / --status / --collect / --verdict"
     )
 
 
