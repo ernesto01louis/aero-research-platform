@@ -897,6 +897,9 @@ def _collect_probe(args: argparse.Namespace) -> int:
         "submission": submission,
         "gated": False,
         "kind": "preflight-probe",
+        # From the SUBMISSION, not defaulted: an ADR-040 probe's bundle must not claim to
+        # be an ADR-039 record just because _write_bundle's setdefault says so.
+        "adr": submission.get("adr", "ADR-039"),
     }
     solver, case_dir, result = _reattach(args, submission)
     status = solver.coupled_status(result)
@@ -1160,6 +1163,127 @@ def _disk_decomposition(case_root: Path) -> dict[str, Any]:
         # Everything except the static mesh grows with window count; the mesh does not.
         "growing_bytes": total - terms["fluid_mesh_static"],
     }
+
+
+def _record_l6(args: argparse.Namespace) -> int:
+    """ADR-040 L6: the parallel coupled smoke, recorded as evidence rather than an anecdote.
+
+    Every clause below is read back off the run's own bytes -- the staged supervisor
+    script, the case tree, the participant logs -- rather than asserted from what the
+    driver believes it did. L1 and L2 were measured in session 9 on a FLUID-ONLY screen;
+    re-reading them here is the first time either has been checked on the real coupled
+    deck, which is the deck that has a second participant and a preCICE handshake in it.
+    """
+    submission = _submission(Path(args.record_l6))
+    ranks = int(submission["spec_knobs"]["mpi_ranks"])
+    if ranks < 2:
+        raise SystemExit(
+            f"{args.record_l6} ran at {ranks} rank(s) — the L-smoke exists to exercise the "
+            "PARALLEL seam, and a serial run proves nothing about it"
+        )
+    case_root = Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME
+    supervisor = (case_root / "run-coupled.sh").read_text(encoding="utf-8")
+    # The fluid directory comes from the SPEC, never from the run id's spelling.
+    solver, case_dir, result = _reattach(args, submission)
+    spec = case_dir.spec
+    fluid_dir = case_root / spec.case_subdir / spec.fluid_participant_dir
+    status = solver.coupled_status(result)
+
+    mpi_element = f"mpirun -n {ranks} pimpleFoam -parallel"
+    before_drop = supervisor.split("setpriv", 1)[0]
+    processor_dirs = sorted(p.name for p in fluid_dir.glob("processor*") if p.is_dir())
+    force_dat = sorted(str(f.relative_to(case_root)) for f in case_root.rglob("force.dat"))
+
+    remote_case_root = f"{submission['case_remote_path']}/{CASE_ROOT_DIRNAME}"
+    executor = _executor(args, timeout_s=600)
+    depth3 = executor.run(
+        f"find {remote_case_root} -maxdepth 3 -type d -regex '.*/[0-9.]+' | wc -l"
+    )
+    depth4 = executor.run(
+        f"find {remote_case_root} -maxdepth 4 -type d -regex '.*/[0-9.]+' | wc -l"
+    )
+
+    cost = read_fluid_cost_history(case_root / "Fluid.log")
+    reports = solver.coupling_report(result)
+    fluid_report = next((r for r in reports if r.participant == "Fluid"), reports[0])
+
+    clauses = {
+        "L1_mpirun_inside_the_uid_drop": {
+            "passed": mpi_element in supervisor and "mpirun" not in before_drop,
+            "measured": (
+                "the staged supervisor carries the mpirun element exactly once, after the "
+                "cd and inside the setpriv drop; nothing before the drop mentions mpirun"
+            ),
+            "occurrences": supervisor.count(mpi_element),
+        },
+        "L2_force_dat_in_the_case_root": {
+            "passed": force_dat
+            == [
+                f"{spec.case_subdir}/{spec.fluid_participant_dir}/postProcessing/forces1/0/force.dat"
+            ],
+            "measured": force_dat,
+            "note": (
+                "re-measured on the REAL COUPLED deck; session 9's L2 was a fluid-only "
+                "screen. The readout globs the case root and needs no change under "
+                "decomposition"
+            ),
+        },
+        "L4_processor_count_equals_the_request": {
+            "passed": len(processor_dirs) == ranks,
+            "requested": ranks,
+            "found": len(processor_dirs),
+            "dirs": processor_dirs,
+        },
+        "L6_both_participants_exited_cleanly": {
+            "passed": status.stopped_by == "all-exited"
+            and all(o.returncode == 0 for o in status.outcomes),
+            "stopped_by": status.stopped_by,
+            "returncodes": {o.name: o.returncode for o in status.outcomes},
+            "n_nonconverged": fluid_report.n_nonconverged,
+        },
+    }
+    record: dict[str, Any] = {
+        "adr": "ADR-040",
+        "clause": "L6-smoke",
+        "kind": "parallel-coupled-smoke",
+        "gated": False,
+        "started_at": _utc_now(),
+        "submission": submission,
+        "clauses": clauses,
+        "passed": all(c["passed"] for c in clauses.values()),
+        "n5_rank_aware_disk_accounting": {
+            "time_dirs_maxdepth_3": int(depth3.stdout.strip()) if depth3.returncode == 0 else -1,
+            "time_dirs_maxdepth_4": int(depth4.stdout.strip()) if depth4.returncode == 0 else -1,
+            "note": (
+                "ADR-040 N5 measured: under decomposition OpenFOAM writes time directories "
+                "to processor*/<time>, one level deeper than the serial layout. The "
+                "maxdepth-3 form the collector used before this session reads essentially "
+                "zero on a parallel run, so the F4 disk projection would have seen no "
+                "growth at all"
+            ),
+        },
+        "cost": {
+            "n_fluid_step_solves": len(cost.steps),
+            "windows_completed": fluid_report.n_windows,
+            "iterations_per_window_mean": fluid_report.mean_iterations,
+            "total_clock_s": cost.total_clock_s,
+            "seconds_per_step_solve": cost.total_clock_s / max(1, len(cost.steps)),
+            "rank0_cpu_over_wall": cost.total_execution_s / max(1e-9, cost.total_clock_s),
+            "admissibility": (
+                "MAY NOT SIZE ANYTHING. This is a startup-dominated 20-window smoke: its "
+                "iterations per window are the coupling's start-up transient, not the "
+                "campaign's, and its wall clock includes the coded function object's first "
+                "compilation. Only ADR-040 N3 -- coupled, contended, past the ramp -- may "
+                "size B2. rank0_cpu_over_wall is RANK 0's CPU under mpirun (ADR-040 N5) "
+                "and is NOT comparable to I10's 99.42 percent aggregate bound"
+            ),
+        },
+    }
+    out = Path(args.out or _REPO_ROOT / "data/vv/stage20_l6_smoke.json")
+    _write_bundle(record, out)
+    for name, clause in sorted(clauses.items()):
+        print(f"  {'PASS' if clause['passed'] else 'FAIL'}  {name}")
+    return 0 if record["passed"] else 1
 
 
 def _collect_cost(args: argparse.Namespace) -> int:
@@ -1537,6 +1661,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
+    parser.add_argument("--record-l6", type=Path, dest="record_l6")
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
     parser.add_argument("--submit-040", choices=sorted(ARMS), dest="submit_040")
@@ -1576,6 +1701,8 @@ def main(argv: list[str] | None = None) -> int:
         return _collect_probe(args)
     if args.collect_cost:
         return _collect_cost(args)
+    if args.record_l6:
+        return _record_l6(args)
     if args.submit:
         if GATED_TIME_WINDOW_S is None or GATED_MAX_TIME_S is None:
             raise SystemExit(
@@ -1643,8 +1770,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.verdict:
         return _verdict(args)
     parser.error(
-        "choose a mode: --probe / --collect-probe / --collect-cost / --submit / "
-        "--submit-040 / --status / --collect / --verdict"
+        "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
+        "--submit / --submit-040 / --status / --collect / --verdict"
     )
 
 
