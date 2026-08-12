@@ -204,6 +204,56 @@ def test_the_projection_is_conservative_in_the_regime_that_matters() -> None:
     assert "may not size" in _record()["the_projection_is_conservative_not_optimistic"]
 
 
+def test_the_rank_count_is_chosen_in_the_contended_shape() -> None:
+    """The number ADR-040 freezes must come from the shape it gets used in.
+
+    Session 8's ladder was UNCONTENDED and on a STATIC mesh and ranked 6 ranks best with
+    turnover at 8. Wave 1 runs BOTH arms on one 16-core box, so the uncontended curve ranks
+    the wrong thing. Measured concurrently on a moving mesh, 6 is already past the peak.
+    """
+    ladder = _record()["contended_rank_ladder"]
+    chosen = ladder["chosen_ranks_per_arm"]
+    by_ranks = ladder["by_ranks_per_arm"]
+    assert str(chosen) in by_ranks
+    binding = {int(k): v["seconds_per_step_binding"] for k, v in by_ranks.items()}
+    assert binding[chosen] == min(binding.values())
+    # The decision that was actually taken, and the one it overturned.
+    assert 6 in binding, "the pre-approved 6-rank configuration must be measured, not assumed"
+    assert binding[chosen] < binding[6]
+    assert (
+        by_ranks[str(chosen)]["cores_including_calculix"]
+        < by_ranks["6"]["cores_including_calculix"]
+    ), "the chosen configuration should not cost MORE cores than the one it replaces"
+
+
+def test_the_chosen_rank_count_is_not_a_single_lucky_run() -> None:
+    """A rank count picked off one timing on a shared box is picked off noise.
+
+    Both contenders carry repeats and the record reports the median, not the best. The
+    pressure iteration count is the robust witness and it separates them far more cleanly
+    than wall clock does.
+    """
+    by_ranks = _record()["contended_rank_ladder"]["by_ranks_per_arm"]
+    chosen = str(_record()["contended_rank_ladder"]["chosen_ranks_per_arm"])
+    for ranks in (chosen, "6"):
+        assert by_ranks[ranks]["n_repeats"] >= 2, f"{ranks}+{ranks} was measured once"
+        runs = by_ranks[ranks]["runs"]
+        assert max(runs) - min(runs) < 0.25 * min(runs), f"{ranks}+{ranks} scatter is too wide"
+
+
+def test_the_paired_arms_agree_which_is_what_makes_the_proxy_fair() -> None:
+    """Two copies of one variant stand in for two arms, so they must load the box alike.
+
+    The real arms differ only in plate half-thickness and mesh identically at 77240 cells.
+    If the two proxy copies disagreed, the binding "slower arm" number would be measuring
+    scheduling noise rather than contention.
+    """
+    ladder = _record()["contended_rank_ladder"]
+    assert "SLOWER arm" in ladder["shape"]
+    for entry in ladder["by_ranks_per_arm"].values():
+        assert entry["fluid_cores"] == 2 * (entry["cores_including_calculix"] // 2 - 1)
+
+
 def test_neither_refuted_knob_may_enter_the_adr040_stack() -> None:
     """A refuted lead that quietly ships anyway is worse than one never probed."""
     record = _record()

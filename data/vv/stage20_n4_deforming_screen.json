@@ -24,12 +24,57 @@
     }
   },
   "clause": "N4-N5-exploratory",
+  "contended_rank_ladder": {
+    "by_ranks_per_arm": {
+      "1": {
+        "cores_including_calculix": 4,
+        "fluid_cores": 2,
+        "n_repeats": 1,
+        "runs": [
+          0.2867272727272728
+        ],
+        "seconds_per_step_binding": 0.2867272727272728
+      },
+      "2": {
+        "cores_including_calculix": 6,
+        "fluid_cores": 4,
+        "n_repeats": 1,
+        "runs": [
+          0.2843636363636364
+        ],
+        "seconds_per_step_binding": 0.2843636363636364
+      },
+      "4": {
+        "cores_including_calculix": 10,
+        "fluid_cores": 8,
+        "n_repeats": 2,
+        "runs": [
+          0.16472727272727275,
+          0.1654545454545455
+        ],
+        "seconds_per_step_binding": 0.1654545454545455
+      },
+      "6": {
+        "cores_including_calculix": 14,
+        "fluid_cores": 12,
+        "n_repeats": 2,
+        "runs": [
+          0.18454545454545454,
+          0.186
+        ],
+        "seconds_per_step_binding": 0.186
+      }
+    },
+    "chosen_ranks_per_arm": 4,
+    "shape": "TWO arms run CONCURRENTLY at N ranks each - the wave-1 shape. The binding number is the SLOWER arm, because wave 1 is not finished until both are. The two HG arms differ only in plate half-thickness and mesh identically at 77240 cells, so two copies of one variant are a fair proxy for the load; the measured pair agreed to under 1 percent, which is the check that it is.",
+    "why": "4+4 is the fastest configuration measured and uses 10 of aero-dev's 16 cores against 6+6's 14. Session 8's ladder was UNCONTENDED and on a STATIC mesh, and it ranked 6 ranks best with turnover at 8; on a moving mesh in the contended shape 6 is already past the peak. The pressure iteration count is the robust witness - it rises monotonically with rank count and is not a wall-clock measurement on a shared box."
+  },
   "gated": false,
   "kind": "numerics-screening",
   "mechanism": "The campaign's cost is STARTUP-TRANSIENT difficulty, sustained forever. This screen's own first five steps cost 78.2 iterations per p solve from uniform fields and decay to 40.3 by step five, because a marching solve warms up: each step starts from the previous step's converged pressure field. The campaign's first five step-solves sit at 91.2 - the screen's STARTUP number, not its settled one - and they never decay, running 113.0 over all 2627 solves. Under implicit coupling every iteration of a window restores the window-start checkpoint, so the pressure solve never inherits a converged iterate and is permanently cold-started. That is consistent with all four measured signatures: present from the first solve, flat across position in the window (987 GAMG iterations on iteration 1 against 977 on iteration 3), flat in time, and untouched by both agglomeration and the pressure reference level. The lever it implies is the per-iteration initial guess, which lives in the preCICE adapter's checkpointing and the coupling scheme - ADR-039 C1 territory, frozen and carried over, so it is REPORTED here and not acted on. A fluid-only screen cannot test it; only a coupled run can.",
   "n4_cache_agglomeration": {
     "hypothesis": "GAMG caches its agglomeration by default and the campaign deck emits no gamg_controls, so on a mesh that moves the cached agglomeration no longer matches the matrix and the coarse-grid correction degrades. Untestable on N2's static screen, where nothing could go stale.",
-    "measured": "On a mesh that DOES move, cacheAgglomeration no leaves the pressure solve at 41.3 iterations per solve against 40.3 with the cache on - no reduction at all - and costs +6.8% wall time. On the candidate stack it is +18.4%. The cached agglomeration is not going stale in any measurable way.",
+    "measured": "On a mesh that DOES move, cacheAgglomeration no leaves the pressure solve at 41.3 iterations per solve against 40.3 with the cache on - no reduction at all - and costs +6.8% wall time. On the candidate stack it is +21.4%. The cached agglomeration is not going stale in any measurable way.",
     "refuted": true
   },
   "n5_pressure_reference": {
@@ -39,7 +84,7 @@
   },
   "screen_plunge_reached_m": 4.335393427303436e-05,
   "screen_plunge_reached_wall_cells": 0.9634207616229858,
-  "the_projection_is_conservative_not_optimistic": "The candidate stack's advantage is LARGER in the cold-start regime the campaign actually lives in: 5.29x over the first five steps against 4.25x once the marching solve has warmed up. So the ~2.00 s/window projection, built on the settled ratio, is if anything pessimistic. It is still a PROJECTION and it still may not size: only ADR-040 N3, coupled and contended at the gated rung past the ramp, may do that.",
+  "the_projection_is_conservative_not_optimistic": "The candidate stack's advantage is LARGER in the cold-start regime the campaign actually lives in: 5.50x over the first five steps against 4.36x once the marching solve has warmed up. So the ~2.00 s/window projection, built on the settled ratio, is if anything pessimistic. It is still a PROJECTION and it still may not size: only ADR-040 N3, coupled and contended at the gated rung past the ramp, may do that.",
   "variants": {
     "d0": {
       "cell_displacement_iterations_per_step": 0.0,
@@ -149,9 +194,10 @@
       "cell_displacement_iterations_per_step": 1.0,
       "dirichlet_farfield": false,
       "gamg_iterations_per_step": 26.4,
-      "log_sha256": "09587df883530c6ee7ccd0119ebb944c2fe44a648d0272921aa78a6013b55364",
+      "log_sha256": "98b41670210ae7881f5ab3fb7e66cabc161ac34518d4b549d9355293dcad034f",
       "moving_mesh": true,
       "n_steps_measured": 15,
+      "n_steps_requested": 20,
       "name": "d3",
       "numerics": {
         "gamg_controls": [],
@@ -173,9 +219,9 @@
       "pcorr_iterations_per_step": 4.0,
       "pressure_solves_per_step": 6.0,
       "ranks": 1,
-      "seconds_per_step": 0.294,
-      "seconds_per_step_startup": 0.43200000000000005,
-      "speedup_vs_d1_moving": 4.249433106575964,
+      "seconds_per_step": 0.2866666666666667,
+      "seconds_per_step_startup": 0.41600000000000004,
+      "speedup_vs_d1_moving": 4.358139534883721,
       "tests": "the ADR-040 candidate stack, moving mesh"
     },
     "d4": {
@@ -250,6 +296,6 @@
       "tests": "N5 diagnostic: fully-Dirichlet farfield p, over-constrained on purpose"
     }
   },
-  "verdict": "Both leads refuted, and the numerics ratios hold on a mesh that moves: the candidate stack is 4.25x against the moving control and 3.70x against the static one, bracketing N2's 3.73x, so the ~2.00 s/window projection stands unchanged and the 14-day ceiling remains out of reach at any settled-cycle count. cacheAgglomeration and the pressure reference level are both dead ends and neither enters the ADR-040 stack; the residual factor is coupling-specific, bounded, and named.",
+  "verdict": "Both leads refuted, and the numerics ratios hold on a mesh that moves: the candidate stack is 4.36x against the moving control and 3.80x against the static one, bracketing N2's 3.73x, so the ~2.00 s/window projection stands unchanged and the 14-day ceiling remains out of reach at any settled-cycle count. cacheAgglomeration and the pressure reference level are both dead ends and neither enters the ADR-040 stack; the residual factor is coupling-specific, bounded, and named.",
   "where_the_3x_actually_is": "Motion alone is worth 1.13x (35.6 -> 40.3 iterations per p solve), against the 3.17x the campaign shows, and the refutation is a fortiori: under ADR-024's (1-cos) ramp the campaign's foil had moved 2.60e-07 m by its 0.01 s end time - 0.006 of ONE wall cell - while this screen has no ramp and moved it 167x further. A screen that deforms the mesh far more than the campaign ever did, and still reproduces almost none of the cost, settles it: N2's stated attribution - 'the deforming mesh makes the pressure system about three times harder' - is WRONG, and both sides of that 3x in fact ran on an effectively static mesh."
 }

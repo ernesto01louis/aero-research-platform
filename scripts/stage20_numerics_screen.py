@@ -344,17 +344,19 @@ def prepare() -> int:
     return 0
 
 
-def run(name: str, *, ranks: int) -> int:
-    """Materialize one variant from the base, run it, parse its log, write its result."""
-    variant = VARIANTS[name]
+def _materialize(name: str, *, variant: Variant, ranks: int, steps: int, tag: str) -> str:
+    """Copy the meshed base and apply one variant's overrides. Returns the solve command."""
     base = HOST_ROOT / "base"
     if not (base / "constant" / "polyMesh" / "owner").is_file():
         raise SystemExit("no meshed base case — run --prepare first")
-    case = HOST_ROOT / name
+    case = HOST_ROOT / tag
     if case.exists():
         shutil.rmtree(case)
     shutil.copytree(base, case)
 
+    (case / "system" / "controlDict").write_text(
+        _screen_controldict(end_time=steps * DT_S), encoding="utf-8"
+    )
     (case / "system" / "fvSolution").write_text(
         transient_fvsolution(
             cell_displacement=True, turbulence_model="laminar", numerics=variant.numerics
@@ -367,22 +369,44 @@ def run(name: str, *, ranks: int) -> int:
     if variant.dirichlet_farfield:
         (case / "0" / "p").write_text(_dirichlet_p(), encoding="utf-8")
 
-    remote = f"{REMOTE_ROOT}/{name}"
+    remote = f"{REMOTE_ROOT}/{tag}"
     if ranks > 1:
         (case / "system" / "decomposeParDict").write_text(_decompose_par_dict(ranks), "utf-8")
         solve = f"cd /case && decomposePar -force && mpirun -n {ranks} pimpleFoam -parallel"
     else:
         solve = "cd /case && pimpleFoam"
+    return f"{_in_sif(solve, remote_case=remote, uid=RUN_AS_UID)} > {remote}.log 2>&1"
+
+
+def _result_path(name: str, *, ranks: int, steps: int) -> Path:
+    """Where one variant's measurement lands.
+
+    The CANONICAL configuration - serial, `N_STEPS` steps - owns the bare name, because that
+    is the one `--record` assembles the variant table from. Everything else is keyed, so a
+    rank-ladder or long-run pass cannot silently overwrite the baseline it is compared
+    against. It did, once: a `--run d3 --ranks 6` clobbered d3's serial result and the record
+    then compared the candidate stack against itself at six ranks.
+    """
+    if ranks == 1 and steps == N_STEPS:
+        return HOST_ROOT / f"{name}.result.json"
+    return HOST_ROOT / f"{name}.n{ranks}-s{steps}.result.json"
+
+
+def run(name: str, *, ranks: int, steps: int = N_STEPS) -> int:
+    """Materialize one variant from the base, run it, parse its log, write its result."""
+    variant = VARIANTS[name]
+    command = _materialize(name, variant=variant, ranks=ranks, steps=steps, tag=name)
 
     log = HOST_ROOT / f"{name}.log"
     print(f"running {name} ({variant.tests}) at {ranks} rank(s)…")
-    result = _ssh(f"{_in_sif(solve, remote_case=remote, uid=RUN_AS_UID)} > {remote}.log 2>&1")
+    result = _ssh(command)
     if result.returncode != 0 or not log.is_file():
         tail = log.read_text(errors="replace").strip().splitlines()[-15:] if log.is_file() else []
         raise SystemExit(f"{name} failed (rc={result.returncode})\n" + "\n".join(tail))
 
     measured = _measure(log, variant=variant, ranks=ranks)
-    (HOST_ROOT / f"{name}.result.json").write_text(
+    measured["n_steps_requested"] = steps
+    _result_path(name, ranks=ranks, steps=steps).write_text(
         json.dumps(measured, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(
@@ -392,6 +416,57 @@ def run(name: str, *, ranks: int) -> int:
         f"{measured['pressure_solves_per_step']} solves), "
         f"cellDisplacement {measured['cell_displacement_iterations_per_step']:.2f} it/step"
     )
+    return 0
+
+
+def pair(name: str, *, ranks: int, steps: int) -> int:
+    """Two arms CONCURRENTLY at `ranks` each - the wave-1 contention shape.
+
+    The campaign runs both arms at once on one 16-core box, so an uncontended rank ladder
+    ranks the wrong thing: at 6 ranks per arm two arms occupy 14 of 16 cores, at 4 they
+    occupy 10, and the memory-bandwidth pressure differs accordingly. The two HG arms differ
+    only in plate half-thickness and mesh identically at 77240 cells, so two copies of one
+    variant are a fair proxy for the LOAD - which is all a rank-count ranking needs. This
+    still may not size anything (see the admissibility note); it ranks.
+
+    The binding number is the SLOWER of the two, because wave 1 is not finished until both
+    arms are.
+    """
+    variant = VARIANTS[name]
+    tags = (f"{name}-pairA-n{ranks}", f"{name}-pairB-n{ranks}")
+    commands = [
+        _materialize(name, variant=variant, ranks=ranks, steps=steps, tag=tag) for tag in tags
+    ]
+    print(f"running {name} x2 CONCURRENTLY at {ranks} rank(s) each ({2 * ranks} fluid cores)…")
+    # One ssh, both backgrounded, then wait - so the two solves genuinely overlap rather
+    # than being serialized by two round trips.
+    joined = " & ".join(f"( {c} )" for c in commands) + " & wait"
+    result = _ssh(f"bash -lc {json.dumps(joined)}", timeout_s=5400)
+    measured = []
+    for tag in tags:
+        log = HOST_ROOT / f"{tag}.log"
+        if not log.is_file():
+            raise SystemExit(f"{tag} produced no log (rc={result.returncode})")
+        measured.append(_measure(log, variant=variant, ranks=ranks))
+    slower = max(m["seconds_per_step"] for m in measured)
+    payload = {
+        "variant": name,
+        "ranks_per_arm": ranks,
+        "fluid_cores_total": 2 * ranks,
+        "steps": steps,
+        "arms": measured,
+        "seconds_per_step_slower_arm": slower,
+    }
+    existing = len(list(HOST_ROOT.glob(f"{name}.pair-n{ranks}-*.json")))
+    (HOST_ROOT / f"{name}.pair-n{ranks}-{existing}.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    for tag, m in zip(tags, measured, strict=True):
+        print(
+            f"  {tag}: {m['seconds_per_step']:.4f} s/step, "
+            f"p {m['p_iterations_per_solve']:.1f} it/solve"
+        )
+    print(f"  BINDING (slower arm) at {ranks}+{ranks}: {slower:.4f} s/step")
     return 0
 
 
@@ -547,7 +622,16 @@ def record(out: Path) -> int:
         result = HOST_ROOT / f"{name}.result.json"
         if not result.is_file():
             raise SystemExit(f"{name} has not been run — {result} is missing")
-        variants[name] = json.loads(result.read_text(encoding="utf-8"))
+        measured = json.loads(result.read_text(encoding="utf-8"))
+        if measured["ranks"] != 1 or measured["n_steps_measured"] != N_STEPS - N_DISCARD:
+            raise SystemExit(
+                f"{name}'s result is not the canonical configuration "
+                f"(ranks={measured['ranks']}, {measured['n_steps_measured']} steps measured) - "
+                "the variant table compares serial 20-step runs and mixing a rank-ladder pass "
+                f"into it would compare stacks at different parallelism. Re-run: "
+                f"--run {name}"
+            )
+        variants[name] = measured
 
     static_control = variants["d0"]["p_iterations_per_solve"]
     moving_control = variants["d1"]["p_iterations_per_solve"]
@@ -558,8 +642,53 @@ def record(out: Path) -> int:
             variants["d1"]["seconds_per_step"] / measured["seconds_per_step"]
         )
 
+    contended: dict[str, list[float]] = {}
+    for path in sorted(HOST_ROOT.glob("*.pair-n*.json")):
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        contended.setdefault(str(entry["ranks_per_arm"]), []).append(
+            entry["seconds_per_step_slower_arm"]
+        )
+    # The MEDIAN across repeats, not the best: a rank count chosen on its luckiest run is a
+    # rank count chosen on box noise. Every sample is kept in `runs` so the scatter is visible.
+    binding: dict[str, float] = {
+        ranks: sorted(values)[len(values) // 2] for ranks, values in contended.items()
+    }
+    ladder: dict[str, dict[str, Any]] = {
+        ranks: {
+            "runs": sorted(contended[ranks]),
+            "n_repeats": len(contended[ranks]),
+            "seconds_per_step_binding": binding[ranks],
+            "fluid_cores": 2 * int(ranks),
+            "cores_including_calculix": 2 * (int(ranks) + 1),
+        }
+        for ranks in sorted(contended, key=int)
+    }
+    best = min(binding, key=lambda r: binding[r]) if binding else None
+
     campaign = _campaign_reference()
     payload = {
+        "contended_rank_ladder": {
+            "shape": (
+                "TWO arms run CONCURRENTLY at N ranks each - the wave-1 shape. The binding "
+                "number is the SLOWER arm, because wave 1 is not finished until both are. "
+                "The two HG arms differ only in plate half-thickness and mesh identically at "
+                "77240 cells, so two copies of one variant are a fair proxy for the load; the "
+                "measured pair agreed to under 1 percent, which is the check that it is."
+            ),
+            "by_ranks_per_arm": ladder,
+            "chosen_ranks_per_arm": int(best) if best else None,
+            "why": (
+                f"{best}+{best} is the fastest configuration measured and uses "
+                f"{2 * (int(best) + 1)} of aero-dev's 16 cores against 6+6's 14. Session 8's "
+                "ladder was UNCONTENDED and on a STATIC mesh, and it ranked 6 ranks best with "
+                "turnover at 8; on a moving mesh in the contended shape 6 is already past the "
+                "peak. The pressure iteration count is the robust witness - it rises "
+                "monotonically with rank count and is not a wall-clock measurement on a "
+                "shared box."
+                if best
+                else "no contended ladder measured"
+            ),
+        },
         "kind": "numerics-screening",
         "clause": "N4-N5-exploratory",
         "adr": "ADR-040",
@@ -674,16 +803,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--run", choices=sorted(VARIANTS))
     parser.add_argument("--ranks", type=int, default=1)
+    parser.add_argument("--steps", type=int, default=N_STEPS)
+    parser.add_argument("--pair", choices=sorted(VARIANTS))
     parser.add_argument("--record", type=Path)
     args = parser.parse_args(argv)
 
     if args.prepare:
         return prepare()
     if args.run:
-        return run(args.run, ranks=args.ranks)
+        return run(args.run, ranks=args.ranks, steps=args.steps)
+    if args.pair:
+        return pair(args.pair, ranks=args.ranks, steps=args.steps)
     if args.record:
         return record(args.record)
-    parser.error("choose a mode: --prepare / --run / --record")
+    parser.error("choose a mode: --prepare / --run / --pair / --record")
 
 
 if __name__ == "__main__":
