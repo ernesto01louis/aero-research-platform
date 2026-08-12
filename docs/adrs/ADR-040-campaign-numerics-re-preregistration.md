@@ -233,11 +233,17 @@ sizing rule or the stage records a budget NO-GO. A budget NO-GO is a result. No 
 relaxed under any circumstance, and no number below is chosen after seeing a rate.
 
 BUDGET (pre-declared): aero-dev only, no cloud spend, 4 fluid ranks per arm, two waves.
-  B0 the ADR-040 PROBE ceiling: 259200 s (72 h) per submission, 432000 s (5 d) total,
+  B0 the ADR-040 PROBE ceiling: 345600 s (96 h) per submission, 604800 s (7 d) total,
      covering L6, Q1 and N3. This clause exists because N3 cannot be ceilinged by B1:
-     B1 is an OUTPUT of N3. At the pessimistic end of the projection N3's 76090 windows
-     cost 59.2 h, so 72 h carries about 22 percent headroom and still clears the ramp
-     alone at up to 5.1 s/window.
+     B1 is an OUTPUT of N3. RAISED from 72 h BEFORE N3 ran, on a measurement that did not
+     exist when the first number was written: Q1 measured the binding arm at 3.69
+     s/window contended - 0.753 s per step-solve at 4.90 settled iterations per window -
+     against the 2.8 s/window pessimistic estimate 72 h was sized on. At the measured
+     rate the pre-registered 76090 windows cost 78.0 h and a 72 h ceiling would have cut
+     the run 5875 windows short of its phase-complete sample; 96 h carries 23 percent
+     headroom. Raising it is recorded rather than quietly done, and it is admissible for
+     the same two reasons throughout: this is a PROBE ceiling and not a gate, and it is
+     raised BEFORE the probe rather than after seeing its result.
   B1 pre-flight ceiling: <<B1-PENDING-N3>>
      ADR-039's B1 - 43200 s per submission - was NEVER SATISFIABLE, and saying so is part
      of the record. I7 must reach the post-ramp window, which needs at least 50725

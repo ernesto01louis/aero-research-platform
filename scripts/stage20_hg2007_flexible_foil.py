@@ -122,8 +122,10 @@ PROBE_CEILING_S = 43200  # ADR-039 B1: per-submission ceiling
 
 #: ADR-040 B0: the probe ceiling N3 runs under. It cannot be B1, because B1 is an OUTPUT
 #: of N3 — and ADR-039's B1 was never satisfiable anyway (ADR-040 B1 carries the
-#: arithmetic). 72 h covers N3's 76090 windows at the pessimistic end of the projection.
-PROBE_CEILING_040_S = 259200
+#: arithmetic). RAISED from 72 h before N3 ran: Q1 measured the binding arm at 3.69
+#: s/window contended, so N3's 76090 windows cost 78.0 h, not the 59.2 h the first number
+#: was sized on. The ADR records the raise and why it is admissible.
+PROBE_CEILING_040_S = 345600
 
 
 def _extract_fenced_block(text: str, *, begin: str, end: str, source: Path) -> str:
@@ -604,11 +606,17 @@ sizing rule or the stage records a budget NO-GO. A budget NO-GO is a result. No 
 relaxed under any circumstance, and no number below is chosen after seeing a rate.
 
 BUDGET (pre-declared): aero-dev only, no cloud spend, 4 fluid ranks per arm, two waves.
-  B0 the ADR-040 PROBE ceiling: 259200 s (72 h) per submission, 432000 s (5 d) total,
+  B0 the ADR-040 PROBE ceiling: 345600 s (96 h) per submission, 604800 s (7 d) total,
      covering L6, Q1 and N3. This clause exists because N3 cannot be ceilinged by B1:
-     B1 is an OUTPUT of N3. At the pessimistic end of the projection N3's 76090 windows
-     cost 59.2 h, so 72 h carries about 22 percent headroom and still clears the ramp
-     alone at up to 5.1 s/window.
+     B1 is an OUTPUT of N3. RAISED from 72 h BEFORE N3 ran, on a measurement that did not
+     exist when the first number was written: Q1 measured the binding arm at 3.69
+     s/window contended - 0.753 s per step-solve at 4.90 settled iterations per window -
+     against the 2.8 s/window pessimistic estimate 72 h was sized on. At the measured
+     rate the pre-registered 76090 windows cost 78.0 h and a 72 h ceiling would have cut
+     the run 5875 windows short of its phase-complete sample; 96 h carries 23 percent
+     headroom. Raising it is recorded rather than quietly done, and it is admissible for
+     the same two reasons throughout: this is a PROBE ceiling and not a gate, and it is
+     raised BEFORE the probe rather than after seeing its result.
   B1 pre-flight ceiling: <<B1-PENDING-N3>>
      ADR-039's B1 - 43200 s per submission - was NEVER SATISFIABLE, and saying so is part
      of the record. I7 must reach the post-ramp window, which needs at least 50725
@@ -1209,6 +1217,85 @@ def _q1_series(case_root: Path) -> tuple[NDArray[np.float64], NDArray[np.float64
     # Drop the trailing stamp, which maps to a window that does not exist.
     keep = index <= report.n_windows
     return index[keep], fx[keep]
+
+
+def _project_n3(args: argparse.Namespace) -> int:
+    """Project a RUNNING N3 from its own log, so a doomed run is spotted at the ramp.
+
+    N3's ceiling arithmetic rests on a rate measured over RAMP-phase windows, where the
+    plunge is near zero and the mesh barely moves. Post-ramp, at full amplitude, coupling
+    iterations may rise -- and if they rise enough, the run reaches B0 without completing
+    a whole post-ramp quarter-cycle, which ADR-040 W3 makes a FAILURE rather than a rate
+    with a caveat. That verdict is correct and it is also expensive: the alternative to
+    knowing at hour 96 is knowing at hour 52, when the ramp clears.
+
+    Read-only and safe on a live run: it opens the fluid log and the iterations log, both
+    of which are append-only, and touches nothing else. It reports the ramp-phase rate,
+    the post-ramp rate SO FAR once there is one, and what each implies for the ceiling.
+    It takes no action -- stopping a run early is an operator decision, and W3 already
+    says what happens if it is left alone.
+    """
+    submission = _submission(Path(args.project_n3))
+    case_root = Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME
+    dt = float(submission["spec_knobs"]["time_window_size"])
+    ceiling_s = int(submission["spec_knobs"]["wall_clock_ceiling_s"])
+    period_s = 1.0 / FREQUENCY_HZ
+    ramp_windows = math.ceil(period_s / dt)
+    quarter_windows = max(1, round(period_s / 4.0 / dt))
+    requested = round(submission["spec_knobs"]["max_time"] / dt)
+
+    cost = read_fluid_cost_history(case_root / "Fluid.log")
+    courant = read_courant_history(case_root / "Fluid.log")
+    n = min(len(cost.steps), len(courant.t))
+    clock = np.asarray([s.clock_time_s for s in cost.steps[:n]], dtype=np.float64)
+    window = np.rint(np.asarray(courant.t[:n], dtype=np.float64) / dt).astype(np.int64) + 1
+    reached = int(window.max())
+    elapsed = float(clock[-1])
+
+    print(f"N3 projection for {submission['run_id']} ({submission['arm']})")
+    print(f"  window {reached} of {requested}; {elapsed:.0f} s elapsed of {ceiling_s} s")
+    print(f"  ramp ends at window {ramp_windows}; one quarter-cycle is {quarter_windows} windows")
+
+    ramp_mask = window <= ramp_windows
+    if int(ramp_mask.sum()) >= 2:
+        ramp_rate = float(clock[ramp_mask][-1] - clock[0]) / max(
+            1, int(window[ramp_mask].max()) - int(window[0])
+        )
+        print(f"  ramp-phase rate      {ramp_rate:.3f} s/window")
+
+    post = window > ramp_windows
+    if int(post.sum()) < 2:
+        remaining = ceiling_s - elapsed
+        rate_so_far = elapsed / max(1, reached)
+        need = (ramp_windows + quarter_windows - reached) * rate_so_far
+        print("  post-ramp: NOT REACHED yet")
+        print(
+            f"  at the rate so far ({rate_so_far:.3f} s/window) a whole post-ramp "
+            f"quarter-cycle needs {need / 3600:.1f} h more against {remaining / 3600:.1f} h "
+            "of ceiling"
+        )
+        print("  -> W3 verdict if nothing changes: " + ("SIZES" if need <= remaining else "FAILS"))
+        return 0 if need <= remaining else 1
+
+    post_windows = int(window[post].max()) - ramp_windows
+    post_rate = float(clock[post][-1] - clock[post][0]) / max(1, post_windows - 1)
+    whole = post_windows // quarter_windows
+    print(f"  POST-RAMP rate       {post_rate:.3f} s/window over {post_windows} windows")
+    print(f"  whole post-ramp quarter-cycles so far: {whole}")
+    if whole >= 1:
+        print("  -> W3: this run can already size B2")
+    else:
+        need = (quarter_windows - post_windows) * post_rate
+        remaining = ceiling_s - elapsed
+        print(
+            f"  -> needs {need / 3600:.1f} h more for the first quarter-cycle against "
+            f"{remaining / 3600:.1f} h of ceiling: " + ("SIZES" if need <= remaining else "FAILS")
+        )
+    print(
+        f"  campaign implication: {post_rate:.3f} s/window x the B2 window count is what "
+        "the ceiling conversation will be about"
+    )
+    return 0
 
 
 def _record_q1(args: argparse.Namespace) -> int:
@@ -1831,6 +1918,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--record-q1", nargs=2, metavar=("FLEX_SUBMISSION", "RIGID_SUBMISSION"), dest="record_q1"
     )
+    parser.add_argument("--project-n3", type=Path, dest="project_n3")
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
     parser.add_argument("--submit-040", choices=sorted(ARMS), dest="submit_040")
@@ -1874,6 +1962,8 @@ def main(argv: list[str] | None = None) -> int:
         return _record_l6(args)
     if args.record_q1:
         return _record_q1(args)
+    if args.project_n3:
+        return _project_n3(args)
     if args.submit:
         if GATED_TIME_WINDOW_S is None or GATED_MAX_TIME_S is None:
             raise SystemExit(
@@ -1942,7 +2032,8 @@ def main(argv: list[str] | None = None) -> int:
         return _verdict(args)
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
-        "--record-q1 / --submit / --submit-040 / --status / --collect / --verdict"
+        "--record-q1 / --project-n3 / --submit / --submit-040 / --status / --collect / "
+        "--verdict"
     )
 
 

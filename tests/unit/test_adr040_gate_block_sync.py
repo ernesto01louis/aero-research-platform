@@ -80,5 +80,5 @@ def test_adr_039s_marker_still_stands_in_adr_039s_own_file() -> None:
 def test_the_probe_ceiling_matches_b0() -> None:
     """B0 is a budget clause and a driver constant; a drift between them is unpoliced."""
     driver = _driver_module()
-    assert driver.PROBE_CEILING_040_S == 259200
-    assert "B0 the ADR-040 PROBE ceiling: 259200 s (72 h) per submission" in _block_040()
+    assert driver.PROBE_CEILING_040_S == 345600
+    assert "B0 the ADR-040 PROBE ceiling: 345600 s (96 h) per submission" in _block_040()
