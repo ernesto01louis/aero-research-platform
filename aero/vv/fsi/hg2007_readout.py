@@ -54,6 +54,13 @@ from aero.adapters.openfoam.force_io import (
 )
 from aero.adapters.precice.case import AuthoredSource, CoupledCaseSpec
 from aero.adapters.precice.ccx_dat import read_reaction_forces
+from aero.adapters.precice.schedule import (
+    ScheduleError,
+    StampConvention,
+    common_windows,
+    select_windows,
+    window_indices,
+)
 from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.postprocess import LimitCycleAnalysis, analyse_limit_cycle
 from aero.vv._base import BenchmarkError
@@ -89,7 +96,11 @@ D0_DEG = "d0_deg"
 #: coupling window. NOT bitwise: these are two independent ASCII accumulators (OpenFOAM's
 #: `forces` object and preCICE's watch-point writer), and `alignment.py` reserves bitwise
 #: equality for the cross-ARM comparison of the same file kind, where it is achievable.
-_SCHEDULE_TOL_WINDOWS = 1.0e-6
+#: MEASURED on both surviving I4 arms (see `aero.adapters.precice.schedule`). Declared
+#: here as constants rather than inline, so the two conventions are stated in one place
+#: and a future participant is added by naming its convention, not by editing arithmetic.
+FLUID_STAMP: StampConvention = "window-start"
+SOLID_STAMP: StampConvention = "window-end"
 
 
 class ArmReadout(BaseModel):
@@ -126,11 +137,30 @@ class ArmReadout(BaseModel):
     force_cadence: str = Field(..., min_length=1)
     force_rows_read: int = Field(..., ge=1)
     interface_power_rows_read: int = Field(..., ge=1)
+    n_windows_analysed: int = Field(
+        ...,
+        ge=2,
+        description=(
+            "Coupling windows every record covered, after the window join. Reported "
+            "because it is the length of the series every gated number is built from, "
+            "and it is NOT the row count of any one file: the fluid writes one extra "
+            "stamp after the last window closes (see precice.schedule)."
+        ),
+    )
     coupling_mean_iterations: float = Field(..., gt=0.0)
 
     # --- what the paired path needs ---
     analysis: LimitCycleAnalysis
-    force_t: tuple[float, ...] = Field(..., min_length=2)
+    force_t: tuple[float, ...] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "The ANALYSIS time base -- window-END instants, one per analysed window. "
+            "Named force_t for continuity; it is no longer force.dat's raw stamps, which "
+            "are window-START and one row longer. A2 compares this bitwise across arms, "
+            "and it is derived identically on both, so the comparison still holds."
+        ),
+    )
 
     @property
     def c_t_per_cycle(self) -> NDArray[np.float64]:
@@ -220,6 +250,7 @@ def read_arm(
         raw.t,
         n_windows=fluid_report.n_windows,
         total_iterations=fluid_report.total_iterations,
+        stamp=FLUID_STAMP,
     )
     forces = read_force_history(_one_force_file(fluid_dir), repeats="last")
     if forces.n_dropped and cadence.kind == "per-window":
@@ -242,34 +273,72 @@ def read_arm(
     # structure is that same quantity; C_P is normalised the way HG normalise it.
     c_p = power_history.power / (q * area * fluid.u_inf)
 
-    # --- the naive rigid-body power (P1), for the D9 bias, from the PRESCRIBED motion -----
-    vy = solid.kinematics.evaluate(forces.t)["vy"]
-    c_p1 = -total_force[:, 1] * vy / (q * area * fluid.u_inf)
-
     # --- the solid's reaction power (P3), for the D10 closure identity -------------------
     reaction = read_reaction_forces(
         solid_dir / f"{solid.name}.dat",
         iterations_per_window=np.asarray(solid_report.iterations_per_window, dtype=np.int64),
     )
-    p3 = reaction.forces[:, 1] * solid.kinematics.evaluate(reaction.times)["vy"]
 
-    # --- everything on one time base, then one segmentation ------------------------------
-    _assert_one_schedule(
-        {"interface power": power_history.t, "solid reaction": reaction.times},
-        forces.t,
-        window=fluid.time_window_size,
-        arm=arm,
-    )
+    # --- ONE window grid, then one time base, then one segmentation ----------------------
+    # The three records do NOT share a float time axis (see `precice.schedule`): the fluid
+    # FOs stamp the window START and CalculiX the window END, so index-k pairing on raw
+    # times compares different physical intervals and lands in D10 and P1/P3. Each series
+    # declares its convention, the window index is derived from it, and the join is on an
+    # integer.
+    dt = fluid.time_window_size
+    indexed = {
+        "force.dat": window_indices(
+            forces.t, time_window_size=dt, stamp=FLUID_STAMP, label=f"{arm}: force.dat"
+        ),
+        "interface power": window_indices(
+            power_history.t, time_window_size=dt, stamp=FLUID_STAMP, label=f"{arm}: interface power"
+        ),
+        "solid reaction": window_indices(
+            np.asarray(reaction.times, dtype=np.float64),
+            time_window_size=dt,
+            stamp=SOLID_STAMP,
+            label=f"{arm}: solid reaction",
+        ),
+    }
+    try:
+        windows = common_windows(indexed)
+        rows = {
+            label: select_windows(index, windows, label=f"{arm}: {label}")
+            for label, index in indexed.items()
+        }
+    except ScheduleError as exc:
+        raise BenchmarkError(f"{arm}: {exc}") from exc
+
+    keep_force = rows["force.dat"]
+    keep_power = rows["interface power"]
+    keep_reaction = rows["solid reaction"]
+    total_force = total_force[keep_force]
+    c_t = c_t[keep_force]
+    c_p = c_p[keep_power]
+    # The ANALYSIS time base, declared once: the instant each window advanced the solution
+    # TO. That is CalculiX's stamp already, and it is the physically meaningful one for a
+    # quantity produced by solving the window -- the fluid's stamp is the reverted clock
+    # its checkpoint left behind, not the instant its force acts at.
+    window_t = windows.astype(np.float64) * dt
+
+    # --- the naive rigid-body power (P1), for the D9 bias, from the PRESCRIBED motion -----
+    # On `window_t`, so P1's velocity and P3's are evaluated at the SAME instant. Before
+    # the window join these differed by one window, which is a signed bias in a REPORTED
+    # quantity whose entire job is to show how biased the naive formula is.
+    vy = solid.kinematics.evaluate(window_t)["vy"]
+    c_p1 = -total_force[:, 1] * vy / (q * area * fluid.u_inf)
+    p3 = np.asarray(reaction.forces, dtype=np.float64)[keep_reaction, 1] * vy
+
     history = solve.history
     if history.kind != "time":
         raise BenchmarkError(
             f"{arm}: the coupled solve reported a {history.kind!r} history; the authored "
             "path always emits a time history carrying the D0 pitch trace"
         )
-    d0_deg = np.interp(forces.t, np.asarray(history.t), np.asarray(history.monitor))
+    d0_deg = np.interp(window_t, np.asarray(history.t), np.asarray(history.monitor))
 
     analysis = analyse_limit_cycle(
-        forces.t,
+        window_t,
         {C_T: c_t, C_P: c_p, C_P1: c_p1, P3: p3, D0_DEG: d0_deg},
         # D0 oscillates at the plunge frequency; thrust is at twice it, and segmenting on
         # thrust would make per-cycle amplitudes alternate between half-strokes.
@@ -310,9 +379,10 @@ def read_arm(
         force_cadence=cadence.kind,
         force_rows_read=cadence.n_rows,
         interface_power_rows_read=int(power_history.t.size),
+        n_windows_analysed=int(windows.size),
         coupling_mean_iterations=solve.scalars["coupling_mean_iterations"],
         analysis=analysis,
-        force_t=tuple(float(v) for v in forces.t),
+        force_t=tuple(float(v) for v in window_t),
     )
 
 
@@ -359,33 +429,21 @@ def _assert_power_object_saw_the_same_force(
         )
 
 
-def _assert_one_schedule(
-    others: dict[str, NDArray[np.float64]],
-    reference: NDArray[np.float64],
-    *,
-    window: float,
-    arm: str,
-) -> None:
-    """Every record covers the same coupling windows as the force history.
+def _windows_from_the_join(*, arm: str) -> None:
+    """Removed: `_assert_one_schedule` compared RAW times and could only ever refuse.
 
-    NOT bitwise: these are independent ASCII accumulators written by three different
-    programs, and CalculiX prints its time at seven significant digits. Bitwise equality is
-    reserved for the cross-ARM comparison in ``alignment.py``, where one writer produced
-    both sides and it is achievable.
+    It required the three records to carry the same instants to 1e-6 of a window. They do
+    not, and cannot: the fluid FOs stamp the window START and CalculiX the window END, so
+    on both surviving I4 arms it failed on shape (501 instants against 500) and, had the
+    shapes been forced to match, would have failed on a difference of exactly one window.
+
+    Its job -- "every record covers the same coupling windows" -- is now done by
+    `precice.schedule.common_windows`, on integer window indices derived from each
+    series' DECLARED convention. That is a stronger check than the tolerance it replaced:
+    it names which record is missing which windows, and it cannot be satisfied by two
+    records that agree on times while describing different windows.
     """
-    tolerance = _SCHEDULE_TOL_WINDOWS * window
-    for label, t in others.items():
-        got = np.asarray(t, dtype=np.float64)
-        if got.shape != reference.shape:
-            raise BenchmarkError(
-                f"{arm}: the {label} record covers {got.size} windows and the force history "
-                f"{reference.size}. Every per-window record of one run has the same length; "
-                "a difference means one participant stopped early or a file is truncated."
-            )
-        worst = float(np.max(np.abs(got - reference)))
-        if worst > tolerance:
-            raise BenchmarkError(
-                f"{arm}: the {label} record's instants differ from the force history's by up "
-                f"to {worst:.3e} s, more than {tolerance:.3e} s. The two are then indexed "
-                "against different windows and every derived power is misaligned by one."
-            )
+    raise NotImplementedError(  # pragma: no cover - kept as a signpost, never called
+        f"{arm}: schedule agreement is established by window index, not by raw time; see "
+        "aero.adapters.precice.schedule"
+    )

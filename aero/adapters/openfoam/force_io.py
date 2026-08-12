@@ -128,6 +128,23 @@ def last_occurrence_mask(t: NDArray[np.float64]) -> NDArray[np.bool_]:
     return keep
 
 
+#: Where in its coupling window a participant stamps its per-window output.
+#:
+#: Defined HERE, in the module with no preCICE imports, and re-exported by
+#: :mod:`aero.adapters.precice.schedule`, which is its conceptual home. The other
+#: direction would deadlock: `precice/case.py` already imports the OpenFOAM writers, so
+#: `force_io` importing anything under `aero.adapters.precice` would run
+#: `precice/__init__` while this module is half-initialised -- the hazard `case.py`'s own
+#: import comment records.
+StampConvention = Literal["window-start", "window-end"]
+
+#: The convention a mis-declared record would have been written under.
+_OTHER: dict[StampConvention, StampConvention] = {
+    "window-start": "window-end",
+    "window-end": "window-start",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class RepeatCadence:
     """Why a force record's times repeat, established structurally rather than assumed."""
@@ -139,7 +156,11 @@ class RepeatCadence:
 
 
 def classify_repeat_cadence(
-    t: NDArray[np.float64], *, n_windows: int, total_iterations: int
+    t: NDArray[np.float64],
+    *,
+    n_windows: int,
+    total_iterations: int,
+    stamp: StampConvention = "window-end",
 ) -> RepeatCadence:
     """Classify a coupled record's repeated times against the coupling's own iteration log.
 
@@ -148,32 +169,53 @@ def classify_repeat_cadence(
     ``.dat``:
 
     * no repeats at all means the object wrote once per completed window;
-    * exactly ``total_iterations - n_windows`` repeats means it wrote once per coupling
-      ITERATION, which is what an implicit scheme produces;
-    * anything else is unexplained, and the likeliest cause is a ``timePrecision`` too
-      coarse for the time-window size -- consecutive rows collapsing to one printed time.
-      That is silent data loss, so it raises rather than picking whichever branch is
-      closer.
+    * exactly ``total_iterations - n_distinct_expected`` repeats means it wrote once per
+      coupling ITERATION, which is what an implicit scheme produces;
+    * anything else is unexplained, and it raises rather than picking whichever branch is
+      closer -- silent data loss is worse than a stop.
 
-    ``total_iterations`` is the sum over windows of the iterations the participant's own
-    ``precice-<Participant>-iterations.log`` recorded, so the two records have to agree
-    about how many times the window was solved.
+    ``stamp`` is what makes the middle branch correct, and it is the whole reason this
+    signature changed. How many DISTINCT times an implicit record carries depends on where
+    in its window the writer stamps:
+
+    * ``"window-end"`` (CalculiX): windows ``1..n`` are stamped ``dt .. n*dt``, so a
+      per-iteration record carries ``n`` distinct times and ``total_iterations - n``
+      repeats. This is the historical behaviour and stays the default, so no Stage-10/11/13
+      caller moves.
+    * ``"window-start"`` (the OpenFOAM function objects): windows ``1..n`` are stamped
+      ``0 .. (n-1)*dt``, and one final write lands at ``n*dt`` after the run closes -- so
+      the record carries ``n + 1`` distinct times and ``total_iterations - n - 1`` repeats.
+      MEASURED on both surviving I4 arms, exactly, 2627 and 2090 rows over 501 distinct
+      times against 500 windows.
+
+    Called with the default on a window-start record, this function raises -- and its
+    message used to blame ``timePrecision``, which was WRONG and would have sent the reader
+    chasing a deck setting that was already correct. It now names the off-by-one-window
+    hypothesis first, because that is what a one-short repeat count actually means.
     """
     n_rows = int(np.asarray(t).size)
     n_distinct = int(np.unique(np.asarray(t, dtype=np.float64)).size)
     n_repeats = n_rows - n_distinct
     if n_repeats == 0:
         return RepeatCadence("per-window", n_rows, n_distinct, n_repeats)
-    expected = total_iterations - n_windows
+    n_stamps = n_windows + 1 if stamp == "window-start" else n_windows
+    expected = total_iterations - n_stamps
     if n_repeats == expected:
         return RepeatCadence("per-iteration", n_rows, n_distinct, n_repeats)
+    other = total_iterations - (n_windows if stamp == "window-start" else n_windows + 1)
+    hint = (
+        "That is exactly the count the OTHER stamp convention predicts: a window-start "
+        "writer carries one distinct time more than a window-end one, because its windows "
+        f"are stamped 0..(n-1)*dt and one final write lands at n*dt. Pass stamp={_OTHER[stamp]!r}. "
+        if n_repeats == other
+        else "A timePrecision too coarse for the window collapses consecutive rows and "
+        "deletes them silently; the deck sets timePrecision 12 for exactly that reason. "
+    )
     raise ValueError(
         f"{n_rows} rows carry {n_distinct} distinct times ({n_repeats} repeats), which the "
         f"coupling does not account for: {n_windows} windows took {total_iterations} "
-        f"iterations, so an implicit record would repeat exactly {expected} times and a "
-        "per-window record not at all. The usual cause is a timePrecision too coarse for "
-        "the time-window size, which deletes rows silently; the deck sets timePrecision 12 "
-        "for exactly that reason."
+        f"iterations, so under stamp={stamp!r} an implicit record would repeat exactly "
+        f"{expected} times and a per-window record not at all. " + hint
     )
 
 
