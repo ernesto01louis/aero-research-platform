@@ -356,6 +356,19 @@ execution order on the same argument that puts the L-smoke ahead of N3.
 
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
+**START HERE (session 11): POLL N3 — it is running. Then item 6, item 5, item 7, item 8.**
+Handoff §7's SESSION-11 RESUMPTION PATH carries the session names, the poll commands, the
+NFS paths of the submission JSONs and the `--project-n3` invocation; read it first. N3 was
+submitted 2026-08-12 23:01 UTC, both arms at 4+4 ranks, 76090 windows, 96 h ceiling, and
+projects 78.0 h with the ramp clearing at ~52 h.
+
+**Items 1, 2, 3, 4 and 9 are DONE** (§6f): the seam, ADR-040, Q1 ACCEPTED, N3 submitted, and
+the readout fix — which moved AHEAD of N3 rather than behind it, because the measurement it
+rests on needed the box only for reading. Item 8's driver half (spec knobs v2 +
+`--submit-040`) is done; its wave-1 half is not.
+
+**Everything below this paragraph is session 9's text, kept for the rationale.**
+
 **START HERE (session 10): the parallel seam, then ADR-040, then the L-smoke, then N3
 SUBMITTED, then the readout fix while it burns.** The order below is NOT item order — it is
 critical-path order, and the reason is that **N3 is the only multi-day item on the list**.

@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-08-12
-session_duration_hours: 23
+date_completed: 2026-08-13
+session_duration_hours: 28
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: c4069bc205240f27a435398c1b5866d976224e06
+git_sha_end: fc47322949110db10340de95e2175568692043d9
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -1229,9 +1229,125 @@ Related, and recorded rather than fixed: under `mpirun`, OpenFOAM's `ExecutionTi
 run. The N3 rate is read from `ClockTime`, which is wall clock at any rank count and prints
 at integer-second resolution — ample over a run of hours.
 
+### 6.40 SESSION 10 — Q1 ACCEPTS, and the clause that had room to fail is the increment
+
+500 coupled windows at the I4 shape, both arms concurrently at 4+4 ranks on the
+`adr040-candidate` stack, against the surviving ADR-039-numerics I4 runs. Bands and the
+rejection outcome were fixed in ADR-040 Q1 before either probe ran; the baseline side cost
+nothing (`data/vv/stage20_q1_equivalence.json`).
+
+| clause | flexible | rigid | band |
+|---|---|---|---|
+| Q1a span-mean streamwise force | 0.046 % | 0.0021 % | 2 % |
+| Q1b trace vs baseline peak-to-peak | 2.25 % | 2.31 % | 5 % |
+| Q1c increment of the span-means | 3.53 % | — | 5 % |
+
+**The third row is why it is a separate clause.** The two arms reproduce the baseline to
+0.05 % and 0.002 %, which on its own reads as "the stacks are identical" — and their
+DIFFERENCE still moves 3.5 %, because the increment is a small number between two large
+ones and inherits both their errors. A common-mode shift must not read as an increment
+failure, and an anti-symmetric one must not read as a pass. The record test pins that
+relationship as an inequality rather than as today's numbers.
+
+Q2's limits ride in the record: the I4 shape sits inside the ramp, and the comparison is of
+the configuration AS DELIVERED — numerics and the 4-way decomposition together — so a
+rejection would not have localized.
+
+### 6.41 SESSION 10 — the rate came in worse than B0 was sized on, and B0 was raised BEFORE N3
+
+Q1's most consequential by-product is not the equivalence verdict. It is this: **the
+per-step-solve cost is FLAT under contention.** The flexible arm ran 0.753 s/step-solve
+while sharing the box and 0.711 s over the whole run; the rigid arm 0.482 against 0.485. So
+the flexible arm's early slowness — 5.16 s/window over its first 500 windows — is entirely
+its **iteration count** (11.06 per window over the first fifty, settling to 4.90), and
+contention is nearly free at 4+4 on 16 cores.
+
+That yields a binding N3 projection of **3.69 s/window** (0.753 × 4.90), against the
+2.8 s/window pessimistic figure B0's 72 h was sized on:
+
+| target | windows | projected |
+|---|---|---|
+| clear the ramp | 50 726 | 52.0 h |
+| ramp + 1 quarter-cycle (the W3 minimum) | 63 407 | 65.0 h |
+| ramp + 1 half-stroke (the chosen span) | 76 090 | **78.0 h** |
+
+72 h would have cut the run **5875 windows short** of the phase-complete sample the span
+was chosen for. **B0 raised to 96 h (345 600 s), before N3 ran**, with the measurement that
+forced it written into the clause. Admissible for two reasons the clause states: B0 governs
+a PROBE and not a gate, and it is raised before the probe rather than after seeing its
+result. Recorded rather than quietly adjusted — that is the whole difference between a
+pre-registration and a number.
+
+**One risk is knowingly carried.** 3.69 s/window is measured on RAMP-phase windows, where
+the plunge is near zero and the mesh barely moves; post-ramp, at full amplitude, iterations
+may rise. If they rise enough the run reaches B0 without a whole post-ramp quarter-cycle,
+which ADR-040 W3 makes a FAILURE — correctly, and expensively. `--project-n3` exists so
+that verdict arrives at hour 52, when the ramp clears, instead of at hour 96. It reads the
+running run's own append-only logs, is safe on a live run, and takes no action: stopping
+early is an operator decision and W3 already says what happens otherwise.
+
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-10 RESUMPTION PATH (supersedes everything below).** Session 9 closed the
+**SESSION-11 RESUMPTION PATH (supersedes everything below).**
+
+### N3 IS RUNNING. POLL IT BEFORE ANYTHING ELSE.
+
+Submitted detached 2026-08-12 23:01 UTC, both arms concurrently, 4 fluid ranks each,
+`adr040-candidate`, dt 2e-5, 76 090 windows (`t = 1.5218 s`), B0 ceiling 96 h. **Do not
+hold an owning `wait`** — `AERO_RUN_LONG_REAP=1` makes `wait` the owner of the job's
+lifetime and would kill it.
+
+```bash
+scripts/run_long.sh status root@aero-dev fsi-hg2007_flexible_foil-20260812-230102
+scripts/run_long.sh status root@aero-dev fsi-hg2007_rigid_foil-20260812-230109
+scripts/run_long.sh logs   root@aero-dev fsi-hg2007_flexible_foil-20260812-230102
+```
+
+The submission JSONs are on NFS beside their runs, because a scratchpad does not survive a
+session:
+
+```
+/mnt/aero-nfs/runs/hg2007_flexible_foil-20260812-230102/n3-submission.json
+/mnt/aero-nfs/runs/hg2007_rigid_foil-20260812-230109/n3-submission.json
+```
+
+**Check the projection before waiting on it** (read-only, safe on a live run — §6.41):
+
+```bash
+python scripts/stage20_hg2007_flexible_foil.py --project-n3 \
+  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260812-230102/n3-submission.json
+```
+
+Then collect with `--collect-probe <submission>`, which now emits an `n3` block carrying
+the post-ramp rate whenever the run cleared the ramp. **Projected 78.0 h to completion; the
+ramp clears at ~52 h.** Expect it to still be running.
+
+**Then, in order:** RESUME §7 item 6 (re-run the pre-flight under ADR-040 — I1/I3/I8/I9 are
+CITED, never re-run), item 5 (bring the operator the measured post-ramp rate and take the
+B3 ceiling decision BEFORE B2 is filled), item 7 (fill B1/B2/B3, land
+`tests/unit/test_adr040_budget_is_derived_from_n3.py`, and put the calibration in the NEW
+file `data/vv/stage20_n3_confirmation.json` — `_merge_base_guard_040` resolves with
+`git log --diff-filter=A` and ADR-040's add-commit is `d5bf381`), then item 8, wave 1, via
+`--submit-040`.
+
+**What session 10 landed** (9 commits, `5de422b`..`fc47322`, **883** tests green, mypy
+clean): the ADR-039 digest pin; the parallel seam; **ADR-040 `accepted`**; spec knobs v2 +
+`--submit-040`; the L-smoke PASSED on the real coupled deck; **the readout fix, proved
+against both surviving I4 arms**; **Q1 ACCEPTED**; B0 raised to 96 h on the measurement;
+`--project-n3`; and this handoff.
+
+**As predicted at session open, RESUME §7 items 5-8 did not land** — every one of them
+waits on N3, and N3 needs 78 h. What did land beyond the plan: the readout fix moved ahead
+of N3 rather than behind it, Q1 ran before N3 (operator decision, same argument as the
+L-smoke), and two latent collector faults were found by running the code (§6.39).
+
+**Nothing else is running on aero-dev.** The Q1 and L-smoke artefacts are at
+`/mnt/aero-nfs/runs/hg2007_*_foil-20260812-21{4956,5900,5908}`; session 9's
+`stage20-screen9` and session 8's `stage20-screen` are untouched.
+
+---
+
+**SESSION-10 RESUMPTION PATH (historical; session 10 executed it).** Session 9 closed the
 attribution question and settled the two knobs ADR-040 could not have pre-registered
 honestly without measuring. `docs/handoff-bundle/STAGE-20-RESUME.md` §6e + §7 is the map;
 §6.34-§6.36 above are the evidence. In one line: **both named leads are refuted, the 3x is
