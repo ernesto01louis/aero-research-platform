@@ -31,6 +31,7 @@ from typing import assert_never
 
 import numpy as np
 from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
 
 from aero.adapters._base import (
     DEFAULT_HOST_NFS_ROOT,
@@ -91,6 +92,7 @@ from aero.adapters.precice.config import (
 from aero.adapters.precice.launcher import (
     CoupledLaunchPlan,
     CoupledRunResult,
+    build_participant_command,
     launch_coupled,
     read_coupled_status,
 )
@@ -129,6 +131,22 @@ _MESH_TIMEOUT_S = 1800
 
 class PreciceSolverError(RuntimeError):
     """A coupled preCICE run could not be prepared, meshed, executed or read."""
+
+
+class Decomposition(BaseModel):
+    """What ``decomposePar`` actually produced, versus what was asked for.
+
+    ``n_processor_dirs`` is counted on the host after the fact rather than taken from
+    ``decomposePar``'s exit code, because that exit code is 0 when it falls back to fewer
+    subdomains (ADR-040 L4/W2).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ranks_requested: int = Field(..., ge=1)
+    n_processor_dirs: int = Field(..., ge=0)
+    ok: bool
+    failure: str = ""
 
 
 def _chown_tree(root: Path, *, uid: int) -> None:
@@ -573,6 +591,68 @@ class PreciceCoupledSolver(Solver):
                 )
             logger.error("{}", failure)
         return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_cells, n_dof=None, failure=failure)
+
+    def decompose(self, case_dir: CaseDir, executor: Executor, *, ranks: int) -> Decomposition:
+        """Run ``decomposePar`` for the fluid participant, UNDER THE PARTICIPANT UID.
+
+        Two things separate this from :meth:`mesh`, and both are failure modes rather
+        than preferences (ADR-040 L4).
+
+        ``mesh`` runs ``blockMesh`` as the container root, which is harmless because
+        ``constant/polyMesh`` is only ever read afterwards. ``decomposePar`` writes
+        ``processor*/``, and ``pimpleFoam`` then writes INTO those directories every time
+        step -- root-owned, the solve dies at t=0. So this routes through
+        :func:`build_participant_command` with the fluid participant's own
+        ``run_as_uid``, exactly as the solve will.
+
+        ``mpi_ranks`` is CLEARED on the copy: ``decomposePar`` is a serial utility, and
+        leaving the field set would wrap it in ``mpirun -n N ... -parallel``.
+
+        The returned report carries the ``processor*`` count MEASURED on the host, not the
+        count that was asked for. ``decomposePar`` exits 0 having produced fewer
+        subdomains than requested (a mesh it cannot split that finely, a stale
+        ``decomposeParDict``), and a wave running on a decomposition nobody checked is a
+        different configuration wearing the pre-registered one's clothes.
+        """
+        if ranks < 1:
+            raise ValueError(f"ranks must be >= 1, got {ranks}")
+        spec = self._coupled_spec(case_dir.spec)
+        fluid = spec.participant("Fluid")
+        command = build_participant_command(
+            fluid.model_copy(
+                update={
+                    "workdir": f"{spec.case_subdir}/{fluid.workdir}",
+                    "command": "decomposePar -force",
+                    "mpi_ranks": None,
+                }
+            ),
+            case_root_remote=self._remote_case_root(case_dir),
+            sif_path=f"{self.sif_dir}/{fluid.sif}",
+        )
+        result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
+        fluid_dir = self._case_root(case_dir) / spec.case_subdir / fluid.workdir
+        processor_dirs = sorted(p for p in fluid_dir.glob("processor*") if p.is_dir())
+        n_found = len(processor_dirs)
+
+        failure = ""
+        if result.returncode != 0:
+            failure = describe_failure(result, what=f"fluid decomposition for {case_dir.run_id}")
+        elif n_found != ranks:
+            failure = (
+                f"decomposePar for {case_dir.run_id} exited 0 but wrote {n_found} "
+                f"processor* director{'y' if n_found == 1 else 'ies'} under "
+                f"{fluid.workdir}, not the {ranks} the configuration pre-registers. A "
+                "decomposition that silently fell back to fewer subdomains is a different "
+                "configuration, and its rate would not be the rate that was measured"
+            )
+        if failure:
+            logger.error("{}", failure)
+        return Decomposition(
+            ranks_requested=ranks,
+            n_processor_dirs=n_found,
+            ok=not failure,
+            failure=failure,
+        )
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Launch every participant concurrently under the supervisor script."""

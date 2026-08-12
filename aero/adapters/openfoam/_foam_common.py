@@ -251,6 +251,29 @@ nu              {nu:.10g};
     )
 
 
+def decompose_par_dict(ranks: int) -> str:
+    """`system/decomposeParDict` — `scotch` over `ranks` subdomains.
+
+    `scotch` needs no per-case geometry hints (unlike `simple`/`hierarchical`, whose `n`
+    vector would have to track the block topology of every rung), so the dictionary is a
+    pure function of the rank count and cannot drift out of step with the mesh.
+
+    The rank count is pre-registered, never negotiated: `decomposePar` will happily exit 0
+    having produced FEWER `processor*` directories than asked for, and that is a different
+    configuration wearing the pre-registered one's clothes. The caller verifies the
+    directory count host-side (ADR-040 L4/W2).
+    """
+    if ranks < 1:
+        raise ValueError(f"ranks must be >= 1, got {ranks}")
+    return (
+        header("dictionary", "decomposeParDict")
+        + f"""
+numberOfSubdomains {ranks};
+method          scotch;
+"""
+    )
+
+
 def turbulence_properties(model: str) -> str:
     """`constant/turbulenceProperties` — a RAS closure, or laminar.
 

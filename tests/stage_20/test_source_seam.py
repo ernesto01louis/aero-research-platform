@@ -263,25 +263,35 @@ class TestTheHardCodedFluidDirectoryIsGone:
 
 
 def test_the_fsi3_config_hash_moved_and_this_is_the_new_value() -> None:
-    """The refactor's ONE honest divergence — recorded, not papered over (ADR-037).
+    """FSI3's config_hash has now moved TWICE, and both moves are recorded, not papered
+    over (ADR-037, then ADR-040).
 
-    Nesting the pin under `source` changes `spec.model_dump()`, and `config_hash` is a
-    digest of exactly that. So FSI3's config_hash moved:
+    `config_hash` is a digest of `spec.model_dump_json()`, so any change to the spec's
+    SERIALIZATION moves it — including one that adds a field nothing in Stage 19 sets:
 
-        old (tagged Stage-19 record, data/vv/stage19_turek_hron_fsi3.json):
+        v0.0.19 tagged record (data/vv/stage19_turek_hron_fsi3.json):
             c524faffcd1b05a39f0f434e94b09c7f62269c2887901cdb8b5a7b7b86fcff7c
-        new (this commit onwards):
+        ADR-037, the source seam — five fields moved behind `source`:
             3f94f39469b22fc44f43883f8f4c7f5c6447697e890ffd278b1ced16ad6cd69f
+        ADR-040, the parallel seam — `ParticipantSpec.mpi_ranks` (this commit onwards):
+            4222f48107de6de036438a7e21327413e01696da5339199360bacbef6e8d36a0
 
-    These are DIFFERENT CLAIMS and must not be conflated. The materialized *bytes* are
-    proved identical by `test_stage19_materialization_is_byte_identical.py`, whose goldens
-    have not moved since `67d8e82`. What moved is the *spec serialization* — the record of
-    which inputs produced those bytes. A future re-run of Stage 19 will therefore log a
-    different config_hash for a byte-identical case, and the tagged v0.0.19 record stands
-    on the old one.
+    The second move is worth stating plainly because it is the least intuitive of the
+    three: **FSI3 does not use MPI, and neither participant sets `mpi_ranks`.** What
+    changed the digest is that `model_dump_json` serialises the field's `null`. A field
+    that is absent and a field that is present-and-null are the same configuration and a
+    different record.
+
+    These are DIFFERENT CLAIMS from the bytes and must not be conflated. The materialized
+    *bytes* are proved identical by `test_stage19_materialization_is_byte_identical.py`,
+    whose goldens have not moved since `67d8e82` and which stays green across both moves —
+    that test staying green IS the proof that this is a record move, not a case move.
+
+    A future re-run of Stage 19 logs this digest for a byte-identical case, and the tagged
+    v0.0.19 record stands on the first one.
     """
     spec = fsi3_case_spec(max_time=8.0, wall_clock_ceiling_s=172800)
     assert (
         config_hash(json.loads(spec.model_dump_json()))
-        == "3f94f39469b22fc44f43883f8f4c7f5c6447697e890ffd278b1ced16ad6cd69f"
+        == "4222f48107de6de036438a7e21327413e01696da5339199360bacbef6e8d36a0"
     )

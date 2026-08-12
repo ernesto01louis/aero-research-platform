@@ -65,6 +65,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 from aero.adapters._base import build_apptainer_exec  # noqa: E402
 from aero.adapters.openfoam._foam_common import (  # noqa: E402
     FluidNumericsSpec,
+    decompose_par_dict,
     header,
     transient_fvsolution,
 )
@@ -371,7 +372,7 @@ def _materialize(name: str, *, variant: Variant, ranks: int, steps: int, tag: st
 
     remote = f"{REMOTE_ROOT}/{tag}"
     if ranks > 1:
-        (case / "system" / "decomposeParDict").write_text(_decompose_par_dict(ranks), "utf-8")
+        (case / "system" / "decomposeParDict").write_text(decompose_par_dict(ranks), "utf-8")
         solve = f"cd /case && decomposePar -force && mpirun -n {ranks} pimpleFoam -parallel"
     else:
         solve = "cd /case && pimpleFoam"
@@ -468,16 +469,6 @@ def pair(name: str, *, ranks: int, steps: int) -> int:
         )
     print(f"  BINDING (slower arm) at {ranks}+{ranks}: {slower:.4f} s/step")
     return 0
-
-
-def _decompose_par_dict(ranks: int) -> str:
-    return (
-        header("dictionary", "decomposeParDict")
-        + f"""
-numberOfSubdomains {ranks};
-method          scotch;
-"""
-    )
 
 
 #: The I4 calibration's own end time. The (1-cos) ramp spans one full period, so 0.01 s is

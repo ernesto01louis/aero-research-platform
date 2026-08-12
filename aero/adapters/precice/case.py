@@ -114,6 +114,19 @@ class ParticipantSpec(BaseModel):
             "alternative (rewriting the inlet as exprFixedValue) would not."
         ),
     )
+    mpi_ranks: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Run this participant under `mpirun -n N ... -parallel`. None means serial, "
+            "which every Stage-19 participant and the CalculiX solid stay: ccx has no "
+            "-parallel flag. The launcher appends the mpirun element as the LAST element "
+            "of the compound command, INSIDE the setpriv drop -- ADR-040 L1 measured that "
+            "OpenMPI refuses outright when mpirun runs as root, and "
+            "build_apptainer_exec(mpi_n=...) would hoist it outside that drop. A decompose "
+            "step must clear this field: decomposePar is serial."
+        ),
+    )
 
 
 class TutorialPin(BaseModel):

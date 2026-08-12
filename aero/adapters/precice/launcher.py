@@ -155,6 +155,14 @@ def build_participant_command(
     default, and a host ``~/OpenFOAM/...`` tree would shadow it via ``$FOAM_USER_LIBBIN``.
     The failure would appear only at run time, as ``controlDict``'s ``libs (...)`` line
     failing to load the adapter.
+
+    THIS is the MPI seam, not ``build_apptainer_exec(mpi_n=...)`` (ADR-040 L1/L4). That
+    helper prefixes ``mpirun -n N`` to the WHOLE command string, and the string it is
+    handed here is either the compound ``cd <workdir> && <solver>`` -- yielding
+    ``mpirun -n 4 cd fluid-openfoam``, which runs the solver serial and exits 0 -- or the
+    entire ``setpriv ... bash -lc '...'`` wrapper, which hoists ``mpirun`` OUTSIDE the uid
+    drop, where OpenMPI refuses to run as root. Appending it as the last element of
+    ``parts`` puts it after the ``cd`` and inside the drop, both of which it needs.
     """
     # The environment is `export`ed INSIDE the compound command, not passed to
     # build_apptainer_exec's `env=`. That helper emits `cd <target> && K=V <command>`,
@@ -166,7 +174,10 @@ def build_participant_command(
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
-    parts.append(participant.command)
+    if participant.mpi_ranks is None:
+        parts.append(participant.command)
+    else:
+        parts.append(f"mpirun -n {participant.mpi_ranks} {participant.command} -parallel")
     inner = " && ".join(parts)
     if participant.run_as_uid is not None:
         # setpriv rather than su: no PAM, no login shell, no surprise environment. HOME

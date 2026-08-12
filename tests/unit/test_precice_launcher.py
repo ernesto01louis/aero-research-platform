@@ -110,6 +110,113 @@ def test_participant_command_is_exact() -> None:
     )
 
 
+def test_participant_command_is_exact_in_parallel() -> None:
+    """The ADR-040 sibling of the serial pin above, which must never be edited.
+
+    `mpi_ranks` appends `mpirun -n N <command> -parallel` as the LAST element of the
+    compound command, so it lands after the `cd` and — in the uid-dropping form below —
+    inside the `setpriv` drop. Both placements are load-bearing; see the two negative
+    assertions in `test_the_mpi_element_is_not_hoisted_out_of_the_cd_or_the_uid_drop`.
+    """
+    participant = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        mpi_ranks=4,
+    )
+    assert build_participant_command(
+        participant,
+        case_root_remote="/mnt/aero/runs/x/tutorial/hg2007-flexible-foil",
+        sif_path="/opt/aero/containers/precice-fsi.sif",
+    ) == (
+        "apptainer exec --no-home --bind "
+        "/mnt/aero/runs/x/tutorial/hg2007-flexible-foil:/case "
+        "/opt/aero/containers/precice-fsi.sif "
+        "bash -lc 'cd /case && cd fluid-openfoam && mpirun -n 4 pimpleFoam -parallel'"
+    )
+
+
+def test_serial_is_byte_identical_when_mpi_ranks_is_none() -> None:
+    """The new field must be inert when unset — the Stage-19 pin above is the witness.
+
+    Stated as its own test rather than left implicit in that pin, because the field is
+    NOT inert everywhere: `model_dump_json` serialises the `null`, so FSI3's config_hash
+    moved (`tests/stage_20/test_source_seam.py`). The rendered COMMAND does not move, and
+    that is the property this asserts.
+    """
+    serial = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="../../tools/run-openfoam.sh",
+        sif="precice-fsi.sif",
+    )
+    assert serial.mpi_ranks is None
+    assert build_participant_command(
+        serial,
+        case_root_remote="/mnt/aero/runs/x/tutorial/turek-hron-fsi3",
+        sif_path="/opt/aero/containers/precice-fsi.sif",
+    ) == (
+        "apptainer exec --no-home --bind "
+        "/mnt/aero/runs/x/tutorial/turek-hron-fsi3:/case "
+        "/opt/aero/containers/precice-fsi.sif "
+        "bash -lc 'cd /case && cd fluid-openfoam && ../../tools/run-openfoam.sh'"
+    )
+
+
+def test_the_mpi_element_is_not_hoisted_out_of_the_cd_or_the_uid_drop() -> None:
+    """The two ways `build_apptainer_exec(mpi_n=...)` would have got this wrong.
+
+    That helper prefixes the WHOLE string it is handed. Handed the compound command it
+    emits `mpirun -n 4 cd fluid-openfoam` — the solver then runs SERIAL and exits 0, so
+    nothing complains and the measured rate is a lie. Handed the uid wrapper it emits
+    `mpirun -n 4 mkdir ...` as root, which ADR-040 L1 measured OpenMPI refusing outright.
+    Both are asserted as negatives, in the shape of `test_env_is_exported_not_prefixed`.
+    """
+    participant = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+        mpi_ranks=4,
+    )
+    command = build_participant_command(
+        participant, case_root_remote="/case/root", sif_path="/x.sif"
+    )
+    assert "mpirun -n 4 pimpleFoam -parallel" in command
+    # Not hoisted over the `cd`: the solver would run serial in the wrong directory.
+    assert "mpirun -n 4 cd " not in command
+    # Not hoisted out of the uid drop: OpenMPI refuses to run as root.
+    assert "setpriv" in command
+    assert "mpirun" not in command.split("setpriv", 1)[0]
+    assert "mpirun -n 4 mkdir" not in command
+
+
+def test_a_decompose_style_copy_clears_the_mpi_element() -> None:
+    """`decomposePar` is serial; wrapping it in mpirun is the seam's obvious misuse.
+
+    `PreciceCoupledSolver.decompose` clears `mpi_ranks` on its `model_copy`. This pins
+    what that clearing buys, at the launcher level where the mistake would be rendered.
+    """
+    fluid = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+        mpi_ranks=4,
+    )
+    command = build_participant_command(
+        fluid.model_copy(update={"command": "decomposePar -force", "mpi_ranks": None}),
+        case_root_remote="/case/root",
+        sif_path="/x.sif",
+    )
+    assert "cd fluid-openfoam && decomposePar -force" in command
+    assert "mpirun" not in command
+    assert "setpriv --reuid=1000" in command
+
+
 def test_no_home_is_always_passed() -> None:
     """Without --no-home the host $HOME shadows $FOAM_USER_LIBBIN and the adapter
     library silently fails to load at run time."""
