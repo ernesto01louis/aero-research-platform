@@ -42,6 +42,18 @@ _RUNS = {
     "rigid": Path("/mnt/aero-nfs/runs/hg2007_rigid_foil-20260810-144747"),
 }
 
+#: The Q1 equivalence runs: the same 500-window shape, produced by a 4-rank DECOMPOSED
+#: fluid participant on the ADR-040 candidate stack. Wave 1 will be decomposed, and until
+#: these were added every claim below rested on serial bytes alone.
+_Q1_RUNS = {
+    "flexible": Path("/mnt/aero-nfs/runs/hg2007_flexible_foil-20260812-215900"),
+    "rigid": Path("/mnt/aero-nfs/runs/hg2007_rigid_foil-20260812-215908"),
+}
+
+#: One id space, so a claim added below is re-derived on BOTH decompositions rather than
+#: on whichever set the author happened to be looking at.
+_ALL_RUNS = {f"i4-{k}": v for k, v in _RUNS.items()} | {f"q1-{k}": v for k, v in _Q1_RUNS.items()}
+
 
 def _idx(t: np.ndarray, stamp: str) -> np.ndarray:
     return window_indices(t, time_window_size=_DT, stamp=stamp, label="x")  # type: ignore[arg-type]
@@ -137,11 +149,20 @@ def test_a_genuine_precision_collapse_still_names_time_precision() -> None:
 
 
 @pytest.mark.skipif(
-    not all(p.is_dir() for p in _RUNS.values()),
-    reason="the surviving I4 runs are on the aero NFS mount, which this host does not have",
+    not all(p.is_dir() for p in _ALL_RUNS.values()),
+    reason="the coupled runs are on the aero NFS mount, which this host does not have",
 )
 class TestAgainstTheSurvivingI4Bytes:
-    """Every claim `precice.schedule` makes, re-derived from the real coupled records."""
+    """Every claim `precice.schedule` makes, re-derived from the real coupled records.
+
+    Parametrized over FOUR runs, not two. The `i4-*` pair is where the session-9/10 finding
+    was made and both are SERIAL. The `q1-*` pair is the ADR-040 equivalence probe, and its
+    fluid participant ran DECOMPOSED over four ranks — which is the shape wave 1 will have.
+    Under `mpirun` OpenFOAM writes `processor*/<time>` rather than `<time>`, and that one
+    level of extra nesting is what made the session-10 disk projection read 1 time directory
+    instead of 69 (§6.39). The L-smoke checked that `force.dat` still lands in the case root;
+    holding the join itself to the same standard is what these ids add.
+    """
 
     @staticmethod
     def _arm(run: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[float, ...]]:
@@ -158,15 +179,15 @@ class TestAgainstTheSurvivingI4Bytes:
         )
         return raw.t, raw.pressure[:, 1] + raw.viscous[:, 1], iterations, reaction.t
 
-    @pytest.mark.parametrize("arm", sorted(_RUNS))
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
     def test_the_fluid_carries_one_distinct_time_more_than_there_are_windows(
         self, arm: str
     ) -> None:
-        t, _, iterations, _ = self._arm(_RUNS[arm])
+        t, _, iterations, _ = self._arm(_ALL_RUNS[arm])
         assert t.size == int(iterations.sum())
         assert np.unique(t).size == iterations.size + 1
 
-    @pytest.mark.parametrize("arm", sorted(_RUNS))
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
     def test_the_row_count_at_each_stamp_is_that_windows_iteration_count(self, arm: str) -> None:
         """The arithmetic that identifies the convention, exact on 499/500 windows.
 
@@ -174,14 +195,14 @@ class TestAgainstTheSurvivingI4Bytes:
         very first execution -- and that deficit does NOT shift the mapping: it is a
         missing row inside window 1, not a row belonging to another window.
         """
-        t, _, iterations, _ = self._arm(_RUNS[arm])
+        t, _, iterations, _ = self._arm(_ALL_RUNS[arm])
         _, counts = np.unique(t, return_counts=True)
         assert counts[0] == iterations[0] - 1
         n = iterations.size
         assert np.array_equal(counts[1:n], iterations[1:n])
         assert counts[n] == 1
 
-    @pytest.mark.parametrize("arm", sorted(_RUNS))
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
     def test_grouping_by_window_start_gives_a_converging_iterate_sequence(self, arm: str) -> None:
         """The decisive check, and the one that rules the alternative grouping out.
 
@@ -189,7 +210,7 @@ class TestAgainstTheSurvivingI4Bytes:
         fixed-point iteration, so successive |dF| must shrink. Measured: 100 % of windows
         under this grouping, 0 % under the alternative (converged-iterate-at-window-end).
         """
-        t, fy, iterations, _ = self._arm(_RUNS[arm])
+        t, fy, iterations, _ = self._arm(_ALL_RUNS[arm])
         index = _idx(t, "window-start")
         converging = total = 0
         for window in range(1, iterations.size + 1):
@@ -202,9 +223,9 @@ class TestAgainstTheSurvivingI4Bytes:
         assert total > 100, "too few multi-iteration windows to be evidence"
         assert converging == total
 
-    @pytest.mark.parametrize("arm", sorted(_RUNS))
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
     def test_the_join_recovers_every_window_and_drops_exactly_one(self, arm: str) -> None:
-        t, _, iterations, solid_t = self._arm(_RUNS[arm])
+        t, _, iterations, solid_t = self._arm(_ALL_RUNS[arm])
         fluid = _idx(np.unique(t), "window-start")
         solid = _idx(np.asarray(solid_t), "window-end")
         assert fluid.tolist() == list(range(1, iterations.size + 2))
@@ -213,10 +234,22 @@ class TestAgainstTheSurvivingI4Bytes:
         assert windows.tolist() == list(range(1, iterations.size + 1))
         assert fluid.size - windows.size == 1
 
-    @pytest.mark.parametrize("arm", sorted(_RUNS))
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
+    def test_the_decomposition_is_what_the_id_says_it_is(self, arm: str) -> None:
+        """Otherwise the `q1-*` ids are the serial claim wearing a decomposed label.
+
+        L2, held to the join's standard: `processor*/` exists on the parallel runs and not
+        on the serial ones, and `force.dat` lands in the case root either way.
+        """
+        case = next((_ALL_RUNS[arm] / "tutorial").glob("hg2007-*-foil"))
+        processors = sorted((case / "fluid-openfoam").glob("processor*"))
+        assert len(processors) == (4 if arm.startswith("q1-") else 0), [p.name for p in processors]
+        assert (case / "fluid-openfoam/postProcessing/forces1/0/force.dat").is_file()
+
+    @pytest.mark.parametrize("arm", sorted(_ALL_RUNS))
     def test_the_old_raw_time_comparison_could_only_ever_have_refused(self, arm: str) -> None:
         """What `--collect` would have done after weeks of wall clock, reproduced."""
-        t, _, iterations, solid_t = self._arm(_RUNS[arm])
+        t, _, iterations, solid_t = self._arm(_ALL_RUNS[arm])
         assert np.unique(t).size != len(solid_t), "the shape mismatch is gone; check the fixture"
         with pytest.raises(ValueError, match="OTHER stamp convention"):
             classify_repeat_cadence(
