@@ -1483,11 +1483,72 @@ the only one left, which is why it is worth spending some thought before spendin
 operator decisions: one is destructive, and the other spends the single resubmission ADR-040
 W6 allows. Both are queued for the operator with the evidence above.
 
+### 6.47 SESSION 11 — the ccx abort, diagnosed as far as it can be without spending the retry
+
+Operator decisions taken on the evidence in §6.46: **let the rigid arm run** (it cannot size
+B2, but it answers the question that decides how the retry is spent) and **diagnose before
+spending ADR-040 W6's single resubmission**. Both are recorded here so neither is
+re-litigated. **DO NOT KILL `fsi-hg2007_rigid_foil-20260812-230109`.**
+
+Two candidates, measured, ranked, with the thing that would separate them.
+
+**Candidate 1 — repeated spooles factorisation. The leading one.** CalculiX re-factorises
+on every Newton iteration, and the flexible arm does far more of them:
+
+| | spooles lines | per window | factorisations before the abort |
+|---|---|---|---|
+| flexible (died @1703) | 113 080 | 66.4 | **~56 500** |
+| rigid (alive @3353) | 58 782 | 17.5 | ~29 400 and counting |
+
+The abort fired **immediately after a factorisation and a `no convergence` line** — the
+re-factorisation path itself. Spooles allocates and frees its factor structures on every
+call, so ~56 500 cycles is the largest source of allocation churn in the process, and it is
+also the dimension along which the dead arm and the surviving one differ most (3.8×
+per window). This is a hypothesis with good circumstantial support, not a proof.
+
+**Candidate 2 — the `.frd` write path.** CalculiX writes it at **537 KB/window**, confirmed
+to three digits across three separate runs (268 689 148 B at 500 windows in the I10 record;
+914 338 912 B at 1703 windows here). The deck's `*NODE FILE U` and `*EL FILE S, E` carry
+**no `FREQUENCY` card**, so ccx dumps displacements, stresses and strains on every
+increment. Weaker as a corruption candidate — a 914 MB sequential write is not obviously
+heap-corrupting — but it matters regardless, for a reason that is not about the abort at
+all (below).
+
+**What discriminates them, and it is already running.** If the rigid arm reaches 76 090
+windows it will have completed **~667 000 factorisations**, an order of magnitude more than
+the flexible arm managed before dying at ~56 500. Surviving that rules out raw factorisation
+count as the trigger and points instead at something specific to the flexible arm's much
+larger deformations — ill-conditioning, or an element approaching inversion — which is a
+different fix. Dying short of it makes candidate 1 the answer and makes the campaign
+infeasible on this ccx build without a change. Either way the next session starts with a
+real result rather than a coin flip. **That is what the rigid arm is now for.**
+
+**The `.frd` is a B2 problem in its own right, independent of the abort.** Session 8 already
+found it — `data/vv/stage20_i10_cost_split.json` attributes ~78 % of disk growth to a file
+**no code in this repo reads**, and
+`test_stage20_i10_cost_record.py:test_the_disk_growth_is_the_frd_that_nothing_reads` names
+the `FREQUENCY` card as the lever. It was recorded and not acted on, because at 500 windows
+it was 268 MB. At the gated campaign's 1.17 M windows it is **~1.27 TB across both arms**.
+`/mnt/aero-nfs` has 24 TB free so it fits, but nothing in ADR-040 B2's disk projection
+anticipated it, and the gated readout demonstrably does not need it: the campaign's numbers
+come from `precice-Solid-watchpoint-*.log`, the `.dat` written by `*NODE PRINT`, `force.dat`
+and `Fluid.log` — never from a `.frd`.
+
+**Adding a `FREQUENCY` card is an ADR question, not an edit**, and deliberately left as one.
+It changes frozen deck bytes, moves the spec's `config_hash`, and would therefore fail
+`test_n3_live_submission_digest_is_pinned.py` — which is the guard doing exactly its job,
+because the rigid arm is still running against the current bytes. If the retry is spent on a
+mitigated configuration, the ADR must record the byte change, the digest move (the ADR-037
+precedent), and that Q1's equivalence verdict was measured on the unmitigated stack.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-12 RESUMPTION PATH (supersedes everything below).**
 
-### N3's FLEXIBLE ARM IS DEAD. READ §6.46 BEFORE TOUCHING ANYTHING.
+### N3's FLEXIBLE ARM IS DEAD. READ §6.46 AND §6.47 BEFORE TOUCHING ANYTHING.
+
+**The rigid arm is deliberately still running — DO NOT KILL IT.** It is now the experiment
+that decides how ADR-040 W6's single resubmission is spent (§6.47).
 
 `fsi-hg2007_flexible_foil-20260812-230102` is `failed` — CalculiX heap corruption at window
 1703 of 76 090, `stopped_by=participant-died`.
