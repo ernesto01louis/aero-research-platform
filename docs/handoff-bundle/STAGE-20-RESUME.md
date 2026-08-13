@@ -359,13 +359,28 @@ execution order on the same argument that puts the L-smoke ahead of N3.
 Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero-dev beyond
 `run_long.sh status` and the `cat rc` inside `_reattach`.
 
-1. **N3 projects SIZES on both arms.** Read the MARGINAL rate, not `--project-n3`'s
+1. **N3's FLEXIBLE ARM DIED — read handoff §6.46 first, it supersedes the projection.**
+   CalculiX aborted on glibc heap corruption (`corrupted double-linked list`, SIGABRT,
+   rc=134) at **window 1703 of 76 090**, 2 h 03 m in; `stopped_by=participant-died`, which
+   gate K2 refuses as evidence. Not memory pressure (27 of 32 GB free) and not a
+   window-count wall — the RIGID arm was at 3353 and healthy at the time, and the flexible
+   solid runs 27.7 ccx `no convergence` retries per window against the rigid arm's 4.3.
+   **ADR-040 W6 allows exactly ONE resubmission; a second death is a NO-GO on
+   infrastructure**, so the attempt is worth protecting. The surviving rigid arm cannot
+   size B2 alone — its remaining windows are uncontended, which the rule refuses by name.
+   **Both the kill and the resubmission are operator decisions and neither was taken.**
+   New number nobody had: CalculiX writes `.frd` at ~537 KB/window, i.e. **~1.27 TB for
+   both arms over the gated campaign** — it fits (24 TB free) but B2's disk projection
+   never anticipated it.
+
+   *While it lived* it projected **SIZES on both arms**, and those numbers still stand as
+   far as they go — but they may not size B2. Read the MARGINAL rate, not `--project-n3`'s
    headline: the headline differences `ClockTime` from the first step and so carries the
-   coded FO's first compilation. Flexible (binding) is **3.871 s/window marginal at 5.158
-   iterations**, which puts the W3 minimum at 68.4 h and the chosen 76 090-window span at
-   **82.0 h against B0's 96 h — 14.0 h of margin**. The gap to §6.41's 3.69 s/window basis
-   is **iterations (+5.3 %), not per-step-solve cost (0.750 vs 0.753 s, flat to 0.4 %)** —
-   so §6.41's contention finding holds. Re-poll at the ramp clear (~window 50726).
+   coded FO's first compilation. Flexible (binding) was **3.871 s/window marginal at 5.158
+   iterations**, putting the W3 minimum at 68.4 h and the chosen span at **82.0 h against
+   B0's 96 h**. The gap to §6.41's 3.69 s/window basis is **iterations (+5.3 %), not
+   per-step-solve cost (0.750 vs 0.753 s, flat to 0.4 %)** — so §6.41's contention finding
+   holds.
 2. **§7's expectation for `--collect` was wrong, and the correction is the finding.** It
    does NOT clear the join and refuse on the S-rule. `read_arm` calls `load()` first, and
    `_load_authored` runs `analyse_limit_cycle` with the S2 discard on the watch-point base,
@@ -395,9 +410,11 @@ Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero
 
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
-**START HERE (session 12): POLL N3. Then the fine-rung I7 probe, then the B3 ceiling
-decision, then `--size-040`, then the B2 fill, then wave 1.** Handoff §7's SESSION-12
-RESUMPTION PATH is the map; §6g above is the summary.
+**START HERE (session 12): N3's FLEXIBLE ARM IS DEAD (§6g item 1 / handoff §6.46).** The
+first decision is no longer the ceiling: it is whether to spend ADR-040 W6's single
+resubmission now or to diagnose the CalculiX abort first. Only after a resubmitted N3 lands
+do the fine-rung I7 probe, the B3 ceiling decision, `--size-040`, the B2 fill and wave 1
+follow. Handoff §7's SESSION-12 RESUMPTION PATH is the map; §6g above is the summary.
 
 **Everything below is session 9's text, kept for the rationale.** Items 1, 2, 3, 4 and 9 are
 DONE (§6f); item 9's collect half is now executed and its limits are recorded (§6g item 2).

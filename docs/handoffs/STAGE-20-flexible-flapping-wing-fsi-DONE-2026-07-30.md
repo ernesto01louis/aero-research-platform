@@ -1431,16 +1431,77 @@ so a claim added later is re-derived on both. Every claim holds on both decompos
 including the iterate-convergence structure. Wave 1 is decomposed, and until now every
 claim about the join rested on serial bytes.
 
+### 6.46 SESSION 11 — N3's FLEXIBLE ARM DIED: CalculiX heap corruption at window 1703
+
+**This supersedes §6.42's projection.** The projection was correct while it lasted; the run
+did not last.
+
+At **2026-08-13 01:04 UTC**, 2 h 03 m in and at **window 1703 of 76 090 (2.2 %)**, the
+flexible arm's CalculiX participant aborted:
+
+```
+corrupted double-linked list
+[aero-dev:753676] *** Process received signal ***
+[aero-dev:753676] Signal: Aborted (6)
+```
+
+`ccx_preCICE` exited **rc=134** (SIGABRT), the fluid then exited rc=1, and the supervisor
+wrote `stopped_by=participant-died`. That is glibc detecting **heap corruption inside
+CalculiX** — not a numerical divergence, and not the box running out of memory: aero-dev
+had 27 GB of 32 free at the time. It fired between Newton iterations 6 and 7 of one
+coupling iteration, immediately after a `no convergence` line, which is where ccx is
+re-factorising.
+
+**Gate K2 refuses this run as evidence, and correctly.** ADR-040 W6 (citing ADR-039 N3)
+pre-authorises exactly **ONE** resubmission — both arms, new run ids, both bundles shipped
+— and states that a second death is a **NO-GO on infrastructure**. That one attempt is now
+the only one left, which is why it is worth spending some thought before spending it.
+
+**Four facts that bear on the decision:**
+
+1. **It is not a window-count wall.** The rigid arm was at window **3353 and healthy** when
+   the flexible arm died at 1703, and is still running. Whatever this is, it is specific to
+   the arm that exercises CalculiX hardest.
+2. **The flexible solid works ~6× harder inside ccx.** `no convergence` lines — ccx's own
+   internal Newton retries — run at **27.7 per window** on the flexible arm against **4.3**
+   on the rigid one. The flexible plate is the one actually deforming; the rigid plate
+   barely does. That is the intended physics, and it is also the load under which ccx broke.
+3. **The rigid arm running on alone can no longer size B2 either.** N3's whole value is a
+   CONTENTION-measured rate. With its partner dead, the remainder of the rigid run is
+   uncontended, and `size_gated_campaign_040` refuses an uncontended confirmation by name
+   ("was measured alone"). Letting it finish yields a diagnostic, not a sizing input.
+4. **A disk projection nobody had yet, and it is large.** CalculiX's `.frd` is being written
+   at **~537 KB per window** on the flexible arm (914 MB at 1703 windows) and ~549 KB on the
+   rigid one. That is **~41 GB per arm over N3's full span**, and — the number that matters
+   — **~1.27 TB for both arms over the gated campaign's 1.17 M windows**. `/mnt/aero-nfs`
+   has 24 TB free, so it fits; but it is a per-wave cost nothing in ADR-040 B2's disk
+   projection anticipated, and the F4 ladder should see it before wave 1 rather than four
+   days in. If the `.frd` write frequency is reducible in the solid deck, that is a real
+   lever — and it touches frozen deck bytes, so it is an ADR question, not an edit.
+
+**Nothing was done about it.** Killing the surviving rigid arm and re-submitting are both
+operator decisions: one is destructive, and the other spends the single resubmission ADR-040
+W6 allows. Both are queued for the operator with the evidence above.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-12 RESUMPTION PATH (supersedes everything below).**
 
-### N3 IS STILL RUNNING. POLL IT BEFORE ANYTHING ELSE.
+### N3's FLEXIBLE ARM IS DEAD. READ §6.46 BEFORE TOUCHING ANYTHING.
 
-Same commands as the session-11 path below. At the last poll (2026-08-13 01:08 UTC) it was
-at window 1703 (flexible) / 3211 (rigid), projecting **SIZES on both arms**, with the
-flexible arm's full span landing at 82.0 h against B0's 96 h. **The verdict becomes real at
-the ramp clear, ~window 50726** — re-poll there before treating it as settled.
+`fsi-hg2007_flexible_foil-20260812-230102` is `failed` — CalculiX heap corruption at window
+1703 of 76 090, `stopped_by=participant-died`.
+`fsi-hg2007_rigid_foil-20260812-230109` was still `running` at session end and **cannot
+size B2 on its own** (its remaining windows are uncontended).
+
+**The first decision is the operator's, and it is not the ceiling decision any more:**
+whether to spend ADR-040 W6's single resubmission now, or to diagnose the ccx abort first.
+A second `participant-died` is a NO-GO on infrastructure, so the attempt is worth
+protecting. The §6.42 rate numbers stand as far as they go — the run was tracking 3.871
+s/window marginal and projecting SIZES — but they were measured over ramp windows on a run
+that then died, and B2 may not be sized from them.
+
+**Everything below assumes that decision has been taken and a resubmitted N3 has landed.**
 
 **Then, in order:**
 
