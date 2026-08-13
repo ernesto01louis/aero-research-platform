@@ -45,7 +45,8 @@ Everything here is stdlib + pydantic (Invariant 1); no filesystem, no clocks.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -55,6 +56,8 @@ __all__ = [
     "N3Confirmation",
     "SizedCampaign",
     "SizingError",
+    "i7_probe_from_bundle",
+    "n3_confirmation_from_bundle",
     "size_gated_campaign",
     "size_gated_campaign_040",
     "suggest_next_dt",
@@ -243,6 +246,119 @@ class SizedCampaign(BaseModel):
     projected_wall_s_by_arm: dict[str, float]
     projected_du_bytes_by_arm: dict[str, int]
     ceiling_s: int = Field(..., ge=1)
+
+
+#: Keys :class:`N3Confirmation` DERIVES and therefore refuses as input, but which the
+#: driver's ``_n3_block`` also writes for a human reader. They are dropped on the way in
+#: and then compared against what the model derives -- see :func:`n3_confirmation_from_bundle`.
+_N3_DERIVED = ("post_ramp_quarter_cycles", "post_ramp_seconds_per_window")
+
+#: ``_collect_probe`` writes -1 into ``du_bytes`` / ``time_dir_count`` when its remote
+#: ``du`` / ``find`` could not be read. The models bound both at ``ge=0``, so the raw
+#: failure would surface as a pydantic complaint about a bound rather than as what it is.
+_UNREAD = -1
+
+
+def _block(bundle: Mapping[str, Any], name: str) -> Mapping[str, Any]:
+    block = bundle.get(name)
+    if not isinstance(block, Mapping):
+        raise SizingError(
+            f"the collected bundle carries no {name!r} block. `--collect-probe` writes "
+            f"{name!r} only when the run reached the state that block describes; a bundle "
+            "without it is not a refusal to be worked around, it is a run that has not "
+            "measured the quantity yet"
+        )
+    return block
+
+
+def _project(block: Mapping[str, Any], model: type[BaseModel], *, source: str) -> dict[str, Any]:
+    """The model's fields, taken by name, with the missing ones named rather than raised on.
+
+    Explicit projection rather than ``model(**block)``: the blocks carry keys the strict
+    models forbid, and rather than loosening the models -- which is what makes a record
+    able to state its own derived quantities wrongly -- the extras are dropped here, at the
+    one boundary that knows about both shapes.
+    """
+    missing = sorted(
+        name
+        for name, field in model.model_fields.items()
+        if field.is_required() and name not in block
+    )
+    if missing:
+        raise SizingError(
+            f"the collected {source} block is missing {missing}, which "
+            f"{model.__name__} requires. The bundle was written by an older driver, or by "
+            "a mode that does not measure these; re-collect rather than filling them in"
+        )
+    return {name: block[name] for name in model.model_fields if name in block}
+
+
+def i7_probe_from_bundle(bundle: Mapping[str, Any]) -> I7Probe:
+    """One :class:`I7Probe` from a ``--collect-probe`` bundle.
+
+    Reads BOTH blocks, because the probe record is split across them: ``i7`` carries the
+    Courant maximum and ``i4`` the window counts and the stop reason. Their agreement on
+    ``arm``/``rung``/``dt`` is checked rather than assumed -- they are written from one
+    run, so a disagreement means the bundle was assembled from two.
+    """
+    i7, i4 = _block(bundle, "i7"), _block(bundle, "i4")
+    for key in ("arm", "rung", "dt"):
+        if i7.get(key) != i4.get(key):
+            raise SizingError(
+                f"the bundle's i7 and i4 blocks disagree on {key!r} "
+                f"({i7.get(key)!r} vs {i4.get(key)!r}) - they describe one run, so this "
+                "bundle was assembled from two and neither number can be trusted"
+            )
+    if i7.get("max_courant_post_ramp") is None:
+        raise SizingError(
+            f"the I7 probe for arm={i7.get('arm')!r} rung={i7.get('rung')!r} never reached "
+            "the post-ramp window, so it has no post-ramp Courant maximum "
+            f"(covers_post_ramp_window={i7.get('covers_post_ramp_window')!r}). The bound "
+            "the rule needs is the one at full plunge amplitude; a ramp-phase maximum is "
+            "measured where the mesh barely moves"
+        )
+    # Merged BEFORE the completeness check, or each half is reported missing the other's
+    # fields. `i7` wins on the three keys they share, which the loop above proved equal.
+    return I7Probe.model_validate(_project({**i4, **i7}, I7Probe, source="i7+i4"))
+
+
+def n3_confirmation_from_bundle(bundle: Mapping[str, Any]) -> N3Confirmation:
+    """One :class:`N3Confirmation` from a ``--collect-probe`` bundle's ``n3`` block.
+
+    The block carries 22 keys against the model's 16 and the model is ``extra='forbid'``,
+    so this is where the two shapes are reconciled -- and reconciling them is exactly the
+    place a silent wrong number could enter. Three things are therefore checked rather
+    than trusted:
+
+    * the ``-1`` sentinels for an unread ``du``/``find`` are named for what they are;
+    * ``post_ramp_quarter_cycles`` and ``post_ramp_seconds_per_window`` are DROPPED as
+      input -- the model makes them properties precisely so a record cannot overstate its
+      own phase coverage -- and then compared against what the model derives. The driver
+      and the model run identical arithmetic on identical inputs, so they agree bitwise or
+      they have drifted apart, and a drift here is a wrong campaign length;
+    * the rate is compared only when both sides have one; ``None`` on both is the
+      ramp-phase case and is a legitimate state for this record to be in (ADR-040 W3
+      refuses it later, in the rule, where the refusal can say why).
+    """
+    n3 = _block(bundle, "n3")
+    for key in ("du_bytes", "time_dir_count"):
+        if n3.get(key) == _UNREAD:
+            raise SizingError(
+                f"the n3 block's {key!r} is {_UNREAD}, the sentinel `--collect-probe` "
+                "writes when its remote read failed. B2's disk projection is sized from "
+                "it, so a campaign sized past this would be projecting from a number "
+                "nobody measured; re-collect the bundle"
+            )
+    confirmation = N3Confirmation.model_validate(_project(n3, N3Confirmation, source="n3"))
+    for key in _N3_DERIVED:
+        stated, derived = n3.get(key), getattr(confirmation, key)
+        if stated != derived:
+            raise SizingError(
+                f"the n3 block states {key}={stated!r} but the record derives {derived!r} "
+                "from the same fields. One of the two is wrong and neither may size: the "
+                "driver's projection and the sizing rule's have drifted apart"
+            )
+    return confirmation
 
 
 def _require_complete(record: I7Probe | I4Calibration, kind: str) -> None:
