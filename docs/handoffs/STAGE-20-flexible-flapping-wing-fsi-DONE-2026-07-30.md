@@ -4,11 +4,11 @@ stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
 date_completed: 2026-08-13
-session_duration_hours: 28
+session_duration_hours: 31
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: fc47322949110db10340de95e2175568692043d9
+git_sha_end: c77447558f6a307e64a254eeb78743c53cde48a9
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -1286,9 +1286,226 @@ that verdict arrives at hour 52, when the ramp clears, instead of at hour 96. It
 running run's own append-only logs, is safe on a live run, and takes no action: stopping
 early is an operator decision and W3 already says what happens otherwise.
 
+### 6.42 SESSION 11 — N3 SIZES, and the gap to B0's basis is iterations, not cost
+
+Polled twice while N3 ran, 2026-08-13 00:31 and 01:08 UTC (1 h 32 m and 2 h 10 m in).
+`--project-n3` was verified strictly read-only before use: `_project_n3` calls no
+`_write_bundle`, no `_executor` and no `_run_long`; its only I/O is two `read_text` calls on
+the append-only `Fluid.log`.
+
+**Both arms project SIZES.** The binding arm is flexible, as expected.
+
+| | window | `--project-n3` (whole-run) | marginal (2nd half) | iters/window | s/step-solve |
+|---|---|---|---|---|---|
+| flexible | 1703 / 76090 | 4.331 s/win | **3.871 s/win** | 5.158 | **0.750** |
+| rigid | 3211 / 76090 | 2.381 s/win | 2.279 s/win | 4.194 | 0.543 |
+
+**Read the marginal rate, not the headline one.** `--project-n3`'s ramp-phase figure
+differences `ClockTime` from the run's FIRST step, so it carries the coded FO's first
+compilation and the decomposition read for the whole projection. That startup amortizes:
+the same arm read 4.534 s/window at window 1221 and 4.331 at window 1703, and its marginal
+rate over the second half of what has run is 3.871. Over 76 090 windows the startup share
+is negligible, so the marginal rate is the one the ceiling conversation is about.
+
+**The decomposition against §6.41's basis (0.753 s/step-solve × 4.90 iterations = 3.69
+s/window) is the useful part:**
+
+- per-step-solve cost **0.750 vs 0.753 s — flat to 0.4 %**. §6.41's finding that the cost
+  is flat under contention holds exactly, now on a run 3× longer than the one that measured it;
+- iterations per window **5.158 vs 4.90 — up 5.3 %**, and that is the entire gap;
+- product **3.871 vs 3.69 — up 4.9 %**.
+
+Projected from the second poll: the **W3 minimum** (ramp + one whole post-ramp
+quarter-cycle, 63 406 windows) lands at **68.4 h**, and the **chosen span** (ramp + one
+half-stroke, 76 090 windows) at **82.0 h against B0's 96 h — 14.0 h of margin**. Rigid
+finishes its full span at 48.3 h and is not binding.
+
+**One caveat carried unchanged from §6.41**: every number above is measured on RAMP-phase
+windows. Post-ramp, at full amplitude, iterations may rise, and the margin above is what
+absorbs it. Re-poll as the ramp clears at ~window 50726 — that is when the W3 verdict
+becomes real rather than projected.
+
+Coupling convergence, measured while checking the rate: N3 flexible has **4 non-converged
+windows in 1702** and all four are inside the first 280; N3 rigid has 1 in 3212. Q1's
+flexible arm, by contrast, had **12 in 500**, nine of them clustered in windows 301-400.
+So N3 is better behaved than the probe it was sized from, and the clustering in Q1 was a
+local event rather than a trend. Recorded because gate K1 refuses non-converged windows
+inside the analysis window, and the campaign's analysis window is its settled tail.
+
+### 6.43 SESSION 11 — `--collect` refuses at the DISCARD guard, not the S-rule
+
+RESUME §7 expected `--collect` on a finished Q1 arm to clear the window join and then
+refuse on the S-rule for want of settled cycles. **It refuses earlier, on a different
+clause, and the join never executes.** Not a defect — the correction is the finding.
+
+`read_arm` calls `solver.load()` on its FIRST line (`hg2007_readout.py:227`; its docstring
+says the ordering is the point, because obtaining `solve` is what enforces K2, C4 and K1).
+`_load_authored` (`solver.py:841`) then runs `analyse_limit_cycle` on the **watch-point**
+time base with `discard_s = spec.analysis_discard_s = 3.0434782608695654 s`. A Q1 arm spans
+`[0, 0.01] s`, so `keep = t >= discard_s` is all-False and it dies at
+`limit_cycle.py:209-215`:
+
+```
+NO-GO (LimitCycleError: discarding t < 3.04348 s leaves no samples
+(record spans [0, 0.01] s) — the run has not passed the start-up transient)
+```
+
+Identical on both arms, exit code 1, bundle written. The window join, `gated_means`,
+P1/P2/P3 and D10 all live in `read_arm` **downstream of `load()`** and are never reached.
+
+**What the run did prove**, on real 4-rank decomposed bytes for the first time:
+`_submission` schema acceptance, `_reattach`'s status/rc/digest round trip,
+`solver.reattach`, `coupled_status`, gate **K2** (`stopped_by='all-exited'`, both rc 0),
+gate **C4** on both watch-points (501 rows each, headers verified against the rendered
+config), and the nose/tip instant-equality check.
+
+**The number that matters for wave 1**: a collect cannot clear `load()` until the record
+carries `analysis_discard_s + analysis_min_cycles × period` = 3.0435 + 10 × 1.0145 =
+**13.19 s = 659 420 windows** at dt 2e-5. No probe will ever have that. The gated campaign
+will, because `size_gated_campaign_040` builds `max_time` from the discard plus **20**
+settled cycles and 20 ≥ 10 — but that agreement was implicit, and `--size-040` now asserts
+it (`test_the_sized_campaign_is_long_enough_for_its_own_readout`).
+
+aero-dev exposure for the whole exercise: two read-only SSH calls per arm, both inside
+`_reattach` — `run_long.sh status` and `cat ~/.aero-jobs/<session>/rc`. `reattach`,
+`coupled_status`, `watchpoint` and `coupling_report` take no executor and read host-side NFS.
+
+### 6.44 SESSION 11 — a lost submission is recoverable, and the manifest is the witness
+
+The Q1 submissions were written to `/tmp` at submit time and are gone; NFS carries none.
+They are exactly reconstructible, and — this is the part worth keeping — the reconstruction
+is **provable** rather than assumed, because `<run>/tutorial/aero-manifest.json` carries
+`authored.spec_sha256`, written by the materializer at prepare time.
+
+Knobs, both arms: `rung="mid"`, `time_window_size=2e-05`, `max_time=0.01`,
+`wall_clock_ceiling_s=259200`, `numerics_label="adr040-candidate"`, `mpi_ranks=4`.
+Rebuilt at HEAD, `spec_config_digest` reproduces the manifests exactly — `ed91a14a5e8e…`
+flexible, `d6c516794950…` rigid — so `_reattach`'s digest check stayed a real check rather
+than comparing a number against itself. The reconstructed records carry an explicit
+`reconstruction` key naming the manifest they were verified against, and **no `provenance`
+block**: the Q1 run's four-tuple is not recoverable, and RESUME §8 forbids writing a
+provenance-bearing field that was not computed. They live in the session scratchpad, not
+the repo.
+
+**The same mechanism now guards N3.** `tests/unit/test_n3_live_submission_digest_is_pinned.py`
+(commit `2a90489`, landed alone and first) rebuilds both in-flight specs from their live
+`spec_knobs` and asserts `bfc60a49…` / `ed1ba571…`. Any edit to `CoupledCaseSpec`,
+`ParticipantSpec`, `FlexibleFoilSpec`, `CalculiXSolidSpec` or `AuthoredSource` — including
+one that adds a field nothing reads — would make N3 uncollectable, and the symptom would
+otherwise appear only at the collect, three days and 76 090 windows after the mistake.
+**Delete that file once N3 has been collected.** The digests were re-verified straight off
+NFS after every commit this session; both still match.
+
+### 6.45 SESSION 11 — `read_arm` has now executed, and D10 has a precision FLOOR
+
+`tests/unit/_hg2007_case_tree.py` builds a complete settled case — the real materializer
+writes the deck, and the outputs a run would leave are written analytically around it:
+per-iteration `force.dat` stamped at the window START (with window 1 one row short and one
+trailing row at `max_time`, the structure §6.38 measured), a ccx `.dat` stamped at the
+window END, both watch-points, both iterations logs, the coded object's power lines,
+`coupled-status.json`. Time constants are SCALED — 0.05 s period, 0.1 s discard — so eight
+settled cycles fit in 500 windows.
+
+`read_arm` completes: 500/500 windows through the join, cadence `per-iteration`, 7 settled
+cycles, `force_t[0] == dt` (the analysis base is the window-END instant, §6.38's fix
+observed at the far end of the path rather than at the join).
+
+**It is a fixture and the file says so** — this proves the code against bytes this repo
+wrote, not against a solver. What makes it worth more than "it runs" is that the series are
+analytic and **P3 == P2 by construction**, so the D10 closure is a number the test asserts
+rather than merely one the code produced. A 5 % error injected into the reaction record
+alone moves D10 to 0.0500, past the test's bound and past ADR-039's 2 % band, which is what
+says the gate would catch the same defect on real bytes.
+
+**The new measurement: D10 closes to 1.3e-8, not to 1e-16, and the reason is real.**
+CalculiX prints reaction forces to SEVEN significant digits
+(`ccx_dat._PRINT_SIGNIFICANT_DIGITS`), so P3 is rebuilt from a 7-digit number while P2 rides
+in the fluid log at full precision. That is a **floor of order 1e-7 on how tightly D10 can
+ever close on real bytes**. ADR-039's D10 band is 2 %, five orders of magnitude above the
+floor, so the identity is comfortably measurable — but the floor is now on the record
+rather than waiting to surprise someone who tightens the band.
+
+Separately, `TestAgainstTheSurvivingI4Bytes` is now parametrized over **four** runs rather
+than two: the two serial I4 arms and the two **4-rank decomposed** Q1 arms, in one id space
+so a claim added later is re-derived on both. Every claim holds on both decompositions,
+including the iterate-convergence structure. Wave 1 is decomposed, and until now every
+claim about the join rested on serial bytes.
+
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-11 RESUMPTION PATH (supersedes everything below).**
+**SESSION-12 RESUMPTION PATH (supersedes everything below).**
+
+### N3 IS STILL RUNNING. POLL IT BEFORE ANYTHING ELSE.
+
+Same commands as the session-11 path below. At the last poll (2026-08-13 01:08 UTC) it was
+at window 1703 (flexible) / 3211 (rigid), projecting **SIZES on both arms**, with the
+flexible arm's full span landing at 82.0 h against B0's 96 h. **The verdict becomes real at
+the ramp clear, ~window 50726** — re-poll there before treating it as settled.
+
+**Then, in order:**
+
+1. **`--collect-probe` both N3 arms** once they finish, `--out` into `/tmp`, then
+2. **the fine-rung I7 probe — NEW, and it is a real item, not a footnote** (see below), then
+3. **bring the operator the measured post-ramp rate and take the B3 ceiling decision**
+   (RESUME §7 item 5) — BEFORE B2 is filled, then
+4. **`--size-040 <flex bundle> <rigid bundle> <fine bundle> --ceiling-s <approved>`** and
+   read its refusal or its numbers, then
+5. **fill B1/B2/B3 and the four `GATED_040_*` sentinels** in the commit that ADDS
+   `data/vv/stage20_n3_confirmation.json` (RESUME §7 item 7), with
+   `tests/unit/test_adr040_budget_is_derived_from_n3.py` re-deriving them through
+   `size_gated_campaign_040`. The file must be a NEW path: `_merge_base_guard_040` resolves
+   add-commits with `git log --diff-filter=A`, and ADR-040's add-commit is `d5bf381`.
+6. **wave 1** via `--submit-040`, submit only, no owning wait.
+
+### THE FINE-RUNG I7 PROBE — required by the sizing rule, and it can only run after N3
+
+`size_gated_campaign_040` builds
+`required = [(arm, rung) for arm in arms] + [(arms[0], fine_rung)]` →
+`[("flexible","mid"), ("rigid","mid"), ("flexible","fine")]` and refuses
+(`hg2007_sizing.py:441-449`) with:
+
+> `no I7 probe for arm='flexible' rung='fine' - dt is fixed across rungs (ADR-039 B2,`
+> `carried over by ADR-040 U3), so the fine rung's Courant bound must be measured, not`
+> `assumed from the ratio`
+
+`data/vv/stage20_i7_courant.json` carries **mid-rung probes only**, and N3 is mid-rung on
+both arms. So `--size-040` on the two N3 bundles refuses at this clause today — verified,
+and pinned by `test_the_missing_fine_rung_probe_is_refused`. Four things about it:
+
+- **it runs AFTER N3, never alongside.** N3's value is a contention-measured rate; any
+  other solve on aero-dev corrupts the one number B2 is sized from;
+- **it must share the mid-rung probes' dt exactly.** dt is fixed across all three rungs so
+  temporal error is common-mode (I8), and the rule refuses a probe set carrying two dts;
+- **it must COMPLETE** its requested windows and end `stopped_by="all-exited"`.
+  `_require_complete` still applies to probes, even though ADR-040 W3 relaxed it for
+  confirmations;
+- **it must reach the post-ramp window to have a `max_courant_post_ramp` at all** — at
+  least 50 726 windows — so it is itself a multi-day run at the fine rung's cell count.
+  This is the same arithmetic that made ADR-039's B1 never satisfiable, which is why B1
+  reads `<<B1-PENDING-N3>>`. **Budget for it explicitly when taking the B3 decision.**
+
+`--collect-probe` already emits both the `i7` and `i4` blocks from one run, and
+`--size-040` takes `nargs="+"`, so the fine bundle needs no new flag.
+
+### What session 11 landed
+
+Five commits, `2a90489`..`c774475`, **962** tests green (was 883), mypy clean:
+the live-N3 digest pin (alone, first); `i7_probe_from_bundle` /
+`n3_confirmation_from_bundle` in `aero/vv/fsi/hg2007_sizing.py`; the `--size-040` driver
+mode with the full refusal battery; `read_arm` executed end to end for the first time on
+any input; the join re-derived on decomposed bytes; and this record.
+
+**Nothing was filled.** B1/B2/B3 still carry their sentinels, the four `GATED_040_*` are
+still `None`, `data/vv/stage20_n3_confirmation.json` still does not exist, and status stays
+`partial`. No tag, no verdict.
+
+**Nothing ran on aero-dev** beyond `run_long.sh status` and the `cat rc` inside `_reattach`.
+Q1 and L-smoke artefacts are untouched at
+`/mnt/aero-nfs/runs/hg2007_*_foil-20260812-21{4956,5900,5908}`.
+
+---
+
+**SESSION-11 RESUMPTION PATH (historical; session 11 executed it).**
 
 ### N3 IS RUNNING. POLL IT BEFORE ANYTHING ELSE.
 

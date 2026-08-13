@@ -354,7 +354,53 @@ phase-complete by symmetry; ADR-040 B0 = 259200 s (72 h) per submission; **Q1 ru
 N3**, a sub-hour probe to de-risk two days, which is a deliberate deviation from §7's
 execution order on the same argument that puts the L-smoke ahead of N3.
 
+## 6g. SESSION 11 — N3 SIZES, the collect refuses EARLIER than §7 said, and D10 has run
+
+Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero-dev beyond
+`run_long.sh status` and the `cat rc` inside `_reattach`.
+
+1. **N3 projects SIZES on both arms.** Read the MARGINAL rate, not `--project-n3`'s
+   headline: the headline differences `ClockTime` from the first step and so carries the
+   coded FO's first compilation. Flexible (binding) is **3.871 s/window marginal at 5.158
+   iterations**, which puts the W3 minimum at 68.4 h and the chosen 76 090-window span at
+   **82.0 h against B0's 96 h — 14.0 h of margin**. The gap to §6.41's 3.69 s/window basis
+   is **iterations (+5.3 %), not per-step-solve cost (0.750 vs 0.753 s, flat to 0.4 %)** —
+   so §6.41's contention finding holds. Re-poll at the ramp clear (~window 50726).
+2. **§7's expectation for `--collect` was wrong, and the correction is the finding.** It
+   does NOT clear the join and refuse on the S-rule. `read_arm` calls `load()` first, and
+   `_load_authored` runs `analyse_limit_cycle` with the S2 discard on the watch-point base,
+   so a 0.01 s probe dies at the **discard guard** — "the run has not passed the start-up
+   transient" — upstream of the join, which never executes. Correct behaviour, not a defect.
+   A collect cannot clear `load()` below **13.19 s = 659 420 windows**; only the gated
+   campaign will ever have that, and `--size-040` now asserts the sized `max_time` covers it.
+3. **A lost submission is recoverable and PROVABLY so**: `aero-manifest.json` carries
+   `authored.spec_sha256`. The Q1 records were rebuilt and verified against it, so
+   `_reattach`'s digest check stayed a real check. **The same mechanism now guards N3** —
+   `tests/unit/test_n3_live_submission_digest_is_pinned.py` landed ALONE and FIRST and makes
+   a spec drift a named CI failure instead of an uncollectable run. **Delete it once N3 has
+   been collected.**
+4. **`read_arm` has now executed end to end** on a synthetic-but-complete case
+   (`tests/unit/_hg2007_case_tree.py`), the first time on any input. **D10 has a precision
+   FLOOR of order 1e-7** set by CalculiX's 7-significant-digit `.dat` print — five orders
+   inside ADR-039's 2 % band, but now on the record. The join is also re-derived on the two
+   **4-rank decomposed** Q1 arms, not just on serial bytes.
+5. **The `n3` block now maps to the sizing rule**, and `--size-040` calls it. Nothing was
+   filled: B1/B2/B3 keep their sentinels, the four `GATED_040_*` stay `None`, and
+   `data/vv/stage20_n3_confirmation.json` still does not exist.
+6. **NEW REQUIRED ITEM — the fine-rung I7 probe.** `size_gated_campaign_040` requires an I7
+   probe at `arm=flexible rung=fine`; N3 covers only the mid rung on both arms, so the rule
+   refuses today. It runs AFTER N3, never alongside; it needs ≥ 50 726 windows to reach the
+   post-ramp window, so it is a multi-day run in its own right. **Budget for it when taking
+   the B3 ceiling decision.** Handoff §7 carries the full clause list.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
+
+**START HERE (session 12): POLL N3. Then the fine-rung I7 probe, then the B3 ceiling
+decision, then `--size-040`, then the B2 fill, then wave 1.** Handoff §7's SESSION-12
+RESUMPTION PATH is the map; §6g above is the summary.
+
+**Everything below is session 9's text, kept for the rationale.** Items 1, 2, 3, 4 and 9 are
+DONE (§6f); item 9's collect half is now executed and its limits are recorded (§6g item 2).
 
 **START HERE (session 11): POLL N3 — it is running. Then item 6, item 5, item 7, item 8.**
 Handoff §7's SESSION-11 RESUMPTION PATH carries the session names, the poll commands, the
