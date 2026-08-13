@@ -76,6 +76,8 @@ from aero.provenance.four_fold import compute_provenance  # noqa: E402
 from aero.vv.alignment import align_arms  # noqa: E402
 from aero.vv.fsi.cost_model import attribute_step_cost  # noqa: E402
 from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
+    ANALYSIS_DISCARD_S,
+    ANALYSIS_MIN_CYCLES,
     ARMS,
     FREQUENCY_HZ,
     GATED_040_MAX_TIME_S,
@@ -96,6 +98,14 @@ from aero.vv.fsi.hg2007_readout import (  # noqa: E402
     FLUID_STAMP,
     ArmReadout,
     read_arm,
+)
+from aero.vv.fsi.hg2007_sizing import (  # noqa: E402
+    I7Probe,
+    N3Confirmation,
+    SizingError,
+    i7_probe_from_bundle,
+    n3_confirmation_from_bundle,
+    size_gated_campaign_040,
 )
 from aero.vv.fsi.preflight import signal_drift_reports  # noqa: E402
 from aero.vv.paired_difference import (  # noqa: E402
@@ -1298,6 +1308,125 @@ def _project_n3(args: argparse.Namespace) -> int:
     return 0
 
 
+#: ADR-040's campaign stack by NAME (N1) and its rank count (L3), passed to the sizing rule
+#: as EXPECTATIONS. Deliberately not read back off the bundles: the rule refuses a record
+#: measured at another stack or another rank count -- "another campaign's rate" -- by
+#: comparing the record against these, so sourcing them from the record would make that
+#: refusal unreachable. Deliberately not `GATED_040_NUMERICS_LABEL` / `GATED_040_MPI_RANKS`
+#: either: those are B2's sentinels, they are still None, and they are FILLED by the number
+#: this mode produces. A sizing input that waits on the sizing output cannot size.
+SIZING_040_NUMERICS_LABEL = "adr040-candidate"
+SIZING_040_MPI_RANKS = 4
+
+#: ADR-039 S3, carried over unchanged by ADR-040 U6. B4 permits cutting this as a declared
+#: last resort, never below 10.
+SIZING_040_SETTLED_CYCLES = 20
+
+
+def _size_040(args: argparse.Namespace) -> int:
+    """ADR-040 B2's numbers, derived from collected bundles THROUGH the pre-registered rule.
+
+    The rule itself is `aero/vv/fsi/hg2007_sizing.py:size_gated_campaign_040` and it is
+    pure; this mode is the wiring, and the wiring is the part that could quietly lie. Three
+    choices in it are load-bearing:
+
+    * the stack and rank count are the module constants above, not the bundles' own values;
+    * ``--ceiling-s`` is REQUIRED. The rule gives ``ceiling_s`` no default because
+      ADR-039's 14 days was measured out of reach, and ADR-040 B3 makes the ceiling an
+      operator decision taken against N3's measured rate BEFORE B2 is filled. A default
+      here would be a ceiling nobody chose;
+    * it FILLS NOTHING. It prints, and writes a bundle wherever ``--out`` says. The B2
+      sentinels are filled by the commit that lands `data/vv/stage20_n3_confirmation.json`,
+      which must be a NEW file (`_merge_base_guard_040` resolves add-commits), and that is
+      a separate, deliberate act.
+
+    A refusal is a result and is recorded as one: the message is the operator-facing
+    output, so it is printed verbatim rather than summarised.
+    """
+    paths = [Path(p) for p in args.size_040]
+    period_s = 1.0 / FREQUENCY_HZ
+    record: dict[str, Any] = {
+        "started_at": _utc_now(),
+        "adr": "ADR-040",
+        "kind": "sizing-040",
+        "gated": False,
+        "bundles": [str(p) for p in paths],
+        "expectations": {
+            "numerics_label": SIZING_040_NUMERICS_LABEL,
+            "mpi_ranks": SIZING_040_MPI_RANKS,
+            "rung": GATED_RUNG,
+            "settled_cycles": SIZING_040_SETTLED_CYCLES,
+            "discard_s": ANALYSIS_DISCARD_S,
+            "period_s": period_s,
+            "ceiling_s": args.ceiling_s,
+            "note": (
+                "the stack and rank count are ADR-040 N1/L3 read from the driver, never "
+                "from the bundles; the ceiling is the operator's B3 decision"
+            ),
+        },
+    }
+    out = Path(args.out or "/tmp/stage20_size_040.json")
+    try:
+        probes: list[I7Probe] = []
+        confirmations: list[N3Confirmation] = []
+        for path in paths:
+            bundle = json.loads(path.read_text(encoding="utf-8"))
+            if "i7" in bundle:
+                probes.append(i7_probe_from_bundle(bundle))
+            if "n3" in bundle:
+                confirmations.append(n3_confirmation_from_bundle(bundle))
+        record["probes"] = [json.loads(p.model_dump_json()) for p in probes]
+        record["confirmations"] = [json.loads(c.model_dump_json()) for c in confirmations]
+        sized = size_gated_campaign_040(
+            probes=probes,
+            confirmations=confirmations,
+            numerics_label=SIZING_040_NUMERICS_LABEL,
+            mpi_ranks=SIZING_040_MPI_RANKS,
+            rung=GATED_RUNG,
+            settled_cycles=SIZING_040_SETTLED_CYCLES,
+            discard_s=ANALYSIS_DISCARD_S,
+            period_s=period_s,
+            ceiling_s=args.ceiling_s,
+        )
+        # A campaign that cannot be read out is not a campaign. The rule builds max_time
+        # from the discard plus SIZING_040_SETTLED_CYCLES cycles and the readout refuses
+        # anything shorter than the discard plus ANALYSIS_MIN_CYCLES, so today 20 >= 10
+        # makes this hold by construction -- which is exactly why it is worth asserting
+        # rather than assuming, because B4 permits cutting the settled cycles.
+        readable_from = ANALYSIS_DISCARD_S + ANALYSIS_MIN_CYCLES * period_s
+        if sized.max_time < readable_from:
+            raise SizingError(
+                f"the sized campaign runs to max_time={sized.max_time!r} s, short of the "
+                f"{readable_from!r} s its own readout needs (S2's {ANALYSIS_DISCARD_S!r} s "
+                f"discard plus {ANALYSIS_MIN_CYCLES} settled cycles). `--collect` would "
+                "refuse the wave after it had been paid for"
+            )
+    except SizingError as exc:
+        record["verdict"] = f"REFUSED ({exc})"
+        _write_bundle(record, out)
+        print(f"\nthe ADR-040 sizing rule REFUSES:\n  {exc}")
+        return 1
+    record["verdict"] = "SIZED"
+    record["sized_campaign"] = json.loads(sized.model_dump_json())
+    _write_bundle(record, out)
+    print(
+        f"\nADR-040 B2 would be: rung {sized.rung}, time-window-size {sized.time_window_size!r}, "
+        f"max-time {sized.max_time!r} ({sized.n_windows} windows, {sized.settled_cycles} "
+        "settled cycles)"
+    )
+    for arm, wall in sorted(sized.projected_wall_s_by_arm.items()):
+        print(
+            f"  {arm}: {wall:.0f} s ({wall / 3600:.1f} h) projected, "
+            f"{sized.projected_du_bytes_by_arm[arm] / 1e9:.1f} GB"
+        )
+    print(
+        "  NOTHING WAS FILLED. B1/B2/B3 and the GATED_040_* sentinels are filled by the "
+        "commit that adds data/vv/stage20_n3_confirmation.json, after the B3 ceiling "
+        "decision."
+    )
+    return 0
+
+
 def _record_q1(args: argparse.Namespace) -> int:
     """ADR-040 Q1: does the candidate stack reproduce the ADR-039 numerics' forces?
 
@@ -1919,6 +2048,23 @@ def main(argv: list[str] | None = None) -> int:
         "--record-q1", nargs=2, metavar=("FLEX_SUBMISSION", "RIGID_SUBMISSION"), dest="record_q1"
     )
     parser.add_argument("--project-n3", type=Path, dest="project_n3")
+    parser.add_argument(
+        "--size-040",
+        nargs="+",
+        metavar="BUNDLE",
+        dest="size_040",
+        help="collected --collect-probe bundles; I7 probes and N3 confirmations are taken "
+        "from whichever blocks each one carries (ADR-040 B2)",
+    )
+    parser.add_argument(
+        "--ceiling-s",
+        type=int,
+        default=None,
+        dest="ceiling_s",
+        help="the ADR-040 B3 per-wave ceiling, in seconds. REQUIRED by --size-040: the "
+        "rule gives it no default because the ceiling is an operator decision taken "
+        "against N3's measured rate",
+    )
     parser.add_argument("--concurrent-with", nargs="*", default=None)
     parser.add_argument("--submit", choices=sorted(ARMS))
     parser.add_argument("--submit-040", choices=sorted(ARMS), dest="submit_040")
@@ -1964,6 +2110,16 @@ def main(argv: list[str] | None = None) -> int:
         return _record_q1(args)
     if args.project_n3:
         return _project_n3(args)
+    if args.size_040:
+        if args.ceiling_s is None:
+            raise SystemExit(
+                "--size-040 requires --ceiling-s. ADR-040 B3 pre-registers the DECISION "
+                "RULE and leaves the number pending: the operator is brought N3's coupled, "
+                "contended, post-ramp rate and approves the smallest ceiling that fits "
+                f"{SIZING_040_SETTLED_CYCLES} settled cycles at that rate, BEFORE B2 is "
+                "filled. A default here would be a ceiling nobody chose"
+            )
+        return _size_040(args)
     if args.submit:
         if GATED_TIME_WINDOW_S is None or GATED_MAX_TIME_S is None:
             raise SystemExit(
