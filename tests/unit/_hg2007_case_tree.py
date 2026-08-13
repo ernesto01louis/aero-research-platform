@@ -40,7 +40,14 @@ from aero.adapters.precice.case import CASE_ROOT_DIRNAME, CoupledCaseSpec
 from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.postprocess.flapping_kinematics import FlappingKinematics
 
-from tests.stage_20._hg2007 import authored_source, authored_spec, fluid, section, solid
+from tests.stage_20._hg2007 import (
+    authored_source,
+    authored_spec,
+    fluid,
+    participants,
+    section,
+    solid,
+)
 
 DT = 1.0e-3
 N_WINDOWS = 500
@@ -118,6 +125,15 @@ def build(
             fluid=fluid(sec, time_window_size=DT, max_time=MAX_TIME),
             solid=solid(sec, time_window_size=DT, max_time=MAX_TIME, kinematics=kinematics),
         ),
+        # `run_as_uid=None` on the case AND on every participant, or the validator refuses
+        # the mix. It makes `_write_case` skip its `_chown_tree`, which needs root and
+        # therefore fails on an unprivileged CI runner (`Operation not permitted`) while
+        # passing for anyone developing as root. Nothing here is ever EXECUTED — the uid
+        # drop exists so participants can write into the case they were given — and the
+        # materialized bytes are identical either way, so the readout under test cannot
+        # tell the difference.
+        participants=tuple(p.model_copy(update={"run_as_uid": None}) for p in participants()),
+        run_as_uid=None,
         max_time=MAX_TIME,
         analysis_discard_s=discard_s,
         analysis_min_cycles=min_cycles,
