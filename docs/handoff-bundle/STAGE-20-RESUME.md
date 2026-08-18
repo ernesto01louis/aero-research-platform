@@ -366,8 +366,13 @@ Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero
    window-count wall — the RIGID arm was at 3353 and healthy at the time, and the flexible
    solid runs 27.7 ccx `no convergence` retries per window against the rigid arm's 4.3.
    **ADR-040 W6 allows exactly ONE resubmission; a second death is a NO-GO on
-   infrastructure**, so the attempt is worth protecting. The surviving rigid arm cannot
-   size B2 alone — its remaining windows are uncontended, which the rule refuses by name.
+   infrastructure** *(CORRECTED, handoff §6.48: W6 scopes itself to "a wave-1 solve" — N3
+   is a probe under B0, a re-run spends nothing W6 protects, and B0 has 134 h left)*. The
+   surviving rigid arm cannot size B2 alone — its remaining windows are uncontended, which
+   the rule refuses by name. *(RESOLVED, handoff §6.48: that arm COMPLETED all 76 090
+   windows on 2026-08-14 in 30.9 h, post-ramp 1.296 s/window, and its 1 156 014
+   factorisations — 10.2× the flexible arm's pre-abort total — REFUTE §6.47's candidate 1.
+   The abort is specific to the flexible arm's deformation.)*
    **Both the kill and the resubmission are operator decisions and neither was taken.**
    New number nobody had: CalculiX writes `.frd` at ~537 KB/window, i.e. **~1.27 TB for
    both arms over the gated campaign** — it fits (24 TB free) but B2's disk projection
@@ -410,11 +415,18 @@ Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero
 
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
-**START HERE (session 12): N3's FLEXIBLE ARM IS DEAD (§6g item 1 / handoff §6.46).** The
-first decision is no longer the ceiling: it is whether to spend ADR-040 W6's single
-resubmission now or to diagnose the CalculiX abort first. Only after a resubmitted N3 lands
-do the fine-rung I7 probe, the B3 ceiling decision, `--size-040`, the B2 fill and wave 1
-follow. Handoff §7's SESSION-12 RESUMPTION PATH is the map; §6g above is the summary.
+**START HERE (session 12, corrected 2026-08-15 by handoff §6.48): diagnose the ccx abort,
+then re-run N3 both arms — the "single retry" dilemma was a misreading and is dissolved.**
+The rigid arm COMPLETED (all 76 090 windows, 2026-08-14) and refuted the leading crash
+candidate; the flexible arm's abort is deformation-specific and its 1703 windows of
+`Solid.log` are unmined. W6 governs wave-1 solves only; an N3 re-run is an ordinary probe
+under B0 (134 h remaining, ~82 h needed). If the abort RECURS, stop and write the
+mitigation ADR — that risk, not any budget clause, is why diagnosis comes first. Only
+after a contended N3 lands do the fine-rung I7 probe, the B3 ceiling decision,
+`--size-040`, the B2 fill and wave 1 follow. Handoff §7's SESSION-12 RESUMPTION PATH is
+the map; §6g above is the summary. **The rack may be powered off for the house move:
+check net-ops' shutdown-restart runbook and post-boot-verify before assuming the cluster
+exists.**
 
 **Everything below is session 9's text, kept for the rationale.** Items 1, 2, 3, 4 and 9 are
 DONE (§6f); item 9's collect half is now executed and its limits are recorded (§6g item 2).

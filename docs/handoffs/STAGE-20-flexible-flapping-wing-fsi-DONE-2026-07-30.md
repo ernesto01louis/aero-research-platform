@@ -1457,6 +1457,12 @@ pre-authorises exactly **ONE** resubmission — both arms, new run ids, both bun
 — and states that a second death is a **NO-GO on infrastructure**. That one attempt is now
 the only one left, which is why it is worth spending some thought before spending it.
 
+> **[CORRECTED — see §6.48.]** The K2 refusal stands; the W6 reading does not. W6 and
+> ADR-039 N3 both scope themselves to *"a wave-1 solve"*, and N3 is a PROBE under budget
+> B0. No resubmission was spent and none is at stake here; wave 1's one-resubmission
+> protection is untouched. The paragraph above is kept as written because this section is
+> a record of what session 11 believed while deciding — §6.48 is the correction of record.
+
 **Four facts that bear on the decision:**
 
 1. **It is not a window-count wall.** The rigid arm was at window **3353 and healthy** when
@@ -1481,7 +1487,8 @@ the only one left, which is why it is worth spending some thought before spendin
 
 **Nothing was done about it.** Killing the surviving rigid arm and re-submitting are both
 operator decisions: one is destructive, and the other spends the single resubmission ADR-040
-W6 allows. Both are queued for the operator with the evidence above.
+W6 allows *(corrected in §6.48: it does not — a re-run is an ordinary B0 probe)*. Both are
+queued for the operator with the evidence above.
 
 ### 6.47 SESSION 11 — the ccx abort, diagnosed as far as it can be without spending the retry
 
@@ -1489,6 +1496,11 @@ Operator decisions taken on the evidence in §6.46: **let the rigid arm run** (i
 B2, but it answers the question that decides how the retry is spent) and **diagnose before
 spending ADR-040 W6's single resubmission**. Both are recorded here so neither is
 re-litigated. **DO NOT KILL `fsi-hg2007_rigid_foil-20260812-230109`.**
+
+> **[RESOLVED + CORRECTED — see §6.48.]** The rigid arm COMPLETED all 76 090 windows on
+> 2026-08-14 and the discriminator below has an answer: candidate 1 is REFUTED. And the
+> "single resubmission" framing was a misreading of W6's scope — the constraint protects
+> wave 1, not this probe.
 
 Two candidates, measured, ranked, with the thing that would separate them.
 
@@ -1523,6 +1535,11 @@ different fix. Dying short of it makes candidate 1 the answer and makes the camp
 infeasible on this ccx build without a change. Either way the next session starts with a
 real result rather than a coin flip. **That is what the rigid arm is now for.**
 
+> **[RESOLVED — §6.48.]** It survived, and by more than the pre-registered margin: the
+> completed run shows **1 156 014** spooles lines (15.2/window), not the ~667 000 the
+> per-window estimate projected — **10.2×** the flexible arm's pre-abort total. Raw
+> factorisation count is ruled out.
+
 **The `.frd` is a B2 problem in its own right, independent of the abort.** Session 8 already
 found it — `data/vv/stage20_i10_cost_split.json` attributes ~78 % of disk growth to a file
 **no code in this repo reads**, and
@@ -1541,28 +1558,101 @@ because the rigid arm is still running against the current bytes. If the retry i
 mitigated configuration, the ADR must record the byte change, the digest move (the ADR-037
 precedent), and that Q1's equivalence verdict was measured on the unmitigated stack.
 
+### 6.48 AUDIT (2026-08-15) — the rigid arm COMPLETED, the discriminator resolved, W6 read wrong
+
+Written during the pre-move audit, from the completed run's own bytes and the ADR texts.
+Three findings; the first two are measurements, the third is a correction to §6.46/§6.47
+and the session-12 path, which were written before the run finished and around a
+misreading.
+
+**1. The rigid N3 arm COMPLETED.** `fsi-hg2007_rigid_foil-20260812-230109` ended
+2026-08-14 05:57 UTC, `stopped_by=all-exited`, both participants rc=0, **all 76 090
+windows**, wall clock **111 400 s (30.9 h)** — much faster than §6.42's 48.3 h projection
+precisely because it ran uncontended after its partner died. Post-ramp rate **1.296
+s/window over 25 365 windows** (two whole quarter-cycles) against a ramp-phase 1.547 —
+post-ramp came in CHEAPER than the ramp for this arm, so the risk carried since §6.41
+(post-ramp iterations rising) did not materialise on the rigid side. The rate still may
+not size B2: uncontended, and single-arm (§6.46 item 3 stands). `.frd` final size
+**40 857 949 088 B = 40.9 GB**, confirming the ~41 GB/arm projection to three digits; the
+~1.27 TB campaign figure stands.
+
+**2. §6.47's discriminator has an answer: candidate 1 is REFUTED.** The completed run
+carries **1 156 014 spooles lines over 76 090 windows (15.2/window)** — not the ~667 000
+the per-window estimate projected, because the estimate was built on the mid-run 17.5/window
+sample. Against the flexible arm's **113 080 over 1703 windows (66.4/window)**: the rigid
+arm executed **10.2× more factorisations than the flexible arm managed before aborting**,
+with zero corruption. Raw factorisation count / allocation churn is ruled out as the
+trigger. By §6.47's own pre-registered reading, that "points instead at something specific
+to the flexible arm's much larger deformations — ill-conditioning, or an element
+approaching inversion — which is a different fix." The supporting asymmetry stands:
+`no convergence` retries 27.7/window flexible against **4.2/window rigid (320 566 total)**.
+Candidate 2 (the `.frd` write path) is further weakened — 40.9 GB written cleanly. The
+flexible arm's 1703 windows of `Solid.log` remain unmined; that mining needs no box.
+
+**3. W6 does not govern N3, and the "single resubmission" framing was wrong.** §6.46
+(twice), §6.47, this file's §7 (twice) and RESUME §6g/§7 treated the N3 death as spending
+"the single resubmission ADR-040 W6 allows". The clauses say otherwise, by their own text:
+
+> `W6 if a wave-1 solve ends participant-died, ADR-039 N3 applies unchanged: one`
+> `   resubmission, both arms, new run ids, both bundles shipped, ...`
+
+> `N3 if a wave-1 solve ends participant-died ... the wave may be resubmitted ONCE ...`
+> `   This is a declared deviation from ADR-036's no-restart rule: a 14-day exposure is`
+> `   not a 48-hour one, and a died run carries no gated numbers to retry.`
+
+Both scope themselves to **"a wave-1 solve" / "the wave"**, and ADR-039 N3's stated
+rationale is a 14-day exposure. The N3 confirmation is a PROBE — submitted through
+`--probe`, `label="probe"`, `gated=False` — and probes are governed by budget **B0**,
+which exists precisely because a probe cannot be ceilinged by the campaign clauses. B0
+arithmetic at the time of writing: consumed 122 531 s of 604 800 s total (L6 270 + Q1
+2 580 + 901 + N3 7 380 + 111 400) = **20.3 %, leaving 134 h**; the worst single
+submission used 30.9 h of the 96 h per-submission ceiling. **An N3 re-run is an ordinary
+B0 probe. It spends nothing that W6 protects, and wave 1's one-resubmission protection is
+fully intact and untouched.**
+
+The likely mechanical origin of the misreading is the naming collision ADR-040 itself
+flagged when it W-prefixed its contingencies: "ADR-039 N3" (a contingency about wave-1
+resubmission) and "N3" (the coupled confirmation run) are different objects with one name.
+The dilemma §6.47 queued for the operator — spend the one attempt vs diagnose first —
+dissolves: **both**, in either order, and the only genuinely scarce resources are B0's
+remaining 134 h and calendar time. What remains true from §6.46: K2 refuses the dead run
+as evidence, a re-run must be both-arms to be contended, and if the abort RECURS the
+campaign is infeasible on this ccx build without a mitigation ADR — that, not any budget
+clause, is the real reason to mine the flexible arm's logs before re-running.
+
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-12 RESUMPTION PATH (supersedes everything below).**
+**SESSION-12 RESUMPTION PATH (supersedes everything below; corrected 2026-08-15 — §6.48).**
 
-### N3's FLEXIBLE ARM IS DEAD. READ §6.46 AND §6.47 BEFORE TOUCHING ANYTHING.
+### READ §6.46-§6.48 FIRST. The rigid arm is DONE, the box is idle, and W6 is not in play.
 
-**The rigid arm is deliberately still running — DO NOT KILL IT.** It is now the experiment
-that decides how ADR-040 W6's single resubmission is spent (§6.47).
+State at the 2026-08-15 audit, all verified against the runs' own bytes:
 
-`fsi-hg2007_flexible_foil-20260812-230102` is `failed` — CalculiX heap corruption at window
-1703 of 76 090, `stopped_by=participant-died`.
-`fsi-hg2007_rigid_foil-20260812-230109` was still `running` at session end and **cannot
-size B2 on its own** (its remaining windows are uncontended).
+- `fsi-hg2007_flexible_foil-20260812-230102` — `failed`, CalculiX heap corruption at
+  window 1703 of 76 090, `stopped_by=participant-died` (§6.46). Its 1703 windows of
+  `Solid.log` are on NFS, unmined.
+- `fsi-hg2007_rigid_foil-20260812-230109` — **COMPLETED 2026-08-14 05:57**, all-exited,
+  rc=0 both participants, all 76 090 windows in 30.9 h; post-ramp **1.296 s/window**.
+  A diagnostic, not a sizing input: uncontended and single-arm.
+- The §6.47 discriminator RESOLVED: **candidate 1 refuted** (10.2× the factorisations,
+  zero corruption — §6.48 item 2). The abort is specific to the flexible arm's
+  deformation.
+- **W6 does not bind here** (§6.48 item 3): the N3 re-run is an ordinary probe under B0,
+  which has **134 h remaining**. Wave 1's one-resubmission protection is untouched.
+- Nothing is running on aero-dev. The rack may be POWERED OFF for the house move — check
+  `net-ops/docs/shutdown-restart-runbook.md` and run post-boot-verify before assuming the
+  cluster exists.
 
-**The first decision is the operator's, and it is not the ceiling decision any more:**
-whether to spend ADR-040 W6's single resubmission now, or to diagnose the ccx abort first.
-A second `participant-died` is a NO-GO on infrastructure, so the attempt is worth
-protecting. The §6.42 rate numbers stand as far as they go — the run was tracking 3.871
-s/window marginal and projecting SIZES — but they were measured over ramp windows on a run
-that then died, and B2 may not be sized from them.
+**The first item is the ccx abort, and it is diagnosis, not budget.** If the abort recurs
+on a re-run, the campaign is infeasible on this ccx build without a mitigation ADR — so:
+mine the dead arm's `Solid.log` for the deformation signature (trend in `no convergence`
+retries toward the abort, element-quality or Jacobian warnings, deck vs displacement
+magnitude), THEN re-run N3 both arms under B0 (projected ~82 h binding arm, inside the
+96 h per-submission ceiling), with `--project-n3` polled at the ramp boundary (~52 h). A
+recurrence is a real result: stop, write the mitigation ADR (deck bytes will move the
+spec digest — the ADR-037 precedent), and only then spend more box time.
 
-**Everything below assumes that decision has been taken and a resubmitted N3 has landed.**
+**Once a contended N3 has landed:**
 
 **Then, in order:**
 
