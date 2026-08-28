@@ -20,7 +20,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
     ("profile", "remote", "endpoint"),
     [
         ("cloud", "aero-cloud", ""),
-        ("nas", "aero-nas", "http://192.168.2.100:9000"),
+        ("nas", "aero-nas", "http://192.168.2.60:9000"),
         ("minio", "aero-minio", "http://192.168.2.234:9000"),
         ("nfs", "aero-nfs", ""),
     ],
@@ -49,7 +49,7 @@ def test_compose_resolves_storage_override() -> None:
     with initialize_config_dir(version_base=None, config_dir=str(_REPO_ROOT / "conf")):
         cfg = compose(config_name="config", overrides=["case=naca0012", "storage=nas"])
     assert cfg.storage.dvc_remote == "aero-nas"
-    assert cfg.storage.s3_endpoint == "http://192.168.2.100:9000"
+    assert cfg.storage.s3_endpoint == "http://192.168.2.60:9000"
 
 
 def test_domino_config_uses_cloud_remote() -> None:
