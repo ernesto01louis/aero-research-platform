@@ -413,9 +413,37 @@ Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero
    post-ramp window, so it is a multi-day run in its own right. **Budget for it when taking
    the B3 ceiling decision.** Handoff §7 carries the full clause list.
 
+## 6h. SESSION 12 — the abort has a PRECURSOR, and the mitigation decision is the operator's
+
+Read handoff §6.49 — it is the record. In one paragraph: the dead flexible arm's logs were
+mined (11-agent workflow, adversarially verified, zero unresolved refutations; evidence +
+parsers at `/mnt/aero-nfs/runs/stage20-n3-attempt1-mining/`). The abort is NOT a bolt from
+the blue: a **period-2 odd-window instability inside CalculiX** starts at ~window 1557 —
+odd-window absolute residuals grow 34.8 → 1665.4 N doubling every ~26 windows while even
+windows *decrease*, ccx Newton effort escalates on the same odd windows (39 windows ≥ 8
+iterations, all odd, unbroken 1625..1701), and the residual argmax marches into the death
+nodes (strict-cluster share 0 % → 6 % → 67 %). The interface is blind to it — preCICE
+coupling health, fluid series and interface forces are all clean — and F-vs-Q1 determinism
+is DIVERGENT from the first parallel GAMG solve, so an unmitigated re-run is not a sharp
+reproduce/not-reproduce probe. §6.46's "345.9 unprecedented" reading is refuted (prior
+survived max 1665.4 N; death-window max 2027 N = 1.22×), and the "Courant 0.549 at death"
+was the t=0 startup value (death-step 0.1139). Verdict under the pre-registered precursor
+rule: **MITIGATION-WARRANTED**. N3 was NOT resubmitted; B0 stands at 134 h; aero-dev is
+idle. The operator decision — deck bytes (a) / coupling config (b) / ccx build (c) /
+hash-exempt observability only (d), each with its ADR consequences — is queued in handoff
+§6.49, and the SESSION-13 path in handoff §7 carries the mechanics.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
-**START HERE (session 12, corrected 2026-08-15 by handoff §6.48): diagnose the ccx abort,
+**START HERE (session 13): read handoff §6.49 and its SESSION-13 RESUMPTION PATH. The
+mitigation-ADR decision is queued with the operator; nothing runs until it is taken. If
+the decision is (a)/(b)/(c): write the mitigation ADR (config_hash / container-SHA move,
+ADR-037 precedent, Q1-measured-on-unmitigated caveat, digest re-pin), then re-run N3 both
+arms under B0 with the stop rule armed. Downstream of a landed contended N3 everything
+below is unchanged.**
+
+**Historical (session 12 executed this paragraph's first half and stopped at its stop
+rule): diagnose the ccx abort,
 then re-run N3 both arms — the "single retry" dilemma was a misreading and is dissolved.**
 The rigid arm COMPLETED (all 76 090 windows, 2026-08-14) and refuted the leading crash
 candidate; the flexible arm's abort is deformation-specific and its 1703 windows of

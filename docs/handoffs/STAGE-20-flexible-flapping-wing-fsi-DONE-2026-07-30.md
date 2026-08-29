@@ -1620,9 +1620,147 @@ as evidence, a re-run must be both-arms to be contended, and if the abort RECURS
 campaign is infeasible on this ccx build without a mitigation ADR — that, not any budget
 clause, is the real reason to mine the flexible arm's logs before re-running.
 
+### 6.49 SESSION 12 (2026-08-29, post-move) — the abort has a 150-window PRECURSOR, and N3 was NOT resubmitted
+
+First session after the house move. Step-0 re-verification: rack whole (post-boot-verify
+2026-08-29), NFS mounted rw/hard with 24 T free, aero-dev idle (zero `pimpleFoam`/
+`ccx_preCICE` processes by exact-name pgrep), tree clean at `b9fd72c`, **962 tests green
++ mypy clean on `aero/`** — the post-move environment is whole. Nothing ran on aero-dev
+this session beyond those two read-only ssh checks.
+
+**How the mining was done.** The SESSION-12 path's first item, executed as an 11-agent
+workflow: six independent read-only miners over the dead arm's structured records
+(`.cvg`/`.sta`/`Solid.log`/watchpoints/`Fluid.log`/preCICE logs, with the completed rigid
+run and the Q1 flexible run as controls), a synthesis applying a PRE-STATED precursor test
+(baseline envelope over windows 101-1600, terminal statistic over 1601-1702; anything
+occurring only inside increment 1703 inadmissible as cause), then two adversarial
+verifiers — one re-derived every number from scratch off the tables, one attacked the
+mechanism — **both upheld, zero unresolved refutations**. The tables AND the exact parsers
+that produced them are preserved at `/mnt/aero-nfs/runs/stage20-n3-attempt1-mining/`
+(sibling directory; the run dirs themselves untouched).
+
+**The finding: a period-2, odd-window exponential instability inside CalculiX, starting
+~150 windows before the abort.**
+
+1. **Odd-window absolute residuals grow exponentially from window ~1557**: 34.8 N →
+   1665.4 N (~48×) by w1701, doubling every ~26 windows (~0.52 ms), while **even windows
+   monotonically DECREASE** (18.585 → 18.464 N, argmax pinned at node 2091). The commanded
+   plunge amplitude grew only 1.19× over the same span — a symmetric load ramp cannot
+   produce a parity split with one branch falling. This is a coupled-solve instability,
+   not load tracking.
+2. **ccx Newton effort escalates in lockstep, odd windows only**: 39 windows with final
+   ITER ≥ 8, ALL odd, an unbroken run 1625..1701 escalating 8→9→10→11→12→14→13,13 — then
+   the fatal window 1703 aborts at iteration 7. Zero `U` rows before 1703 (the sole `U`
+   is the death), zero CONT.EL anywhere in all three runs.
+3. **The argmax node marches into the death cluster**: strict cluster
+   {2059,2060,2062,2152,2160} share of per-window residual argmax is **0 % over windows
+   101-1600 → 6 % over 1601-1700 → 67 % over 1701-1703** (2100→2069→2070→2052→2060, with
+   period-2 alternation 2060(odd)/2091(even) from ~w1691). The BROAD TE-tip dominance is
+   generic geometry — the healthy rigid control has 97.06 % TE-tip argmax at the same
+   x = 0.090 (node 2155 winning 100 % of its last 1000 windows); the strict-cluster
+   *intensification* is the discriminator.
+4. **§6.46's "345.9 unprecedented spike" reading is REFUTED** — it was iteration 6 of the
+   death window, not the peak: 13 SURVIVED windows exceeded 345.9 N; the prior global max
+   was **1665.4 N, survived, at w1701**; the death window's true max is 2027.0 N = only
+   1.22× that; no pre-1703 window ever jumped >1.174× the running max. And the `.cvg`'s
+   headline "1.5e8" figures are ccx's RESID.FORCE **percentage**, normalized by a
+   near-zero early-ramp average force — absolute residuals never exceeded ~2 kN.
+5. **The interface is blind to all of it.** preCICE coupling health is clean and
+   IMPROVING into the death (last 300 windows are among the run's healthiest: mean 4.85
+   iterations, negative slope); the fluid series are clean (death-step Courant **0.1139**
+   — the 0.549 quoted around §6.46 was the t=0 startup value, a misattribution corrected
+   here); the interface 2·dt lift sawtooth was DECAYING (2.7e-3 → 8.3e-4 N RMS). The
+   precursor is visible ONLY in the ccx-side records (`.cvg`/`.sta`/`Solid.log`) and the
+   elastic-tip watchpoint — ~80 windows (~1.6 ms) of warning that nothing was watching.
+   A solid-side absolute-residual watchdog at ~10× the baseline ceiling (44.3 N) would
+   have fired at ~w1650, 53 windows before death.
+6. **The rigid control quantifies "healthy"**: over all 76 090 windows, per-window max
+   absolute residual p99 = 2.02 N, whole-run max = **4.37 N** — the dead arm's terminal
+   values are 380× that. One cap-50 window (2196), recovered within 2 windows; at the
+   flexible death time the two arms' fluid series are statistically indistinguishable
+   (Courant 0.115 vs 0.114). The discriminator is solid-interior.
+7. **Determinism is DIVERGENT, which undercuts §6.48's re-run rationale.** Byte-identical
+   decks (F vs Q1, only the step duration differs; plunge.amp identical row-for-row)
+   split at the FIRST parallel GAMG solve at t = 2e-5 (15 vs 16 iterations), 80.8 % of
+   the first 500 INCs differ in `.cvg` row counts, TE Force1 deviates 3.6 % at window 1
+   and O(100 %) by t = 0.0022 s. An unmitigated re-run reproducing — or not reproducing —
+   the abort at window 1703 is therefore NOT a sharp measurement; "reproducibility of the
+   abort is itself the discriminating measurement" no longer holds.
+8. **Proximate killer vs precursor state.** The SIGABRT landed after iteration 7's
+   residual had RECOVERED to 3.86 N, and the fluid had already completed window 1703
+   cleanly (it died of the broken socket). The heap corruption is CalculiX-2.20-internal
+   and timing-sensitive — the Q1 control was SICKER in coupling health (12 cap-50 windows
+   vs this run's 4, all four startup: 57/138/216/247) and died of nothing. The 150-window
+   period-2 divergence is the mitigation target; the memory bug is the final blow it
+   exposes the process to.
+
+**Verdict, per the pre-registered rule: MITIGATION-WARRANTED** — precursors in six series
+from FOUR independent source files (rule requires two), each passing both sub-tests with
+margin, plus a mechanism-consistent account of the rule's first enumerated kind (strict
+death-cluster argmax intensification with absolute-magnitude growth). The four startup
+cap-50/Convergence=0 windows technically hit an instant qualifier but are recorded as
+not load-bearing (the rigid control survived an identical event; Q1 survived twelve).
+The settled non-candidates stay refuted: factorisation churn (§6.48), cumulative retry
+count (rigid total 320 566 > flexible 47 251), the `.frd` path.
+
+**Consequence: N3 was NOT resubmitted.** The SESSION-12 path's own stop rule ("if
+evidence demands a deck change, STOP — that is a mitigation ADR") fired. Nothing was
+submitted, B0 stands untouched at 134 h remaining, and the digest-pin test stays (nothing
+in flight, but N3 remains uncollected). **The mitigation decision is queued for the
+operator**, with the option space and what each moves:
+
+- **(a) Deck-byte mitigations** (ccx `*CONTROLS` tightening, damping, output cards):
+  move the spec `config_hash` — the ADR must record the byte diff, the digest move
+  (ADR-037 precedent), and that Q1's equivalence verdict was measured on the UNMITIGATED
+  stack. `test_n3_live_submission_digest_is_pinned.py` fails by design and is re-pinned
+  in the same commit.
+- **(b) Coupling-scheme/config mitigations** (preCICE acceleration parameters,
+  serial-implicit ordering): C1 is FROZEN under ADR-040 U2 — same ADR weight as (a).
+- **(c) A ccx build change** (the heap bug lives inside CalculiX 2.20): moves the
+  container SHA — P1/P3 provenance, a new pin, an ADR.
+- **(d) Hash-exempt observability only** (solid-side residual watchdog reading
+  `Solid.log`, core-dump ulimit, glibc malloc tunables in the ENVIRONMENT): moves no
+  spec bytes, but observability alone removes nothing — it converts the next death from
+  a mystery into a measurement.
+
+**The open physics question the ADR conversation must face:** the instability set in at
+~w1557 of the RAMP, at 0.27 % of the final commanded amplitude, near no kinematic
+extremum. If odd-window growth is a genuine property of this coupled configuration, the
+gated campaign's 1.17 M windows at FULL amplitude cannot run on the unmitigated stack
+regardless of the memory bug — which makes (d)-alone a fragile bet and (a)/(b) the
+branches that address the disease rather than the coroner's report.
+
 ## 7. Open items for the next stage (and beyond)
 
-**SESSION-12 RESUMPTION PATH (supersedes everything below; corrected 2026-08-15 — §6.48).**
+**SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
+
+### READ §6.49 FIRST. N3 IS NOT RUNNING. THE MITIGATION-ADR DECISION IS QUEUED WITH THE OPERATOR.
+
+- Session 12 executed the SESSION-12 path's first item (mine the dead arm's logs) and
+  STOPPED at that path's own stop rule: the mining verdict is **MITIGATION-WARRANTED**
+  (§6.49) — a 150-window period-2 precursor inside CalculiX, adversarially verified,
+  evidence + parsers at `/mnt/aero-nfs/runs/stage20-n3-attempt1-mining/`.
+- State: aero-dev IDLE, nothing submitted, **B0 untouched at 134 h**, suite 962
+  green + mypy clean at `b9fd72c`, both attempt-1 runs and all prior artefacts untouched.
+- Next, in order: (1) the operator picks among §6.49's options (a)-(d); (2) if (a)/(b)/(c),
+  write the mitigation ADR — it must record the byte/config/container diff, the
+  config_hash or container-SHA move (ADR-037 precedent), that Q1 was measured on the
+  unmitigated stack, and the digest-pin re-pin; (3) re-run N3 both arms detached under B0
+  (~82 h binding arm vs 96 h per-submission; the §6.46-item-3 stop rule stands: one arm
+  dies pre-ramp ⇒ `run_long.sh kill` the partner and record both); (4) everything
+  downstream of a landed contended N3 is UNCHANGED from the SESSION-12 path below —
+  collect-probe both arms → fine-rung I7 probe → B3 ceiling BEFORE B2 → `--size-040` →
+  fill in the commit that ADDS `data/vv/stage20_n3_confirmation.json` → wave 1.
+- Submission mechanics for step (3), verified against the driver this session: `--probe
+  <arm> mid --probe-dt 2e-5 --probe-windows 76090 --ranks 4 --numerics adr040-candidate
+  --timeout 345600 --out <f>` — the `--timeout`/`--numerics`/`--ranks` defaults (43 200 s
+  / adr039-baseline / 1) all silently sabotage the run if omitted. Copy both submission
+  JSONs to `/mnt/aero-nfs/runs/<run_id>/n3-submission.json` immediately (attempt 1's are
+  there as the pattern). Poll `run_long.sh status root@aero-dev fsi-<run_id>` +
+  `--project-n3`; NEVER `run_long.sh wait`.
+
+**SESSION-12 RESUMPTION PATH (historical: its first item is done — §6.49 — and its re-run
+step is gated on the operator decision above; corrected 2026-08-15 — §6.48).**
 
 ### READ §6.46-§6.48 FIRST. The rigid arm is DONE, the box is idle, and W6 is not in play.
 
