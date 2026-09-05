@@ -1736,6 +1736,12 @@ branches that address the disease rather than the coroner's report.
 
 ### READ §6.49 FIRST. N3 IS NOT RUNNING. THE MITIGATION-ADR DECISION IS QUEUED WITH THE OPERATOR.
 
+**The operator-paste prompt for session 13 is committed at
+`docs/handoff-bundle/STAGE-20-SESSION-13-PROMPT.md`** — it carries the endorsed ADR-041
+ladder path (D-A unmitigated+observability / D-B serial-implicit / D-C fallback, adoption
+rule, Q1 re-run on the winner) agreed at session-12 close-out, and supersedes the
+option-space framing below in detail while changing none of it in substance.
+
 - Session 12 executed the SESSION-12 path's first item (mine the dead arm's logs) and
   STOPPED at that path's own stop rule: the mining verdict is **MITIGATION-WARRANTED**
   (§6.49) — a 150-window period-2 precursor inside CalculiX, adversarially verified,
