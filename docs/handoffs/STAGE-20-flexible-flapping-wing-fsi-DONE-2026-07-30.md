@@ -1830,9 +1830,33 @@ ADR-041; sizes nothing"`, `observability={core_dumps: true, malloc_check: true}`
 **Nothing else may run on aero-dev until it finishes** — V3 registers rung probes as
 uncontended, and a contended rung is not the measurement the ADR pre-registered.
 
-Evaluate it with `--status` (the detector rides the poll) and then, per V1's closed
-verdict vocabulary: ELIMINATED / RECURRENCE-DETECTED / DIED-UNDIAGNOSED / INCONCLUSIVE /
-UNRESOLVED. **A clean D-A adopts the unmitigated stack and goes straight to the V6 Q1
+**Measured rate, 10 minutes in: 3.25 s/window marginal (the first-window average of
+6.1 s/window is startup-loaded), so 8000 windows projects to ~7.2 h against the 12 h
+ceiling — ~1.7x headroom, and inside V3's "~3-9 h per rung". ETA ~05:15 UTC 2026-09-06.**
+Max Courant is being read from the fluid log on each poll; nothing has fired.
+
+**Evaluate it with one command when it lands** — `--adr041-evaluate` (`5ebbe8f`) does the
+whole of V1/V2 and writes the evidence beside the run:
+
+```
+python scripts/stage20_hg2007_flexible_foil.py --adr041-evaluate \
+  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260905-220206/ladder-DA-submission.json
+```
+
+It refuses while the probe is still running (V1 spends the rung's one verdict when it is
+taken), derives the verdict rather than accepting one, and writes
+`adr041-D-A-solid-residuals.tsv` (minerB's five columns, so the two diff cleanly) plus
+`adr041-D-A-verdict.json` (verdict, why, detector report, AND the bounds that produced it,
+so the decision re-derives without the driver).
+
+Two more commits land the rest of what the ADR requires regardless of which rung wins:
+`5ebbe8f` (the V1 verdict derivation + the evidence writer) and `4622e26` (**V7's
+template-of-record fence**, in the spec factory as well as at the submission boundary,
+because `--probe` submits with `gated_intent=False` and a boundary-only check would let a
+probe mint `gated=True` on a template the campaign never adopted). Suite **990 green**.
+
+The verdict, per V1's closed vocabulary: ELIMINATED / RECURRENCE-DETECTED /
+DIED-UNDIAGNOSED / INCONCLUSIVE / UNRESOLVED. **A clean D-A adopts the unmitigated stack and goes straight to the V6 Q1
 re-run; anything else steps the ladder to D-B**, whose serial template must be rendered
 and PARSED before its probe (D-B is BLOCKED if preCICE forces any change beyond the two
 the header already declares).
