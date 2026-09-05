@@ -109,6 +109,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     hg2007_case_spec,
     is_gated_configuration,
     is_gated_configuration_040,
+    is_template_of_record,
 )
 from aero.vv.fsi.hg2007_readout import (  # noqa: E402
     FLUID_STAMP,
@@ -826,6 +827,16 @@ def _prepare_and_submit(
         numerics_label=numerics_label,
         mpi_ranks=mpi_ranks,
     )
+    if gated_intent and not is_template_of_record(spec.source.template_sha256):
+        # ADR-041 V7, checked BEFORE the general refusal so the diagnosis is the specific
+        # one: a mis-set coupling-template default is caught here rather than after a
+        # 14-day wave has been submitted against the wrong deck.
+        raise SystemExit(
+            "refusing a gated submit: this spec was rendered from a coupling template "
+            "that is not the template of record (ADR-041 V7). A mitigated stack becomes "
+            "the campaign configuration only through the adoption commit that moves the "
+            "template of record, never through a flag."
+        )
     if gated_intent and not spec.gated:
         raise SystemExit(
             "refusing a gated submit: the gate predicate returned False — either the "

@@ -216,3 +216,78 @@ def test_a_short_run_is_died_undiagnosed_not_eliminated(
     assert written["verdict"] == "died-undiagnosed"
     assert written["windows_reached"] == 300
     assert written["windows_requested"] == 8000
+
+
+# --- ADR-041 V7: the template-of-record fence ------------------------------------------
+
+
+def test_the_fence_can_only_refuse_never_gate() -> None:
+    """V7 adds a conjunct to ADR-040 L5, and a conjunct cannot promote anything.
+
+    The five inputs stay necessary and none is replaced: with the sentinels unfilled the
+    derivation is False whatever the template says, and that is the property ADR-039's P4
+    mechanism rests on.
+    """
+    from aero.adapters.precice.template import template_sha256
+    from aero.vv.fsi.hg2007_flexible_foil import (
+        hg2007_case_spec,
+        is_gated_configuration_040,
+        is_template_of_record,
+    )
+
+    spec = hg2007_case_spec(
+        arm="flexible",
+        rung="mid",
+        time_window_size=2e-05,
+        max_time=0.16,
+        wall_clock_ceiling_s=43200,
+        numerics_label="adr040-candidate",
+        mpi_ranks=4,
+    )
+
+    assert is_template_of_record(spec.source.template_sha256)
+    assert is_template_of_record(template_sha256())
+    assert not is_template_of_record("0" * 64)
+    # the sentinels are unfilled, so the five-input predicate is False and so is `gated` --
+    # the fence has not made anything gated, and cannot.
+    assert not is_gated_configuration_040(
+        rung="mid",
+        time_window_size=2e-05,
+        max_time=0.16,
+        numerics_label="adr040-candidate",
+        mpi_ranks=4,
+    )
+    assert spec.gated is False
+
+
+def test_a_non_record_template_can_never_carry_the_gated_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fence lives in the FACTORY, not only at the submission boundary.
+
+    `--probe` submits with `gated_intent=False`, so a boundary-only check would let a
+    probe at the gated five-tuple mint a bundle claiming `gated=True` the moment B2's
+    sentinels were filled — on a coupling template the campaign never adopted.
+    """
+    import aero.vv.fsi.hg2007_flexible_foil as campaign
+
+    # Arm the five-input predicate exactly as filling B2's sentinels would.
+    monkeypatch.setattr(campaign, "GATED_040_TIME_WINDOW_S", 2e-05)
+    monkeypatch.setattr(campaign, "GATED_040_MAX_TIME_S", 0.16)
+    monkeypatch.setattr(campaign, "GATED_040_NUMERICS_LABEL", "adr040-candidate")
+    monkeypatch.setattr(campaign, "GATED_040_MPI_RANKS", 4)
+    knobs = dict(
+        arm="flexible",
+        rung="mid",
+        time_window_size=2e-05,
+        max_time=0.16,
+        wall_clock_ceiling_s=43200,
+        numerics_label="adr040-candidate",
+        mpi_ranks=4,
+    )
+
+    assert campaign.hg2007_case_spec(**knobs).gated is True
+
+    # ...and now the same five inputs rendered from a template that is not the record.
+    monkeypatch.setattr(campaign, "is_template_of_record", lambda _digest: False)
+    assert campaign.hg2007_case_spec(**knobs).gated is False

@@ -212,6 +212,19 @@ def is_gated_configuration(*, rung: str, time_window_size: float, max_time: floa
     )
 
 
+#: ADR-041 V7 — the campaign's TEMPLATE OF RECORD. The gated verdict is derived from
+#: ADR-040 L5's five inputs AND this: a spec rendered from any other coupling template is
+#: a different case, whatever its five knobs say. Moving this is what a D-B adoption
+#: commit does, and nothing else moves it. It cannot make a configuration gated — it can
+#: only refuse one — so L5's five inputs remain necessary exactly as pre-registered.
+TEMPLATE_OF_RECORD = HG2007_TEMPLATE
+
+
+def is_template_of_record(template_sha256_hex: str) -> bool:
+    """ADR-041 V7's conjunctive fence, as a predicate so tests can state it directly."""
+    return template_sha256_hex == template_sha256()
+
+
 #: ADR-041 V1's closed verdict vocabulary for a ladder rung. Closed on purpose: every
 #: outcome a probe can have maps to exactly one of these, so no rung is ever left in a
 #: state the pre-registration did not name, and "we will decide when we see it" is not
@@ -468,16 +481,23 @@ def hg2007_case_spec(
         # permanently, so its predicate is permanently False and the live gate is the
         # five-input one. Both are checked, so filling either one's sentinels arms the
         # gate and neither can be bypassed by the other's absence.
-        gated=is_gated_configuration(
-            rung=rung, time_window_size=time_window_size, max_time=max_time
+        #
+        # ADR-041 V7 adds the template-of-record as a CONJUNCT, here in the factory rather
+        # than only at the submission boundary: --probe submits with gated_intent=False,
+        # so a probe at the gated five-tuple carrying a non-record coupling template would
+        # otherwise mint a bundle claiming gated=True the moment B2's sentinels are filled.
+        # It can only ever refuse; the five inputs stay necessary.
+        gated=(
+            is_gated_configuration(rung=rung, time_window_size=time_window_size, max_time=max_time)
+            or is_gated_configuration_040(
+                rung=rung,
+                time_window_size=time_window_size,
+                max_time=max_time,
+                numerics_label=numerics_label,
+                mpi_ranks=mpi_ranks,
+            )
         )
-        or is_gated_configuration_040(
-            rung=rung,
-            time_window_size=time_window_size,
-            max_time=max_time,
-            numerics_label=numerics_label,
-            mpi_ranks=mpi_ranks,
-        ),
+        and is_template_of_record(template_sha256()),
     )
 
 
