@@ -64,7 +64,14 @@ from aero.adapters.precice.case import (  # noqa: E402
     spec_config_digest,
 )
 from aero.adapters.precice.launcher import stage_coupled  # noqa: E402
-from aero.adapters.precice.logs import find_iterations_logs, read_iterations_log  # noqa: E402
+from aero.adapters.precice.logs import (  # noqa: E402
+    SolidLogError,
+    evaluate_divergence,
+    find_iterations_logs,
+    read_iterations_log,
+    read_solid_residuals,
+    solid_log_path,
+)
 from aero.adapters.precice.schedule import (  # noqa: E402
     common_windows,
     select_windows,
@@ -1229,6 +1236,34 @@ def _q1_series(case_root: Path) -> tuple[NDArray[np.float64], NDArray[np.float64
     return index[keep], fx[keep]
 
 
+def _report_divergence(case_root: Path, *, live: bool) -> None:
+    """Print the ADR-041 V2 detector's verdict for a run. Read-only; never kills.
+
+    V4 makes this part of ALL polling, so a solid-side divergence can never again run for
+    150 windows with nothing watching. It observes and reports: acting on an alarm is an
+    operator decision, and on attempt-1 evidence the report arrives ~43 windows before the
+    abort it precedes.
+
+    Absent-log semantics are asymmetric on purpose. While a run is LIVE the solid
+    participant may simply not have written yet, which is "no data yet"; on a run that has
+    finished or failed, a missing Solid.log means the solid never started, and that is
+    loud.
+    """
+    path = solid_log_path(case_root)
+    try:
+        series = read_solid_residuals(path)
+    except SolidLogError as exc:
+        if live:
+            print(f"  ADR-041 detector: no data yet ({exc})")
+            return
+        print(f"  ADR-041 detector: NO SOLID LOG — {exc}")
+        return
+    report = evaluate_divergence(series, exclude_last_window=live)
+    print(f"  {report.one_line()}")
+    for finding in report.findings:
+        print(f"    FIRED [{finding.prong}] at window {finding.fired_at_window}: {finding.detail}")
+
+
 def _project_n3(args: argparse.Namespace) -> int:
     """Project a RUNNING N3 from its own log, so a doomed run is spotted at the ramp.
 
@@ -1256,6 +1291,7 @@ def _project_n3(args: argparse.Namespace) -> int:
 
     cost = read_fluid_cost_history(case_root / "Fluid.log")
     courant = read_courant_history(case_root / "Fluid.log")
+    _report_divergence(case_root, live=True)
     n = min(len(cost.steps), len(courant.t))
     clock = np.asarray([s.clock_time_s for s in cost.steps[:n]], dtype=np.float64)
     window = np.rint(np.asarray(courant.t[:n], dtype=np.float64) / dt).astype(np.int64) + 1
@@ -2181,6 +2217,13 @@ def main(argv: list[str] | None = None) -> int:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
         print(result.stdout.strip() or result.stderr.strip())
+        # ADR-041 V4: the detector rides every poll. run_long.sh's status codes are
+        # 0 done / 1 failed / 2 running / 3 unknown / 4 vanished -- only 2 is live, and
+        # only on a live run is a missing Solid.log benign.
+        _report_divergence(
+            Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME,
+            live=result.returncode == 2,
+        )
         return result.returncode
     if args.collect:
         return _collect_arm(args)
