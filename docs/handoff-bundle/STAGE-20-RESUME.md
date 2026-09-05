@@ -433,6 +433,29 @@ idle. The operator decision — deck bytes (a) / coupling config (b) / ccx build
 hash-exempt observability only (d), each with its ADR consequences — is queued in handoff
 §6.49, and the SESSION-13 path in handoff §7 carries the mechanics.
 
+## 6i. SESSION 13 — ADR-041 drafted and with the operator; three §6.49 sentences corrected
+
+Read handoff §6.50 — it is the record. Step-0 re-verification passed (NFS mounted, mining
+dir intact, aero-dev IDLE by exact-name pgrep with zero tmux sessions, 962 green + 2 skips,
+mypy clean, tree clean at `ab5a11f`). **ADR-041 is DRAFTED, adversarially verified over
+three rounds, and waiting on the operator's acceptance — that gate is real and nothing
+implements or runs until it is passed.** B0 untouched at 134 h; nothing submitted.
+
+Four things session 13 established that outlive the ADR decision: (1) §6.49's "443 N
+watchdog fires ~w1650" is refuted — the measured first crossing is **w1683**, 20 windows
+pre-death; (2) §6.49's "even windows monotonically decrease" is wrong in direction — they
+RISE 17.490 → 18.586 N then sag 0.7 %, a +6.3 % swing (the 47.8x-vs-6.3 % parity split is
+the fact that matters); (3) an **absolute** newton threshold cannot serve as the campaign
+watchdog at all — the healthy envelope tracks the load — while **parity** separates sick
+from healthy with margin on three datasets (worst healthy 20-window odd/even ratio: 1.81
+flexible, 1.53 Q1, **2.45 on the rigid arm's complete 76 090-window full-amplitude run**,
+against 3.21 → 76.63 on the dying arm); (4) **preCICE forbids serial-implicit from
+accelerating first→second data**, so a D-B rung cannot keep IQN-ILS on
+`{Displacement, Force}` — it drops to `{Displacement}`, a second frozen C1 element, forced
+not chosen. Also: `--record-q1`'s default `--out` OVERWRITES the accepted Q1 record, and
+`_reattach` rebuilds through the builder default, so that default may never flip without a
+frozen legacy constant in the reattach path.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
 **START HERE (session 13): read handoff §6.49 and its SESSION-13 RESUMPTION PATH. The

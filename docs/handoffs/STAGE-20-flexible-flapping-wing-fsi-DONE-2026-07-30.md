@@ -1730,6 +1730,63 @@ gated campaign's 1.17 M windows at FULL amplitude cannot run on the unmitigated 
 regardless of the memory bug — which makes (d)-alone a fragile bet and (a)/(b) the
 branches that address the disease rather than the coroner's report.
 
+### 6.50 SESSION 13 (2026-09-05) — ADR-041 drafted, and THREE of §6.49's sentences corrected
+
+Step-0 re-verification: NFS mounted rw/hard (24 T free), mining dir intact, aero-dev IDLE
+(exact-name `pgrep -x` for `pimpleFoam`/`ccx_preCICE`/`ccx_2.20`/`mpirun` all empty; zero
+tmux sessions), tree clean at `ab5a11f`, **962 tests green + 2 skips, mypy clean on
+`aero/`**. Nothing was submitted this session up to this point; B0 stands at 134 h.
+
+**ADR-041 was drafted and adversarially verified BEFORE going to the operator** (three
+rounds: 4 skeptics on the first draft, 2 on the revision, 2 on the rewrite). The first
+two rounds found 3 blockers and 14 majors between them; the ADR was rewritten twice. Four
+findings are worth carrying forward regardless of what the operator decides about the ADR:
+
+1. **§6.49's "a 443 N absolute watchdog would have fired at ~w1650" is REFUTED by its own
+   table.** The first window whose max absolute residual exceeds 443 N is **w1683**
+   (474.19 N) — 20 windows before death, not 53. ~w1650 is where an idealized
+   doubling-every-26-windows fit crosses 443 N, not where the measured series does.
+2. **§6.49's "even windows monotonically DECREASE (18.585 → 18.464 N)" is wrong in
+   direction.** Over w1558-1700 the even-window maxima RISE monotonically from 17.490 N
+   (w1558) to 18.586 N (w1662), then sag 0.7 % to 18.461 N (w1698) — a +6.3 % swing, not a
+   decrease. The parity split itself is untouched and is what matters: **47.8x on the odd
+   branch against 6.3 % on the even one**.
+3. **An ABSOLUTE newton threshold cannot be the campaign's watchdog at all**, which is why
+   ADR-041 does not use one. The healthy per-100-window residual ceiling tracks the
+   commanded load (0.65 → 24.49 N over w1-1500, excluding the w1 startup transient of
+   1.883 N at ~1e-7 % of amplitude), and full campaign amplitude is another ~16x beyond
+   w1500. Any threshold quiet during the ramp is guaranteed to fire on healthy
+   full-amplitude operation. What separates sick from healthy is **parity**, measured on
+   three datasets: worst 20-window odd/even ratio (both parities ≥ 1.0 N) is **1.81**
+   (flexible healthy w101-1540), **1.53** (Q1 control), and **2.45** on the RIGID arm's
+   COMPLETE 76 090-window run — the only healthy coupled data at full amplitude — against
+   **3.21 → 5.48 → 10.14 → 21.08 → 76.63** over the dying arm's last five chunks.
+4. **preCICE forbids the D-B rung as "rename one element".** Its documentation states that
+   *"for serial coupling, you can only configure primary data from coupling data which is
+   exchanged from the `second` to the `first` participant"* — and the pinned template
+   exchanges `Force` Fluid→Solid (first→second) while accelerating BOTH data. A
+   serial-implicit variant therefore cannot keep the IQN-ILS primary-data set
+   `{Displacement, Force}`; it becomes `{Displacement}`. That is a SECOND frozen C1
+   element, forced rather than chosen, and it changes the quasi-Newton acceleration
+   itself. Any future session considering serial-implicit must budget for that.
+
+Also verified for the record: `--record-q1` writes `args.out or
+data/vv/stage20_q1_equivalence.json` (driver line 1537) — **the default overwrites the
+accepted unmitigated Q1 record**, so any re-run must pass an explicit `--out`;
+`_reattach` rebuilds via `hg2007_case_spec(**spec_knobs)`, so a builder-default flip would
+retro-break every existing submission (both uncollected N3 attempt-1 records included) —
+ADR-041 pins a frozen `LEGACY_COUPLING_SCHEME` in the reattach path instead; and the
+window-count round trip re-checked: 8000 and 4000 survive `.13e`, 6000 does not.
+
+**The ADR text is with the operator. Nothing else has run.** The draft is on disk,
+deliberately UNCOMMITTED, at
+`docs/adrs/ADR-041-flexible-arm-ccx-instability-mitigation-ladder.md` — its own header
+says acceptance is recorded in the commit that lands the file (the ADR-040 `d5bf381`
+pattern), so it lands accepted or not at all. If a session opens and that file is absent,
+it was never accepted and the ladder was never authorized: re-derive it from this section
+plus §6.49 rather than assuming any part of it ran. Its verdict vocabulary, detector
+bounds and the 35 h ladder cap are the parts a re-derivation must not soften.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
