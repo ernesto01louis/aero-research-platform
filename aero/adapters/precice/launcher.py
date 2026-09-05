@@ -54,6 +54,38 @@ class CoupledLaunchError(RuntimeError):
     """A coupled run could not be launched, or produced no usable status."""
 
 
+class ObservabilityOptions(BaseModel):
+    """Hash-exempt run-time observability (ADR-041 V5).
+
+    None of this reaches ``CoupledCaseSpec``, and that is the point: ``config_hash`` is a
+    digest of the serialized spec, so putting these in ``ParticipantSpec.env`` -- which IS
+    hashed -- would move every digest and break both ``_reattach`` and the live digest
+    pins. They live in the launcher's command bytes instead, where they change what is
+    observed and nothing about what is computed.
+
+    ``malloc_check`` is deliberately NOT a default. It selects glibc's checking allocator
+    for both participants and its cost is unmeasured, while N3's post-ramp ClockTime is
+    the only number ADR-040 permits to size B2, against a ceiling with ~23 % headroom.
+    ADR-041 V5 therefore scopes it to ladder rungs and keeps it off for Q1, N3, the fine
+    I7 probe and the campaign.
+    """
+
+    model_config = _STRICT
+
+    core_dumps: bool = Field(
+        default=False,
+        description="ulimit -c unlimited inside the uid drop, so an abort names its site.",
+    )
+    malloc_check: bool = Field(
+        default=False,
+        description="MALLOC_CHECK_=3: glibc aborts at detection, not at the next free.",
+    )
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.core_dumps or self.malloc_check
+
+
 class CoupledLaunchPlan(BaseModel):
     """Everything the supervisor script needs, resolved to remote paths."""
 
@@ -75,6 +107,10 @@ class CoupledLaunchPlan(BaseModel):
             "precice-run/ beside the config one level in -- these are not the same "
             "directory and the stale-socket cleanup has to target the latter."
         ),
+    )
+    observability: ObservabilityOptions = Field(
+        default_factory=ObservabilityOptions,
+        description="ADR-041 V5 run-time observability; never enters config_hash.",
     )
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
@@ -146,7 +182,11 @@ class CoupledRunResult(BaseModel):
 
 
 def build_participant_command(
-    participant: ParticipantSpec, *, case_root_remote: str, sif_path: str
+    participant: ParticipantSpec,
+    *,
+    case_root_remote: str,
+    sif_path: str,
+    observability: ObservabilityOptions | None = None,
 ) -> str:
     """The full ``apptainer exec`` command for one participant. Pure; unit-test-pinned.
 
@@ -171,6 +211,15 @@ def build_participant_command(
     # silently fail to reach the participant, and the only symptom would be at run time
     # (upstream's run.sh trying to build a venv from the network inside the SIF).
     parts = [f"cd {shlex.quote(participant.workdir)}"]
+    # ADR-041 V5, and it goes HERE for two reasons: after the `cd`, so a core lands in the
+    # participant's own workdir rather than wherever the supervisor started; and inside
+    # the compound that `setpriv ... bash -lc` wraps, so it applies after the uid drop.
+    # The brace group is not cosmetic -- `a && ulimit ... || true && b` parses as
+    # `(a && ulimit) || (true && b)`, which runs the solver only when the ulimit FAILS.
+    if observability is not None and observability.core_dumps:
+        parts.append("{ ulimit -c unlimited 2>/dev/null || true; }")
+    if observability is not None and observability.malloc_check:
+        parts.append("export MALLOC_CHECK_=3")
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
@@ -230,6 +279,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
             participant,
             case_root_remote=plan.case_root_remote,
             sif_path=plan.sif_paths[participant.sif],
+            observability=plan.observability,
         )
         log = f"$CASE_ROOT/{participant.name}.log"
         lines += [

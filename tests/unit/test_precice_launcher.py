@@ -18,6 +18,7 @@ import pytest
 from aero.adapters.precice.case import ParticipantSpec
 from aero.adapters.precice.launcher import (
     CoupledLaunchPlan,
+    ObservabilityOptions,
     build_participant_command,
     read_coupled_status,
     render_supervisor_script,
@@ -364,3 +365,125 @@ def test_missing_status_is_loud(tmp_path: Path) -> None:
         read_coupled_status(
             tmp_path / "coupled-status.json", case_root_host=tmp_path, executor_returncode=0
         )
+
+
+# --- ADR-041 V5: hash-exempt observability ---------------------------------------------
+
+
+def test_observability_is_off_unless_asked_for() -> None:
+    """The default must not move a single byte of the pinned participant command.
+
+    Everything above pins these bytes exactly, and `_reattach`'s digest guard plus the
+    live N3 digest pins rest on the spec rather than the launcher — but a launcher default
+    that quietly changed the command would still make every historical run's supervisor
+    unreproducible for no gain.
+    """
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-calculix", command="./run.sh", sif="precice-fsi.sif"
+    )
+    bare = build_participant_command(participant, case_root_remote="/case", sif_path="/x.sif")
+    defaulted = build_participant_command(
+        participant,
+        case_root_remote="/case",
+        sif_path="/x.sif",
+        observability=ObservabilityOptions(),
+    )
+
+    assert bare == defaulted
+    assert "ulimit" not in bare
+    assert "MALLOC_CHECK_" not in bare
+
+
+def test_observability_lands_after_the_cd_and_inside_the_uid_drop() -> None:
+    """A core is only useful where it can be written, and only if the drop keeps it.
+
+    ADR-041 V5 puts these in the launcher's command bytes rather than
+    `ParticipantSpec.env`, which is a hashed field: routing them through the spec would
+    move every `config_hash` and break `_reattach` on records that describe runs already
+    on disk.
+    """
+    participant = ParticipantSpec(
+        name="Solid",
+        workdir="solid-calculix",
+        command="./run.sh",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+    )
+    command = build_participant_command(
+        participant,
+        case_root_remote="/case",
+        sif_path="/x.sif",
+        observability=ObservabilityOptions(core_dumps=True, malloc_check=True),
+    )
+
+    # The apptainer wrapper opens its own `bash -lc`; the participant's compound is the
+    # LAST one, the shell setpriv starts after dropping the uid.
+    inner = command[command.rindex("bash -lc ") :]
+    assert inner.index("cd solid-calculix") < inner.index("ulimit -c unlimited")
+    assert inner.index("ulimit -c unlimited") < inner.index("./run.sh")
+    assert inner.index("export MALLOC_CHECK_=3") < inner.index("./run.sh")
+    # setpriv drops the uid BEFORE that shell runs, so both apply to the solver.
+    assert command.index("setpriv") < command.rindex("bash -lc")
+
+
+def test_the_solver_still_runs_when_the_ulimit_is_refused(shim_bin: Path, tmp_path: Path) -> None:
+    """The brace group is load-bearing, not cosmetic.
+
+    Written as `cd X && ulimit -c unlimited || true && solver`, shell precedence gives
+    `(cd && ulimit) || (true && solver)` — so the solver runs only when the ulimit FAILS,
+    and a hardened host with `ulimit -c 0` would silently invert the run. This asserts the
+    observable consequence: a refused ulimit costs nothing.
+    """
+    root = tmp_path / "case"
+    (root / "solid-nutils").mkdir(parents=True)
+    probe = root / "solid-nutils" / "run.sh"
+    # Drop the hard limit to 0 first, so the `ulimit -c unlimited` that follows cannot
+    # succeed: a hard limit is irreversible within a process tree.
+    probe.write_text('#!/usr/bin/env bash\necho "SOLVER RAN"\n', encoding="utf-8")
+    probe.chmod(probe.stat().st_mode | stat.S_IEXEC)
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-nutils", command="ulimit -H -c 0; ./run.sh", sif="p.sif"
+    )
+    plan = CoupledLaunchPlan(
+        case_root_remote=str(root),
+        participants=(participant,),
+        sif_paths={"p.sif": "/x.sif"},
+        wall_clock_ceiling_s=120,
+        poll_interval_s=1,
+        term_grace_s=2,
+        observability=ObservabilityOptions(core_dumps=True, malloc_check=True),
+    )
+
+    _, result = _run(plan, root, shim_bin, "ulimittest")
+
+    assert result.ok
+    log = (root / "Solid.log").read_text(encoding="utf-8")
+    assert "SOLVER RAN" in log
+
+
+def test_malloc_check_reaches_the_participant(shim_bin: Path, tmp_path: Path) -> None:
+    """It has to be visible to ccx itself, or it observes nothing."""
+    root = tmp_path / "case"
+    (root / "solid-nutils").mkdir(parents=True)
+    probe = root / "solid-nutils" / "run.sh"
+    probe.write_text(
+        '#!/usr/bin/env bash\necho "MALLOC_CHECK_=${MALLOC_CHECK_:-UNSET}"\n', encoding="utf-8"
+    )
+    probe.chmod(probe.stat().st_mode | stat.S_IEXEC)
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-nutils", command="./run.sh", sif="p.sif"
+    )
+    plan = CoupledLaunchPlan(
+        case_root_remote=str(root),
+        participants=(participant,),
+        sif_paths={"p.sif": "/x.sif"},
+        wall_clock_ceiling_s=120,
+        poll_interval_s=1,
+        term_grace_s=2,
+        observability=ObservabilityOptions(malloc_check=True),
+    )
+
+    _, result = _run(plan, root, shim_bin, "malloctest")
+
+    assert result.ok
+    assert "MALLOC_CHECK_=3" in (root / "Solid.log").read_text(encoding="utf-8")

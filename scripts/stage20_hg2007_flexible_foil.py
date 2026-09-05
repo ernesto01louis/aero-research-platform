@@ -63,7 +63,7 @@ from aero.adapters.precice.case import (  # noqa: E402
     assert_provenance_describes,
     spec_config_digest,
 )
-from aero.adapters.precice.launcher import stage_coupled  # noqa: E402
+from aero.adapters.precice.launcher import ObservabilityOptions, stage_coupled  # noqa: E402
 from aero.adapters.precice.logs import (  # noqa: E402
     SolidLogError,
     evaluate_divergence,
@@ -787,6 +787,13 @@ def _submission(path: Path) -> dict[str, Any]:
     return dict(data)
 
 
+#: ADR-041's ladder rungs, in the fixed cost order V1 adopts along. A probe carrying one
+#: of these is a DIAGNOSTIC probe: it runs with MALLOC_CHECK_ armed (V5), it is recorded
+#: as sizing nothing (V3), and no bundle built from it may ever reach the sizing rule.
+ADR041_RUNGS = ("D-A", "D-B", "D-C1", "D-C2")
+ADR041_PROBE_NOTE = "diagnostic probe under ADR-041; sizes nothing"
+
+
 def _prepare_and_submit(
     args: argparse.Namespace,
     *,
@@ -798,6 +805,7 @@ def _prepare_and_submit(
     label: str,
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
+    adr041_rung: str | None = None,
 ) -> Path:
     """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
@@ -837,6 +845,12 @@ def _prepare_and_submit(
         decomposition = json.loads(report.model_dump_json())
 
     plan = solver.launch_plan(case_dir)
+    # ADR-041 V5. Core dumps are on for every coupled run this driver submits -- the cost
+    # is a rlimit call and the next unexplained abort becomes a measurement instead of a
+    # mystery. MALLOC_CHECK_ is armed ONLY on a ladder rung: it is an unmeasured allocator
+    # perturbation, and N3's post-ramp ClockTime is the one number permitted to size B2.
+    observability = ObservabilityOptions(core_dumps=True, malloc_check=adr041_rung is not None)
+    plan = plan.model_copy(update={"observability": observability})
     staged = stage_coupled(
         plan,
         run_id=case_dir.run_id,
@@ -848,7 +862,18 @@ def _prepare_and_submit(
 
     submission = {
         "schema": SUBMISSION_SCHEMA,
-        "adr": "ADR-039" if numerics_label == "adr039-baseline" and mpi_ranks == 1 else "ADR-040",
+        "adr": (
+            "ADR-041"
+            if adr041_rung is not None
+            else (
+                "ADR-039" if numerics_label == "adr039-baseline" and mpi_ranks == 1 else "ADR-040"
+            )
+        ),
+        # ADR-041 V5: which observability was active is a FACT about the run, recorded
+        # here, not a discipline a later reader has to take on trust.
+        "observability": json.loads(observability.model_dump_json()),
+        "adr041_rung": adr041_rung,
+        "note": ADR041_PROBE_NOTE if adr041_rung is not None else None,
         "label": label,
         "arm": arm,
         "rung": rung,
@@ -2077,6 +2102,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ranks", type=int, default=1, help="fluid MPI ranks (ADR-040 L3 pre-registers 4)"
     )
+    parser.add_argument(
+        "--adr041-rung",
+        choices=ADR041_RUNGS,
+        default=None,
+        dest="adr041_rung",
+        help="mark this probe as an ADR-041 ladder rung: arms MALLOC_CHECK_ (V5) and "
+        "records the probe as sizing nothing (V3). Diagnostic only — a rung probe is "
+        "flexible-arm, uncontended, and can never size B2",
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
@@ -2134,6 +2168,7 @@ def main(argv: list[str] | None = None) -> int:
             label="probe",
             numerics_label=args.numerics,
             mpi_ranks=args.ranks,
+            adr041_rung=args.adr041_rung,
         )
         return 0
     if args.collect_probe:
