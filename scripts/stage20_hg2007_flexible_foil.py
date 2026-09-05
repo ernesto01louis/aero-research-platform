@@ -65,6 +65,14 @@ from aero.adapters.precice.case import (  # noqa: E402
 )
 from aero.adapters.precice.launcher import ObservabilityOptions, stage_coupled  # noqa: E402
 from aero.adapters.precice.logs import (  # noqa: E402
+    ACTIVATION_FLOOR_N,
+    BLOCK_GROWTH_LIMIT,
+    BLOCK_WINDOWS,
+    CHUNK_WINDOWS,
+    GRID_START_WINDOW,
+    MIN_ACTIVE_FRACTION,
+    PARITY_CONSECUTIVE_CHUNKS,
+    PARITY_RATIO_LIMIT,
     SolidLogError,
     evaluate_divergence,
     find_iterations_logs,
@@ -96,6 +104,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     GATED_TIME_WINDOW_S,
     NUMERICS_STACKS,
     RUNGS,
+    adr041_rung_verdict,
     evaluate_predicates,
     hg2007_case_spec,
     is_gated_configuration,
@@ -1261,6 +1270,96 @@ def _q1_series(case_root: Path) -> tuple[NDArray[np.float64], NDArray[np.float64
     return index[keep], fx[keep]
 
 
+def _adr041_evaluate(args: argparse.Namespace) -> int:
+    """Evaluate an ADR-041 ladder rung and write its evidence beside the run (V1/V2).
+
+    The verdict is DERIVED, never typed in: the detector's report plus the run's own
+    outcome map onto V1's closed vocabulary by ``adr041_rung_verdict``. What lands on NFS
+    is the extracted per-window series (the same five columns session 12's
+    ``minerB_parse.awk`` emits, so the two are diffable), the verdict, and the bounds that
+    produced it -- everything a later reader needs to re-derive the decision without this
+    driver.
+    """
+    submission = _submission(Path(args.adr041_evaluate))
+    rung = submission.get("adr041_rung")
+    if rung is None:
+        raise SystemExit(
+            f"{args.adr041_evaluate} is not an ADR-041 ladder rung (no adr041_rung). "
+            "Evaluating an ordinary probe under the ladder's rule would put a verdict on "
+            "a run the pre-registration never scoped."
+        )
+    run_id = submission["run_id"]
+    case_root = Path(submission["case_host_path"]) / CASE_ROOT_DIRNAME
+    status = _run_long("status", f"root@{submission['host']}", submission["session"])
+    state = (status.stdout.strip() or status.stderr.strip()).split(":")[-1].strip()
+    if status.returncode == 2:
+        raise SystemExit(
+            f"{submission['session']} is still running ({state}); a rung verdict is taken "
+            "on a finished probe, and ADR-041 V1 spends the rung's one verdict when it is."
+        )
+
+    series = read_solid_residuals(solid_log_path(case_root))
+    report = evaluate_divergence(series)
+    requested = round(
+        submission["spec_knobs"]["max_time"] / submission["spec_knobs"]["time_window_size"]
+    )
+    reached = series.last_window
+    completed = status.returncode == 0 and reached >= requested
+    verdict, why = adr041_rung_verdict(report, completed=completed)
+
+    out_dir = Path(submission["case_host_path"])
+    tsv = out_dir / f"adr041-{rung}-solid-residuals.tsv"
+    with tsv.open("w", encoding="utf-8") as handle:
+        handle.write("window\tn_resid\tmax_abs_resid\targmax_node\tn_noconv\n")
+        for w in series.windows:
+            handle.write(
+                f"{w.window}\t{w.n_residuals}\t{w.max_abs_residual:.6g}\t"
+                f"{w.argmax_node if w.argmax_node is not None else -1}\t{w.n_no_convergence}\n"
+            )
+    record = {
+        "adr": "ADR-041",
+        "rung": rung,
+        "note": ADR041_PROBE_NOTE,
+        "run_id": run_id,
+        "session": submission["session"],
+        "run_state": state,
+        "run_returncode": status.returncode,
+        "windows_requested": requested,
+        "windows_reached": reached,
+        "completed": completed,
+        "verdict": verdict,
+        "why": why,
+        "detector": json.loads(report.model_dump_json()),
+        "bounds": {
+            "grid_start_window": GRID_START_WINDOW,
+            "chunk_windows": CHUNK_WINDOWS,
+            "block_windows": BLOCK_WINDOWS,
+            "activation_floor_n": ACTIVATION_FLOOR_N,
+            "parity_ratio_limit": PARITY_RATIO_LIMIT,
+            "parity_consecutive_chunks": PARITY_CONSECUTIVE_CHUNKS,
+            "block_growth_limit": BLOCK_GROWTH_LIMIT,
+            "min_active_fraction": MIN_ACTIVE_FRACTION,
+        },
+        "observability": submission.get("observability"),
+        "series_tsv": str(tsv),
+        "evaluated_at": _utc_now(),
+    }
+    verdict_path = out_dir / f"adr041-{rung}-verdict.json"
+    verdict_path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    print(f"ADR-041 {rung} verdict: {verdict.upper()}")
+    print(f"  {report.one_line()}")
+    for finding in report.findings:
+        print(f"    FIRED [{finding.prong}] at window {finding.fired_at_window}: {finding.detail}")
+    print(
+        f"  windows {reached}/{requested}, run {state} (rc={status.returncode}), completed={completed}"
+    )
+    print(f"  why: {why}")
+    print(f"  wrote {tsv}")
+    print(f"  wrote {verdict_path}")
+    return 0
+
+
 def _report_divergence(case_root: Path, *, live: bool) -> None:
     """Print the ADR-041 V2 detector's verdict for a run. Read-only; never kills.
 
@@ -2111,6 +2210,14 @@ def main(argv: list[str] | None = None) -> int:
         "records the probe as sizing nothing (V3). Diagnostic only — a rung probe is "
         "flexible-arm, uncontended, and can never size B2",
     )
+    parser.add_argument(
+        "--adr041-evaluate",
+        type=Path,
+        dest="adr041_evaluate",
+        metavar="RUNG_SUBMISSION",
+        help="evaluate a finished ADR-041 ladder rung under V2 and write its verdict, "
+        "its per-window series and the bounds that produced them beside the run",
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
@@ -2248,6 +2355,8 @@ def main(argv: list[str] | None = None) -> int:
             mpi_ranks=GATED_040_MPI_RANKS,
         )
         return 0
+    if args.adr041_evaluate:
+        return _adr041_evaluate(args)
     if args.status:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
@@ -2266,8 +2375,8 @@ def main(argv: list[str] | None = None) -> int:
         return _verdict(args)
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
-        "--record-q1 / --project-n3 / --submit / --submit-040 / --status / --collect / "
-        "--verdict"
+        "--record-q1 / --project-n3 / --adr041-evaluate / --submit / --submit-040 / "
+        "--status / --collect / --verdict"
     )
 
 

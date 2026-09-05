@@ -51,6 +51,7 @@ from aero.adapters.precice.case import (
     CoupledCaseSpec,
     ParticipantSpec,
 )
+from aero.adapters.precice.logs import DivergenceReport
 from aero.adapters.precice.template import HG2007_TEMPLATE, RENDERER_VERSION, template_sha256
 from aero.postprocess.flapping_kinematics import FlappingKinematics
 from aero.vv._base import BenchmarkError, MetricSpec, ReferenceData, Series, SolverLike
@@ -209,6 +210,49 @@ def is_gated_configuration(*, rung: str, time_window_size: float, max_time: floa
         and time_window_size == GATED_TIME_WINDOW_S
         and max_time == GATED_MAX_TIME_S
     )
+
+
+#: ADR-041 V1's closed verdict vocabulary for a ladder rung. Closed on purpose: every
+#: outcome a probe can have maps to exactly one of these, so no rung is ever left in a
+#: state the pre-registration did not name, and "we will decide when we see it" is not
+#: reachable from here.
+Adr041RungVerdict = Literal[
+    "eliminated",
+    "recurrence-detected",
+    "died-undiagnosed",
+    "inconclusive",
+]
+
+
+def adr041_rung_verdict(
+    report: DivergenceReport, *, completed: bool
+) -> tuple[Adr041RungVerdict, str]:
+    """Map a detector report plus a run outcome onto ADR-041 V1's vocabulary.
+
+    ``completed`` is the run's own outcome: every requested window finished, all
+    participants exited, nothing was killed.
+
+    The ordering is the pre-registration's, not a convenience: **a fired prong wins even
+    if the probe then died**, because the signature is what the ladder is testing and a
+    death on top of it adds nothing. A probe that dies with no prong having fired is
+    DIED-UNDIAGNOSED and terminal for its rung -- a death is what the ladder exists to
+    prevent, and elimination requires the full span, so "it crashed before the detector
+    could see anything" cannot buy a retry. Only INCONCLUSIVE (the probe completed but the
+    series was truncated, or the detector was inert below the activation floor) leaves the
+    rung's verdict unspent, and V1 allows exactly one re-probe for it.
+    """
+    if report.fired:
+        return "recurrence-detected", report.reason
+    if not completed:
+        return (
+            "died-undiagnosed",
+            "the probe did not complete its span and no prong had fired — terminal for "
+            "this rung under ADR-041 V1, whose only relief is the infrastructure "
+            "exception V1(a)",
+        )
+    if report.verdict == "clean":
+        return "eliminated", report.reason
+    return "inconclusive", report.reason
 
 
 def is_gated_configuration_040(
