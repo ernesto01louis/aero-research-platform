@@ -1,6 +1,8 @@
 Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). Resuming a partial stage,
 session 13. Repo /root/projects/aero-research-platform, branch
-stage-20-flexible-flapping-wing-fsi, tip ab0509a, PR #44 (draft), 962 tests green + 2
+stage-20-flexible-flapping-wing-fsi (tip = latest on the branch — verify with git log;
+session 12's record is ab0509a, this prompt's add-commit a4c5866), PR #44 (draft),
+962 tests green + 2
 pre-existing skips (`PATH="$PWD/.venv/bin:$PATH" pytest -q tests/unit tests/stage_20`),
 mypy clean on aero/, tree clean, pushed. aero-dev is IDLE, nothing is running anywhere,
 and **N3 is NOT running — session 12 deliberately did not resubmit it.**
