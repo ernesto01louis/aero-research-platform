@@ -456,6 +456,19 @@ not chosen. Also: `--record-q1`'s default `--out` OVERWRITES the accepted Q1 rec
 `_reattach` rebuilds through the builder default, so that default may never flip without a
 frozen legacy constant in the reattach path.
 
+## 6j. SESSION 13 (cont.) — ADR-041 ACCEPTED; D-A is on the box
+
+Handoff §6.51 is the record. ADR-041 was **accepted** (`2bbfdd4`) and implemented in the
+mandated order: the divergence detector in every poll (`b962c7d`), core-dump + MALLOC_CHECK_
+observability recorded in the submission JSON (`b6da94f`). Suite 979 green, mypy clean.
+
+**START HERE if the box looks busy: the D-A ladder rung is RUNNING** —
+`fsi-hg2007_flexible_foil-20260905-220206`, submitted 2026-09-05 22:02 UTC, 8000 windows,
+uncontended, ~3-9 h. Poll with `--status` (the detector prints on every poll). NOTHING
+else runs on aero-dev until it lands — a contended rung is not the pre-registered
+measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
+unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
 **START HERE (session 13): read handoff §6.49 and its SESSION-13 RESUMPTION PATH. The

@@ -1787,6 +1787,56 @@ it was never accepted and the ladder was never authorized: re-derive it from thi
 plus §6.49 rather than assuming any part of it ran. Its verdict vocabulary, detector
 bounds and the 35 h ladder cap are the parts a re-derivation must not soften.
 
+### 6.51 SESSION 13 — ADR-041 ACCEPTED, the detector shipped, and D-A IS RUNNING
+
+**The operator accepted ADR-041 on 2026-09-05** (`2bbfdd4`; the ADR is
+`docs/adrs/ADR-041-flexible-arm-ccx-instability-mitigation-ladder.md`, and the acceptance
+IS that commit). Three commits implement it, in the mandated order:
+
+- `b962c7d` — **the divergence detector** (`aero/adapters/precice/logs.py`:
+  `read_solid_residuals`, `evaluate_divergence`), wired into `--status` and
+  `--project-n3`, so V4 holds: every future poll of every coupled run carries it.
+  Verified read-only against the runs themselves — dead arm PRECURSOR at **window 1660**
+  (43 windows pre-death), Q1 clean (1.53/1.70), rigid complete run **INCONCLUSIVE** at
+  4.8 % activation rather than a false "clean" — and the parser reproduces
+  `minerB_parse.awk` on all 1703 windows of the dead arm at that table's own precision.
+- `b6da94f` — **observability** (`ObservabilityOptions` on the launch plan, injected into
+  the participant compound inside the uid drop). Core dumps on for every coupled run this
+  driver submits; `MALLOC_CHECK_=3` armed ONLY on a ladder rung via the new
+  `--adr041-rung`; both recorded in the submission JSON. The library default is off, so no
+  byte-pinned participant command in the suite moved.
+- Suite **979 green + 2 skips**, mypy clean, pushed.
+
+**aero-dev pre-flight for the rung, recorded because V5 asks for it:**
+`kernel.core_pattern` is `core` — cores land as a file in the participant's own workdir,
+NOT piped to a collector — and the core rlimit is soft 0 / hard unlimited, so
+`ulimit -c unlimited` is raisable inside the drop. 31 GB free, box idle before submit.
+
+**D-A IS RUNNING — the box is NOT free.** Submitted 2026-09-05 22:02 UTC:
+
+```
+run_id   hg2007_flexible_foil-20260905-220206
+session  fsi-hg2007_flexible_foil-20260905-220206
+submission JSON  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260905-220206/ladder-DA-submission.json
+poll     bash scripts/run_long.sh status root@aero-dev fsi-hg2007_flexible_foil-20260905-220206
+         python scripts/stage20_hg2007_flexible_foil.py --status <submission JSON>   # prints the detector
+```
+
+8000 windows (0.16 s), flexible arm only, **uncontended**, mid rung, adr040-candidate,
+4 ranks, 12 h ceiling; `adr=ADR-041`, `adr041_rung=D-A`, `note="diagnostic probe under
+ADR-041; sizes nothing"`, `observability={core_dumps: true, malloc_check: true}`,
+`gated=False`, 4 processor dirs confirmed before submit. Expected ~3-9 h.
+
+**Nothing else may run on aero-dev until it finishes** — V3 registers rung probes as
+uncontended, and a contended rung is not the measurement the ADR pre-registered.
+
+Evaluate it with `--status` (the detector rides the poll) and then, per V1's closed
+verdict vocabulary: ELIMINATED / RECURRENCE-DETECTED / DIED-UNDIAGNOSED / INCONCLUSIVE /
+UNRESOLVED. **A clean D-A adopts the unmitigated stack and goes straight to the V6 Q1
+re-run; anything else steps the ladder to D-B**, whose serial template must be rendered
+and PARSED before its probe (D-B is BLOCKED if preCICE forces any change beyond the two
+the header already declares).
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
