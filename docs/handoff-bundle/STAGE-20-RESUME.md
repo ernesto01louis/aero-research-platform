@@ -469,6 +469,17 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6o. D-C2 IS RUNNING on the rebuilt solid container (adapter v2.20.2)
+
+Handoff §6.56-§6.57. Form 2 could not be a CalculiX bump — no adapter exists for 2.21/2.22
+— so ADR-042 X1a made it an ADAPTER bump v2.20.1 → v2.20.2 on CalculiX 2.20, which fixes
+uninitialized PreciceInterface counters and initialization-time memory access in the C
+between CalculiX and preCICE. Container rebuilt, signed, rostered (`4ca47da2…` →
+`ac0805d6…`), and smoked two-container clean before a rung was spent.
+`fsi-hg2007_flexible_foil-20260907-155350`, submitted 15:53 UTC, 8000 windows,
+parallel-implicit, 24 h ceiling, ~7.2 h projected. Poll with `--status`, take the verdict
+with `--adr041-evaluate`. Nothing else runs on aero-dev. Ladder: 1.99 h of 35 h before it.
+
 ## 6n. D-B DIED-UNDIAGNOSED at w88 — the box is idle and D-C needs an operator decision
 
 Handoff §6.55. Two facts change the picture: (1) the ccx heap corruption fires WITHOUT the

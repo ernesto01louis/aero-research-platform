@@ -2083,6 +2083,49 @@ confirmed to be our crash. The case for the rung is that it is cheap, that it is
 executable form-2-shaped change, and that the fixes are in the right component and of the
 right class.
 
+### 6.57 SESSION 13 — the solid container is REBUILT on adapter v2.20.2, and D-C2 IS RUNNING
+
+ADR-042 X1a accepted (`b7bb36c` carries the amendment and the rebuild). The chain, all
+verified rather than assumed:
+
+- **Built** on the usual split-host path (buildah on the Proxmox host, apptainer + signing
+  on aero-build). The baked adapter commit is
+  `f362a16d54a31985712f4c4302128f6923bd1d00`, which **is the v2.20.2 tag exactly**.
+- **Rostered**: `calculix-precice.sif` `4ca47da2…` → **`ac0805d6…`**, with the predecessor
+  left legible in the SHA256SUMS header because three dead runs name it. The deployed SIF
+  on aero-dev hashes to the new digest, and the run record's ADR-038 container list shows
+  it, so the provenance is the run's own rather than this note's.
+- **Smoked**: `stage20_calculix_smoke.py` (the pinned upstream perpendicular-flap, two
+  containers, non-gated) — `stopped_by=all-exited`, both participants rc=0 in 31 s. The
+  new adapter's plumbing works before a rung was spent on it.
+- CalculiX is UNCHANGED at 2.20, so I9's deck conventions are not re-opened and ADR-041's
+  header item 3 stands unused.
+
+**D-C2 IS RUNNING.** Submitted 2026-09-07 15:53 UTC:
+
+```
+run_id   hg2007_flexible_foil-20260907-155350
+session  fsi-hg2007_flexible_foil-20260907-155350
+submission  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260907-155350/ladder-DC2-submission.json
+poll     python scripts/stage20_hg2007_flexible_foil.py --status <submission JSON>
+verdict  python scripts/stage20_hg2007_flexible_foil.py --adr041-evaluate <submission JSON>
+```
+
+8000 windows, flexible only, uncontended, 4 ranks, adr040-candidate, **parallel-implicit**
+(D-B's serial is not adopted and not carried), both observability flags, and a **24 h
+ceiling** — set from D-A's 3.25 s/window (~7.2 h projected) with the margin D-B's first
+submit taught us to leave. **Nothing else runs on aero-dev until it lands.**
+
+Ladder budget: **1.99 h of 35 h** spent before this rung; D-C2 projects ~7.2 h.
+
+**What each outcome means.** ELIMINATED — the adapter bump is the adopted mitigation, and
+V6's Q1 re-run follows on it (on the parallel stack, so the campaign economics stay the
+~27 d/wave case rather than serial's ~48). RECURRENCE-DETECTED — the crash is gone or was
+never the whole story, but the parity divergence remains, and the ladder proceeds to D-C
+form 1 (`*CONTROLS` damping), which is the rung that targets the divergence and which
+permanently un-reattaches both attempt-1 records when its spec field lands.
+DIED-UNDIAGNOSED before w1400 — ADR-042 X2 allows exactly one re-probe.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
