@@ -1904,6 +1904,57 @@ ADR), and **if the parser forces any change beyond the two the ADR's header alre
 declares — the scheme element and the IQN-ILS primary-data set dropping to
 `{Displacement}` — D-B is BLOCKED pending its own operator-accepted ADR.**
 
+### 6.53 SESSION 13 — D-B's PARSE GATE PASSED (and proved the forced change); D-B IS RUNNING
+
+ADR-041 put a gate in front of D-B: preCICE, not the ADR, decides what serial coupling
+forces, and **any change beyond the two the header declares blocks the rung**. The gate was
+run against preCICE's own validator inside the SIF, and it passed:
+
+- `precice-config-validate serial.xml Fluid 4` and `... Solid 1` — **"No major issues
+  detected"**, exit 0, identical to the parallel control.
+- The counterfactual — the serial scheme with `Force` KEPT in the IQN-ILS data — is
+  **rejected by name**: *"For serial implicit coupling schemes, only data exchanged from
+  the second to the first participant can be used for acceleration ... you configured data
+  'Force' ... exchanged from 'Fluid' to 'Solid'. Please remove this acceleration data tag
+  or switch to a parallel implicit coupling scheme."* So the drop to `{Displacement}` is
+  **FORCED, measured rather than inferred from the documentation**.
+- **Nothing further is forced.** Both 5e-3 relative convergence measures survive
+  (the open question the docs could not settle), max-iterations 50, QR2 at 1e-2,
+  initial-relaxation 0.5, max-used-iterations 100, time-windows-reused 15 and the
+  participant order are all byte-identical to the parallel template. D-B needs no second
+  ADR.
+
+`0736e8a` lands the template and the knob. Two properties protect history and are tested:
+the scheme is a **keyword** selecting a committed template through `AuthoredSource.template`
+— never a pydantic field, which would move every digest — so the default path's digest is
+unchanged and **both live N3 pins still pass**, while a serial spec hashes differently by
+design (`a3189144…` against the parallel `72365ada…`); and `_reattach` supplies
+`LEGACY_COUPLING_SCHEME` explicitly for records written before the key, so flipping the
+builder's default at adoption can never retro-break a record describing a run on disk.
+
+**D-B IS RUNNING.** Submitted 2026-09-07 12:08 UTC:
+
+```
+run_id   hg2007_flexible_foil-20260907-120835
+session  fsi-hg2007_flexible_foil-20260907-120835
+submission  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260907-120835/ladder-DB-submission.json
+poll     python scripts/stage20_hg2007_flexible_foil.py --status <submission JSON>
+verdict  python scripts/stage20_hg2007_flexible_foil.py --adr041-evaluate <submission JSON>
+```
+
+Same span and shape as D-A — 8000 windows, flexible only, uncontended, 4 ranks,
+adr040-candidate, 12 h ceiling, both observability flags — with `--coupling
+serial-implicit`. The materialized `precice-config.xml` was checked in place: it really is
+`<coupling-scheme:serial-implicit>`. **Nothing else runs on aero-dev until it lands.**
+
+If D-B is ELIMINATED it is the adopted mitigation and the V6 Q1 re-run follows on it
+(and the adoption commit then moves the template-of-record, re-pins the digests to the N3
+resubmission, and adds the serial cadence fixtures). If it is RECURRENCE-DETECTED the
+ladder goes to D-C form 1 (ccx `*CONTROLS` deck bytes) — which, unlike D-B, permanently
+un-reattaches both attempt-1 records, as §6.52 and the ADR both record.
+
+Ladder budget after D-A: **1.57 h of 35 h spent**; D-B projects ~7 h at D-A's rate.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

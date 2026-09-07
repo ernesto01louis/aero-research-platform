@@ -469,6 +469,15 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6l. D-B IS RUNNING (serial-implicit) — parse gate passed 2026-09-07
+
+Handoff §6.53. preCICE's own validator accepted the serial config for both participants
+and rejected the counterfactual by name, so the IQN-ILS drop to `{Displacement}` is FORCED
+and nothing beyond ADR-041's two declared moves is: D-B was not blocked.
+`fsi-hg2007_flexible_foil-20260907-120835`, submitted 12:08 UTC, 8000 windows, uncontended,
+~7 h. Poll with `--status`, take the verdict with `--adr041-evaluate`. Nothing else runs on
+aero-dev until it lands. Ladder budget: 1.57 h of 35 h spent.
+
 ## 6k. D-A FAILED — RECURRENCE-DETECTED. The box is free; the ladder is at D-B.
 
 Handoff §6.52 is the record. The unmitigated stack reproduced the instability on an
