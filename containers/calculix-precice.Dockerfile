@@ -17,7 +17,13 @@
 
 ARG PRECICE_VERSION=3.4.1
 ARG CALCULIX_VERSION=2.20
-ARG CALCULIX_ADAPTER_REF=v2.20.1
+# ADR-042 X1a: bumped v2.20.1 -> v2.20.2 as the D-C form 2 rung. Same CalculiX 2.20 --
+# there is no adapter for 2.21/2.22 and porting one is a manual merge into the solver's
+# main loop. v2.20.2 is 90 commits on and fixes uninitialized PreciceInterface counters
+# (#165), memory access issues during adapter initialization (#154) and two leaks (#166),
+# in the C that sits between CalculiX and preCICE -- the right component and the right
+# class for a heap corruption that has ended 3 of 3 coupled runs.
+ARG CALCULIX_ADAPTER_REF=v2.20.2
 
 # Same Ubuntu 24.04 digest the SU2 image uses.
 FROM docker.io/library/ubuntu@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b5cfca2330194ebcc41c7b AS build
@@ -72,8 +78,8 @@ FROM docker.io/library/ubuntu@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b
 ARG PRECICE_VERSION
 
 LABEL org.aero.component   ="calculix-precice"
-LABEL org.aero.stage       ="19"
-LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.1"
+LABEL org.aero.stage       ="20"
+LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.2"
 LABEL org.aero.maintainer  ="aero-research-platform"
 
 ENV DEBIAN_FRONTEND=noninteractive

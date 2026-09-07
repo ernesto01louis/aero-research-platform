@@ -1,6 +1,6 @@
 # ADR-042 — Re-order ADR-041's D-C rungs, and protect the rungs that have not run: family X
 
-- **Status:** accepted — **X1 and X2 only**. The operator accepted them on 2026-09-07 and
+- **Status:** accepted — **X1 (as amended by X1a below), X2**. The operator accepted them on 2026-09-07 and
   this commit is that acceptance (the ADR-040 `d5bf381` / ADR-041 `2bbfdd4` pattern).
   **X3 is NOT accepted**: it stands as a recorded diagnosis with no action taken, and
   making the core dump work needs its own operator decision if and when a core is wanted.
@@ -78,6 +78,41 @@ ladder and triggers V1's NO-GO — is unchanged.
 4. **A version bump is a real hypothesis, not a shot in the dark.** The failure is a
    specific, reproducible, glibc-detected heap corruption in one pinned build; upstream
    CalculiX released 2.21 and 2.22 after it.
+
+### X1a — what form 2 actually IS, amended on measurement (accepted 2026-09-07)
+
+**Form 2 is executed as an ADAPTER bump — `calculix-adapter` v2.20.1 → v2.20.2, on
+CalculiX 2.20 — and NOT as a CalculiX version bump.** X1 was accepted naming "the CalculiX
+2.21/2.22 container bump"; building it showed that change is not available:
+
+- **No adapter exists for CalculiX 2.21 or 2.22.** `precice/calculix-adapter`'s newest tag
+  is v2.20.2, its master README reads *"This adapter is based on the source code of
+  CalculiX v2.20"*, and its own `docs/calculix-support.md` describes porting as a MANUAL
+  source merge into the solver's main loop — copy `nonlingeo.c` from the new CalculiX and
+  re-apply the adapter's time-stepping, communication and checkpointing changes, replace
+  `ccx_2.<version>.c`, update `CalculiX.h`. Hand-porting coupled-solver C is exactly the
+  work whose likeliest by-product is a new memory bug, in a rung whose purpose is to
+  remove one.
+- **The pinned adapter is 2.5 years stale and the gap is the right one.** The container
+  pins `CALCULIX_ADAPTER_REF=v2.20.1` (2024-03-20); v2.20.2 (2026-08-05) is 90 commits
+  later and fixes, in the adapter C between CalculiX and preCICE: **uninitialized
+  counters** — `numNodes`, `nodeSetID`, `numElements`, `faceSetID` never zeroed in
+  `PreciceInterface_Create` (#165), a count read before it is set being a direct route to
+  the out-of-bounds write glibc reports as `corrupted double-linked list`; **"memory
+  access issues during adapter initialization"** (#154); and two memory leaks (#166).
+
+**Consequences, which are SMALLER than the ones X1 was accepted with.** The rebuild still
+moves the SIF digest, its ADR-038 roster row and P1/P3 provenance — the consequence
+ADR-041 declared for form 2. But **CalculiX itself does not move, so I9's deck conventions
+are NOT re-opened**; ADR-041's header item 3 (ADR-040 U1/U3 giving way) is therefore NOT
+exercised by this rung and stands unused unless a true CalculiX bump is ever taken.
+
+**Not proven, and this ADR does not pretend otherwise.** None of those fixes is confirmed
+to be our crash. The case for the rung is that it is cheap, that it is the only executable
+form-2-shaped change, and that the fixes are in the right component and of the right class.
+A near-miss is recorded so a later reader does not mistake it for a smoking gun: the commit
+*"Remove an invalid free on nodeIDs"* (#173), which frees a pointer INTO CalculiX's own
+`ialset` array, is **not in our build** — introduced after v2.20.1, removed before v2.20.2.
 
 **What form 2 does NOT settle, stated so it is not over-claimed.** V1's adoption rule is
 unchanged: a rung is ELIMINATED only if it completes the full 8000-window span AND V2's
