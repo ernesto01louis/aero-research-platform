@@ -1861,6 +1861,49 @@ re-run; anything else steps the ladder to D-B**, whose serial template must be r
 and PARSED before its probe (D-B is BLOCKED if preCICE forces any change beyond the two
 the header already declares).
 
+### 6.52 SESSION 13 — D-A's VERDICT: RECURRENCE-DETECTED. The instability is reproducible.
+
+**The ladder's first rung failed, and it failed informatively.**
+`hg2007_flexible_foil-20260905-220206` died at **window 1487 of 8000** after 5645 s
+ClockTime (~1.57 h) with the SAME signature as attempt 1 — `corrupted double-linked list`,
+SIGABRT, `ccx_preCICE` rc=1 through mpirun. Verdict under ADR-041 V1, derived not typed:
+**RECURRENCE-DETECTED** (a fired prong wins even when the probe then dies). Evidence at
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260905-220206/adr041-D-A-{verdict.json,solid-residuals.tsv}`.
+
+**Three things this establishes, none of which was known before:**
+
+1. **The instability is REPRODUCIBLE.** Attempt 1 died at w1703; this independent run,
+   which shares no timing with it (determinism is divergent from the first parallel GAMG
+   solve), died at **w1487** carrying the same period-2 parity signature. §6.49's finding
+   was one observation; it is now two, on runs that agree on the mechanism and disagree on
+   the window. **The unmitigated stack is not a candidate for the 1.17 M-window campaign**
+   — that question is now settled by measurement rather than by inference from a single
+   death.
+2. **The detector works PROSPECTIVELY.** It fired at **window 1460**, 27 windows before
+   the death, on a run it had never seen, with the bounds fixed in an accepted ADR before
+   the probe was submitted. Worst parity ratio 46.02 at chunk w1461-1480, against a
+   healthy worst of 2.45 anywhere in the corpus. (In attempt 1's post-hoc replay the same
+   rule fired 43 windows early; 27 is the prospective number and it is the honest one.)
+3. **The core-dump half of V5's observability FAILED, and the reason matters.** The kernel
+   created `solid-calculix/core.31023` and wrote **0 bytes** into it, owner root although
+   the participant runs as uid 1000. That is the classic consequence of a privilege
+   change: `setpriv` clears the process's dumpable flag, so the kernel suppresses the
+   dump. `ulimit -c unlimited` was necessary and is not sufficient. Fixing it needs
+   `prctl(PR_SET_DUMPABLE, 1)` after the drop (or `fs.suid_dumpable=2` on the host, which
+   is a host change and therefore an operator decision). **MALLOC_CHECK_=3 did reach both
+   participants but did not move the detection point** — the abort message is glibc's own
+   `unlink` consistency check, identical to attempt 1's.
+
+**Budget:** D-A cost 1.57 h of ADR-041 V3's 35 h ladder cap. **33.4 h remain in the cap**;
+B0 is otherwise untouched.
+
+**Next, per V1's fixed order: the ladder advances to D-B (serial-implicit).** D-A is spent
+— RECURRENCE-DETECTED is terminal for its rung and is not re-probable. Before any D-B
+probe: the serial template must be rendered AND PARSED (preCICE is the authority, not the
+ADR), and **if the parser forces any change beyond the two the ADR's header already
+declares — the scheme element and the IQN-ILS primary-data set dropping to
+`{Displacement}` — D-B is BLOCKED pending its own operator-accepted ADR.**
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

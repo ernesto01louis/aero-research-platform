@@ -469,6 +469,20 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6k. D-A FAILED — RECURRENCE-DETECTED. The box is free; the ladder is at D-B.
+
+Handoff §6.52 is the record. The unmitigated stack reproduced the instability on an
+independent run: died at **w1487 of 8000** (attempt 1 died at w1703), same
+`corrupted double-linked list` SIGABRT, same period-2 parity signature, and the ADR-041
+detector **fired 27 windows before the death** with bounds fixed before the probe ran.
+D-A is spent (terminal, not re-probable) and cost 1.57 h of the 35 h ladder cap.
+
+**Next: D-B (serial-implicit), and it is BLOCKED until the serial config is rendered AND
+PARSED by preCICE** — if the parser forces anything beyond the two declared C1 moves, D-B
+needs its own operator-accepted ADR. Also open: V5's core dump wrote 0 bytes because
+`setpriv` clears the dumpable flag, so the next rung wants `prctl(PR_SET_DUMPABLE, 1)`
+after the drop.
+
 ## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
 
 **START HERE (session 13): read handoff §6.49 and its SESSION-13 RESUMPTION PATH. The
