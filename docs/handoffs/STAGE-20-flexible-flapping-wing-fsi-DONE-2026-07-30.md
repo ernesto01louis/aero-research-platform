@@ -1955,6 +1955,41 @@ un-reattaches both attempt-1 records, as §6.52 and the ADR both record.
 
 Ladder budget after D-A: **1.57 h of 35 h spent**; D-B projects ~7 h at D-A's rate.
 
+### 6.54 SESSION 13 — D-B's FIRST SUBMIT WAS ABORTED ON MY CEILING, AND SERIAL COSTS 1.76x
+
+**Recorded plainly because it is the kind of thing a later reader must be able to audit.**
+The first D-B submit (`hg2007_flexible_foil-20260907-120835`, 12:08 UTC) was **killed by me
+at window ~111, 17 minutes in**, and it was NOT killed for anything the solve did:
+
+- serial-implicit settled at **5.71 s/window against D-A's 3.25 — a 1.76x cost** — so
+  8000 windows projected **12.7 h against the 12 h ceiling I had submitted it with**. Left
+  alone it would have been stopped by its own ceiling at roughly window 7570 and scored
+  **DIED-UNDIAGNOSED**, which under ADR-041 V1 is terminal: the rung would have been spent
+  on a budget artefact of my own making and the ladder would have stepped to D-C, which
+  permanently un-reattaches both attempt-1 records.
+- **No detector information existed when the decision was taken.** The verdict was
+  NO-DATA — fewer than one complete chunk past w101, and the parity signature does not
+  appear until ~w1400 in either prior death. This is a correction to a submission
+  parameter, not a re-roll after seeing a result, and V1's one-probe rule is about the
+  latter. The aborted record is renamed `ladder-DB-ABORTED-ceiling-too-small.json` so it
+  can never be read as the rung's probe.
+- Cost: ~0.28 h of the 35 h ladder cap.
+
+**Resubmitted with a 24 h ceiling** as `hg2007_flexible_foil-20260907-122616` (12:26 UTC),
+everything else identical; submission JSON copied to
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260907-122616/ladder-DB-submission.json`.
+Ladder budget: **1.85 h of 35 h spent**, D-B projects ~12.7 h.
+
+**The 1.76x is itself one of the two numbers D-B was sent to measure, and it has campaign
+consequences the operator should see BEFORE any adoption:** ADR-040's N3 projects ~82 h on
+the parallel stack, so a serial N3 projects **~144 h against B0's 96 h per-submission
+ceiling** — N3 could not complete in one submission on an adopted serial stack. ADR-041
+anticipated exactly this ("if the measured cost makes N3 or the campaign unaffordable that
+is a budget conversation under ADR-040's B family, taken in the open"), and it is a B3
+ceiling question, not something this ladder decides. **The number is early and uncontended;
+the settled figure comes with D-B's verdict, and only then is the conversation worth
+having.**
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

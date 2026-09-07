@@ -469,6 +469,18 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6m. D-B RESUBMITTED with a 24 h ceiling; serial costs 1.76x
+
+Handoff §6.54. The first D-B submit was killed by me at w111 because serial-implicit
+settled at 5.71 s/window (1.76x D-A's 3.25), which projected 12.7 h against the 12 h
+ceiling I had given it — left alone it would have died on the ceiling and scored
+DIED-UNDIAGNOSED, spending the rung on my own parameter error. No detector information
+existed at the time (NO-DATA). Live rung is now
+`fsi-hg2007_flexible_foil-20260907-122616` (24 h ceiling, ~12.7 h projected).
+**Carry this forward: a serial N3 projects ~144 h against B0's 96 h per-submission
+ceiling** — a B3 conversation for the operator if D-B is adopted, not something the ladder
+settles.
+
 ## 6l. D-B IS RUNNING (serial-implicit) — parse gate passed 2026-09-07
 
 Handoff §6.53. preCICE's own validator accepted the serial config for both participants
