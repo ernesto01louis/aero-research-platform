@@ -1990,6 +1990,54 @@ ceiling question, not something this ladder decides. **The number is early and u
 the settled figure comes with D-B's verdict, and only then is the conversation worth
 having.**
 
+### 6.55 SESSION 13 — D-B DIED AT WINDOW 88. Two facts that change the picture.
+
+**Verdict: DIED-UNDIAGNOSED** (recorded at
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260907-122616/adr041-D-B-verdict.json`), which
+under V1 is terminal for the rung. The probe died at **window 88 of 8000**, before the
+detector's grid even starts (w101), so V2 could say nothing — which is precisely the state
+the vocabulary was written to name rather than argue about. It cost ~0.14 h; the ladder
+stands at **1.99 h of the 35 h cap**.
+
+**Fact 1 — the heap corruption fires WITHOUT the parity precursor.** Three deaths now, all
+`corrupted double-linked list` inside ccx 2.20: attempt 1 (parallel, contended) w1703, D-A
+(parallel, uncontended) w1487, D-B (serial, uncontended) **w88**. In the first two the
+precursor was running for ~150 windows beforehand; at w88 no precursor could have
+developed — the signature does not appear until ~w1400 in either. §6.49 framed the memory
+bug as "the final blow [the divergence] exposes the process to". **That framing does not
+survive D-B: the crash is a first-class failure mode of this ccx build, not only the
+end-state of the divergence.** (The aborted first D-B submit reached w111 healthy before I
+killed it, so the death window varies by more than 20x across identical configurations —
+consistent with a timing-sensitive memory bug rather than a deterministic threshold.)
+
+**Fact 2 — serial-implicit is a materially WORSE coupling for this case, on two axes.**
+Beyond the 1.76x cost (§6.54), the solid-side residuals are two to three orders of
+magnitude larger from the start. Per-20-window maxima over the same early span,
+investigation only (the V2 grid starts at w101, and these numbers are NOT a verdict):
+
+| windows | D-A parallel odd / even | D-B serial odd / even |
+|---|---|---|
+| 41-60 | 0.215 / 0.198 N | 496.9 / 316.8 N |
+| 61-80 | 0.419 / 0.362 N | 148.1 / 170.2 N |
+| 81-88(100) | 0.622 / 0.508 N | 212.3 / 230.6 N |
+
+That is the forced acceleration change biting: preCICE permits only `{Displacement}` as
+IQN-ILS primary data under serial coupling, and on a high-added-mass case losing Force
+from the quasi-Newton set leaves the solid far less well conditioned. The parity RATIO is
+unremarkable in those windows (1.09-1.57), so serial may well suppress the parity split —
+but at a residual level that is not obviously a stack anyone would want to run 1.17 M
+windows on, and the run never reached the span where the question could be answered.
+
+**Consequence for the ladder.** The remaining rungs are D-C form 1 (ccx `*CONTROLS`
+damping) and D-C form 2 (CalculiX 2.21/2.22 bump), in that pre-registered order, and
+ADR-041 requires the operator to be consulted before D-C begins. **The evidence now points
+at form 2 rather than form 1**: form 1 targets the divergence, which Fact 1 shows is no
+longer the only killer, and form 1 additionally un-reattaches both attempt-1 records
+permanently; form 2 targets the crash, which has now ended 3 of 3 runs across two coupling
+schemes. Re-ordering them after data exists is exactly what ADR-041 says needs its own
+operator-accepted ADR — that decision is with the operator and nothing runs until it is
+taken.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

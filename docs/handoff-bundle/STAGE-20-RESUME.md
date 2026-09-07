@@ -469,6 +469,17 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6n. D-B DIED-UNDIAGNOSED at w88 — the box is idle and D-C needs an operator decision
+
+Handoff §6.55. Two facts change the picture: (1) the ccx heap corruption fires WITHOUT the
+parity precursor (w88 is far before the signature develops), so it is a first-class failure
+mode of this build and not merely the divergence's end-state — 3 of 3 runs across two
+coupling schemes have now died of it; (2) serial-implicit is a worse coupling here, with
+solid residuals 2-3 orders of magnitude larger from the start, because preCICE forces the
+IQN-ILS set down to {Displacement}. Ladder: 1.99 h of 35 h spent. **Nothing runs next: the
+ADR requires the operator to be consulted before D-C, and the evidence argues for taking
+form 2 (CalculiX bump) before form 1 (deck damping) — a re-order that needs its own ADR.**
+
 ## 6m. D-B RESUBMITTED with a 24 h ceiling; serial costs 1.76x
 
 Handoff §6.54. The first D-B submit was killed by me at w111 because serial-implicit
