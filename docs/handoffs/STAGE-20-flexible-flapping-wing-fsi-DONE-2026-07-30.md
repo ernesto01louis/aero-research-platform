@@ -2038,6 +2038,51 @@ schemes. Re-ordering them after data exists is exactly what ADR-041 says needs i
 operator-accepted ADR — that decision is with the operator and nothing runs until it is
 taken.
 
+### 6.56 SESSION 13 — D-C form 2 AS WRITTEN IS NOT EXECUTABLE, and the better rung is one pin away
+
+ADR-042 X1 promoted "the CalculiX 2.21/2.22 container bump" to the next rung. Investigating
+how to build it (read-only, no box time) turned up two things that change what that rung
+should be.
+
+**1. There is no adapter for CalculiX 2.21 or 2.22.** `precice/calculix-adapter`'s newest
+tag is **v2.20.2**, its master README still reads *"This adapter is based on the source code
+of CalculiX v2.20"*, and its own `docs/calculix-support.md` describes porting as a MANUAL
+source merge into the solver's main loop: copy `nonlingeo.c` from the new CalculiX, re-apply
+the adapter's changes to the time-stepping/communication/checkpointing calls, replace
+`ccx_2.<version>.c`, update `CalculiX.h`. That is substantial hand-porting of coupled-solver
+C — the kind of work whose most likely by-product is a NEW memory bug, in a rung whose whole
+purpose is to remove one. **Form 2 as literally written is not executable at acceptable
+risk.**
+
+**2. Our adapter pin is 2.5 years stale, and the gap contains memory fixes.** The container
+pins `CALCULIX_ADAPTER_REF=v2.20.1` (2024-03-20). **v2.20.2** (2026-08-05) is 90 commits
+later and its changelog fixes, in the adapter C that sits between CalculiX and preCICE:
+
+- **uninitialized counters** — `numNodes`, `nodeSetID`, `numElements`, `faceSetID` were
+  never zeroed in `PreciceInterface_Create` ([#165]); a count read before it is set is a
+  direct route to an out-of-bounds write, which is what glibc reports as
+  `corrupted double-linked list`;
+- **"memory access issues during adapter initialization"** — `SimulationData` was being
+  initialized too late ([#154]);
+- two memory leaks ([#166]).
+
+**A near-miss worth recording so a later reader does not re-find it as a smoking gun.**
+Commit *"Remove an invalid free on nodeIDs"* (#173) looks exactly like our bug — it deletes
+a `free()` on a pointer INTO CalculiX's own `sim->ialset` array. It is **not in our build**:
+that `free` was introduced after v2.20.1 and removed before v2.20.2. Checked, not assumed.
+
+**Recommendation, queued for the operator:** execute form 2 as an **adapter bump
+v2.20.1 → v2.20.2 on CalculiX 2.20**, not a CalculiX version bump. It is the same KIND of
+change ADR-041 declared for form 2 — a container rebuild that moves the SIF digest, the
+ADR-038 roster row and P1/P3 provenance — with a SMALLER consequence, because CalculiX
+itself does not move and I9's deck conventions are therefore not re-opened. Nothing has
+been built; the substitution changes what ADR-042 X1 names and is the operator's to accept.
+
+**Not proven, and the record should not pretend otherwise:** none of those fixes is
+confirmed to be our crash. The case for the rung is that it is cheap, that it is the only
+executable form-2-shaped change, and that the fixes are in the right component and of the
+right class.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
