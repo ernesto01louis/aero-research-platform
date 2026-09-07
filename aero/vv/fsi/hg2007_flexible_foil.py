@@ -51,8 +51,14 @@ from aero.adapters.precice.case import (
     CoupledCaseSpec,
     ParticipantSpec,
 )
+from aero.adapters.precice.config import CouplingSchemeKind
 from aero.adapters.precice.logs import DivergenceReport
-from aero.adapters.precice.template import HG2007_TEMPLATE, RENDERER_VERSION, template_sha256
+from aero.adapters.precice.template import (
+    HG2007_TEMPLATE,
+    RENDERER_VERSION,
+    template_for_scheme,
+    template_sha256,
+)
 from aero.postprocess.flapping_kinematics import FlappingKinematics
 from aero.vv._base import BenchmarkError, MetricSpec, ReferenceData, Series, SolverLike
 
@@ -212,6 +218,13 @@ def is_gated_configuration(*, rung: str, time_window_size: float, max_time: floa
     )
 
 
+#: The coupling scheme every record written before ADR-041 was produced under. It
+#: describes HISTORY and never moves: ``_reattach`` supplies it explicitly when a
+#: submission predates the knob, so those records keep rebuilding to their original
+#: digests no matter what the builder's default becomes later. Both uncollected N3
+#: attempt-1 submissions depend on this, one of them the completed rigid arm.
+LEGACY_COUPLING_SCHEME: CouplingSchemeKind = "parallel-implicit"
+
 #: ADR-041 V7 — the campaign's TEMPLATE OF RECORD. The gated verdict is derived from
 #: ADR-040 L5's five inputs AND this: a spec rendered from any other coupling template is
 #: a different case, whatever its five knobs say. Moving this is what a D-B adoption
@@ -353,6 +366,7 @@ def hg2007_case_spec(
     solid_sif: str = "calculix-precice.sif",
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
+    coupling_scheme: CouplingSchemeKind = LEGACY_COUPLING_SCHEME,
 ) -> CoupledCaseSpec:
     """Build one arm's authored coupled case.
 
@@ -443,8 +457,12 @@ def hg2007_case_spec(
         name=name,
         source=AuthoredSource(
             case_dir_name=f"hg2007-{arm}-foil",
-            template=HG2007_TEMPLATE,
-            template_sha256=template_sha256(),
+            # ADR-041 D-B: a KEYWORD, not a spec field. A new pydantic field would
+            # serialize into every spec and move every digest; routing the scheme through
+            # the template that AuthoredSource already carries moves only the specs that
+            # actually use the other scheme, which is what a case move should do.
+            template=template_for_scheme(coupling_scheme),
+            template_sha256=template_sha256(template_for_scheme(coupling_scheme)),
             renderer_version=RENDERER_VERSION,
             fluid=fluid,
             solid=solid,
@@ -497,7 +515,7 @@ def hg2007_case_spec(
                 mpi_ranks=mpi_ranks,
             )
         )
-        and is_template_of_record(template_sha256()),
+        and is_template_of_record(template_sha256(template_for_scheme(coupling_scheme))),
     )
 
 

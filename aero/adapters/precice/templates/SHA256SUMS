@@ -11,3 +11,4 @@
 #     cd aero/adapters/precice/templates && sha256sum *.xml.in > /tmp/sums
 #
 f8fecb3e8271d6db0d40381bb2934cd661be0c9c5c516ac6c15811cbd16709c9  hg2007-precice-config.xml.in
+0c665e1b1ff0793881a5587033befec8ddb42b70e76a8f1c79e2687d5b58bc36  hg2007-precice-config-serial.xml.in

@@ -51,6 +51,8 @@ from aero.adapters.precice.config import (
 )
 
 __all__ = [
+    "COUPLING_TEMPLATES",
+    "HG2007_SERIAL_TEMPLATE",
     "HG2007_TEMPLATE",
     "NOSE_WATCH_POINT_NAME",
     "RENDERER_VERSION",
@@ -60,6 +62,8 @@ __all__ = [
     "hg2007_expectation",
     "read_template",
     "render_precice_config",
+    "scheme_for_template",
+    "template_for_scheme",
     "template_sha256",
     "write_precice_config",
 ]
@@ -68,6 +72,40 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 #: Basename of the Stage-20 authored coupling template.
 HG2007_TEMPLATE = "hg2007-precice-config.xml.in"
+
+#: ADR-041 D-B's serial-implicit variant. The parallel template with exactly two changes,
+#: both declared in ADR-041's Supersedes header: the scheme element, and the IQN-ILS
+#: primary-data set dropping to ``{Displacement}`` because preCICE accelerates only data
+#: exchanged from the ``second`` to the ``first`` participant under serial coupling.
+HG2007_SERIAL_TEMPLATE = "hg2007-precice-config-serial.xml.in"
+
+#: Coupling scheme -> the template that renders it. A registry rather than a constant so
+#: the scheme is a property of the SPEC (through ``AuthoredSource.template``) instead of a
+#: module-level fact, which is what lets a serial run carry its own ``config_hash``.
+COUPLING_TEMPLATES: dict[CouplingSchemeKind, str] = {
+    "parallel-implicit": HG2007_TEMPLATE,
+    "serial-implicit": HG2007_SERIAL_TEMPLATE,
+}
+
+
+def template_for_scheme(scheme: CouplingSchemeKind) -> str:
+    """The committed template that renders `scheme`, or a loud refusal."""
+    try:
+        return COUPLING_TEMPLATES[scheme]
+    except KeyError:
+        known = ", ".join(sorted(COUPLING_TEMPLATES))
+        raise PreciceConfigError(
+            f"no committed HG2007 template for coupling scheme {scheme!r}; known: {known}"
+        ) from None
+
+
+def scheme_for_template(template: str) -> CouplingSchemeKind:
+    """The inverse, for reading a spec back."""
+    for scheme, name in COUPLING_TEMPLATES.items():
+        if name == template:
+            return scheme
+    raise PreciceConfigError(f"{template!r} is not an HG2007 coupling template")
+
 
 #: Bumped whenever a rendered byte changes, so two bundles are comparable at a glance.
 #: It rides in ``AuthoredSource.renderer_version`` and therefore in the manifest.
@@ -262,7 +300,11 @@ def render_precice_config(values: PreciceConfigValues, *, template: str = HG2007
     return rendered
 
 
-def hg2007_expectation(values: PreciceConfigValues) -> PreciceConfigExpectation:
+def hg2007_expectation(
+    values: PreciceConfigValues,
+    *,
+    coupling_scheme: CouplingSchemeKind = _COUPLING_SCHEME,
+) -> PreciceConfigExpectation:
     """The full expectation for a rendered HG2007 configuration.
 
     Derived from the same `values` the renderer substitutes, so the C-family claim —
@@ -273,7 +315,7 @@ def hg2007_expectation(values: PreciceConfigValues) -> PreciceConfigExpectation:
     """
     return PreciceConfigExpectation(
         participants=_PARTICIPANTS,
-        coupling_scheme=_COUPLING_SCHEME,
+        coupling_scheme=coupling_scheme,
         m2n_kind=_M2N_KIND,
         time_window_size=values.time_window_size,
         max_iterations=_MAX_ITERATIONS,
@@ -329,7 +371,15 @@ def hg2007_expectation(values: PreciceConfigValues) -> PreciceConfigExpectation:
                 support_radius=values.support_radius,
             ),
         ),
-        acceleration_data=(("Displacement", _SOLID_MESH), ("Force", _SOLID_MESH)),
+        # ADR-041 D-B: under SERIAL coupling preCICE accelerates only data exchanged from
+        # the second participant to the first, and Force flows Fluid(first) ->
+        # Solid(second). The drop is forced by the scheme, so the expectation follows the
+        # scheme rather than being a second place to keep in sync by hand.
+        acceleration_data=(
+            (("Displacement", _SOLID_MESH),)
+            if coupling_scheme == "serial-implicit"
+            else (("Displacement", _SOLID_MESH), ("Force", _SOLID_MESH))
+        ),
         acceleration_preconditioner=None,  # assert ABSENT — upstream's flap declares none
         acceleration_filter_type=_ACCELERATION_FILTER_TYPE,
         acceleration_filter_limit=_ACCELERATION_FILTER_LIMIT,
@@ -361,5 +411,9 @@ def write_precice_config(
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(rendered, encoding="utf-8")
     produced = read_precice_config(dest)
-    assert_config(produced, hg2007_expectation(values))
+    # The expectation follows the TEMPLATE, so a serial render is asserted against the
+    # serial expectation rather than failing on a difference the scheme forces (ADR-041).
+    assert_config(
+        produced, hg2007_expectation(values, coupling_scheme=scheme_for_template(template))
+    )
     return produced

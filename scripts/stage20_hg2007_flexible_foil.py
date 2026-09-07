@@ -86,6 +86,7 @@ from aero.adapters.precice.schedule import (  # noqa: E402
     window_indices,
 )
 from aero.adapters.precice.solver import PreciceCoupledSolver  # noqa: E402
+from aero.adapters.precice.template import COUPLING_TEMPLATES  # noqa: E402
 from aero.orchestration.local_ssh import LocalSSHExecutor  # noqa: E402
 from aero.provenance.four_fold import compute_provenance  # noqa: E402
 from aero.vv.alignment import align_arms  # noqa: E402
@@ -102,6 +103,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     GATED_MAX_TIME_S,
     GATED_RUNG,
     GATED_TIME_WINDOW_S,
+    LEGACY_COUPLING_SCHEME,
     NUMERICS_STACKS,
     RUNGS,
     adr041_rung_verdict,
@@ -816,6 +818,7 @@ def _prepare_and_submit(
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
     adr041_rung: str | None = None,
+    coupling_scheme: str = LEGACY_COUPLING_SCHEME,
 ) -> Path:
     """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
@@ -826,6 +829,7 @@ def _prepare_and_submit(
         wall_clock_ceiling_s=args.timeout,
         numerics_label=numerics_label,
         mpi_ranks=mpi_ranks,
+        coupling_scheme=coupling_scheme,  # type: ignore[arg-type]
     )
     if gated_intent and not is_template_of_record(spec.source.template_sha256):
         # ADR-041 V7, checked BEFORE the general refusal so the diagnosis is the specific
@@ -912,6 +916,11 @@ def _prepare_and_submit(
             "wall_clock_ceiling_s": args.timeout,
             "numerics_label": numerics_label,
             "mpi_ranks": mpi_ranks,
+            # ADR-041 D-B: written EXPLICITLY into every new record. Records predating
+            # this key rebuild through LEGACY_COUPLING_SCHEME in _reattach, never through
+            # the builder's default, so flipping that default at adoption cannot
+            # retro-break a submission describing a run already on disk.
+            "coupling_scheme": coupling_scheme,
         },
         "spec_sha256": spec_config_digest(spec),
         "gated": spec.gated,
@@ -951,7 +960,11 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
         raise SystemExit(f"cannot read {session}'s rc file: {rc_result.stderr}")
     executor_returncode = int(rc_result.stdout.strip())
 
-    spec = hg2007_case_spec(**submission["spec_knobs"])
+    knobs = dict(submission["spec_knobs"])
+    # NOT the builder's default: that one moves if a mitigated stack is ever adopted, and
+    # a record written before this key describes a run that really was parallel-implicit.
+    knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
+    spec = hg2007_case_spec(**knobs)
     digest = spec_config_digest(spec)
     if digest != submission["spec_sha256"]:
         raise SystemExit(
@@ -2213,6 +2226,14 @@ def main(argv: list[str] | None = None) -> int:
         "--ranks", type=int, default=1, help="fluid MPI ranks (ADR-040 L3 pre-registers 4)"
     )
     parser.add_argument(
+        "--coupling",
+        choices=sorted(COUPLING_TEMPLATES),
+        default=LEGACY_COUPLING_SCHEME,
+        help="preCICE coupling scheme (ADR-041 D-B). serial-implicit renders the committed "
+        "serial template, whose IQN-ILS primary data drops to {Displacement} because "
+        "preCICE accelerates only second-to-first data under serial coupling",
+    )
+    parser.add_argument(
         "--adr041-rung",
         choices=ADR041_RUNGS,
         default=None,
@@ -2287,6 +2308,7 @@ def main(argv: list[str] | None = None) -> int:
             numerics_label=args.numerics,
             mpi_ranks=args.ranks,
             adr041_rung=args.adr041_rung,
+            coupling_scheme=args.coupling,
         )
         return 0
     if args.collect_probe:
