@@ -2126,6 +2126,64 @@ form 1 (`*CONTROLS` damping), which is the rung that targets the divergence and 
 permanently un-reattaches both attempt-1 records when its spec field lands.
 DIED-UNDIAGNOSED before w1400 — ADR-042 X2 allows exactly one re-probe.
 
+### 6.58 SESSION 13 — D-C2: RECURRENCE-DETECTED. Four deaths, and the physics now has a name.
+
+**The adapter bump fixed neither failure.** `hg2007_flexible_foil-20260907-155350` died at
+**window 1996 of 8000** after 6847 s (1.90 h), same `corrupted double-linked list`, and the
+detector fired at **w1820** — 176 windows of warning, the longest yet. Verdict:
+**RECURRENCE-DETECTED**, terminal for the rung. Ladder: **3.89 h of the 35 h cap**.
+
+**The score, four runs in:**
+
+| run | scheme | adapter | detector fired | died |
+|---|---|---|---|---|
+| attempt 1 | parallel, contended | v2.20.1 | onset ~w1557 | w1703 |
+| D-A | parallel, uncontended | v2.20.1 | w1460 | w1487 |
+| D-B | **serial**, uncontended | v2.20.1 | — (grid starts w101) | **w88** |
+| D-C2 | parallel, uncontended | **v2.20.2** | w1820 | w1996 |
+
+**The divergence is in 3 of 3 parallel runs that lived long enough, and it is robust to
+both the coupling scheme and the adapter version.** That is the signature of something in
+the CASE, not in the coupling software — and the deck names the suspect.
+
+**THE HYPOTHESIS THIS EVIDENCE POINTS AT: `*DYNAMIC, ALPHA=0.0`.** The solid deck
+integrates with HHT-α at **α = 0.0**, pinned as ADR-039 gate clause C2 (*"ALPHA present
+and 0.0"*). At α = 0 the scheme is Newmark average-acceleration: unconditionally stable
+and **exactly zero dissipation at the Nyquist frequency**. The Nyquist mode of a
+window-stepped solve is precisely a **period-2, window-alternating oscillation** — which is
+the signature, named in advance by ADR-041's detector and observed three times. An
+undamped Nyquist mode is not a bug in anyone's code; it is what this integrator does with
+that parameter.
+
+Two further observations consistent with it:
+
+- **The diverging parity is not fixed.** attempt 1 and D-A diverged on the ODD branch;
+  D-C2 diverged on the **EVEN** branch (odd 2.370 N against even 11.080 N at w1801-1820).
+  Parity is just a label for which sub-step the mode started on — exactly what a Nyquist
+  oscillation does, and not what a systematic odd-window code path would do.
+- **D-C2 diverged LATER and more slowly** (w1820 vs w1460) at much lower absolute
+  residuals, then still crashed. The adapter bump did not touch the mechanism.
+
+**A CORRECTION TO §6.55's Fact 1, made because the record should not carry an inference
+stronger than its evidence.** §6.55 read D-B's w88 death as showing the crash fires
+independently of the divergence. That inference rests entirely on D-B — and D-B's solid
+residuals were two to three orders of magnitude larger than D-A's from window 1, i.e. that
+run was pathological from the start rather than a clean example of a healthy run crashing.
+The weaker, better-supported statement: **in every run whose numerics stayed sane, the
+divergence preceded the crash** (146, 27 and 176 windows of lead). The crash may well be
+the divergence's consequence after all. ADR-042 X1's re-ordering was still the right call
+on the information available — form 2 was cheap, it was the only executable form-2-shaped
+change, and it has now been eliminated as a fix — but its stated rationale is weaker than
+it read at the time, and that is recorded here rather than left to be re-derived.
+
+**Next: D-C form 1, and it is now the physics rung rather than the leftover one.** It
+targets exactly the parameter above. Two things make it the operator's decision rather
+than an ordinary next step: it moves an **ADR-039 gate-clause expectation** (C2's
+`ALPHA = 0.0`), which needs the same explicit declaration ADR-041 made for C1's coupling
+scheme; and its new solid-spec field moves EVERY digest, permanently un-reattaching both
+uncollected N3 attempt-1 records, the completed rigid arm included. It is also the LAST
+pre-registered rung: if it fails V2, ADR-041 V1 gives a recorded NO-GO on infrastructure.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

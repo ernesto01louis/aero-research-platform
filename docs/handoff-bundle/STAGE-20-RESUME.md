@@ -469,6 +469,21 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6p. D-C2 RECURRENCE-DETECTED — the suspect is ALPHA=0.0, and D-C1 is the last rung
+
+Handoff §6.58. The adapter bump fixed neither failure: died w1996, detector fired w1820
+(176 windows of warning). **The divergence is in 3 of 3 parallel runs that lived long
+enough and is robust to coupling scheme AND adapter version** — so it lives in the case,
+not the software. The deck integrates at `*DYNAMIC, ALPHA=0.0` (ADR-039 gate clause C2),
+i.e. Newmark average-acceleration with **zero dissipation at the Nyquist frequency**, and
+the Nyquist mode of a window-stepped solve IS a period-2 alternation. The diverging parity
+even flips between runs (ODD in attempt 1 and D-A, EVEN in D-C2), which is what a Nyquist
+mode does and what a systematic code path would not. §6.55's "the crash fires independently
+of the divergence" is SOFTENED there: it rested on D-B, whose residuals were pathological
+from window 1. Ladder 3.89 h of 35 h; box idle; nothing queued. **D-C1 needs an operator
+decision — it moves an ADR-039 gate-clause expectation and un-reattaches both attempt-1
+records — and it is the last rung before a recorded NO-GO.**
+
 ## 6o. D-C2 IS RUNNING on the rebuilt solid container (adapter v2.20.2)
 
 Handoff §6.56-§6.57. Form 2 could not be a CalculiX bump — no adapter exists for 2.21/2.22
