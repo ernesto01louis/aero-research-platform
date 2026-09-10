@@ -2381,6 +2381,48 @@ then this table is the evidence base for an amendment adding an iteration-count 
 calibrated on runs whose verdicts were already recorded, derived before the outcome it would
 be used to interpret, and proposed to the operator rather than applied.
 
+### 6.62 SESSION 13 — D-C1 COMPLETED 8000/8000. The rule says INCONCLUSIVE.
+
+**The first flexible coupled run in this entire investigation to finish its span.**
+`hg2007_flexible_foil-20260910-084806`, α = -0.05: `stopped_by=all-exited`, **both
+participants rc=0**, **8000 of 8000 windows**, 20 287 s (5.64 h). Every predecessor died:
+attempt 1 at w1703, D-A at w1487, D-B at w88, D-C2 at w1996 — four for four, three of them
+carrying the parity divergence first.
+
+**The solid went quiet by five orders of magnitude.**
+
+| windows | D-A, α = 0.0 (max / median) | D-C1, α = -0.05 (max / median) |
+|---|---|---|
+| 101-2100 | died at w1487 | 1.97 / **0** N |
+| 2001-4000 | — | 1.2e-5 / **0** N |
+| 4001-6000 | — | 9e-6 / **0** N |
+| 6001-8000 | — | 9e-6 / **0** N |
+
+Over the whole run: p99 = **4.2e-5 N**, and exactly **2 windows of 8000** exceed 1.0 N —
+both inside the startup transient before w200. D-A's median was **3.23 N and climbing** by
+w301-400. It is also **faster**: 2.56 s/window over the last 1000 windows against D-A's
+3.25, a 21 % improvement that lands directly on the campaign's economics.
+
+**And the pre-registered verdict is INCONCLUSIVE.** 0 of 395 chunks reached V2's 1.0 N
+activation floor, so V2(iii) fired: *"the detector is inert here, which is not the same as
+health."* That is the rule working exactly as written — the parity prong can only compare
+parities, and there was nothing above the floor to compare. **ADR-041's ladder, as
+pre-registered, cannot adopt a mitigation that works**, because success removes the very
+signal its only test consumes. Re-probing under V1(b) would return INCONCLUSIVE again for
+the same reason: §6.61's calibration (committed at `95be432` BEFORE this result) shows the
+healthy rigid control does not reach 1.0 N until **w72261, at 100 % amplitude**, and this
+probe ends at 6 %.
+
+**The verdict of record stands as INCONCLUSIVE.** It is not being reinterpreted, the floor
+is not being moved, and the rung's evidence is on NFS under
+`adr041-D-C1-{verdict.json,solid-residuals.tsv}`. What the result forces is a question the
+pre-registration did not anticipate and cannot answer from inside itself: **how should a
+completed full span with ZERO activation be read, when every run carrying the signature had
+activated by window 135?** That is ADR-044's subject, and it goes to the operator with the
+calibration that was timestamped before the data existed.
+
+**Ladder spend: 9.53 h of the 35 h cap.** Box idle, nothing queued.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

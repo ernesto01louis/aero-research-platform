@@ -469,6 +469,19 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6r. D-C1 COMPLETED 8000/8000 — and the rule says INCONCLUSIVE
+
+Handoff §6.62. **The first flexible coupled run ever to finish its span**: all-exited, both
+participants rc=0, 8000/8000, 5.64 h, and 21 % FASTER per window than the undamped run. The
+solid is quiet by five orders of magnitude (p99 = 4.2e-5 N; only 2 windows of 8000 above
+1.0 N, both in startup) where D-A's median was 3.23 N and climbing by w400. But 0 of 395
+chunks reached V2's activation floor, so the pre-registered verdict is **INCONCLUSIVE** —
+the ladder cannot adopt a mitigation that works, because success removes the signal its only
+test consumes. The verdict of record stands; nothing was reinterpreted. **ADR-044 is the
+question that forces: how to read a COMPLETED span with ZERO activation, given §6.61's
+calibration (committed before the result) that every sick run activated by w135 and the
+healthy control not until 100 % amplitude.** Ladder 9.53 h of 35 h; box idle.
+
 ## 6q. D-C1 IS RUNNING — the last rung, at CalculiX's own ALPHA default
 
 Handoff §6.59. ADR-043 accepted (`89a4a28`): `*DYNAMIC, ALPHA=0.0` → **-0.05**, which is
