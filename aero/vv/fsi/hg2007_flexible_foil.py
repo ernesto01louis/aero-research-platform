@@ -233,6 +233,30 @@ LEGACY_COUPLING_SCHEME: CouplingSchemeKind = "parallel-implicit"
 TEMPLATE_OF_RECORD = HG2007_TEMPLATE
 
 
+#: ADR-043 Y1. The solid deck's HHT-alpha of record. `0.0` is ADR-039 C2's pinned value
+#: and NOT CalculiX's own default (-0.05, dynamics.f:73) -- C2 overrode it to the one
+#: value in range with exactly zero dissipation, which is the mechanism ADR-041's detector
+#: has now caught three times. A rung probe may carry another value; only an adoption
+#: commit moves THIS constant, and until it does a non-record alpha cannot be gated.
+ALPHA_OF_RECORD = 0.0
+
+#: What `_reattach` supplies for records written before the knob existed. It describes
+#: HISTORY and never moves, so a later default flip cannot retro-change what an old
+#: submission rebuilds to.
+LEGACY_HHT_ALPHA = 0.0
+
+
+def is_campaign_configuration(*, template_sha256_hex: str, hht_alpha: float) -> bool:
+    """ADR-041 V7's fence, extended by ADR-043 to the deck knob the ladder now moves.
+
+    Same one-way property as V7: it can only ever REFUSE. ADR-040 L5's five inputs stay
+    necessary and none is replaced; this adds conjuncts for the two things a rung is
+    allowed to vary and the campaign is not, so a diagnostic probe cannot mint a bundle
+    claiming the gated verdict once B2's sentinels are filled.
+    """
+    return is_template_of_record(template_sha256_hex) and hht_alpha == ALPHA_OF_RECORD
+
+
 def is_template_of_record(template_sha256_hex: str) -> bool:
     """ADR-041 V7's conjunctive fence, as a predicate so tests can state it directly."""
     return template_sha256_hex == template_sha256()
@@ -367,6 +391,7 @@ def hg2007_case_spec(
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
     coupling_scheme: CouplingSchemeKind = LEGACY_COUPLING_SCHEME,
+    hht_alpha: float = LEGACY_HHT_ALPHA,
 ) -> CoupledCaseSpec:
     """Build one arm's authored coupled case.
 
@@ -434,6 +459,7 @@ def hg2007_case_spec(
         )[1:, 0]
     )
     solid = CalculiXSolidSpec(
+        hht_alpha=hht_alpha,
         name=f"hg2007-{arm}-solid",
         surface_x=surface_x,
         chord=CHORD_M,
@@ -515,7 +541,10 @@ def hg2007_case_spec(
                 mpi_ranks=mpi_ranks,
             )
         )
-        and is_template_of_record(template_sha256(template_for_scheme(coupling_scheme))),
+        and is_campaign_configuration(
+            template_sha256_hex=template_sha256(template_for_scheme(coupling_scheme)),
+            hht_alpha=hht_alpha,
+        ),
     )
 
 

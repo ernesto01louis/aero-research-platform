@@ -234,6 +234,23 @@ class CalculiXSolidSpec(BaseModel):
     plate: CalculiXMaterial
     nose: CalculiXMaterial
 
+    hht_alpha: float = Field(
+        default=0.0,
+        ge=-1.0 / 3.0,
+        le=0.0,
+        description=(
+            "HHT-alpha on the *DYNAMIC card (ADR-043 Y1). The range is CalculiX's own, "
+            "clamped in dynamics.f:106-113. At 0.0 the scheme is Newmark "
+            "average-acceleration: unconditionally stable and EXACTLY zero dissipation at "
+            "every frequency including Nyquist -- and the Nyquist mode of a window-stepped "
+            "solve is a period-2, window-alternating oscillation, which is the divergence "
+            "ADR-041's detector caught in 3 of 3 parallel runs. CalculiX's own default is "
+            "-0.05 (dynamics.f:73); ADR-039 C2's 0.0 was a deliberate override of it to the "
+            "one value in range with no damping at all. Kept at 0.0 by default so the "
+            "campaign's deck bytes do not move without an ADR."
+        ),
+    )
+
     time_window_size: float = Field(
         ..., gt=0.0, description="Solid dt [s]; must equal the coupling time-window size."
     )
@@ -657,7 +674,7 @@ def _main_deck_text(spec: CalculiXSolidSpec) -> str:
         # INC is computed from max_time/dt: at the default 100 ccx would finish its step
         # mid-run, write its .frd and exit ZERO, and the status gate would pass.
         f"*STEP, NLGEOM, INC={spec.max_increments}\n"
-        "*DYNAMIC, ALPHA=0.0, DIRECT\n"
+        f"*DYNAMIC, ALPHA={_alpha_text(spec.hht_alpha)}, DIRECT\n"
         f"{_num(spec.time_window_size)}, {_num(spec.max_time)}\n"
         "** Plane strain: dof 3 suppressed on the one-element-thick slab (upstream's 2-D\n"
         "** idiom). The effective modulus is therefore E/(1-nu^2).\n"
@@ -679,11 +696,26 @@ def _main_deck_text(spec: CalculiXSolidSpec) -> str:
         "*EL FILE\n"
         "S, E\n"
         "** Reaction forces at the prescribed nodes: the solid-side half of the D10 power\n"
-        "** closure check (with ALPHA=0 and no damping the identity is exact).\n"
+        "** closure check. At ALPHA=0 and no damping the identity is EXACT; at a negative\n"
+        "** ALPHA it holds to within the algorithmic dissipation of the modes carrying the\n"
+        "** energy -- 3.9e-5 per cycle at the flapping frequency against D10's 2 % band\n"
+        "** (ADR-043 Y3, which is what an adoption commit has to move).\n"
         f"*NODE PRINT, NSET={NOSE_NSET}, TOTALS=ONLY\n"
         "RF\n"
         "*END STEP\n"
     )
+
+
+def _alpha_text(alpha: float) -> str:
+    """Render the *DYNAMIC ALPHA parameter.
+
+    NOT ``_num``: that is the %.13e form ccx's fixed FIELD widths need, and ALPHA is a
+    keyword PARAMETER, not a data field. ``repr`` reproduces the deck's historical
+    ``ALPHA=0.0`` byte-for-byte at the default, so a spec that does not move alpha writes
+    the deck it always wrote -- which is what makes ADR-043's digest move a RECORD move
+    rather than a case move for every unmitigated spec.
+    """
+    return repr(float(alpha))
 
 
 def write_calculix_deck(spec: CalculiXSolidSpec, *, dest_dir: Path) -> CalculiXDeck:
@@ -951,8 +983,12 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
             f"*STEP INC={deck.max_increments} < {_INC_MARGIN} x {spec.n_windows} windows — "
             "ccx would finish its step mid-run and exit ZERO, and the status gate would pass"
         )
-    if deck.dynamic_alpha != 0.0:
-        problems.append(f"*DYNAMIC ALPHA={deck.dynamic_alpha!r} != 0.0 (numerical damping)")
+    if deck.dynamic_alpha != spec.hht_alpha:
+        # Verified from the BYTES that will run, not inferred. This is what replaces D10's
+        # secondary role ("holding also proves ALPHA=0 held") once alpha can be non-zero
+        # (ADR-043 Y3): reading the card back is stronger than inferring it from a power
+        # balance, and it holds for whatever value the spec pins.
+        problems.append(f"*DYNAMIC ALPHA={deck.dynamic_alpha!r} != the spec's {spec.hht_alpha!r}")
     if not deck.dynamic_direct:
         problems.append("*DYNAMIC is missing DIRECT — ccx would choose its own time step")
     if deck.dt != spec.time_window_size:

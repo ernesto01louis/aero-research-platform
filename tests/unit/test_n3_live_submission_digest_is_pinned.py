@@ -55,7 +55,7 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
         },
-        "bfc60a49d85e81d909ebcc87da6140a12a35c4ea153cd810fbec1d3a29cd1a8c",
+        "0891e66d4ef5d44d127a223d042d406e39479b18a3aa84b290de71123df71f25",
     ),
     "rigid": (
         {
@@ -67,19 +67,52 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
         },
-        "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
+        "fae61ffaf316e37fa7110a49f4fd51cd484d6cf2a665b54b4f4012fd55852c40",
     ),
 }
 
 
+#: The digests these knobs produced before ADR-043, i.e. what the two attempt-1
+#: submissions on NFS still name. Kept so the supersession is checkable rather than
+#: merely asserted; nothing rebuilds to them any more, which is the point.
+_SUPERSEDED = {
+    "flexible": "bfc60a49d85e81d909ebcc87da6140a12a35c4ea153cd810fbec1d3a29cd1a8c",
+    "rigid": "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
+}
+
+
+@pytest.mark.parametrize("arm", sorted(_LIVE))
+def test_the_attempt1_records_are_superseded_not_silently_broken(arm: str) -> None:
+    """The declared cost of ADR-043, asserted so it cannot happen by accident later.
+
+    A digest that moved without anyone noticing is indistinguishable from one that moved
+    because an ADR said so. This states which of the two happened.
+    """
+    knobs, current = _LIVE[arm]
+    assert current != _SUPERSEDED[arm]
+    assert spec_config_digest(hg2007_case_spec(**knobs)) != _SUPERSEDED[arm]  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize("arm", sorted(_LIVE))
 def test_the_running_arms_spec_still_rebuilds_to_the_submitted_digest(arm: str) -> None:
-    """The one assertion that keeps N3 collectable.
+    """A drift guard on the builder — and no longer the thing that keeps N3 collectable.
 
-    If this fails, do NOT update the constant. The correct response is to revert whatever
-    moved the spec serialization: the record on disk describes the run that is actually
-    executing, and editing the expectation to match new code would make ``_reattach`` pass
-    while comparing a spec that is not the one that ran.
+    **The standing instruction on this test was "if this fails, do NOT update the
+    constant", and it was correct for as long as the digests described runs that could
+    still be collected. ADR-043 ended that**, deliberately and with the operator's
+    acceptance: adding ``hht_alpha`` to the solid spec moves EVERY spec's digest, so both
+    uncollected N3 attempt-1 records — the completed 76 090-window rigid arm included —
+    became permanently unreattachable. That cost was declared in ADR-041's D-C form 1,
+    re-declared in ADR-043 Y2, and paid here.
+
+    So these constants were re-pinned rather than defended, per handoff §6.44's
+    pre-registered rule ("any spec change re-pins it in the same commit"). What they now
+    assert is narrower and still worth having: that the builder is STABLE, so a future
+    serialization change announces itself here rather than at the end of a multi-day run.
+    The predecessors are kept in `_SUPERSEDED` so the historical record stays checkable.
+
+    When N3 is resubmitted on whatever stack the ladder adopts, these are re-transcribed
+    from the new live submissions and the original instruction applies again to those.
     """
     knobs, expected = _LIVE[arm]
     assert spec_config_digest(hg2007_case_spec(**knobs)) == expected  # type: ignore[arg-type]

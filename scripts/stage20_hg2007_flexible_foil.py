@@ -104,6 +104,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     GATED_RUNG,
     GATED_TIME_WINDOW_S,
     LEGACY_COUPLING_SCHEME,
+    LEGACY_HHT_ALPHA,
     NUMERICS_STACKS,
     RUNGS,
     adr041_rung_verdict,
@@ -819,6 +820,7 @@ def _prepare_and_submit(
     mpi_ranks: int = 1,
     adr041_rung: str | None = None,
     coupling_scheme: str = LEGACY_COUPLING_SCHEME,
+    hht_alpha: float = LEGACY_HHT_ALPHA,
 ) -> Path:
     """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
@@ -830,6 +832,7 @@ def _prepare_and_submit(
         numerics_label=numerics_label,
         mpi_ranks=mpi_ranks,
         coupling_scheme=coupling_scheme,  # type: ignore[arg-type]
+        hht_alpha=hht_alpha,
     )
     if gated_intent and not is_template_of_record(spec.source.template_sha256):
         # ADR-041 V7, checked BEFORE the general refusal so the diagnosis is the specific
@@ -921,6 +924,7 @@ def _prepare_and_submit(
             # the builder's default, so flipping that default at adoption cannot
             # retro-break a submission describing a run already on disk.
             "coupling_scheme": coupling_scheme,
+            "hht_alpha": hht_alpha,
         },
         "spec_sha256": spec_config_digest(spec),
         "gated": spec.gated,
@@ -964,6 +968,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
     # NOT the builder's default: that one moves if a mitigated stack is ever adopted, and
     # a record written before this key describes a run that really was parallel-implicit.
     knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
+    knobs.setdefault("hht_alpha", LEGACY_HHT_ALPHA)
     spec = hg2007_case_spec(**knobs)
     digest = spec_config_digest(spec)
     if digest != submission["spec_sha256"]:
@@ -2234,6 +2239,15 @@ def main(argv: list[str] | None = None) -> int:
         "preCICE accelerates only second-to-first data under serial coupling",
     )
     parser.add_argument(
+        "--hht-alpha",
+        type=float,
+        default=LEGACY_HHT_ALPHA,
+        dest="hht_alpha",
+        help="HHT-alpha on the solid *DYNAMIC card (ADR-043 Y1). CalculiX's own default "
+        "is -0.05; ADR-039 C2 pinned 0.0, the one value in range with exactly zero "
+        "dissipation at Nyquist. A non-record value cannot claim the gated verdict",
+    )
+    parser.add_argument(
         "--adr041-rung",
         choices=ADR041_RUNGS,
         default=None,
@@ -2309,6 +2323,7 @@ def main(argv: list[str] | None = None) -> int:
             mpi_ranks=args.ranks,
             adr041_rung=args.adr041_rung,
             coupling_scheme=args.coupling,
+            hht_alpha=args.hht_alpha,
         )
         return 0
     if args.collect_probe:
