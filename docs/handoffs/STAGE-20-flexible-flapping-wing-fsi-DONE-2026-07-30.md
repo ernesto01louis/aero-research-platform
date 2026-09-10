@@ -2302,6 +2302,44 @@ rung is judged by the pre-registered rule when it lands, and only then is it wor
 whether an INCONCLUSIVE-on-success outcome needs its own ADR. Proposing a detector change
 from the first 5 % of a probe is precisely the post-hoc move this regime exists to refuse.
 
+### 6.61 SESSION 13 — what the 1.0 N floor actually separates, computed BEFORE D-C1's verdict
+
+Recorded now, while D-C1 is still running and its verdict is unknown, precisely because
+the same numbers computed afterwards would read as rationalisation. Every figure below
+comes from runs whose verdicts are already on the record — the healthy rigid control and
+the two sick flexible runs — and none from D-C1.
+
+**When does a run's per-window max solid residual first reach ADR-041 V2's 1.0 N
+activation floor?**
+
+| run | verdict of record | first window ≥ 1.0 N | commanded amplitude there |
+|---|---|---|---|
+| rigid control | healthy, completed all 76 090 windows | **w72261** | **100 % of full** |
+| attempt 1 | SICK, died w1703 | **w127** | **0.0015 %** |
+| D-A | SICK, died w1487 | **w135** | **0.0017 %** |
+
+**The floor is not the noise floor it was written as.** V2 justifies 1.0 N as the level
+below which "these are ratios of near-zero residuals, where a large ratio carries no
+information" — true, and it is why the parity prong needs it. But empirically the floor
+separates something else entirely: **a healthy solid does not reach 1 N until FULL
+amplitude, while both sick runs were above it by window ~130, at 0.0015 % of amplitude.**
+Four orders of magnitude of amplitude separate the two behaviours.
+
+**Consequence for how a rung's activation fraction should be read.** ADR-041 V2(iii)
+treats low activation as INCONCLUSIVE — "the detector is inert here, which is not the same
+as health" — and that is the right default for a detector that can only compare parities.
+But an activation fraction of ZERO across a span where **every sick run activated by
+w135** is not the same evidential situation as a detector that never got data: it is the
+run declining to do the thing the sick runs did, measured against a healthy control that
+also declined to do it until 100 % amplitude.
+
+**This does not change V2 and is not authority to.** V2's bounds are frozen, its verdict
+on D-C1 will be whatever the pre-registered rule produces, and the rung will be recorded
+under that rule. What this section establishes, ahead of the result, is that **if** D-C1
+comes back INCONCLUSIVE-at-zero-activation, the honest reading of that outcome is a
+question worth an ADR rather than a shrug — and the calibration that would justify one
+already exists, in runs nobody can accuse of having been chosen after the fact.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
