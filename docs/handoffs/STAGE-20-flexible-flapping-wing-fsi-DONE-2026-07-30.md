@@ -2340,6 +2340,47 @@ comes back INCONCLUSIVE-at-zero-activation, the honest reading of that outcome i
 question worth an ADR rather than a shrug — and the calibration that would justify one
 already exists, in runs nobody can accuse of having been chosen after the fact.
 
+### 6.61 SESSION 13 — a quantization-immune observable, derived BEFORE D-C1's verdict
+
+**Written while D-C1 is still running (w~1313 of 8000), deliberately.** §6.60 recorded that
+a successful mitigation puts the solid residual below ccx's six-decimal print precision and
+therefore below V2's 1.0 N activation floor, and that the obvious substitute — displacement
+corrections — fails because ratios of 1e-9-to-1e-14 quantities are noise. This section
+derives a candidate that does not fail that way, and it is timestamped before the verdict so
+that the derivation cannot have been fitted to it.
+
+**The observable: ccx's final Newton iteration count per increment**, from
+`hg2007-flexible-solid.sta` (last row per INC — `.sta` repeats INC once per coupling
+iteration). Integers: no print precision, no floor, no near-zero ratios. **It is not a new
+idea — it is §6.49's own evidence item 2** ("ccx Newton effort escalates in lockstep, odd
+windows only: 39 windows with final ITER ≥ 8, ALL odd"), which ADR-041 cited as part of the
+signature and then did not build a prong on.
+
+| run | verdict of record | median ITRS | max | windows ≥ 8 | their parity |
+|---|---|---|---|---|---|
+| attempt 1 | SICK, died w1703 | 7 | 14 | 39 (w1625-1701) | **all ODD** |
+| D-A | SICK, died w1487 | 6 | 12 | 5 (w1477-1485) | **all ODD** |
+| D-C2 | SICK, died w1996 | 5 | 14 | 18 (w1960-1994) | **all EVEN** |
+| Q1 | healthy control | 5 | 6 | 0 | — |
+| **D-C1** | **α = -0.05, live** | **2** | **2** | **0** | — |
+
+**Two properties make this more than a convenient number.**
+
+1. **It reproduces the parity flip independently.** D-C2's residual divergence was on the
+   EVEN branch where attempt 1's and D-A's were ODD (§6.58), and the high-iteration windows
+   follow: all EVEN for D-C2, all ODD for the other two. An observable that tracks the
+   mechanism's *phase* across three runs is measuring the mechanism, not the load.
+2. **D-C1 is flat, not merely low.** Median 2 and max 2 in every 200-window band across all
+   1313 increments so far — through the range where D-A already sat at median 6, and past
+   nothing that looks like onset. It is cleaner than the HEALTHY Q1 control (median 5, max 6).
+
+**This is corroboration, not a verdict, and V2 is not being reinterpreted.** D-C1 will be
+judged by the pre-registered rule exactly as D-A, D-B and D-C2 were, with whatever it
+returns. If that is ELIMINATED, none of this is needed. If it is INCONCLUSIVE-on-success,
+then this table is the evidence base for an amendment adding an iteration-count prong —
+calibrated on runs whose verdicts were already recorded, derived before the outcome it would
+be used to interpret, and proposed to the operator rather than applied.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
