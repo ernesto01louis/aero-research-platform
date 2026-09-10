@@ -2423,6 +2423,70 @@ calibration that was timestamped before the data existed.
 
 **Ladder spend: 9.53 h of the 35 h cap.** Box idle, nothing queued.
 
+### 6.62 SESSION 13 — D-C1 COMPLETED 8000/8000. The crash is gone. V2 says INCONCLUSIVE.
+
+**The first flexible run ever to finish its span.** `hg2007_flexible_foil-20260910-084806`
+ran **8000 of 8000 windows**, `run_long` rc=0, both participants exited cleanly
+(`Total CalculiX Time: 20287`, fluid `End` / `Finalising parallel run`), in 20 287 s
+ClockTime = 5.6 h at **2.54 s/window**. Four prior flexible runs all died of
+`corrupted double-linked list`; this one did not.
+
+**Full span against the three that died — the last 200 windows each arm lived:**
+
+| run | outcome | last-200 max residual | ITRS median / max | windows ≥ 8 |
+|---|---|---|---|---|
+| attempt 1 | died w1703 | **2.03e+03 N** | 7 / 14 | 39 (all ODD) |
+| D-A | died w1487 | **3.54e+03 N** | 6 / 12 | 5 (all ODD) |
+| D-C2 | died w1996 | **3.62e+03 N** | 5 / 14 | 18 (all EVEN) |
+| **D-C1** | **COMPLETED 8000** | **0.00e+00 N** | **2 / 2** | **0** |
+
+Over its whole span D-C1's median per-window residual is **0.000e+00** and its maximum is
+**1.970 N** — the w101-200 startup transient, the same one every run shows. Newton effort is
+**flat at 2 iterations for all 8000 increments**. The sick runs ended carrying residuals of
+two to three thousand newtons and escalating Newton effort; this one ends at zero, having
+gone four to five times further in windows.
+
+**And the pre-registered detector cannot say any of it.** V2's verdict, computed by the
+driver and recorded at `adr041-D-C1-verdict.json`:
+
+> **INCONCLUSIVE** — 0/395 chunks active. "only 0.0 % of chunks reach the 1.0 N activation
+> floor (V2 (iii) requires 50 %) — the detector is inert here, which is not the same as
+> health"
+
+That is V2 working exactly as written: a parity RATIO on near-zero quantities carries no
+information, so it declines to call it health. **The floor was calibrated on runs that
+carried the instability, and a mitigation that removes the instability removes the signal
+the floor was sized against.** §6.60 recorded this risk before the run finished and §6.61
+derived the way out before the verdict existed.
+
+**V1's options, and why only one of them is honest.** An INCONCLUSIVE probe "has not spent
+the rung's verdict and may be re-probed ONCE, after which a second INCONCLUSIVE becomes
+UNRESOLVED". A re-probe would return INCONCLUSIVE again — the floor does not move because
+the run is repeated. So the ladder's own machinery cannot convert this outcome into an
+adoption, and D-C1 is the LAST rung: leaving it here means a recorded NO-GO on
+infrastructure for a stack that just completed its span with the failure mode absent.
+
+**Queued for the operator: an amendment adding the iteration-count prong** (§6.61's table,
+committed at `9b6897a` BEFORE this verdict existed). It is integer-valued, immune to ccx's
+six-decimal print precision, already part of §6.49's signature, and it separates all five
+runs cleanly while independently reproducing the parity FLIP. Nothing is adopted and no
+band moves until that amendment is accepted.
+
+**Two things the record should carry into that conversation.**
+
+1. **Adoption still requires V6's Q1 gate**, unchanged and with frozen bands. The one
+   hypothesis this rung cannot rule out by itself is that the damping suppressed the
+   PHYSICAL response along with the numerical mode; Q1 measures exactly that against the
+   surviving ADR-039 baselines, and ADR-043 Y3 already declares what adoption moves
+   (C2's expectation, D10's rationale, band unmoved).
+2. **The economics may have improved.** 2.54 s/window here against D-A's 3.25 — 22 %
+   faster, plausibly because the solid converges in 2 Newton iterations instead of 6.
+   IF that ratio carried to the contended two-arm campaign shape it would take ADR-040's
+   ~2.00 s/window projection to ~1.56, which is inside the 1.834 that 10 settled cycles
+   need in 14 days — the first time any measurement has put a wave inside a two-week
+   ceiling. **It is uncontended flexible-only and must not be treated as a campaign rate:
+   only N3 may size that (ADR-040 N3).**
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

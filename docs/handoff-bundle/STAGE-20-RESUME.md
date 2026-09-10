@@ -482,6 +482,21 @@ question that forces: how to read a COMPLETED span with ZERO activation, given �
 calibration (committed before the result) that every sick run activated by w135 and the
 healthy control not until 100 % amplitude.** Ladder 9.53 h of 35 h; box idle.
 
+## 6r. D-C1 COMPLETED 8000/8000 — the crash is gone; V2 cannot say so
+
+Handoff §6.62. **The first flexible run ever to finish its span**: 8000/8000, rc=0, both
+participants clean, 5.6 h at 2.54 s/window. The three runs that died ended carrying
+2000-3600 N residuals with escalating Newton effort; D-C1 ends at **0.000 N**, median
+residual 0 over the whole span, **Newton ITRS flat at 2 for all 8000 increments**, zero
+windows >= 8. **V2's verdict is INCONCLUSIVE** — 0/395 chunks reach the 1.0 N floor, because
+a mitigation that removes the instability removes the signal the floor was calibrated
+against. A re-probe cannot fix that, and D-C1 is the last rung, so the ladder's machinery
+would otherwise record a NO-GO for a stack that just completed with the failure mode absent.
+**Queued for the operator: the iteration-count prong amendment** (evidence committed at
+`9b6897a` BEFORE the verdict). Nothing adopted, no band moved. Adoption still needs V6's Q1
+gate — the one thing this rung cannot rule out is the damping suppressing the PHYSICS, and
+Q1 with frozen bands is what measures it.
+
 ## 6q. D-C1 IS RUNNING — the last rung, at CalculiX's own ALPHA default
 
 Handoff §6.59. ADR-043 accepted (`89a4a28`): `*DYNAMIC, ALPHA=0.0` → **-0.05**, which is
