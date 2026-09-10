@@ -83,6 +83,51 @@ completed. V2(i) already makes completion NECESSARY for elimination; Z2 records 
 this ladder's history it is also *informative*, and that a Z1 adoption rests on both legs
 rather than on the detector's silence alone.
 
+**A second, independent measurement says the same thing, and it is NOT proposed as a
+prong.** ccx's final Newton iteration count per increment (`.sta`, last row per INC) is
+integer-valued, so it has no print-precision floor and no near-zero-ratio failure — the two
+problems that make the residual observable go quiet here. It is also not a new idea: it is
+ADR-041's own evidence item 2, quoting §6.49's *"39 windows with final ITER ≥ 8, ALL odd"*.
+
+| run | outcome of record | increments | median | max | windows ≥ 8 |
+|---|---|---|---|---|---|
+| rigid control | COMPLETED 76 090 | 76 090 | 2 | 4 | **0** |
+| Q1 control | healthy, 500 w | 500 | 5 | 6 | **0** |
+| **D-C1** | **COMPLETED 8 000** | 8 000 | **2** | **2** | **0** |
+| attempt 1 | SICK, died w1703 | 1 703 | 7 | 14 | **39** (all ODD) |
+| D-A | SICK, died w1487 | 1 487 | 6 | 12 | **5** (all ODD) |
+| D-C2 | SICK, died w1996 | 1 996 | 5 | 14 | **18** (all EVEN) |
+
+**84 590 increments of healthy coupled running contain zero windows at ITRS ≥ 8**; every run
+that died contains at least five. The high-iteration windows also reproduce the parity FLIP
+independently — all EVEN for D-C2 where attempt 1's and D-A's are all ODD, matching each
+run's residual parity (§6.58) — so the quantity tracks the mechanism's phase, not the load.
+And **D-C1's median equals the RIGID control's**: the damped flexible arm converges like the
+arm that never had the problem.
+
+This is recorded as EVIDENCE and deliberately not as a rule. Adding a prong would be adding
+an observable to a detector after seeing the run it would grade; Z1's conditions above are
+keyed to zero and to spans fixed before the result, and they carry the decision alone.
+
+## Z4 — the rigour option the operator may require
+
+This ADR concedes above that being written after the outcome cannot be undone by care. One
+thing WOULD undo it: **accept Z1, then spend ADR-041 V1(b)'s already-granted single re-probe
+of the INCONCLUSIVE D-C1 rung, and judge that probe by the accepted rule.** The rule would
+then predate the probe it grades, which is the discipline this whole regime is built on.
+
+The body text above says a re-probe "does not help", and under the UNAMENDED rule that is
+correct — it would return INCONCLUSIVE for the same structural reason. Under an accepted Z1
+it is different in kind: determinism is divergent (§6.49), so it is a genuinely fresh draw,
+and if D-C1's completed span was luck rather than mitigation this is the cheapest thing that
+would expose it. Cost ~5.6 h against V3's 35 h cap, of which 3.89 h is spent.
+
+**Both paths are offered rather than one recommended**, because the trade is the operator's:
+Z4 buys a pre-registered reading of a fresh run for ~5.6 h and a day's delay, while adopting
+on the existing run costs nothing and rests on a rule written after its data. **The agent's
+view: take Z4** — a stack about to carry a 1.17 M-window campaign should not be adopted on a
+rule that has never been applied to a run it did not already see.
+
 ## Z3 — what adopting D-C1 would execute
 
 Adoption is not automatic on acceptance of this ADR; it is the operator's step, in a commit
