@@ -2244,6 +2244,64 @@ C2's expectation and D10's rationale (ADR-043 Y3 declares both; the 2 % band its
 not move) and V6's Q1 re-run follows. Anything else ⇒ **ADR-041 V1's ladder is exhausted
 and the result is a recorded NO-GO on infrastructure**, which is a legitimate outcome.
 
+### 6.60 SESSION 13 — D-C1 EARLY SIGNS ARE GOOD, and that creates a measurement problem
+
+**Not a verdict — the run is ~5 % in.** Recorded now because the effect is large and
+because the obvious way to "fix" the detector for it is a trap that a later session should
+not have to re-discover.
+
+**The early evidence is what the hypothesis predicted.** Per-window max solid residual,
+same windows, damped against undamped:
+
+| windows | D-A, α = 0.0 (max / median) | D-C1, α = -0.05 (max / median) |
+|---|---|---|
+| 1-100 | 1.90 / 1.6e-1 N | 1.89 / 1.5e-5 N |
+| 101-200 | 1.97 / **1.04** N | 1.97 / **7e-6** N |
+| 201-300 | 3.22 / **2.06** N | 5.5e-2 / **0** N |
+| 301-400 | 4.07 / **3.23** N | 1e-6 / **0** N |
+
+D-A's residual level CLIMBS with the ramp; D-C1's COLLAPSES after the startup transient.
+The run is loaded and moving throughout (`average force= 5.04e-4`, disp increments
+~3.4e-8), so this is convergence, not a force-free deck. It is also **2x faster** —
+1.67 s/window against D-A's 3.25, i.e. ~3.7 h for the full span — consistent with the
+solid needing far fewer iterations once the undamped Nyquist content is gone. **The
+reading this supports: D-A's early residual level WAS the instability, not healthy load
+response.**
+
+**The problem this creates.** ADR-041 V2's parity prong needs both parities ≥ **1.0 N**
+before a chunk counts, and ccx prints `largest residual force` with `%f` — six decimals —
+so anything below 5e-7 N reads as exactly `0.000000` (67 % of D-C1's residual lines so
+far). **A successful mitigation drives the observable below its own detector's floor**,
+and V2(iii) then returns INCONCLUSIVE — correctly, since a ratio of near-zero quantities
+carries no information, but INCONCLUSIVE is not ELIMINATED and cannot be adopted.
+The floor was calibrated on runs we now suspect were already sick, so it assumes the sick
+residual scale.
+
+**THE OBVIOUS FIX IS A TRAP — tested against the known runs rather than assumed.**
+ccx also prints `largest correction to disp` in SCIENTIFIC notation (7 significant
+figures), so it escapes the quantization and looks like the natural substitute observable.
+Its worst 20-window parity ratio, computed with no floor:
+
+| run | verdict of record | worst parity ratio |
+|---|---|---|
+| attempt 1 | SICK, died w1703 | 5.00 @w1681-1700 |
+| D-A | SICK, fired w1460 | 4.12 @w1461-1480 |
+| D-C2 | SICK, fired w1820 | 11.27 @w1961-1980 |
+| Q1 | healthy control | 1.01 |
+| **D-C1** | **the run that looks healthy** | **42.51 @w201-220** |
+
+D-C1 scores HIGHER than every sick run, because once corrections fall to 1e-9…1e-14 the
+ratio is computed on numerical noise. The substitute needs an activation floor of its own
+and then fails in exactly the same place. **No reinterpretation of V2 is available, and
+none is being proposed.**
+
+**What happens next is therefore: nothing clever.** The run has 95 % of its span left and
+the commanded amplitude grows by roughly three orders of magnitude across it, so the
+residuals may well rise back through the floor and let V2 evaluate exactly as written. The
+rung is judged by the pre-registered rule when it lands, and only then is it worth asking
+whether an INCONCLUSIVE-on-success outcome needs its own ADR. Proposing a detector change
+from the first 5 % of a probe is precisely the post-hoc move this regime exists to refuse.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
