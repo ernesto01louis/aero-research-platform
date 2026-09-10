@@ -469,6 +469,17 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6q. D-C1 IS RUNNING — the last rung, at CalculiX's own ALPHA default
+
+Handoff §6.59. ADR-043 accepted (`89a4a28`): `*DYNAMIC, ALPHA=0.0` → **-0.05**, which is
+CalculiX's OWN default (`dynamics.f:73`) that ADR-039 C2 had deliberately overridden to the
+one value in range with zero Nyquist dissipation. `fsi-hg2007_flexible_foil-20260910-084806`,
+submitted 08:48 UTC, 8000 windows, ~7.4 h expected, 24 h ceiling; the materialized deck
+carries `ALPHA=-0.05` (verified). Ladder 3.89 h of 35 h before it. **Every digest moved and
+both attempt-1 records are now permanently unreattachable — declared, accepted, paid.**
+**This is the LAST rung: eliminate and the adoption commit moves ADR-039 C2 + D10's
+rationale (band unmoved); anything else is a recorded NO-GO on infrastructure.**
+
 ## 6p. D-C2 RECURRENCE-DETECTED — the suspect is ALPHA=0.0, and D-C1 is the last rung
 
 Handoff §6.58. The adapter bump fixed neither failure: died w1996, detector fired w1820

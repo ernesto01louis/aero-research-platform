@@ -2184,6 +2184,66 @@ scheme; and its new solid-spec field moves EVERY digest, permanently un-reattach
 uncollected N3 attempt-1 records, the completed rigid arm included. It is also the LAST
 pre-registered rung: if it fails V2, ADR-041 V1 gives a recorded NO-GO on infrastructure.
 
+### 6.59 SESSION 13 — ADR-043 accepted; D-C1 IS RUNNING at CalculiX's own ALPHA default
+
+**ADR-043** (`89a4a28`) pins the last rung: `*DYNAMIC, ALPHA=0.0` → **`ALPHA=-0.05`**, and
+nothing else. The value was NOT chosen by taste — **-0.05 is CalculiX's own default**, read
+out of the pinned source this container is built from (`CalculiX/ccx_2.20/src/dynamics.f:73`,
+`alpha(1)=-0.05d0`, with the `[-1/3, 0]` clamp at :106-113). **ADR-039 C2's `ALPHA=0.0` was
+a deliberate override of upstream's default to the single value in the permitted range with
+exactly zero high-frequency dissipation** — and the Nyquist mode of a window-stepped solve is
+a period-2, window-alternating oscillation, which is the signature seen in 3 of 3 parallel
+runs, with the diverging parity flipping between them (ODD, ODD, EVEN) exactly as a Nyquist
+mode would and a systematic code path would not.
+
+Dissipation at `dt = 2e-5` s, α = -0.05 (ξ ≈ 0.025·ωΔt for small ωΔt):
+
+| mode | ωΔt | energy lost per cycle |
+|---|---|---|
+| flapping, 0.986 Hz | 1.24e-4 | **3.9e-5** |
+| 50 Hz structural | 6.3e-3 | 2.0e-3 |
+| 500 Hz | 6.3e-2 | 2.0e-2 |
+| **Nyquist, 25 kHz** | π | **~0.99** |
+
+Against the observed growth of 1.027 per window, a per-step Nyquist decay of that order
+turns growth into decay with a wide margin. V2's detector decides it.
+
+**THREE THINGS THE IMPLEMENTATION GOT RIGHT AND A LATER READER SHOULD NOT UNDO:**
+
+1. **The default writes the historical deck bytes.** `_alpha_text` renders `repr(0.0)` =
+   `0.0`, NOT `_num`'s `0.0000000000000e+00`. Without it the unmitigated deck would have
+   changed and ADR-043 Y2's "record move, not case move" claim would have been false.
+2. **The gating fence grew a conjunct**: `is_campaign_configuration` = template-of-record
+   AND alpha-of-record. One-way, like ADR-041 V7 — it can only refuse, and L5's five
+   inputs stay necessary. Without it a rung at the gated five-tuple would mint a bundle
+   claiming `gated=True` the moment B2's sentinels filled.
+3. **The declared cost was paid, not dodged.** `hht_alpha` is a spec field, so every digest
+   moved and **both uncollected attempt-1 records are now permanently unreattachable**, the
+   completed 76 090-window rigid arm included. The pins were re-pinned per §6.44's rule
+   (`bfc60a49…`→`0891e66d…`, `ed1ba571…`→`fae61ffa…`), the predecessors kept in
+   `_SUPERSEDED` so the supersession stays checkable, and that test's docstring — which
+   used to say "do NOT update the constant" — now says what it does and does not guard.
+   Those runs' bytes remain readable on NFS and the rigid arm's residual table is already
+   mined; nothing downstream reads them through `_reattach`.
+
+**D-C1 IS RUNNING.** Submitted 2026-09-10 08:48 UTC:
+
+```
+run_id   hg2007_flexible_foil-20260910-084806
+session  fsi-hg2007_flexible_foil-20260910-084806
+submission  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260910-084806/ladder-DC1-submission.json
+```
+
+8000 windows, flexible only, uncontended, 4 ranks, adr040-candidate, parallel-implicit,
+`hht_alpha=-0.05`, `gated=False`, 24 h ceiling. **The deck that actually ran carries
+`*DYNAMIC, ALPHA=-0.05, DIRECT`** — verified from the materialized bytes, not assumed.
+Ladder spend before it: 3.89 h of 35 h.
+
+**This is the LAST pre-registered rung.** ELIMINATED ⇒ the adoption commit moves ADR-039
+C2's expectation and D10's rationale (ADR-043 Y3 declares both; the 2 % band itself does
+not move) and V6's Q1 re-run follows. Anything else ⇒ **ADR-041 V1's ladder is exhausted
+and the result is a recorded NO-GO on infrastructure**, which is a legitimate outcome.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
