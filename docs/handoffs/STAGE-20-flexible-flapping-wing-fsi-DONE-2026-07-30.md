@@ -2487,6 +2487,45 @@ band moves until that amendment is accepted.
    ceiling. **It is uncontended flexible-only and must not be treated as a campaign rate:
    only N3 may size that (ADR-040 N3).**
 
+### 6.64 SESSION 13 — the .sta corroboration in ADR-044, INDEPENDENTLY re-derived
+
+ADR-044's Z3 corroboration (added `a876938`) was re-parsed from the raw `.sta` files rather
+than taken on trust, and the parser was cross-checked against session 12's own
+`minerA_flexible.tsv` before being believed. **Every figure reproduces.**
+
+| run | outcome of record | increments | median ITRS | max | ≥ 8 |
+|---|---|---|---|---|---|
+| D-C1, α = -0.05 | **COMPLETED 8000** | 8 000 | **2** | **2** | **0** |
+| rigid control | COMPLETED 76 090 | 76 090 | **2** | 4 | **0** |
+| Q1 control | healthy, 500 w | 500 | 5 | 6 | **0** |
+| attempt 1 | SICK, died w1703 | 1 703 | 7 | 14 | **39, all ODD** |
+| D-A | SICK, died w1487 | 1 487 | 6 | 12 | **5, all ODD** |
+| D-C2 | SICK, died w1996 | 1 996 | 5 | 14 | **18, all EVEN** |
+
+- **84 590 increments of healthy or completed coupled running contain ZERO windows at
+  ITRS ≥ 8**; every run that died contains at least five.
+- The **parity flip reproduces independently of the residual series**: attempt 1 and D-A
+  all ODD, D-C2 all EVEN — matching each run's residual parity (§6.58), so the quantity
+  tracks the mechanism's phase rather than the load.
+- **D-C1 converges TIGHTER than the rigid control** (median 2 and max 2, against the rigid
+  arm's median 2 and max 4) — the damped flexible arm behaves like the arm that never had
+  the problem.
+- Parser validation: 39 of 1703 increments at finalITER ≥ 8 for attempt 1, matching both
+  §6.49's reported 39 and `minerA_flexible.tsv`'s own column. A first attempt at this parse
+  read the wrong `.sta` columns (INC is field 1, not 0, and rows repeat per coupling
+  iteration) and reported one increment per run; the number that matters is the one that
+  agrees with session 12's table.
+
+Why it is corroboration and not a rule: the count is integer-valued, so it has no
+print-precision floor and no near-zero-ratio failure — the two things that silenced the
+residual observable on D-C1. ADR-044 deliberately records it as EVIDENCE and adds no prong,
+since adding an observable to a detector after seeing the run it would grade is the move the
+regime refuses. **The decision still rests on Z1's conditions, which are keyed to zero and
+to spans fixed before the result.**
+
+**State: ADR-044 remains PROPOSED. Nothing is adopted, nothing has run since D-C1, the box
+is idle, and the ladder stands at 9.53 h of the 35 h cap.**
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
