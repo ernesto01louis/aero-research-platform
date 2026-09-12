@@ -469,6 +469,21 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6s. ADR-044 ACCEPTED with Z4 — the re-probe that decides adoption IS RUNNING
+
+Handoff §6.65. ADR-044 accepted 2026-09-12 (`d702b57`) with **Z4**: D-C1's completed run is
+NOT adopted; Z1 went into code FIRST, then ADR-041 V1(b)'s single re-probe was spent, and
+THAT run is judged by the accepted rule — so the rule predates the run it grades, which is
+the one defect in ADR-044 that care alone could not fix. D-C1 stays INCONCLUSIVE
+permanently, as evidence.
+
+`fsi-hg2007_flexible_foil-20260912-161321`, submitted 16:13 UTC, identical in shape to D-C1
+(8000 windows, uncontended, α=-0.05 with the deck verified), ~5.6 h, 24 h ceiling.
+**The rung's SECOND and FINAL probe** — V1 caps any rung at two under any combination of
+V1(a), V1(b) and ADR-042 X2. ELIMINATED under Z1 ⇒ adoption (ADR-043 Y3's C2 and D10 moves,
+`ALPHA_OF_RECORD` → -0.05) then V6's Q1 re-run; anything else ⇒ recorded **NO-GO on
+infrastructure**. Ladder 9.53 h of 35 h before it; nothing else on the box.
+
 ## 6r. D-C1 COMPLETED 8000/8000 — and the rule says INCONCLUSIVE
 
 Handoff §6.62. **The first flexible coupled run ever to finish its span**: all-exited, both
@@ -482,7 +497,9 @@ question that forces: how to read a COMPLETED span with ZERO activation, given �
 calibration (committed before the result) that every sick run activated by w135 and the
 healthy control not until 100 % amplitude.** Ladder 9.53 h of 35 h; box idle.
 
-## 6r. D-C1 COMPLETED 8000/8000 — the crash is gone; V2 cannot say so
+## 6r-bis. D-C1 COMPLETED 8000/8000 — the crash is gone; V2 cannot say so
+
+*(Two sessions recorded this same result independently, minutes apart — §6r above and this one. Both are valid records with different emphases; only the heading was relabelled, to remove the duplicate anchor.)*
 
 Handoff §6.62. **The first flexible run ever to finish its span**: 8000/8000, rc=0, both
 participants clean, 5.6 h at 2.54 s/window. The three runs that died ended carrying
