@@ -52,7 +52,7 @@ from aero.adapters.precice.case import (
     ParticipantSpec,
 )
 from aero.adapters.precice.config import CouplingSchemeKind
-from aero.adapters.precice.logs import DivergenceReport
+from aero.adapters.precice.logs import ACTIVATION_FLOOR_N, DivergenceReport
 from aero.adapters.precice.template import (
     HG2007_TEMPLATE,
     RENDERER_VERSION,
@@ -274,6 +274,14 @@ Adr041RungVerdict = Literal[
 ]
 
 
+#: ADR-044 Z1 condition 3. The span must cover, with a 10x margin, the latest window at
+#: which any run of record carrying the signature had already activated: attempt 1 at
+#: w127, D-A at w135 (the healthy rigid control not until w72261, at FULL amplitude). Fixed
+#: from runs that pre-date the result this rule was written after, and committed at
+#: `95be432` before that result existed.
+ADR044_MIN_EVALUATED_WINDOW = 1350
+
+
 def adr041_rung_verdict(
     report: DivergenceReport, *, completed: bool
 ) -> tuple[Adr041RungVerdict, str]:
@@ -302,6 +310,28 @@ def adr041_rung_verdict(
         )
     if report.verdict == "clean":
         return "eliminated", report.reason
+    # ADR-044 Z1: a COMPLETED full span with EXACTLY zero activation is elimination, not
+    # absence of evidence. The 1.0 N floor does not separate signal from noise -- it
+    # separates healthy from sick by four orders of magnitude of amplitude (both sick runs
+    # were above it by w135; the healthy rigid control not until w72261, at full
+    # amplitude). Keyed to zero so it cannot be tuned, and gated on a span fixed before
+    # the result. It can only ADD an elimination path: a rung that activates and diverges
+    # is still RECURRENCE-DETECTED above.
+    last_evaluated = report.evaluated_windows[1] if report.evaluated_windows else 0
+    if (
+        report.verdict == "inconclusive"
+        and report.active_chunks == 0
+        and report.contiguous
+        and last_evaluated >= ADR044_MIN_EVALUATED_WINDOW
+    ):
+        return "eliminated", (
+            f"ADR-044 Z1: the span completed to window {last_evaluated} with EXACTLY zero "
+            f"of {report.complete_chunks} chunks reaching the {ACTIVATION_FLOOR_N} N floor, "
+            f"contiguously, past the {ADR044_MIN_EVALUATED_WINDOW}-window bar (10x the "
+            "latest window at which any run carrying the signature had activated). Every "
+            "sick run of record was above that floor by w135; the healthy rigid control "
+            "not until w72261, at full amplitude"
+        )
     return "inconclusive", report.reason
 
 

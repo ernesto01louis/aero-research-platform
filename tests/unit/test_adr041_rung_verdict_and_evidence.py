@@ -291,3 +291,77 @@ def test_a_non_record_template_can_never_carry_the_gated_verdict(
     # ...and now the same five inputs rendered from a template that is not the record.
     monkeypatch.setattr(campaign, "is_template_of_record", lambda _digest: False)
     assert campaign.hg2007_case_spec(**knobs).gated is False
+
+
+# --- ADR-044 Z1: a completed span with zero activation ---------------------------------
+
+
+def _inconclusive(**kw: Any) -> DivergenceReport:
+    d: dict[str, Any] = {
+        "verdict": "inconclusive",
+        "n_windows": 8000,
+        "complete_chunks": 395,
+        "active_chunks": 0,
+        "active_fraction": 0.0,
+        "contiguous": True,
+        "evaluated_windows": (101, 8000),
+        "reason": "only 0.0% of chunks reach the 1.0 N activation floor",
+    }
+    d.update(kw)
+    return DivergenceReport(**d)
+
+
+def test_a_completed_span_with_zero_activation_eliminates() -> None:
+    """ADR-044 Z1, the path that exists because success removes the detector's signal.
+
+    The 1.0 N floor does not separate signal from noise: both sick runs of record were
+    above it by w135, and the healthy rigid control not until w72261 at FULL amplitude.
+    """
+    verdict, why = adr041_rung_verdict(_inconclusive(), completed=True)
+    assert verdict == "eliminated"
+    assert "ADR-044 Z1" in why
+
+
+def test_z1_is_keyed_to_zero_and_cannot_be_tuned() -> None:
+    """One active chunk is not zero. A rule keyed to zero has no dial."""
+    verdict, _ = adr041_rung_verdict(
+        _inconclusive(active_chunks=1, active_fraction=1 / 395), completed=True
+    )
+    assert verdict == "inconclusive"
+
+
+def test_z1_requires_the_probe_to_have_completed_its_span() -> None:
+    """A run that died tells us nothing about the span it did not reach."""
+    verdict, _ = adr041_rung_verdict(_inconclusive(), completed=False)
+    assert verdict == "died-undiagnosed"
+
+
+def test_z1_requires_the_span_bar_fixed_before_the_result() -> None:
+    """A short quiet span is not evidence: every sick run activated by w135.
+
+    The bar is 10x that. A 4000-window fallback probe clears it; a probe that stopped at
+    w900 does not, however quiet it was.
+    """
+    from aero.vv.fsi.hg2007_flexible_foil import ADR044_MIN_EVALUATED_WINDOW
+
+    assert ADR044_MIN_EVALUATED_WINDOW == 1350
+    short, _ = adr041_rung_verdict(
+        _inconclusive(evaluated_windows=(101, 900), complete_chunks=40), completed=True
+    )
+    assert short == "inconclusive"
+    ok, _ = adr041_rung_verdict(
+        _inconclusive(evaluated_windows=(101, 1360), complete_chunks=63), completed=True
+    )
+    assert ok == "eliminated"
+
+
+def test_z1_requires_a_contiguous_series_so_zero_is_a_measurement() -> None:
+    """A gap makes zero activation an absence of data rather than a fact about the run."""
+    verdict, _ = adr041_rung_verdict(_inconclusive(contiguous=False), completed=True)
+    assert verdict == "inconclusive"
+
+
+def test_z1_never_rescues_a_rung_that_diverged() -> None:
+    """It can only ADD an elimination path. A fired prong still fails, as before."""
+    verdict, _ = adr041_rung_verdict(_report("precursor", fired=True), completed=True)
+    assert verdict == "recurrence-detected"

@@ -1,9 +1,13 @@
 # ADR-044 — How to read a COMPLETED span with ZERO activation: family Z
 
-- **Status:** proposed — becomes `accepted` on the operator's explicit acceptance, recorded
-  in the commit that lands this file. **Nothing is adopted and nothing runs while it is
-  proposed. D-C1's verdict of record remains INCONCLUSIVE until and unless this is
-  accepted.**
+- **Status:** accepted — **Z1, Z2, and Z4 TAKEN**; Z3 stands as recorded evidence and not
+  as a rule. The operator accepted this text and chose Z4 on 2026-09-12, and this commit is
+  that acceptance.
+  **Because Z4 was taken, D-C1's completed run is NOT adopted on this rule.** Z1 is
+  implemented in code first, then ADR-041 V1(b)'s single already-granted re-probe of the
+  INCONCLUSIVE D-C1 rung is spent, and THAT run is judged by the rule as accepted — so the
+  rule predates the run it grades. D-C1's own verdict of record stays INCONCLUSIVE
+  permanently; it is evidence, not the adoption.
 - **Date:** 2026-09-10
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code
   agent (Stage 20)
@@ -122,7 +126,10 @@ it is different in kind: determinism is divergent (§6.49), so it is a genuinely
 and if D-C1's completed span was luck rather than mitigation this is the cheapest thing that
 would expose it. Cost ~5.6 h against V3's 35 h cap, of which 3.89 h is spent.
 
-**Both paths are offered rather than one recommended**, because the trade is the operator's:
+**The operator took Z4 on 2026-09-12.** The re-probe is the run that decides adoption, and
+Z1's conditions are in code before it is submitted.
+
+**Both paths were offered rather than one recommended**, because the trade is the operator's:
 Z4 buys a pre-registered reading of a fresh run for ~5.6 h and a day's delay, while adopting
 on the existing run costs nothing and rests on a rule written after its data. **The agent's
 view: take Z4** — a stack about to carry a 1.17 M-window campaign should not be adopted on a
