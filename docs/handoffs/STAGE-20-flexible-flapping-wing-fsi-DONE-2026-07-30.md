@@ -2526,6 +2526,52 @@ to spans fixed before the result.**
 **State: ADR-044 remains PROPOSED. Nothing is adopted, nothing has run since D-C1, the box
 is idle, and the ladder stands at 9.53 h of the 35 h cap.**
 
+### 6.65 SESSION 13 — ADR-044 ACCEPTED with Z4, and the re-probe it grades IS RUNNING
+
+**The operator accepted ADR-044 on 2026-09-12 and chose Z4** (`d702b57`). Z1, Z2 accepted;
+Z3 stands as recorded evidence and not as a prong; **Z4 taken**, which is the part that
+matters most:
+
+> **D-C1's completed run is NOT what gets adopted.** Z1 was implemented in code FIRST,
+> then ADR-041 V1(b)'s single already-granted re-probe is spent, and THAT run is judged by
+> the rule as accepted. The rule therefore predates the run it grades — the one defect in
+> ADR-044 that care alone could not fix, since it was written after seeing D-C1.
+
+D-C1's own verdict of record stays **INCONCLUSIVE permanently**. It is evidence, not the
+adoption.
+
+**Z1 in code** (`aero/vv/fsi/hg2007_flexible_foil.py`, `adr041_rung_verdict`): a probe that
+COMPLETED its full span with **exactly zero** activation, contiguously, past
+`ADR044_MIN_EVALUATED_WINDOW = 1350`. Each condition carries a test that states why it is
+load-bearing — zero rather than "low" so the rule has no dial; completion, because a run
+says nothing about the span it never reached; the window bar (10x w135, the latest window
+at which any run carrying the signature had activated, fixed at `95be432` before D-C1's
+verdict existed) so a short quiet span cannot pass; contiguity so zero is a measurement
+rather than a gap; and a test that **a fired prong still fails** — Z1 only ever ADDS a
+path, it never rescues a rung that diverged. Suite **1009 green**.
+
+**THE RE-PROBE IS RUNNING.** Submitted 2026-09-12 16:13 UTC:
+
+```
+run_id   hg2007_flexible_foil-20260912-161321
+session  fsi-hg2007_flexible_foil-20260912-161321
+submission  /mnt/aero-nfs/runs/hg2007_flexible_foil-20260912-161321/ladder-DC1-reprobe-submission.json
+verdict  python scripts/stage20_hg2007_flexible_foil.py --adr041-evaluate <submission JSON>
+```
+
+Identical shape to D-C1: 8000 windows, flexible only, uncontended, 4 ranks,
+adr040-candidate, parallel-implicit, `hht_alpha=-0.05` (deck verified as
+`*DYNAMIC, ALPHA=-0.05, DIRECT`), `gated=False`, 4 processor dirs, 24 h ceiling. ~5.6 h
+expected. **Determinism is divergent (§6.49), so this is a genuinely fresh draw** — if
+D-C1's clean completion was luck rather than mitigation, this is the cheapest thing that
+exposes it. Ladder spend before it: 9.53 h of the 35 h cap.
+
+**This is the rung's SECOND and FINAL probe.** ADR-041 V1 caps any rung at two under any
+combination of V1(a), V1(b) and ADR-042 X2. Whatever it returns is D-C1's terminal verdict:
+ELIMINATED under Z1 ⇒ adoption (ADR-043 Y3's C2 and D10 moves, `ALPHA_OF_RECORD` → -0.05,
+then V6's Q1 re-run); RECURRENCE-DETECTED or a death ⇒ the ladder is exhausted and ADR-041
+V1's **NO-GO on infrastructure** is the recorded outcome.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
