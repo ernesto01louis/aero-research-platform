@@ -54,6 +54,10 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "wall_clock_ceiling_s": 345600,
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
+            # ADR-044 adoption moved ALPHA_OF_RECORD to -0.05; these two runs were
+            # alpha 0.0, so the value is pinned EXPLICITLY here rather than inherited
+            # from a default that has since moved. The digests are unchanged.
+            "hht_alpha": 0.0,
         },
         "0891e66d4ef5d44d127a223d042d406e39479b18a3aa84b290de71123df71f25",
     ),
@@ -66,6 +70,10 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "wall_clock_ceiling_s": 345600,
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
+            # ADR-044 adoption moved ALPHA_OF_RECORD to -0.05; these two runs were
+            # alpha 0.0, so the value is pinned EXPLICITLY here rather than inherited
+            # from a default that has since moved. The digests are unchanged.
+            "hht_alpha": 0.0,
         },
         "fae61ffaf316e37fa7110a49f4fd51cd484d6cf2a665b54b4f4012fd55852c40",
     ),

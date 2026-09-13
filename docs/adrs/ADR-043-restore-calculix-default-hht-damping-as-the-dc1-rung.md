@@ -116,6 +116,28 @@ clauses move, and the second is the one ADR-041 and ADR-042 both promised would 
 is a recorded step rather than a discovery, exactly as ADR-041 handled D-B's C1 move. If
 the rung fails V2, none of it happens.
 
+## Y3 — EXECUTED 2026-09-13
+
+The D-C1 rung was **ELIMINATED** on the ADR-044 Z4 re-probe
+(`hg2007_flexible_foil-20260912-161321`, 8000/8000, all-exited, zero activation), and the
+adoption commit executed both moves this ADR declared in advance:
+
+1. **ADR-039 C2's expectation moved**: `ALPHA present and 0.0` → **`-0.05`**, CalculiX's own
+   default. ADR-039's gate-block bytes are byte-identical and still digest-pinned; what
+   moved is the value the campaign is evaluated against, recorded here and in ADR-044.
+2. **D10's rationale moved**: from an identity that is exact by construction to one holding
+   within the algorithmic dissipation of the modes carrying the energy — **3.9e-5 per cycle
+   at the flapping frequency against D10's 2 % band**. **The band did not move and D10
+   stays gated.** D10's secondary role, *"holding also proves ALPHA=0 held"*, is retired and
+   replaced by the deck self-check, which reads `dynamic_alpha` back out of the written
+   bytes and asserts it against the spec — direct rather than inferential, and true for
+   whatever value the spec pins.
+
+`ALPHA_OF_RECORD` moved to -0.05 in the same commit; `LEGACY_HHT_ALPHA` stays 0.0 forever,
+so every record written before the knob still rebuilds to the configuration that actually
+ran. **ADR-041 V6's Q1 re-run on the adopted stack is the next gate**, with the frozen bands
+verbatim, before N3.
+
 ## Y4 — this is the LAST pre-registered rung
 
 D-A: RECURRENCE-DETECTED. D-B: DIED-UNDIAGNOSED (ADR-042 X2 permits one re-probe; declined

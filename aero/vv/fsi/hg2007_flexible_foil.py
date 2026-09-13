@@ -236,9 +236,12 @@ TEMPLATE_OF_RECORD = HG2007_TEMPLATE
 #: ADR-043 Y1. The solid deck's HHT-alpha of record. `0.0` is ADR-039 C2's pinned value
 #: and NOT CalculiX's own default (-0.05, dynamics.f:73) -- C2 overrode it to the one
 #: value in range with exactly zero dissipation, which is the mechanism ADR-041's detector
-#: has now caught three times. A rung probe may carry another value; only an adoption
-#: commit moves THIS constant, and until it does a non-record alpha cannot be gated.
-ALPHA_OF_RECORD = 0.0
+#: caught three times. **ADOPTED 2026-09-13 (ADR-044 Z3): the record moves to CalculiX's
+#: own default, -0.05.** The D-C1 rung was ELIMINATED on a re-probe judged by a rule that
+#: was in code before the run existed (ADR-044 Z4): 8000/8000 windows, all-exited, zero of
+#: 395 chunks reaching the 1.0 N floor, where every run carrying the signature had been
+#: above it by w135.
+ALPHA_OF_RECORD = -0.05
 
 #: What `_reattach` supplies for records written before the knob existed. It describes
 #: HISTORY and never moves, so a later default flip cannot retro-change what an old
@@ -421,7 +424,7 @@ def hg2007_case_spec(
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
     coupling_scheme: CouplingSchemeKind = LEGACY_COUPLING_SCHEME,
-    hht_alpha: float = LEGACY_HHT_ALPHA,
+    hht_alpha: float = ALPHA_OF_RECORD,
 ) -> CoupledCaseSpec:
     """Build one arm's authored coupled case.
 

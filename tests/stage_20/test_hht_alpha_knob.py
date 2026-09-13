@@ -41,15 +41,27 @@ _KNOBS = dict(
 )
 
 
-def test_the_default_writes_the_historical_deck_bytes() -> None:
+def test_the_alpha_text_is_the_cards_own_form_not_the_field_form() -> None:
     """`ALPHA=0.0`, not `ALPHA=0.0000000000000e+00`.
 
-    ADR-043 Y2 rests on this: at the default the deck is byte-identical, so the digest
-    move is a record move rather than a case move, and the goldens do not shift.
+    ADR-043 Y2 rested on this while 0.0 was still the record: the unmitigated deck had to
+    stay byte-identical so the digest move was a record move rather than a case move.
     """
     assert _alpha_text(0.0) == "0.0"
     assert _alpha_text(-0.05) == "-0.05"
-    assert LEGACY_HHT_ALPHA == 0.0 == ALPHA_OF_RECORD
+
+
+def test_history_and_the_record_are_separate_constants() -> None:
+    """After the ADR-044 adoption they DIFFER, and that is the whole point.
+
+    `ALPHA_OF_RECORD` is what the campaign builds today; `LEGACY_HHT_ALPHA` is what a
+    submission written before the knob existed must rebuild to. If the second ever tracked
+    the first, every historical record would silently re-describe itself as the mitigated
+    stack, and `_reattach` would collect runs against a spec that is not the one that ran.
+    """
+    assert ALPHA_OF_RECORD == -0.05, "adopted 2026-09-13: CalculiX's own default"
+    assert LEGACY_HHT_ALPHA == 0.0, "history; never moves"
+    assert ALPHA_OF_RECORD != LEGACY_HHT_ALPHA
 
 
 def test_alpha_reaches_the_deck_and_is_read_back_from_it(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -79,17 +91,19 @@ def test_a_non_record_alpha_can_never_claim_the_gated_verdict(
     monkeypatch.setattr(campaign, "GATED_040_NUMERICS_LABEL", "adr040-candidate")
     monkeypatch.setattr(campaign, "GATED_040_MPI_RANKS", 4)
 
+    # post-adoption: the RECORD is -0.05, so the default build is gated and the old
+    # unmitigated value is the one the fence now refuses.
     assert campaign.hg2007_case_spec(**_KNOBS).gated is True  # type: ignore[arg-type]
-    assert campaign.hg2007_case_spec(**_KNOBS, hht_alpha=-0.05).gated is False  # type: ignore[arg-type]
+    assert campaign.hg2007_case_spec(**_KNOBS, hht_alpha=0.0).gated is False  # type: ignore[arg-type]
 
 
 def test_the_fence_predicate_states_both_conjuncts() -> None:
     from aero.adapters.precice.template import template_sha256
 
     good = template_sha256()
-    assert is_campaign_configuration(template_sha256_hex=good, hht_alpha=0.0)
-    assert not is_campaign_configuration(template_sha256_hex=good, hht_alpha=-0.05)
-    assert not is_campaign_configuration(template_sha256_hex="0" * 64, hht_alpha=0.0)
+    assert is_campaign_configuration(template_sha256_hex=good, hht_alpha=ALPHA_OF_RECORD)
+    assert not is_campaign_configuration(template_sha256_hex=good, hht_alpha=0.0)
+    assert not is_campaign_configuration(template_sha256_hex="0" * 64, hht_alpha=ALPHA_OF_RECORD)
 
 
 def test_calculix_own_range_is_enforced() -> None:
@@ -111,7 +125,9 @@ def test_the_knob_rides_in_spec_knobs_so_reattach_can_rebuild() -> None:
     import stage20_hg2007_flexible_foil as driver  # type: ignore[import-not-found]
 
     assert driver.LEGACY_HHT_ALPHA == 0.0
-    # the rebuild path supplies the historical value for records written before the knob
+    # the rebuild path supplies the HISTORICAL value for records written before the knob,
+    # which is why the adoption could move the record without retro-changing old records
     knobs = dict(_KNOBS)
     rebuilt = hg2007_case_spec(**knobs, hht_alpha=driver.LEGACY_HHT_ALPHA)  # type: ignore[arg-type]
     assert rebuilt.source.solid.hht_alpha == 0.0
+    assert hg2007_case_spec(**knobs).source.solid.hht_alpha == ALPHA_OF_RECORD  # type: ignore[arg-type]

@@ -92,6 +92,7 @@ from aero.provenance.four_fold import compute_provenance  # noqa: E402
 from aero.vv.alignment import align_arms  # noqa: E402
 from aero.vv.fsi.cost_model import attribute_step_cost  # noqa: E402
 from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
+    ALPHA_OF_RECORD,
     ANALYSIS_DISCARD_S,
     ANALYSIS_MIN_CYCLES,
     ARMS,
@@ -820,7 +821,7 @@ def _prepare_and_submit(
     mpi_ranks: int = 1,
     adr041_rung: str | None = None,
     coupling_scheme: str = LEGACY_COUPLING_SCHEME,
-    hht_alpha: float = LEGACY_HHT_ALPHA,
+    hht_alpha: float = ALPHA_OF_RECORD,
 ) -> Path:
     """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
@@ -2241,7 +2242,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--hht-alpha",
         type=float,
-        default=LEGACY_HHT_ALPHA,
+        default=ALPHA_OF_RECORD,
         dest="hht_alpha",
         help="HHT-alpha on the solid *DYNAMIC card (ADR-043 Y1). CalculiX's own default "
         "is -0.05; ADR-039 C2 pinned 0.0, the one value in range with exactly zero "
