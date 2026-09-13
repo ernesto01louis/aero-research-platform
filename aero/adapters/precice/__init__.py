@@ -19,19 +19,28 @@ Module map:
 * :mod:`.logs` — coupling iteration logs and the fail-loud convergence gate
 * :mod:`.solver` — :class:`PreciceCoupledSolver`, the ``Solver`` lifecycle implementation
 * :mod:`.solverdummy` — the two-participant infrastructure pre-flight
+* :mod:`.template` — render an AUTHORED ``precice-config.xml`` from committed,
+  digest-pinned bytes, and close the loop by re-reading it (Stage 20)
 """
 
 from __future__ import annotations
 
 from aero.adapters.precice.case import (
+    CASE_ROOT_DIRNAME,
+    EXCHANGE_DIRECTORY,
+    AuthoredSource,
     CoupledCaseError,
     CoupledCaseSpec,
     DeclaredMutation,
+    MaterializedTree,
     ParticipantSpec,
     TutorialPin,
-    TutorialTree,
+    TutorialSource,
+    assert_authored_consistent,
+    assert_provenance_describes,
     materialize_tutorial,
     select_fluid_mesh,
+    spec_config_digest,
 )
 from aero.adapters.precice.config import (
     PreciceConfig,
@@ -45,6 +54,7 @@ from aero.adapters.precice.launcher import (
     CoupledLaunchError,
     CoupledLaunchPlan,
     CoupledRunResult,
+    ObservabilityOptions,
     ParticipantOutcome,
     build_participant_command,
     launch_coupled,
@@ -53,13 +63,29 @@ from aero.adapters.precice.launcher import (
 from aero.adapters.precice.logs import (
     CouplingConvergenceError,
     CouplingIterationReport,
+    DivergenceReport,
+    SolidLogError,
+    SolidResidualSeries,
     assert_coupling_converged,
+    evaluate_divergence,
     read_iterations_log,
+    read_solid_residuals,
+    solid_log_path,
 )
 from aero.adapters.precice.solver import (
     DEFAULT_PRECICE_SIF_PATH,
     PreciceCoupledSolver,
     PreciceSolverError,
+)
+from aero.adapters.precice.template import (
+    HG2007_TEMPLATE,
+    RENDERER_VERSION,
+    PreciceConfigValues,
+    hg2007_expectation,
+    read_template,
+    render_precice_config,
+    template_sha256,
+    write_precice_config,
 )
 from aero.adapters.precice.watchpoint import (
     WatchpointError,
@@ -81,10 +107,15 @@ PINNED_PRECICE_VERSION = "3.4.1"
 PINNED_OPENFOAM_ADAPTER_COMMIT = "2c3062ce941915616ac763371805c57e15e02466"
 
 __all__ = [
+    "CASE_ROOT_DIRNAME",
     "DEFAULT_PRECICE_SIF_PATH",
+    "EXCHANGE_DIRECTORY",
+    "HG2007_TEMPLATE",
     "PINNED_OPENFOAM_ADAPTER_COMMIT",
     "PINNED_PRECICE_VERSION",
     "PINNED_PYPRECICE_VERSION",
+    "RENDERER_VERSION",
+    "AuthoredSource",
     "CoupledCaseError",
     "CoupledCaseSpec",
     "CoupledLaunchError",
@@ -93,26 +124,43 @@ __all__ = [
     "CouplingConvergenceError",
     "CouplingIterationReport",
     "DeclaredMutation",
+    "DivergenceReport",
+    "MaterializedTree",
+    "ObservabilityOptions",
     "ParticipantOutcome",
     "ParticipantSpec",
     "PreciceConfig",
     "PreciceConfigError",
     "PreciceConfigExpectation",
+    "PreciceConfigValues",
     "PreciceCoupledSolver",
     "PreciceSolverError",
+    "SolidLogError",
+    "SolidResidualSeries",
     "TutorialPin",
-    "TutorialTree",
+    "TutorialSource",
     "WatchpointError",
     "WatchpointTrace",
+    "assert_authored_consistent",
     "assert_config",
     "assert_coupling_converged",
+    "assert_provenance_describes",
     "build_participant_command",
+    "evaluate_divergence",
+    "hg2007_expectation",
     "launch_coupled",
     "materialize_tutorial",
     "read_iterations_log",
     "read_precice_config",
+    "read_solid_residuals",
+    "read_template",
     "read_watchpoint",
+    "render_precice_config",
     "render_supervisor_script",
     "rewrite_max_time",
     "select_fluid_mesh",
+    "solid_log_path",
+    "spec_config_digest",
+    "template_sha256",
+    "write_precice_config",
 ]

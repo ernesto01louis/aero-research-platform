@@ -91,12 +91,36 @@ EOF
   local next_clean
   next_clean="$(printf '%s' "$next_stage_name" | sed -E 's/^Stage[[:space:]]+[0-9]+[[:space:]]+(—|-)[[:space:]]*//')"
 
+  # A handoff's `stage_tag` states the tag the stage is HEADED FOR, not one that
+  # exists. Rendering it as "Latest tag" unconditionally publishes a tag that may
+  # never have been pushed: at Stage 19 the README claimed v0.0.19 before the tag
+  # was created, and the handoff had to carry a correction saying so (ledger item
+  # 7). Ask git instead of trusting the frontmatter.
+  local tag_line
+  if [[ -n "$stage_tag" ]] && git -C "$repo_root" rev-parse -q --verify "refs/tags/$stage_tag" >/dev/null 2>&1; then
+    tag_line="**Latest tag:** $stage_tag"
+  else
+    # Name the intended tag, but do not claim it exists.
+    tag_line="**Latest tag:** ${stage_tag:-v0.0.0} (not yet tagged)"
+  fi
+
+  # A `partial` stage is not finished, so the next thing to do is FINISH IT.
+  # Pointing at the following stage would tell a reader — and the next session —
+  # to start work that this one has not earned.
+  local next_line
+  if [[ "$status" == "partial" || "$status" == "blocked" ]]; then
+    # `stage_name` already carries its own "Stage NN — " prefix.
+    next_line="**Next:** resume $stage_name — ${status}, not finished."
+  else
+    next_line="**Next:** Stage ${next_stage:-?} — ${next_clean:-TBD}."
+  fi
+
   cat <<EOF
-**Latest tag:** ${stage_tag:-v0.0.0}  ·  **Status:** ${status:-unknown}  ·  **Completed:** ${date_completed:-—}
+$tag_line  ·  **Status:** ${status:-unknown}  ·  **Completed:** ${date_completed:-—}
 
 **$stage_name** — most recent stage.
 
-**Next:** Stage ${next_stage:-?} — ${next_clean:-TBD}.
+$next_line
 
 See [\`docs/handoffs/\`](docs/handoffs/) for per-stage exit notes and
 [\`CHANGELOG.md\`](CHANGELOG.md) for the version-tagged change log.

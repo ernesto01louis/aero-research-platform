@@ -51,6 +51,11 @@ from aero.adapters.openfoam.external_geometry import (
 )
 from aero.adapters.openfoam.fields import extract_wall_distributions
 from aero.adapters.openfoam.flapping_wing import FlappingWingSpec, write_flapping_wing_case
+from aero.adapters.openfoam.force_io import read_coefficient_dat as _read_coefficient_dat
+from aero.adapters.openfoam.force_io import read_force_history as _read_force_history
+from aero.adapters.openfoam.force_io import (
+    strictly_increasing_mask as _strictly_increasing_mask,
+)
 from aero.adapters.openfoam.motion import FlappingMotionSpec
 from aero.adapters.openfoam.plunging_airfoil import (
     PlungingAirfoilSpec,
@@ -64,7 +69,7 @@ from aero.adapters.openfoam.transient_airfoil import (
     TransientAirfoilSpec,
     write_transient_airfoil_case,
 )
-from aero.orchestration._base import Executor
+from aero.orchestration._base import Executor, describe_failure
 from aero.postprocess._base import Signal
 from aero.postprocess.cycle_detection import detect_cycle_convergence
 from aero.postprocess.efficiency import MotionKinematics, propulsive_metrics
@@ -172,8 +177,20 @@ class OpenFOAMSolver(Solver):
             result = executor.run(command, timeout_s=900)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
         ok = result.ok and polymesh.is_file()
+        failure = ""
         if not ok:
-            logger.error("blockMesh failed (rc={}):\n{}", result.returncode, result.stdout)
+            # Name the pipeline that actually ran, not "blockMesh" — an external-geometry
+            # case runs four utilities and an overset case five, so the old hard-coded
+            # message pointed at the wrong one whenever it was not the simple path. And
+            # carry rc + stderr + reachability: without them an unreachable host is
+            # indistinguishable from a mesher fault (Stage 20).
+            failure = describe_failure(result, what=f"meshing ({mesh_command})")
+            if result.ok and not polymesh.is_file():
+                failure = (
+                    f"meshing ({mesh_command}) exited 0 on {result.host} but wrote no "
+                    f"constant/polyMesh/points"
+                )
+            logger.error("{}", failure)
         if isinstance(spec, ExternalGeometrySpec):
             # Last snappy stage line = the final (post-snap, post-layer) cell count.
             snappy_counts = _SNAPPY_CELL_COUNT_RE.findall(result.stdout)
@@ -181,7 +198,7 @@ class OpenFOAMSolver(Solver):
         else:
             cells = _CELL_COUNT_RE.search(result.stdout)
             n_elements = int(cells.group(1)) if cells else None
-        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements)
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_elements, failure=failure)
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Run the OpenFOAM solver inside the SIF (long-running, via the executor).
@@ -204,7 +221,7 @@ class OpenFOAMSolver(Solver):
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
         if not result.ok:
-            logger.error("simpleFoam failed (rc={})", result.returncode)
+            logger.error("{}", describe_failure(result, what=app))
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,
@@ -514,7 +531,8 @@ class OpenFOAMSolver(Solver):
         cd_viscous: float | None = None
         force_file = _maybe_force_file(result.output_host_path)
         if force_file is not None:
-            ft, fp, fv = _read_force_history(force_file)
+            forces = _read_force_history(force_file)
+            ft, fp, fv = forces.t, forces.pressure, forces.viscous
             ftail = ft >= t_start - 1.0e-12
             aoa = math.radians(
                 float(getattr(spec, "aoa_deg", getattr(spec, "inflow_angle_deg", 0.0)))
@@ -587,7 +605,8 @@ class OpenFOAMSolver(Solver):
                 f"flapping case {result.case_dir.run_id} wrote no `forces` FO output — "
                 "did pimpleFoam run to endTime?"
             )
-        ft, fp, fv = _read_force_history(force_file)
+        forces = _read_force_history(force_file)
+        ft, fp, fv = forces.t, forces.pressure, forces.viscous
         if len(ft) < 16:
             raise ValueError(
                 f"flapping solve {result.case_dir.run_id} wrote only {len(ft)} force samples "
@@ -755,80 +774,6 @@ def _read_force_decomposition(
     cd_pressure = (fp[0] * drag_dir[0] + fp[1] * drag_dir[1]) / q_aref
     cd_viscous = (fv[0] * drag_dir[0] + fv[1] * drag_dir[1]) / q_aref
     return cd_pressure, cd_viscous
-
-
-def _strictly_increasing_mask(t: np.ndarray) -> np.ndarray:
-    """Boolean mask keeping only rows whose time strictly exceeds all earlier times.
-
-    OpenFOAM force/forceCoeffs FO output can carry **duplicate timestamps**: with
-    ``adjustTimeStep`` + ``adjustableRunTime`` writes the solver takes a sub-step to land
-    exactly on a write time, and the FO records both at the same (written-precision) time
-    (a restart can also re-append). A ``Signal`` needs strictly-ascending time, so dedupe
-    by keeping the first row at each new maximum time. (Frequent writes — e.g. the foil's
-    0.02 interval — trigger this; the cylinder's 0.1 interval did not.)
-    """
-    if len(t) == 0:
-        return np.zeros(0, dtype=bool)
-    run_max = np.maximum.accumulate(t)
-    keep = np.empty(len(t), dtype=bool)
-    keep[0] = True
-    keep[1:] = t[1:] > run_max[:-1]
-    return keep
-
-
-def _read_force_history(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """(times, pressure_xy, viscous_xy) time series from a `forces` FO `force.dat`.
-
-    Handles both layouts (parenthesised vector form and the flat ESI columns) the
-    Stage-10 `_read_force_decomposition` parses, but for every row (a time series, not
-    just the last row) — the moving cases need the full history for cycle-mean forces and
-    the plunging-foil thrust/power integrals. Returns numpy arrays: ``t`` (N,),
-    ``pressure`` (N,2), ``viscous`` (N,2) — the in-plane (x, y) components.
-    """
-    times: list[float] = []
-    pressures: list[list[float]] = []
-    viscous: list[list[float]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if "(" in s:
-            t = float(s.split("(", 1)[0].split()[0])
-            triples = re.findall(r"\(([^()]*)\)", s)
-            if len(triples) < 2:
-                raise ValueError(f"unexpected parenthesised forces layout in {path}: {s!r}")
-            fp = [float(v) for v in triples[0].split()]
-            fv = [float(v) for v in triples[1].split()]
-        else:
-            nums = [float(v) for v in s.split()]
-            if len(nums) < 10:
-                raise ValueError(f"unexpected flat forces layout in {path}: {s!r}")
-            t, fp, fv = nums[0], nums[4:7], nums[7:10]
-        times.append(t)
-        pressures.append(fp[:2])
-        viscous.append(fv[:2])
-    if not times:
-        raise ValueError(f"no data rows in forces file {path}")
-    t_arr = np.asarray(times, dtype=np.float64)
-    fp_arr = np.asarray(pressures, dtype=np.float64)
-    fv_arr = np.asarray(viscous, dtype=np.float64)
-    keep = _strictly_increasing_mask(t_arr)  # dedupe duplicate FO timestamps
-    return t_arr[keep], fp_arr[keep], fv_arr[keep]
-
-
-def _read_coefficient_dat(path: Path) -> tuple[list[str], np.ndarray]:
-    """Return (column names, data array) from an OpenFOAM coefficient file."""
-    header: list[str] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            header = stripped.lstrip("#").split()  # last comment line wins
-        elif stripped:
-            break
-    data = np.loadtxt(path, comments="#", ndmin=2)
-    if "Cd" not in header or "Cl" not in header:
-        raise ValueError(f"unexpected coefficient-file columns {header} in {path}")
-    return header, np.asarray(data, dtype=np.float64)
 
 
 def _p_residuals(solver_log: str) -> list[float]:

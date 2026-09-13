@@ -110,36 +110,70 @@ def test_the_config_expectation_matches_the_pinned_benchmark() -> None:
     assert expected.acceleration_kind == "IQN-ILS"
 
 
-def test_the_gated_case_forbids_a_multi_container_run() -> None:
-    """The four-fold tuple carries ONE container digest; a gated coupled run must not
-    silently span two images."""
-    from aero.adapters.precice import CoupledCaseSpec, ParticipantSpec, TutorialPin
+def _two_container_spec(*, gated: bool):  # type: ignore[no-untyped-def]
+    from aero.adapters.precice import (
+        CoupledCaseSpec,
+        ParticipantSpec,
+        TutorialPin,
+        TutorialSource,
+    )
 
-    common = {
-        "name": "x",
-        "pin": TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
-        "archive_path": Path("a.tar.gz"),
-        "max_time": 8.0,
-        "wall_clock_ceiling_s": 600,
-        "analysis_discard_s": 4.0,
-    }
-    participants = (
-        ParticipantSpec(name="Fluid", workdir="f", command="true", sif="precice-fsi.sif"),
-        ParticipantSpec(name="Solid", workdir="s", command="true", sif="calculix-precice.sif"),
-    )
-    with pytest.raises(ValueError, match="single container"):
-        CoupledCaseSpec(
-            **common,  # type: ignore[arg-type]
-            participants=participants,
-            container_of_record="precice-fsi.sif",
-            gated=True,
-        )
-    # The same shape is fine for an explicitly non-gated diagnostic.
-    spec = CoupledCaseSpec(
-        **common,  # type: ignore[arg-type]
-        participants=participants,
+    return CoupledCaseSpec(
+        name="x",
+        source=TutorialSource(
+            pin=TutorialPin(commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")),
+            archive_path=Path("a.tar.gz"),
+        ),
+        max_time=8.0,
+        wall_clock_ceiling_s=600,
+        analysis_discard_s=4.0,
+        participants=(
+            ParticipantSpec(name="Fluid", workdir="f", command="true", sif="precice-fsi.sif"),
+            ParticipantSpec(name="Solid", workdir="s", command="true", sif="calculix-precice.sif"),
+        ),
         container_of_record="precice-fsi.sif",
-        gated=False,
+        gated=gated,
     )
+
+
+def test_a_gated_multi_container_run_is_allowed_since_adr_038() -> None:
+    """Stage 19 refused this outright; ADR-038 removed the cause, not the symptom.
+
+    The blanket refusal existed because `ProvenanceTuple.container_sif_sha256` was
+    single-valued, so a two-SIF gated run would have logged a digest describing half
+    of what ran. The tuple now carries a roster, so the spec is admissible — the
+    obligation moved to `assert_provenance_describes`, which is where the digests
+    actually are.
+    """
+    spec = _two_container_spec(gated=True)
     assert spec.multi_container
+    assert spec.container_sifs == ("calculix-precice.sif", "precice-fsi.sif")
     assert spec.extra_container_sifs == ("calculix-precice.sif",)
+
+
+def test_the_container_of_record_must_be_one_a_participant_runs() -> None:
+    from aero.adapters.precice import (
+        CoupledCaseSpec,
+        ParticipantSpec,
+        TutorialPin,
+        TutorialSource,
+    )
+
+    with pytest.raises(ValueError, match="not used by any participant"):
+        CoupledCaseSpec(
+            name="x",
+            source=TutorialSource(
+                pin=TutorialPin(
+                    commit="a" * 40, archive_sha256="b" * 64, manifest_path=Path("m.csv")
+                ),
+                archive_path=Path("a.tar.gz"),
+            ),
+            max_time=8.0,
+            wall_clock_ceiling_s=600,
+            analysis_discard_s=4.0,
+            participants=(
+                ParticipantSpec(name="Fluid", workdir="f", command="true", sif="precice-fsi.sif"),
+                ParticipantSpec(name="Solid", workdir="s", command="true", sif="precice-fsi.sif"),
+            ),
+            container_of_record="openfoam-esi.sif",
+        )

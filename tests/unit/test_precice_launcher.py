@@ -18,6 +18,7 @@ import pytest
 from aero.adapters.precice.case import ParticipantSpec
 from aero.adapters.precice.launcher import (
     CoupledLaunchPlan,
+    ObservabilityOptions,
     build_participant_command,
     read_coupled_status,
     render_supervisor_script,
@@ -108,6 +109,113 @@ def test_participant_command_is_exact() -> None:
         "/opt/aero/containers/precice-fsi.sif "
         "bash -lc 'cd /case && cd fluid-openfoam && ../../tools/run-openfoam.sh'"
     )
+
+
+def test_participant_command_is_exact_in_parallel() -> None:
+    """The ADR-040 sibling of the serial pin above, which must never be edited.
+
+    `mpi_ranks` appends `mpirun -n N <command> -parallel` as the LAST element of the
+    compound command, so it lands after the `cd` and — in the uid-dropping form below —
+    inside the `setpriv` drop. Both placements are load-bearing; see the two negative
+    assertions in `test_the_mpi_element_is_not_hoisted_out_of_the_cd_or_the_uid_drop`.
+    """
+    participant = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        mpi_ranks=4,
+    )
+    assert build_participant_command(
+        participant,
+        case_root_remote="/mnt/aero/runs/x/tutorial/hg2007-flexible-foil",
+        sif_path="/opt/aero/containers/precice-fsi.sif",
+    ) == (
+        "apptainer exec --no-home --bind "
+        "/mnt/aero/runs/x/tutorial/hg2007-flexible-foil:/case "
+        "/opt/aero/containers/precice-fsi.sif "
+        "bash -lc 'cd /case && cd fluid-openfoam && mpirun -n 4 pimpleFoam -parallel'"
+    )
+
+
+def test_serial_is_byte_identical_when_mpi_ranks_is_none() -> None:
+    """The new field must be inert when unset — the Stage-19 pin above is the witness.
+
+    Stated as its own test rather than left implicit in that pin, because the field is
+    NOT inert everywhere: `model_dump_json` serialises the `null`, so FSI3's config_hash
+    moved (`tests/stage_20/test_source_seam.py`). The rendered COMMAND does not move, and
+    that is the property this asserts.
+    """
+    serial = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="../../tools/run-openfoam.sh",
+        sif="precice-fsi.sif",
+    )
+    assert serial.mpi_ranks is None
+    assert build_participant_command(
+        serial,
+        case_root_remote="/mnt/aero/runs/x/tutorial/turek-hron-fsi3",
+        sif_path="/opt/aero/containers/precice-fsi.sif",
+    ) == (
+        "apptainer exec --no-home --bind "
+        "/mnt/aero/runs/x/tutorial/turek-hron-fsi3:/case "
+        "/opt/aero/containers/precice-fsi.sif "
+        "bash -lc 'cd /case && cd fluid-openfoam && ../../tools/run-openfoam.sh'"
+    )
+
+
+def test_the_mpi_element_is_not_hoisted_out_of_the_cd_or_the_uid_drop() -> None:
+    """The two ways `build_apptainer_exec(mpi_n=...)` would have got this wrong.
+
+    That helper prefixes the WHOLE string it is handed. Handed the compound command it
+    emits `mpirun -n 4 cd fluid-openfoam` — the solver then runs SERIAL and exits 0, so
+    nothing complains and the measured rate is a lie. Handed the uid wrapper it emits
+    `mpirun -n 4 mkdir ...` as root, which ADR-040 L1 measured OpenMPI refusing outright.
+    Both are asserted as negatives, in the shape of `test_env_is_exported_not_prefixed`.
+    """
+    participant = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+        mpi_ranks=4,
+    )
+    command = build_participant_command(
+        participant, case_root_remote="/case/root", sif_path="/x.sif"
+    )
+    assert "mpirun -n 4 pimpleFoam -parallel" in command
+    # Not hoisted over the `cd`: the solver would run serial in the wrong directory.
+    assert "mpirun -n 4 cd " not in command
+    # Not hoisted out of the uid drop: OpenMPI refuses to run as root.
+    assert "setpriv" in command
+    assert "mpirun" not in command.split("setpriv", 1)[0]
+    assert "mpirun -n 4 mkdir" not in command
+
+
+def test_a_decompose_style_copy_clears_the_mpi_element() -> None:
+    """`decomposePar` is serial; wrapping it in mpirun is the seam's obvious misuse.
+
+    `PreciceCoupledSolver.decompose` clears `mpi_ranks` on its `model_copy`. This pins
+    what that clearing buys, at the launcher level where the mistake would be rendered.
+    """
+    fluid = ParticipantSpec(
+        name="Fluid",
+        workdir="fluid-openfoam",
+        command="pimpleFoam",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+        mpi_ranks=4,
+    )
+    command = build_participant_command(
+        fluid.model_copy(update={"command": "decomposePar -force", "mpi_ranks": None}),
+        case_root_remote="/case/root",
+        sif_path="/x.sif",
+    )
+    assert "cd fluid-openfoam && decomposePar -force" in command
+    assert "mpirun" not in command
+    assert "setpriv --reuid=1000" in command
 
 
 def test_no_home_is_always_passed() -> None:
@@ -257,3 +365,125 @@ def test_missing_status_is_loud(tmp_path: Path) -> None:
         read_coupled_status(
             tmp_path / "coupled-status.json", case_root_host=tmp_path, executor_returncode=0
         )
+
+
+# --- ADR-041 V5: hash-exempt observability ---------------------------------------------
+
+
+def test_observability_is_off_unless_asked_for() -> None:
+    """The default must not move a single byte of the pinned participant command.
+
+    Everything above pins these bytes exactly, and `_reattach`'s digest guard plus the
+    live N3 digest pins rest on the spec rather than the launcher — but a launcher default
+    that quietly changed the command would still make every historical run's supervisor
+    unreproducible for no gain.
+    """
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-calculix", command="./run.sh", sif="precice-fsi.sif"
+    )
+    bare = build_participant_command(participant, case_root_remote="/case", sif_path="/x.sif")
+    defaulted = build_participant_command(
+        participant,
+        case_root_remote="/case",
+        sif_path="/x.sif",
+        observability=ObservabilityOptions(),
+    )
+
+    assert bare == defaulted
+    assert "ulimit" not in bare
+    assert "MALLOC_CHECK_" not in bare
+
+
+def test_observability_lands_after_the_cd_and_inside_the_uid_drop() -> None:
+    """A core is only useful where it can be written, and only if the drop keeps it.
+
+    ADR-041 V5 puts these in the launcher's command bytes rather than
+    `ParticipantSpec.env`, which is a hashed field: routing them through the spec would
+    move every `config_hash` and break `_reattach` on records that describe runs already
+    on disk.
+    """
+    participant = ParticipantSpec(
+        name="Solid",
+        workdir="solid-calculix",
+        command="./run.sh",
+        sif="precice-fsi.sif",
+        run_as_uid=1000,
+    )
+    command = build_participant_command(
+        participant,
+        case_root_remote="/case",
+        sif_path="/x.sif",
+        observability=ObservabilityOptions(core_dumps=True, malloc_check=True),
+    )
+
+    # The apptainer wrapper opens its own `bash -lc`; the participant's compound is the
+    # LAST one, the shell setpriv starts after dropping the uid.
+    inner = command[command.rindex("bash -lc ") :]
+    assert inner.index("cd solid-calculix") < inner.index("ulimit -c unlimited")
+    assert inner.index("ulimit -c unlimited") < inner.index("./run.sh")
+    assert inner.index("export MALLOC_CHECK_=3") < inner.index("./run.sh")
+    # setpriv drops the uid BEFORE that shell runs, so both apply to the solver.
+    assert command.index("setpriv") < command.rindex("bash -lc")
+
+
+def test_the_solver_still_runs_when_the_ulimit_is_refused(shim_bin: Path, tmp_path: Path) -> None:
+    """The brace group is load-bearing, not cosmetic.
+
+    Written as `cd X && ulimit -c unlimited || true && solver`, shell precedence gives
+    `(cd && ulimit) || (true && solver)` — so the solver runs only when the ulimit FAILS,
+    and a hardened host with `ulimit -c 0` would silently invert the run. This asserts the
+    observable consequence: a refused ulimit costs nothing.
+    """
+    root = tmp_path / "case"
+    (root / "solid-nutils").mkdir(parents=True)
+    probe = root / "solid-nutils" / "run.sh"
+    # Drop the hard limit to 0 first, so the `ulimit -c unlimited` that follows cannot
+    # succeed: a hard limit is irreversible within a process tree.
+    probe.write_text('#!/usr/bin/env bash\necho "SOLVER RAN"\n', encoding="utf-8")
+    probe.chmod(probe.stat().st_mode | stat.S_IEXEC)
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-nutils", command="ulimit -H -c 0; ./run.sh", sif="p.sif"
+    )
+    plan = CoupledLaunchPlan(
+        case_root_remote=str(root),
+        participants=(participant,),
+        sif_paths={"p.sif": "/x.sif"},
+        wall_clock_ceiling_s=120,
+        poll_interval_s=1,
+        term_grace_s=2,
+        observability=ObservabilityOptions(core_dumps=True, malloc_check=True),
+    )
+
+    _, result = _run(plan, root, shim_bin, "ulimittest")
+
+    assert result.ok
+    log = (root / "Solid.log").read_text(encoding="utf-8")
+    assert "SOLVER RAN" in log
+
+
+def test_malloc_check_reaches_the_participant(shim_bin: Path, tmp_path: Path) -> None:
+    """It has to be visible to ccx itself, or it observes nothing."""
+    root = tmp_path / "case"
+    (root / "solid-nutils").mkdir(parents=True)
+    probe = root / "solid-nutils" / "run.sh"
+    probe.write_text(
+        '#!/usr/bin/env bash\necho "MALLOC_CHECK_=${MALLOC_CHECK_:-UNSET}"\n', encoding="utf-8"
+    )
+    probe.chmod(probe.stat().st_mode | stat.S_IEXEC)
+    participant = ParticipantSpec(
+        name="Solid", workdir="solid-nutils", command="./run.sh", sif="p.sif"
+    )
+    plan = CoupledLaunchPlan(
+        case_root_remote=str(root),
+        participants=(participant,),
+        sif_paths={"p.sif": "/x.sif"},
+        wall_clock_ceiling_s=120,
+        poll_interval_s=1,
+        term_grace_s=2,
+        observability=ObservabilityOptions(malloc_check=True),
+    )
+
+    _, result = _run(plan, root, shim_bin, "malloctest")
+
+    assert result.ok
+    assert "MALLOC_CHECK_=3" in (root / "Solid.log").read_text(encoding="utf-8")

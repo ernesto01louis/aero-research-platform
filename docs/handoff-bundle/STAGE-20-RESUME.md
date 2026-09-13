@@ -1,0 +1,940 @@
+Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). RESUMING a partial stage (session 8).
+
+**SESSION 7 (2026-08-10) CHANGED THE STAGE'S SHAPE — read handoff §6.26-§6.30 and §7's
+SESSION-8 RESUMPTION PATH before anything else in this file.** In one line: ADR-039 is
+`accepted` and byte-bound to the campaign driver; eleven review defects are fixed; the
+detached submit/collect seam works end to end on the real cluster; and the pre-flight
+MEASURED the pre-registered campaign infeasible by 1-2 orders of magnitude (window-1
+Courant 9.61 at the candidate dt; ~19 s/window at the Courant-passing dt against a
+needed <= 1.02) — so the sizing rule refuses, `GATED_TIME_WINDOW_S`/`GATED_MAX_TIME_S`
+are STILL `None`, B2 still reads `<<B2-PENDING-I4>>`, and NO wave was launched. That is
+the pre-registration machinery working, not a failure to execute. **Session 8's first
+deliverable is ADR-040** (handoff §7 item 1: subcycling / parallel fluid / write
+scheduling / rung revisit, each with the arithmetic it must beat), then the pre-flight
+ladder re-run under it, then wave 1 through the existing driver.
+
+**THIS FILE IS THE SINGLE SOURCE OF TRUTH FOR STAGE 20.** Six sessions have run and each left a
+resume prompt behind; the earlier ones are superseded and must not be followed. If you find
+instructions anywhere else that contradict this file, this file wins. In particular:
+
+- `/root/.claude/plans/stage-20-flexible-typed-pinwheel.md` — SUPERSEDED (session 1). Stale on `h`,
+  on the element choice, on the Phase-6 sizing.
+- `/root/.claude/plans/stage-20-flexible-cryptic-umbrella.md` — SUPERSEDED (session 3).
+- `/root/.claude/plans/stage-20-flexible-refactored-aurora.md` — session 4's roadmap. Still USEFUL:
+  it carries the commit-by-commit sequence referenced below and a costed pre-flight ordering. Read
+  it second.
+- `tage-20-flexible-warm-beacon.md` — a path some earlier prompts named. Ignore it.
+
+---
+
+## 1. Where this stage sits
+
+Stage 19 (`v0.0.19`, GO) built `aero/adapters/precice/` and verified it on the *supported upstream*
+Turek-Hron FSI3 tutorial — OpenFOAM fluid + Nutils solid, **one container**, 8000/8000 windows
+converged, all five displacement bands passed. That claim is **coupling correctness**.
+
+Stage 20's claim is **application fidelity**, and ADR-016 requires the two never blur: a
+chordwise-flexible plunging foil, OpenFOAM fluid + **CalculiX** solid across **two** containers,
+validated against **experiment** (Heathcote & Gursul 2007). Different solver, different physics,
+different reference. **Do not cite Stage 19's numbers as Stage 20 evidence.**
+
+It is the last physics stage before the v0.1.0 checkpoint.
+
+## 2. What the four sessions actually did
+
+| session | date | commits | what landed |
+|---|---|---|---|
+| 1 | 2026-07-30 | `4fb6ce2`..`40503e6` (8) | opened the stage; rc=255 made loud; **ADR-038** multi-container provenance + Postgres migration `005`; perpendicular-flap acquired and the **CalculiX smoke PASSES on two containers**; HG reference acquired (text-sourced only); partial handoff |
+| 2 | 2026-07-31 | `a161903`..`4765683` (11) + operator `85e0b32` | migration verified against 1280 rows; **figure digitization COMPLETE** (208 markers) and `hg2007_recomputed.csv` written, R2 passes; **operating point FIXED**; `TeardropPlateSection` in the C-grid, mesh spike passes; operator fixed `run_long.sh` stranding solves |
+| 3 | 2026-08-01 | `30aa126`..`a007689` (4) | **the two non-regression pins** (`67d8e82`) on pre-refactor code — the stage's most important ordering rule, done right; found the campaign does not fit its ceiling (§6.11), proposed **I7**, found `PreciceConfigExpectation` needs extending (§6.12), computed the bands (§6.13) |
+| 4 | 2026-08-04 | `1bd7011`..`b4bc801` (4) | **the `source` seam refactor**, the **`PreciceConfigExpectation` extension**, the **`transient_fvschemes` byte pin**; four operator decisions taken; **I3/I5 static baseline measured**; three corrections to the work-of-record (§6.14-§6.16) |
+| 5 | 2026-08-05 | `397af1c`..`b9f317f` (10) | **EVERY WRITER AND READER THE AUTHORED CASE NEEDS** — config template + renderer, CalculiX deck writer/re-reader, dimensional fluid deck, interface-power FO, force_io, `ddt_scheme=`, per-cycle limit-cycle objects, `alignment.py`, `.dat` reader. Pre-flight **S1, I6 and I3 pulled forward and PASSED**. Host rebooted mid-session; nothing lost |
+| 7 | 2026-08-10 | `8d59d27`..(see git) (9+) | **ADR-039 `accepted` + byte-bound driver + detached seam; ELEVEN review defects fixed (three silent-wrong-number, in the GATED readout); pre-flight run in leverage order and the campaign measured INFEASIBLE (handoff §6.29)** — I7 FAIL recorded at both dts (Courant / budget), I1 PASS (§6.27 deviation), I3 all six exact, I8 → Euler, I9: RF EXCLUDES applied *CLOAD (D10 residual real) + amplitude clean at 1.2M rows. Five `data/vv/stage20_*.json` records + I4 calibrations. e1b35b5 rebased to `docs/atlas-pointer`. No B2 fill, no wave — the sizing rule refuses by design |
+| 6 | 2026-08-06 | `227ffed`..`d6f0b99` (7) | **THE AUTHORED CASE MATERIALIZES, HAS A V&V OBJECT, AND IS WIRED.** `_materialize`/`_render_manifest`/`load` all dispatch on the source; 18 files written and re-read; `aero/vv/fsi/{hg2007_flexible_foil,hg2007_readout}.py`, both arms registered; Phase 3D closed ADR-038's residual. **Two silent-wrong-number defects fixed** (§6.22, §6.23), one from the adversarial review. **ADR-037 written, ADR-038 accepted.** Smoke re-passed at HEAD |
+
+Suite 348 (Stage-19 close) → 380 (s3) → 418 (s4) → 581 (s5) → **672** (session 6). Branch
+`stage-20-flexible-flapping-wing-fsi`, PR **#44** (DRAFT), clean tree, pushed, aero-dev idle.
+
+## 3. DONE AND VERIFIED — do not redo, do not re-derive
+
+- **CalculiX is genuinely in the loop.** Two SIFs, 50/50 windows converged at mean 2.14 iterations,
+  both participants rc=0. Re-verify in ~35 s:
+  `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5`
+- **Multi-container provenance** (ADR-038); migration `005_container_set` APPLIED and verified.
+- **The HG2007 reference of record is complete.** `digitization.csv` (208 markers, Figs 5.6a/b/c +
+  5.9a + 5.13a), `hg2007_recomputed.csv`, and the two acquisition scripts. **R2 passes on all five
+  anchors.**
+- **The gated operating point is FIXED** from the reference alone, before any solve:
+  **Re = 9000, St = 0.345, flexible `b/c = 0.85e-3` (76.5 um) vs rigid `b/c = 4.23e-3` (380.7 um)**
+  ⇒ `U = 0.1 m/s`, `f = 0.9857 Hz`, `T = 1.0145 s`; `c = 90 mm`, `a = 17.5 mm`, **`h = 0.194`**,
+  water (`rho = 1000`, `nu = 1e-6`), rig span 300 mm. Reference: `C_T` 1.008 / 0.398
+  (`dC_T` 0.609), `eta` 0.1753 / 0.0888 (`d_eta` 0.0865), pitch amplitude 5.35 deg.
+  Any derived `f` outside the rig's stated 0.3-2.5 Hz range means the setup is wrong.
+- **Phase 3A is COMPLETE.** The two pins landed alone at `67d8e82` on pre-refactor code; the
+  refactor landed at `1bd7011`. The ordering held and is checkable:
+
+      git merge-base --is-ancestor 67d8e82 1bd7011                   # true
+      git diff --stat 67d8e82 1bd7011 -- tests/stage_20/fixtures/    # EMPTY
+      git diff --stat 67d8e82 1bd7011 -- tests/stage_20/test_stage19_load_path_unchanged.py
+                                                                      # EMPTY
+
+  **Do NOT re-capture the goldens.** They are the pre-refactor record.
+- **`PreciceConfigExpectation` is extended** (`10fcb70`): 15 additive fields, all defaulting to
+  "do not check", each driven with a wrong value in a parametrized test.
+- **`transient_fvschemes` is byte-pinned** (`c682671`): laminar 781 B / `1df84e21...`,
+  kOmegaSST 886 B / `4edd1332...`, kOmegaSSTLM 958 B / `3703fe5c...`.
+- **The I3/I5 static baseline is MEASURED** at the pre-registered `first_cell_height = 5.0e-4 c`
+  (handoff §6.16). Cell counts **45 682 / 77 240 / 130 032** — uniform refinement ratio 1.30.
+
+## 4. WHAT DOES NOT EXIST — verified with `ls`, not inferred from prose
+
+*Sessions 5 and 6 built every writer, the materializer, the readout and the V&V case object.
+What is left is the CLI wiring, the ADRs, the pre-flight and the campaign.*
+
+    docs/adrs/ADR-040-*.md                     (the re-pre-registration — session 8's first job)
+    ADR-039 B2's numbers                       (still <<B2-PENDING-I4>>; the sizing rule
+                                                REFUSES at the measured rates — correct)
+    the campaign                               (no wave has run; sentinels still None)
+
+**These EXISTED as of session 7 — do not rebuild:** ADR-039 (accepted, 58 clauses),
+`scripts/stage20_hg2007_flexible_foil.py` (probe/submit/status/collect/verdict modes),
+`tests/unit/test_adr039_{gate_block_shape,gate_block_sync,sizing_function,
+b2_marker_state}.py`, `aero/vv/fsi/{hg2007_sizing,preflight}.py`,
+`aero/adapters/openfoam/solver_log.py`, the seam (`LocalSSHExecutor.submit_detached`,
+`PreciceCoupledSolver.{launch_plan,reattach}`, `launcher.stage_coupled`), and the
+records `data/vv/stage20_{i7_courant,i3_mesh,i1_solverdummy,i8_checkpoint,
+i9_ccx_conventions,i4_calibration}.json`.
+
+**No campaign has run. No verdict exists and none may be made, because ADR-039 does not
+exist** — and, since session 6, that is also STRUCTURAL: `GATED_TIME_WINDOW_S` and
+`GATED_MAX_TIME_S` in `hg2007_flexible_foil.py` are `None` until ADR-039 B2 records the I7 and
+I4 measurements, `is_gated_configuration` returns `False` while they are, and `gated` is
+DERIVED. No configuration can claim the gated verdict before the pre-flight has run.
+
+**These now EXIST and are tested — do not rebuild them:**
+
+    aero/adapters/precice/template.py          aero/adapters/precice/templates/
+    aero/adapters/precice/calculix.py          aero/adapters/precice/ccx_dat.py
+    aero/adapters/openfoam/flexible_foil.py    aero/adapters/openfoam/force_io.py
+    aero/vv/alignment.py
+    aero/vv/fsi/hg2007_flexible_foil.py        aero/vv/fsi/hg2007_readout.py
+
+**The authored case materializes end to end** (`227ffed`). `PreciceCoupledSolver._materialize`,
+`_render_manifest` and `load` all dispatch exhaustively on `source.kind`; an authored spec
+writes 18 files under `<root>/<case_dir_name>/`, every one re-read, with a schema-v2 manifest
+whose `spec_sha256` is computed by CALLING `config_hash`. The **physical spec rides on
+`AuthoredSource`** (ADR-037): `config_hash` covers the geometry, and the two arms — which
+differ in one number — no longer hash identically.
+
+**Both arms are registered V&V cases** (`21840e0`). `metrics()` carries only what ONE arm can
+measure; the D3/D4 increment needs both and belongs to the campaign driver, so **it has no V&V
+dashboard row and ADR-039 must say so**. D5/D6/D7 live in a band-less `predicates()` registry
+carrying a literal `(no band)` token; D7 raises, D5/D6 report.
+
+## 5. NINE THINGS THAT WILL BITE YOU IF YOU SKIP THE HANDOFF
+
+1. **`h = 0.194`, not 0.175** (§6.7). 0.175 is the *other two* Heathcote experiments.
+2. **No raw PDF digest is reproducible here** (§6.6) — use `pdf_content_sha256` / `page_raster_sha256`.
+3. **This thesis's blanket "for all Re" prose is not evidence** (§6.8): the crossover claim misses
+   by 12.6 % at the gated Re, while its condition-specific prose reproduces to 0.1 %.
+4. **I5 must gate DEGRADATION against the recorded static baseline**, never an absolute threshold
+   (§6.9 + §6.16). Measured: checkMesh reports "Non-orthogonality check OK" at 85.23; the one
+   failing check is **aspect ratio**, and it is byte-identical (1884.4471) on the platform's own
+   stock NACA 0012. So **M1 ("Mesh OK") and M2 (non-ortho) are both unusable as absolute gates** —
+   they fail the platform's own production airfoil mesh. Gate degradation + absolute skew <= 4 +
+   zero negative volumes.
+5. **The flexible plate is the campaign's clock** (§6.11). `first_cell_height` defaults to `2.0e-6`
+   chords and is unrunnable; **`5.0e-4` is pre-registered**. The binding limiter is then the
+   flexible arm's blunt-TE base, ~5x tighter than the rigid arm, and the paired A-family forces
+   both arms to share it.
+6. **`load()` emits 23 scalars, not 20**; `_write_case` is `PreciceCoupledSolver._write_case`.
+7. **Three silent failure modes in the authored case** (§6.12): the CalculiX slab's z-thickness
+   must equal the OpenFOAM `span` or the plate is under-loaded 400x while everything converges;
+   `INC` must be **computed** (`>= 10*ceil(max_time/dt)`), never copied, or ccx exits **0** mid-run
+   and K2 *passes*; and the RBF `support-radius` must be scaled (upstream's `1.` is one metre on a
+   0.09 m chord) — now assertable thanks to `10fcb70`.
+8. **A nullable XOR pair is forgeable** (§6.14). `model_copy(update=...)` bypasses
+   `@model_validator(mode="after")`, and `case.py` uses that idiom twice. This is why
+   `MaterializedTree` carries ONE `source` field. Generalise it: any invariant expressed only as an
+   after-validator is bypassable here.
+9. **ADR-036's band regex silently DROPS `D9` and `D10`** — it needs a literal space after the id,
+   so `D10 ` never matches. The phantom pair comes from `^\s+` matching **five-space continuation
+   lines**, and greedy `[^\n]*` reports the **last** band on a line mentioning two. Earlier prompts
+   and §6.13 say "D\d matches D10 as D1"; that is wrong, and silent omission is strictly worse for
+   a parity test. The replacement must anchor at exactly two spaces, use `[A-Z]\d{1,2}`, accept
+   fractional percents and `\(no band\)`, be **non-greedy**, and guard one band token per line.
+
+## 6. OPERATOR DECISIONS — settled, do not re-litigate
+
+From sessions 1-3 (handoff §2, §7):
+
+- Plunge driven from the **solid's** leading edge; **the pitch is NOT prescribed** — it arises from
+  the flexibility. Prescribing it would model a different experiment.
+- CalculiX **3-D slab of `C3D8I`, dof 3 suppressed**, not plane stress (§6.1).
+- Solid geometry settled: 30 mm aluminium teardrop + 60 mm steel plate, `E = 2.05e11`,
+  **structural root at x = 30 mm**. The teardrop is a **fully prescribed (kinematically rigid)
+  region**, not a stiff material.
+- The rigid control is the **same coupled path with a stiffer plate** (`b/c = 4.23e-3`), which HG
+  measured — so both ends of the increment carry an experimental anchor.
+- **Both the absolute bands AND the increment sit in the VERDICT line**, knowing ADR-022 makes a
+  NO-GO on the absolute clause a live outcome. The verdict must resolve **clause by clause** so
+  "NO-GO on absolute fidelity, GO on the flexibility increment" is expressible *in the bundle*.
+- The paired path segments on the **prescribed** period, never an FFT-detected one.
+- **Settled-cycle ladder**: >=20 settled cycles on the rung carrying the paired increment, >=10 on
+  the GCI-only rungs. **Two launch waves.**
+- **Pre-register the sizing RULE, not the numbers**: ADR-039 commit A carries B2 with a
+  `<<B2-PENDING-I4>>` marker and a committed pure sizing function; commit B is the I4 record;
+  commit C fills the marker only.
+
+From session 4:
+
+- **Time scheme: `backward` IF AND ONLY IF checkpoint fidelity is proved, else `Euler`.** Every
+  preCICE OpenFOAM tutorial uses `Euler`; second order under *implicit* coupling needs the adapter
+  to checkpoint `U.oldTime().oldTime()` every coupling iteration and nothing establishes it does.
+  Build the probe as a **reusable pre-flight clause I8** in `aero/vv/` — 5 windows implicit vs the
+  same 5 at `max-iterations 1`, comparing window-start field state. Either way the claim is
+  measured. If it fails, `Euler` is defensible: a fixed coupling time-window-size across rungs makes
+  temporal error common-mode, so it does not contaminate the spatial GCI.
+- **`NLGEOM` ON unconditionally.** B2 is sized for whatever it costs; I4 must report the multiplier.
+- **D9 is REPORTED-ONLY; D10 stays gated.** D8 admits 2 deg of rigid-arm pitch, worth 12 % TE
+  velocity, and P1 assumes a single rigid-body velocity — D8 and D9 could not both be satisfiable.
+  Report `(P1-P2)/P2` on **both** arms as the measured bias the naive formula would have injected.
+- **Budget fallback: raise the ceiling, do not degrade the evidence.** Per-wave ceiling **14 days**,
+  and **wave 1 is the rung carrying the paired increment (both arms)**; wave 2 is the two GCI-only
+  rungs. Cutting settled cycles and accepting a budget NO-GO are the last resorts, in that order,
+  and only if 14 days per wave is also exceeded.
+
+## 6b. FIVE MORE THINGS MEASURED IN SESSION 5 (handoff §6.17-§6.21) — do not re-derive
+
+1. **CalculiX truncates every numeric field at 20 characters.** A deck written at `%.16e`
+   (22 chars) made ccx 2.20 reject EVERY numeric card with rc=201 before a single increment.
+   `%.13e` works. A double needs 17 significant digits and does not fit, so chosen values
+   (dt, max_time, span) are required to be exactly representable and derived ones are
+   asserted to 1e-12 m.
+2. **A 70 005-row `*AMPLITUDE` table reads fine** (rc=0, ~2.9 s). Per-window sampling stays.
+3. **The `.dat` is a four-line record with a SEVEN-significant-digit time**, not a table.
+   Ten real records are committed as a fixture. Under implicit coupling a time repeats per
+   ITERATION — classified structurally, never assumed.
+4. **The coded interface-power FO compiles under `setpriv --reuid 1000`** and its force sum
+   matches `force.dat` to 12 significant figures; on a stationary mesh its power is −4.3e-18,
+   which proves it reads the WALL velocity.
+5. **At `farfield_extent_chords = 20` all six decks pass checkMesh outright.** Cell counts
+   reproduce §6.16 exactly (45 682 / 77 240 / 130 032) and non-ortho to four significant
+   figures, but aspect ratio is 309.9 not 1884.4, so `Mesh OK` PASSES. §6.16's argument still
+   stands; Stage 20's own mesh simply has no pre-existing failing check. Still a
+   measurement, not a record — the I3/I5 pre-flight must re-run it into `data/vv/`.
+
+## 6c. FOUR THINGS SESSION 6 FIXED OR FOUND — do not re-derive (handoff §6.22-§6.25)
+
+1. **The fluid and solid readers kept DIFFERENT coupling iterates.** `force_io` kept the
+   FIRST row at a repeated time, `ccx_dat` the LAST; under implicit coupling `force.dat`
+   repeats per iteration, so `C_T` came from the accelerator's first guess and `P2`/`P3` from
+   the converged solve. Invisible to every downstream check, and **the bias differs between
+   arms**, so it landed in `dC_T` and `d_eta`. Fixed additively — `repeats="first"` is still
+   the default so no Stage-10/11/13 record moves; the coupled readout passes `"last"` and
+   `classify_repeat_cadence` proves the repeat count against the iterations log, RAISING on
+   anything unexplained.
+2. **`align_arms` could attest to a time base it never compared** (adversarial review, six
+   refuter votes). The raw-time check needed BOTH arrays; `n_samples` was derived from one.
+   Now all-or-nothing, `n_samples` is `int | None` bound to `time_base_checked`, and **the
+   segmentation-anchor clause is unconditional** — `t_start - converged_from_cycle * period`
+   recovers the post-discard origin from fields both analyses already carry, so no raw times
+   are needed. Equal `discard_s` does NOT imply equal origins.
+3. **`tests/stage_20` is not in CI.** `test.yml` runs `pytest -q tests/unit` only, so 664
+   green is not 664 enforced. **ADR-039's binding tests must go in `tests/unit/`**, beside
+   `test_stage19_gate_block_sync.py`. Corollary: FSI3's `config_hash` embeds absolute host
+   paths, so `3f94f394...` is a property of THIS checkout — ADR-037 must say so.
+4. **`forces1` writes its registered fields every time step** (`writeFields yes` at
+   `writeControl timeStep; writeInterval 1`), which `purgeWrite 2` does not track. `writeFields`
+   is REQUIRED — the interface-power object looks the field up — so **I4 must count the time
+   directories and `du` them before B2 is sized.** A full NFS four days into a 14-day wave is
+   the failure mode.
+
+## 6d. SESSION 8 MEASURED THE COST SPLIT — read handoff §6.31-§6.33 before ADR-040
+
+The three levers session 7 named were ranked on hypotheses. Measured (handoff §6.31/§6.32,
+`data/vv/stage20_{i10_cost_split,n2_screening}.json`):
+
+1. **`forces1` write scheduling and fluid subcycling are BOTH REFUTED**, by a bound rather
+   than an argument: 99.42 % of the wave's wall clock is fluid CPU, so every I/O-shaped
+   lever is capped at 0.58 %, and subcycling at ~6.6 % (the fluid step-solve count is
+   invariant in K). Do not re-open either.
+2. **The cost is the pressure solve** — 90.8 % of fluid CPU, 961 GAMG iterations per step.
+   **`smoother GaussSeidel` → `DICGaussSeidel` alone is 2.22x**; with Tier 2 (one outer
+   corrector, looser `p` tolerance) 3.73x. **PCG+DIC is 1.07x** — do not re-derive it,
+   `_foam_common.fvsolution`'s docstring recommends it and it is wrong here.
+3. **Parallel fluid is the WEAKER lever**: 2.18x at 6 ranks, 36 % efficiency, *slower* at 8.
+4. **Combined 8.04x ⇒ ~2.00 s/window uncontended**, against 1.037 needed for 20 settled
+   cycles inside 14 days. **The 14-day ceiling is out of reach at any settled-cycle count**;
+   the operator's deferred ceiling decision is live.
+5. The disk trap is the CalculiX `.frd` (78 %, read by nothing), not the fluid field writes
+   (7.6 %). §6c item 4's attribution is wrong.
+
+Landed this session: the cost reader + attribution (`solver_log.read_fluid_cost_history`,
+`aero/vv/fsi/cost_model.py`), the driver's `--collect-cost`, both records, the `fvSolution`
+byte-pin, and `FluidNumericsSpec` on the spec so `config_hash` can tell two numerics apart
+(it could not — the same hole ADR-037 closed for the rung knobs).
+
+**Still to do: ADR-040 itself, the parallel launcher seam, the equivalence probe, the sizing
+fork, the coupled confirmation, and wave 1.** ADR-040 needs its OWN sentinels and its own
+`--submit-040`: ADR-039's can never be filled (handoff §6.33 item 3).
+
+## 6e. SESSION 9 SO FAR — the two leads are dead and the collect path is broken
+
+Read handoff §6.34-§6.35. Two results, both landed (`bc24e08`, `870e116`):
+
+1. **Both operator-named leads are REFUTED**, on a committed harness
+   (`scripts/stage20_numerics_screen.py`, `data/vv/stage20_n4_deforming_screen.json`) that
+   reproduces N2's `s0_control` to four significant figures first. `cacheAgglomeration no`
+   removes no iterations on a moving mesh and costs 6.8-18.4 %; a fully-Dirichlet farfield
+   `p` — the strongest possible form of the pressure-reference fix — is worth 3 %, inside
+   scatter. **Do not re-open either.** No campaign BC changes.
+   §6.31's "the deforming mesh makes the pressure system three times harder" is **wrong**:
+   the campaign's foil moved 0.006 of ONE wall cell over the whole I4 run, the screen moved
+   it 167x further and still reproduced almost none of the cost. The cost is
+   **startup-transient difficulty sustained forever** — every coupling iteration restores
+   the window-start checkpoint, so the pressure solve never warms up. That lever is
+   ADR-039 C1, frozen: REPORT it, do not act on it.
+   **The ~2.00 s/window projection stands and is conservative** (the candidate stack is
+   5.29x cold-started vs 4.25x warm). The 14-day ceiling is still out of reach at any
+   settled-cycle count, so §7 item 5's conversation is unchanged.
+2. **`--collect` -> `read_arm` would raise after wave 1's weeks of wall clock**, verified on
+   both surviving I4 arms. The fluid FOs stamp the window START and CalculiX the window END,
+   so there is a one-window phase offset sitting under D10 and P2/P3. Fix it structurally
+   and prove it against those bytes BEFORE wave 1. This is a new §7 item, between 7 and 8.
+
+3. **The core budget changed: 4 fluid ranks per arm, not 6.** The pre-approved 6 came from
+   session 8's ladder, which was UNCONTENDED and on a STATIC mesh. Measured in the wave-1
+   shape (two arms concurrently, moving mesh, binding on the slower arm): 4+4 = 0.1655 s/step
+   on 10 of 16 cores against 6+6's 0.1860 on 14. Six is past the peak. The uncontended
+   moving-mesh ladder agrees and is sharper - pressure iterations per solve rise monotonically
+   5.6 / 9.2 / 11.4 / 18.4 / 36.1 across 1/2/4/6/8 ranks. **ADR-040 pre-registers 4**, and
+   wave 1 leaves 6 cores free rather than 2.
+
+**Operator decisions taken this session** (do not re-litigate): the deforming screen ran
+BEFORE ADR-040 (deviation from §7's order, recorded in handoff §3); ADR-040 pre-registers
+dt = 2e-5 as the candidate plus a CONDITIONAL re-probe — if measured post-ramp Co <= 0.4,
+one probe at the next larger round-tripping dt is pre-authorised and the campaign dt is the
+largest probed dt with post-ramp Co <= 0.8; the pressure BC was admissible only under a
+pre-registered rule, and that rule is now moot because N5 is refuted.
+
+## 6f. SESSION 10 — the seam, ADR-040 and N3; and two latent faults that would have fired
+
+Read handoff §6.37-§6.41. Session 10 executed §7's EXECUTION ORDER and deviated from it
+once, deliberately and with the operator's approval.
+
+1. **ADR-039's gate block is digest-pinned** — 19898 bytes,
+   `c9cdde9463a4bf202dd3b692dded86242814268b8ac62c8c8d3b4e1cc569863d` — landed ALONE on
+   pre-change code before a second block existed. It is FROZEN and carries over.
+2. **The parallel seam exists and the L-smoke PASSED all four L clauses on the real
+   coupled deck** (`data/vv/stage20_l6_smoke.json`). `mpi_ranks` on `ParticipantSpec`,
+   `mpirun` appended inside `build_participant_command`, `decompose()` beside `mesh()`
+   running under the participant uid with the `processor*` count counted host-side.
+   **FSI3's `config_hash` moved a second time**, `3f94f394…` → `4222f481…`, recorded the
+   way ADR-037 recorded the first; `test_stage19_materialization_is_byte_identical.py`
+   stays green untouched, which is the proof it is a record move.
+3. **ADR-040 is `accepted`** with families U/N/L/Q/VERDICT/BUDGET/CONTINGENCIES(W)/
+   FORBIDDEN, its own delimiters, its own driver constant, and 27 binding tests. The U
+   family names all 58 of ADR-039's clause ids and the shape test checks that list is
+   EXHAUSTIVE. B0 = 259200 s is concrete; B1/B2/B3 carry markers.
+4. **Spec knobs v2**: `numerics_label` and `mpi_ranks` ride in `spec_knobs`,
+   `is_gated_configuration_040` takes FIVE required keywords, `--submit-040` is its own
+   mode with its own merge-base guard, and `--submit` is untouched and refuses forever.
+5. **The readout fix landed BEFORE N3, not after** — the one deviation from §7's order,
+   and it was the right one: the measurement it rests on needed the box only for reading,
+   and it is what would otherwise have ended wave 1 in a raise. §6.38 has the proof.
+6. **Two latent faults found by running the code, neither in §7's list** (§6.39):
+   `_collect_probe` crashed with a `TypeError` on every run inside the ramp — the state
+   BOTH committed I4 bundles are in — and the time-directory count read 1 instead of 69
+   under decomposition, which would have made the F4 disk projection blind.
+
+**Operator decisions taken this session** (do not re-litigate): N3 runs ramp + one full
+half-stroke, 76090 windows = 1.5218 s, 25364 post-ramp — a full half-stroke, so |v| is
+phase-complete by symmetry; ADR-040 B0 = 259200 s (72 h) per submission; **Q1 runs BEFORE
+N3**, a sub-hour probe to de-risk two days, which is a deliberate deviation from §7's
+execution order on the same argument that puts the L-smoke ahead of N3.
+
+## 6g. SESSION 11 — N3 SIZES, the collect refuses EARLIER than §7 said, and D10 has run
+
+Read handoff §6.42-§6.45. N3 was still running throughout; nothing ran on aero-dev beyond
+`run_long.sh status` and the `cat rc` inside `_reattach`.
+
+1. **N3's FLEXIBLE ARM DIED — read handoff §6.46 first, it supersedes the projection.**
+   CalculiX aborted on glibc heap corruption (`corrupted double-linked list`, SIGABRT,
+   rc=134) at **window 1703 of 76 090**, 2 h 03 m in; `stopped_by=participant-died`, which
+   gate K2 refuses as evidence. Not memory pressure (27 of 32 GB free) and not a
+   window-count wall — the RIGID arm was at 3353 and healthy at the time, and the flexible
+   solid runs 27.7 ccx `no convergence` retries per window against the rigid arm's 4.3.
+   **ADR-040 W6 allows exactly ONE resubmission; a second death is a NO-GO on
+   infrastructure** *(CORRECTED, handoff §6.48: W6 scopes itself to "a wave-1 solve" — N3
+   is a probe under B0, a re-run spends nothing W6 protects, and B0 has 134 h left)*. The
+   surviving rigid arm cannot size B2 alone — its remaining windows are uncontended, which
+   the rule refuses by name. *(RESOLVED, handoff §6.48: that arm COMPLETED all 76 090
+   windows on 2026-08-14 in 30.9 h, post-ramp 1.296 s/window, and its 1 156 014
+   factorisations — 10.2× the flexible arm's pre-abort total — REFUTE §6.47's candidate 1.
+   The abort is specific to the flexible arm's deformation.)*
+   **Both the kill and the resubmission are operator decisions and neither was taken.**
+   New number nobody had: CalculiX writes `.frd` at ~537 KB/window, i.e. **~1.27 TB for
+   both arms over the gated campaign** — it fits (24 TB free) but B2's disk projection
+   never anticipated it.
+
+   *While it lived* it projected **SIZES on both arms**, and those numbers still stand as
+   far as they go — but they may not size B2. Read the MARGINAL rate, not `--project-n3`'s
+   headline: the headline differences `ClockTime` from the first step and so carries the
+   coded FO's first compilation. Flexible (binding) was **3.871 s/window marginal at 5.158
+   iterations**, putting the W3 minimum at 68.4 h and the chosen span at **82.0 h against
+   B0's 96 h**. The gap to §6.41's 3.69 s/window basis is **iterations (+5.3 %), not
+   per-step-solve cost (0.750 vs 0.753 s, flat to 0.4 %)** — so §6.41's contention finding
+   holds.
+2. **§7's expectation for `--collect` was wrong, and the correction is the finding.** It
+   does NOT clear the join and refuse on the S-rule. `read_arm` calls `load()` first, and
+   `_load_authored` runs `analyse_limit_cycle` with the S2 discard on the watch-point base,
+   so a 0.01 s probe dies at the **discard guard** — "the run has not passed the start-up
+   transient" — upstream of the join, which never executes. Correct behaviour, not a defect.
+   A collect cannot clear `load()` below **13.19 s = 659 420 windows**; only the gated
+   campaign will ever have that, and `--size-040` now asserts the sized `max_time` covers it.
+3. **A lost submission is recoverable and PROVABLY so**: `aero-manifest.json` carries
+   `authored.spec_sha256`. The Q1 records were rebuilt and verified against it, so
+   `_reattach`'s digest check stayed a real check. **The same mechanism now guards N3** —
+   `tests/unit/test_n3_live_submission_digest_is_pinned.py` landed ALONE and FIRST and makes
+   a spec drift a named CI failure instead of an uncollectable run. **Delete it once N3 has
+   been collected.**
+4. **`read_arm` has now executed end to end** on a synthetic-but-complete case
+   (`tests/unit/_hg2007_case_tree.py`), the first time on any input. **D10 has a precision
+   FLOOR of order 1e-7** set by CalculiX's 7-significant-digit `.dat` print — five orders
+   inside ADR-039's 2 % band, but now on the record. The join is also re-derived on the two
+   **4-rank decomposed** Q1 arms, not just on serial bytes.
+5. **The `n3` block now maps to the sizing rule**, and `--size-040` calls it. Nothing was
+   filled: B1/B2/B3 keep their sentinels, the four `GATED_040_*` stay `None`, and
+   `data/vv/stage20_n3_confirmation.json` still does not exist.
+6. **NEW REQUIRED ITEM — the fine-rung I7 probe.** `size_gated_campaign_040` requires an I7
+   probe at `arm=flexible rung=fine`; N3 covers only the mid rung on both arms, so the rule
+   refuses today. It runs AFTER N3, never alongside; it needs ≥ 50 726 windows to reach the
+   post-ramp window, so it is a multi-day run in its own right. **Budget for it when taking
+   the B3 ceiling decision.** Handoff §7 carries the full clause list.
+
+## 6h. SESSION 12 — the abort has a PRECURSOR, and the mitigation decision is the operator's
+
+Read handoff §6.49 — it is the record. In one paragraph: the dead flexible arm's logs were
+mined (11-agent workflow, adversarially verified, zero unresolved refutations; evidence +
+parsers at `/mnt/aero-nfs/runs/stage20-n3-attempt1-mining/`). The abort is NOT a bolt from
+the blue: a **period-2 odd-window instability inside CalculiX** starts at ~window 1557 —
+odd-window absolute residuals grow 34.8 → 1665.4 N doubling every ~26 windows while even
+windows *decrease*, ccx Newton effort escalates on the same odd windows (39 windows ≥ 8
+iterations, all odd, unbroken 1625..1701), and the residual argmax marches into the death
+nodes (strict-cluster share 0 % → 6 % → 67 %). The interface is blind to it — preCICE
+coupling health, fluid series and interface forces are all clean — and F-vs-Q1 determinism
+is DIVERGENT from the first parallel GAMG solve, so an unmitigated re-run is not a sharp
+reproduce/not-reproduce probe. §6.46's "345.9 unprecedented" reading is refuted (prior
+survived max 1665.4 N; death-window max 2027 N = 1.22×), and the "Courant 0.549 at death"
+was the t=0 startup value (death-step 0.1139). Verdict under the pre-registered precursor
+rule: **MITIGATION-WARRANTED**. N3 was NOT resubmitted; B0 stands at 134 h; aero-dev is
+idle. The operator decision — deck bytes (a) / coupling config (b) / ccx build (c) /
+hash-exempt observability only (d), each with its ADR consequences — is queued in handoff
+§6.49, and the SESSION-13 path in handoff §7 carries the mechanics.
+
+## 6i. SESSION 13 — ADR-041 drafted and with the operator; three §6.49 sentences corrected
+
+Read handoff §6.50 — it is the record. Step-0 re-verification passed (NFS mounted, mining
+dir intact, aero-dev IDLE by exact-name pgrep with zero tmux sessions, 962 green + 2 skips,
+mypy clean, tree clean at `ab5a11f`). **ADR-041 is DRAFTED, adversarially verified over
+three rounds, and waiting on the operator's acceptance — that gate is real and nothing
+implements or runs until it is passed.** B0 untouched at 134 h; nothing submitted.
+
+Four things session 13 established that outlive the ADR decision: (1) §6.49's "443 N
+watchdog fires ~w1650" is refuted — the measured first crossing is **w1683**, 20 windows
+pre-death; (2) §6.49's "even windows monotonically decrease" is wrong in direction — they
+RISE 17.490 → 18.586 N then sag 0.7 %, a +6.3 % swing (the 47.8x-vs-6.3 % parity split is
+the fact that matters); (3) an **absolute** newton threshold cannot serve as the campaign
+watchdog at all — the healthy envelope tracks the load — while **parity** separates sick
+from healthy with margin on three datasets (worst healthy 20-window odd/even ratio: 1.81
+flexible, 1.53 Q1, **2.45 on the rigid arm's complete 76 090-window full-amplitude run**,
+against 3.21 → 76.63 on the dying arm); (4) **preCICE forbids serial-implicit from
+accelerating first→second data**, so a D-B rung cannot keep IQN-ILS on
+`{Displacement, Force}` — it drops to `{Displacement}`, a second frozen C1 element, forced
+not chosen. Also: `--record-q1`'s default `--out` OVERWRITES the accepted Q1 record, and
+`_reattach` rebuilds through the builder default, so that default may never flip without a
+frozen legacy constant in the reattach path.
+
+## 6j. SESSION 13 (cont.) — ADR-041 ACCEPTED; D-A is on the box
+
+Handoff §6.51 is the record. ADR-041 was **accepted** (`2bbfdd4`) and implemented in the
+mandated order: the divergence detector in every poll (`b962c7d`), core-dump + MALLOC_CHECK_
+observability recorded in the submission JSON (`b6da94f`). Suite 979 green, mypy clean.
+
+**START HERE if the box looks busy: the D-A ladder rung is RUNNING** —
+`fsi-hg2007_flexible_foil-20260905-220206`, submitted 2026-09-05 22:02 UTC, 8000 windows,
+uncontended, ~3-9 h. Poll with `--status` (the detector prints on every poll). NOTHING
+else runs on aero-dev until it lands — a contended rung is not the pre-registered
+measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
+unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
+
+## 6t. ELIMINATED — the ladder has an adopted mitigation; and the CI noise is fleet DNS
+
+Handoff §6.66-§6.67. **The Z4 re-probe `fsi-hg2007_flexible_foil-20260912-161321` came back
+ELIMINATED**, judged by a rule that was in code before it was submitted: all-exited, both
+rc=0, **8000/8000**, 0 of 395 chunks active, contiguous. A genuinely fresh draw — 15.3 % of
+its windows differ from D-C1's. **Ladder closed: D-A RECURRENCE, D-B DIED-UNDIAGNOSED,
+D-C2 RECURRENCE, D-C1 ELIMINATED** on its second and final probe; 15.3 h of the 35 h cap.
+The mitigation is `*DYNAMIC, ALPHA=-0.05`, CalculiX's own default.
+
+**Adoption is unblocked but NOT taken** — it is a commit that executes ADR-043 Y3 (C2's
+expectation, D10's rationale, 2 % band unmoved), moves `ALPHA_OF_RECORD`, and then runs
+**V6's Q1 re-run** on the adopted stack before N3.
+
+**The GitHub failure notifications are NOT this branch.** Every aero LXC (CT 210-217) is
+configured `nameserver: 192.168.2.1`, which pings but serves no DNS, so the self-hosted
+runners on aero-build are `active` locally yet OFFLINE to GitHub and jobs queue ~11.5 h into
+an internal error. Technitium (192.168.2.209) resolves fine. Predates this session (no
+vv-smoke success since 2026-09-04). No solve was affected — the cluster is reached by IP —
+but **`vv-required` is a required check, so PR #44 cannot merge until it is fixed.** Fix
+packaged, not run (provisioning gate): `net-ops/scripts/fix-aero-lxc-dns.sh`, dry-run by
+default.
+
+## 6s. ADR-044 ACCEPTED with Z4 — the re-probe that decides adoption IS RUNNING
+
+Handoff §6.65. ADR-044 accepted 2026-09-12 (`d702b57`) with **Z4**: D-C1's completed run is
+NOT adopted; Z1 went into code FIRST, then ADR-041 V1(b)'s single re-probe was spent, and
+THAT run is judged by the accepted rule — so the rule predates the run it grades, which is
+the one defect in ADR-044 that care alone could not fix. D-C1 stays INCONCLUSIVE
+permanently, as evidence.
+
+`fsi-hg2007_flexible_foil-20260912-161321`, submitted 16:13 UTC, identical in shape to D-C1
+(8000 windows, uncontended, α=-0.05 with the deck verified), ~5.6 h, 24 h ceiling.
+**The rung's SECOND and FINAL probe** — V1 caps any rung at two under any combination of
+V1(a), V1(b) and ADR-042 X2. ELIMINATED under Z1 ⇒ adoption (ADR-043 Y3's C2 and D10 moves,
+`ALPHA_OF_RECORD` → -0.05) then V6's Q1 re-run; anything else ⇒ recorded **NO-GO on
+infrastructure**. Ladder 9.53 h of 35 h before it; nothing else on the box.
+
+## 6r. D-C1 COMPLETED 8000/8000 — and the rule says INCONCLUSIVE
+
+Handoff §6.62. **The first flexible coupled run ever to finish its span**: all-exited, both
+participants rc=0, 8000/8000, 5.64 h, and 21 % FASTER per window than the undamped run. The
+solid is quiet by five orders of magnitude (p99 = 4.2e-5 N; only 2 windows of 8000 above
+1.0 N, both in startup) where D-A's median was 3.23 N and climbing by w400. But 0 of 395
+chunks reached V2's activation floor, so the pre-registered verdict is **INCONCLUSIVE** —
+the ladder cannot adopt a mitigation that works, because success removes the signal its only
+test consumes. The verdict of record stands; nothing was reinterpreted. **ADR-044 is the
+question that forces: how to read a COMPLETED span with ZERO activation, given §6.61's
+calibration (committed before the result) that every sick run activated by w135 and the
+healthy control not until 100 % amplitude.** Ladder 9.53 h of 35 h; box idle.
+
+## 6r-bis. D-C1 COMPLETED 8000/8000 — the crash is gone; V2 cannot say so
+
+*(Two sessions recorded this same result independently, minutes apart — §6r above and this one. Both are valid records with different emphases; only the heading was relabelled, to remove the duplicate anchor.)*
+
+Handoff §6.62. **The first flexible run ever to finish its span**: 8000/8000, rc=0, both
+participants clean, 5.6 h at 2.54 s/window. The three runs that died ended carrying
+2000-3600 N residuals with escalating Newton effort; D-C1 ends at **0.000 N**, median
+residual 0 over the whole span, **Newton ITRS flat at 2 for all 8000 increments**, zero
+windows >= 8. **V2's verdict is INCONCLUSIVE** — 0/395 chunks reach the 1.0 N floor, because
+a mitigation that removes the instability removes the signal the floor was calibrated
+against. A re-probe cannot fix that, and D-C1 is the last rung, so the ladder's machinery
+would otherwise record a NO-GO for a stack that just completed with the failure mode absent.
+**Queued for the operator: the iteration-count prong amendment** (evidence committed at
+`9b6897a` BEFORE the verdict). Nothing adopted, no band moved. Adoption still needs V6's Q1
+gate — the one thing this rung cannot rule out is the damping suppressing the PHYSICS, and
+Q1 with frozen bands is what measures it.
+
+## 6q. D-C1 IS RUNNING — the last rung, at CalculiX's own ALPHA default
+
+Handoff §6.59. ADR-043 accepted (`89a4a28`): `*DYNAMIC, ALPHA=0.0` → **-0.05**, which is
+CalculiX's OWN default (`dynamics.f:73`) that ADR-039 C2 had deliberately overridden to the
+one value in range with zero Nyquist dissipation. `fsi-hg2007_flexible_foil-20260910-084806`,
+submitted 08:48 UTC, 8000 windows, ~7.4 h expected, 24 h ceiling; the materialized deck
+carries `ALPHA=-0.05` (verified). Ladder 3.89 h of 35 h before it. **Every digest moved and
+both attempt-1 records are now permanently unreattachable — declared, accepted, paid.**
+**This is the LAST rung: eliminate and the adoption commit moves ADR-039 C2 + D10's
+rationale (band unmoved); anything else is a recorded NO-GO on infrastructure.**
+
+## 6p. D-C2 RECURRENCE-DETECTED — the suspect is ALPHA=0.0, and D-C1 is the last rung
+
+Handoff §6.58. The adapter bump fixed neither failure: died w1996, detector fired w1820
+(176 windows of warning). **The divergence is in 3 of 3 parallel runs that lived long
+enough and is robust to coupling scheme AND adapter version** — so it lives in the case,
+not the software. The deck integrates at `*DYNAMIC, ALPHA=0.0` (ADR-039 gate clause C2),
+i.e. Newmark average-acceleration with **zero dissipation at the Nyquist frequency**, and
+the Nyquist mode of a window-stepped solve IS a period-2 alternation. The diverging parity
+even flips between runs (ODD in attempt 1 and D-A, EVEN in D-C2), which is what a Nyquist
+mode does and what a systematic code path would not. §6.55's "the crash fires independently
+of the divergence" is SOFTENED there: it rested on D-B, whose residuals were pathological
+from window 1. Ladder 3.89 h of 35 h; box idle; nothing queued. **D-C1 needs an operator
+decision — it moves an ADR-039 gate-clause expectation and un-reattaches both attempt-1
+records — and it is the last rung before a recorded NO-GO.**
+
+## 6o. D-C2 IS RUNNING on the rebuilt solid container (adapter v2.20.2)
+
+Handoff §6.56-§6.57. Form 2 could not be a CalculiX bump — no adapter exists for 2.21/2.22
+— so ADR-042 X1a made it an ADAPTER bump v2.20.1 → v2.20.2 on CalculiX 2.20, which fixes
+uninitialized PreciceInterface counters and initialization-time memory access in the C
+between CalculiX and preCICE. Container rebuilt, signed, rostered (`4ca47da2…` →
+`ac0805d6…`), and smoked two-container clean before a rung was spent.
+`fsi-hg2007_flexible_foil-20260907-155350`, submitted 15:53 UTC, 8000 windows,
+parallel-implicit, 24 h ceiling, ~7.2 h projected. Poll with `--status`, take the verdict
+with `--adr041-evaluate`. Nothing else runs on aero-dev. Ladder: 1.99 h of 35 h before it.
+
+## 6n. D-B DIED-UNDIAGNOSED at w88 — the box is idle and D-C needs an operator decision
+
+Handoff §6.55. Two facts change the picture: (1) the ccx heap corruption fires WITHOUT the
+parity precursor (w88 is far before the signature develops), so it is a first-class failure
+mode of this build and not merely the divergence's end-state — 3 of 3 runs across two
+coupling schemes have now died of it; (2) serial-implicit is a worse coupling here, with
+solid residuals 2-3 orders of magnitude larger from the start, because preCICE forces the
+IQN-ILS set down to {Displacement}. Ladder: 1.99 h of 35 h spent. **Nothing runs next: the
+ADR requires the operator to be consulted before D-C, and the evidence argues for taking
+form 2 (CalculiX bump) before form 1 (deck damping) — a re-order that needs its own ADR.**
+
+## 6m. D-B RESUBMITTED with a 24 h ceiling; serial costs 1.76x
+
+Handoff §6.54. The first D-B submit was killed by me at w111 because serial-implicit
+settled at 5.71 s/window (1.76x D-A's 3.25), which projected 12.7 h against the 12 h
+ceiling I had given it — left alone it would have died on the ceiling and scored
+DIED-UNDIAGNOSED, spending the rung on my own parameter error. No detector information
+existed at the time (NO-DATA). Live rung is now
+`fsi-hg2007_flexible_foil-20260907-122616` (24 h ceiling, ~12.7 h projected).
+**Carry this forward: a serial N3 projects ~144 h against B0's 96 h per-submission
+ceiling** — a B3 conversation for the operator if D-B is adopted, not something the ladder
+settles.
+
+## 6l. D-B IS RUNNING (serial-implicit) — parse gate passed 2026-09-07
+
+Handoff §6.53. preCICE's own validator accepted the serial config for both participants
+and rejected the counterfactual by name, so the IQN-ILS drop to `{Displacement}` is FORCED
+and nothing beyond ADR-041's two declared moves is: D-B was not blocked.
+`fsi-hg2007_flexible_foil-20260907-120835`, submitted 12:08 UTC, 8000 windows, uncontended,
+~7 h. Poll with `--status`, take the verdict with `--adr041-evaluate`. Nothing else runs on
+aero-dev until it lands. Ladder budget: 1.57 h of 35 h spent.
+
+## 6k. D-A FAILED — RECURRENCE-DETECTED. The box is free; the ladder is at D-B.
+
+Handoff §6.52 is the record. The unmitigated stack reproduced the instability on an
+independent run: died at **w1487 of 8000** (attempt 1 died at w1703), same
+`corrupted double-linked list` SIGABRT, same period-2 parity signature, and the ADR-041
+detector **fired 27 windows before the death** with bounds fixed before the probe ran.
+D-A is spent (terminal, not re-probable) and cost 1.57 h of the 35 h ladder cap.
+
+**Next: D-B (serial-implicit), and it is BLOCKED until the serial config is rendered AND
+PARSED by preCICE** — if the parser forces anything beyond the two declared C1 moves, D-B
+needs its own operator-accepted ADR. Also open: V5's core dump wrote 0 bytes because
+`setpriv` clears the dumpable flag, so the next rung wants `prctl(PR_SET_DUMPABLE, 1)`
+after the drop.
+
+## 7. YOUR TASK, IN THIS ORDER — REWRITTEN BY SESSION 9
+
+**START HERE (session 13): read handoff §6.49 and its SESSION-13 RESUMPTION PATH. The
+mitigation-ADR decision is queued with the operator; nothing runs until it is taken. If
+the decision is (a)/(b)/(c): write the mitigation ADR (config_hash / container-SHA move,
+ADR-037 precedent, Q1-measured-on-unmitigated caveat, digest re-pin), then re-run N3 both
+arms under B0 with the stop rule armed. Downstream of a landed contended N3 everything
+below is unchanged.**
+
+**Historical (session 12 executed this paragraph's first half and stopped at its stop
+rule): diagnose the ccx abort,
+then re-run N3 both arms — the "single retry" dilemma was a misreading and is dissolved.**
+The rigid arm COMPLETED (all 76 090 windows, 2026-08-14) and refuted the leading crash
+candidate; the flexible arm's abort is deformation-specific and its 1703 windows of
+`Solid.log` are unmined. W6 governs wave-1 solves only; an N3 re-run is an ordinary probe
+under B0 (134 h remaining, ~82 h needed). If the abort RECURS, stop and write the
+mitigation ADR — that risk, not any budget clause, is why diagnosis comes first. Only
+after a contended N3 lands do the fine-rung I7 probe, the B3 ceiling decision,
+`--size-040`, the B2 fill and wave 1 follow. Handoff §7's SESSION-12 RESUMPTION PATH is
+the map; §6g above is the summary. **The rack may be powered off for the house move:
+check net-ops' shutdown-restart runbook and post-boot-verify before assuming the cluster
+exists.**
+
+**Everything below is session 9's text, kept for the rationale.** Items 1, 2, 3, 4 and 9 are
+DONE (§6f); item 9's collect half is now executed and its limits are recorded (§6g item 2).
+
+**START HERE (session 11): POLL N3 — it is running. Then item 6, item 5, item 7, item 8.**
+Handoff §7's SESSION-11 RESUMPTION PATH carries the session names, the poll commands, the
+NFS paths of the submission JSONs and the `--project-n3` invocation; read it first. N3 was
+submitted 2026-08-12 23:01 UTC, both arms at 4+4 ranks, 76090 windows, 96 h ceiling, and
+projects 78.0 h with the ramp clearing at ~52 h.
+
+**Items 1, 2, 3, 4 and 9 are DONE** (§6f): the seam, ADR-040, Q1 ACCEPTED, N3 submitted, and
+the readout fix — which moved AHEAD of N3 rather than behind it, because the measurement it
+rests on needed the box only for reading. Item 8's driver half (spec knobs v2 +
+`--submit-040`) is done; its wave-1 half is not.
+
+**Everything below this paragraph is session 9's text, kept for the rationale.**
+
+**START HERE (session 10): the parallel seam, then ADR-040, then the L-smoke, then N3
+SUBMITTED, then the readout fix while it burns.** The order below is NOT item order — it is
+critical-path order, and the reason is that **N3 is the only multi-day item on the list**.
+It needs >= 50 726 windows to clear the ramp (~28-40 h at any plausible rate), it is the only
+measurement allowed to size B2, and the operator's ceiling decision waits on it. Everything
+else is local work that can happen while it runs. So: get N3 out the door, then work the rest.
+
+Session 9's screening task is DONE and landed — §6e above and handoff §6.34-§6.36 are the
+map. **Do not re-open cacheAgglomeration or the pressure reference level**, do not re-measure
+the cost split, and do not re-open write scheduling or subcycling. The rank count is 4.
+
+**Set the expectation up front, in the handoff, not at hour 40:** items 5-8 below will very
+likely NOT land in session 10. The realistic deliverable is the seam, ADR-040, the L-smoke,
+N3 submitted, and the readout fix.
+
+**Ordering constraints that are not negotiable:**
+- the ADR-039 block digest pin lands FIRST, alone, on pre-change code (the Phase-3A
+  precedent: pin the thing you are about to work beside, before you work beside it);
+- ADR-040's add-commit must precede the new calibration record's add-commit
+  (`_merge_base_guard` resolves with `git log --diff-filter=A`);
+- the L-smoke precedes N3 — two minutes to de-risk a day and a half;
+- the readout fix precedes wave 1, and is proved against the surviving I4 bytes.
+
+**EXECUTION ORDER over the items below** (they are numbered by topic, not by order):
+**item 2** (the parallel seam) -> **item 1** (ADR-040) -> the driver half of **item 8**
+(spec knobs v2 + `--submit-040`) -> the **L-smoke** (item 2's last bullet) -> **item 4**
+(N3, SUBMITTED detached, no owning wait) -> **item 9** (the readout fix) while it burns ->
+then **items 5, 6, 7** once N3 lands -> **item 8** (wave 1).
+
+1. **ADR-040 — the numerics re-pre-registration.** Its own gate block, byte-duplicated
+   into the driver as a SECOND constant (`PREREGISTERED_GATE_BLOCK_040`), with its own
+   byte-identity / shape / marker-state tests in `tests/unit/`. **ADR-039's block and
+   constant are not touched**, and a new test pins their sha256 so a future edit is a
+   named CI failure. Same byte form as ADR-039 (ASCII, ` - ` not em-dashes, family
+   headers at column 0, clauses at two spaces, continuations at five, indents ⊂ {0,2,5},
+   ≤ 90 cols). Families: **N** (the numerics under re-pre-registration), **L** (the live
+   MPI ladder — L1/L2 already PASSED, see `data/vv/stage20_n2_screening.json`), **Q**
+   (equivalence), **B** (budget, with `<<B1-PENDING-N3>>` and `<<B2-PENDING-ADR040>>`).
+   It must state clause by clause what carries over UNCHANGED — every D band, S, R, K, A,
+   M, C1-C6, the rungs, dt — and why changing the sizing rule is admissible: **no gated
+   campaign ever ran, so no verdict exists; the only thing seen is a cost, never a
+   result.** ADR-039's B2 marker stands unfilled PERMANENTLY and ADR-040 says so.
+2. **The parallel seam** (see handoff §6.33 item 1 for why the obvious seam is wrong):
+   `mpi_ranks` on the frozen `ParticipantSpec`; `mpirun -n N <command> -parallel` as the
+   last element of `parts` INSIDE `build_participant_command` — never
+   `build_apptainer_exec(mpi_n=…)`, which would hoist it outside the `setpriv` drop; a
+   `decomposeParDict` writer using `_foam_common.header()`; a `decompose()` seam beside
+   `PreciceCoupledSolver.mesh()`. Extend `tests/unit/test_precice_launcher.py` with a
+   parallel sibling — do not edit the serial byte-pin.
+3. **The equivalence probe (Q).** Q1: 500 coupled windows at the I4 shape under the
+   ADR-040 stack, both arms, compared against the SURVIVING ADR-039-numerics I4 record
+   (`/mnt/aero-nfs/runs/hg2007_*_foil-20260810-1447*` — `force.dat`, the
+   `aeroInterfacePower` log series and the watch-point traces are all still there, so the
+   baseline side costs nothing). Band and REJECTION outcome pre-registered before running.
+4. **The coupled confirmation (N3) — the ONLY thing that may size.** Both arms
+   concurrently at **4 ranks each** (10 of 16 cores; the pre-approved 6 came from an
+   UNCONTENDED, STATIC ladder and is superseded — §6e item 3), gated rung, past the ramp.
+   The screening record may not size; nor may a ramp-phase rate.
+5. **Bring the operator the measured rate and take the ceiling decision** (their Q1
+   answer: the smallest ceiling that fits 20 settled cycles, approved before B2 is
+   filled). At the screening projection of ~2 s/window that is ~27 days, so **expect this
+   conversation to be real** — the 14-day ceiling is out of reach at any cycle count.
+6. **Re-run the pre-flight under ADR-040**: the merged I7+I4 campaign-shape run
+   (`--collect-probe` already emits both blocks from one run), both arms at the gated rung
+   plus the flexible arm at the fine rung. **B1's ceilings must rise first**: I7 needs
+   ≥ 50 725 windows to reach the post-ramp window, which against ADR-039 B1's 43 200 s
+   demands ≤ 0.85 s/window — tighter than B2's own target, so B1 was never satisfiable.
+   `n·dt` must survive `float(format(x, '.13e')) == x`. I1/I3/I8/I9 are cited, never
+   re-run.
+7. **Fill ADR-040's B2**, fill the **ADR-040** sentinels (never ADR-039's — handoff §6.33
+   item 3), land the derivation test. The new calibration goes in a **NEW** `data/vv`
+   file: `_merge_base_guard` resolves commits with `git log --diff-filter=A`, so
+   overwriting `stage20_i4_calibration.json` would leave it comparing against session 7's
+   add-commit and passing on the wrong ordering.
+8. **Launch wave 1 detached** via `--submit-040 {flexible,rigid}`. Submit only, NO owning
+   wait. Record session names + poll commands in the handoff before session end.
+
+9. **THE READOUT FIX — new in session 9, and it BLOCKS WAVE 1** (handoff §6.35). `--collect`
+   -> `read_arm` has never been run on a real coupled run and would RAISE on both surviving
+   I4 arms. Free to verify: the bytes are on NFS. Two symptoms, one cause.
+   - `classify_repeat_cadence` raises: `force.dat` carries `sum(iterations)` rows over
+     `n_windows + 1` distinct times, so repeats are `sum(iter) - n_windows - 1`. Its error
+     message blames `timePrecision` and that is WRONG — do not chase precision.
+   - `_assert_one_schedule` raises: fluid-side records carry 501 instants from `t = 0`, the
+     ccx `.dat` carries 500 from `t = dt`.
+   - The cause, measured: per-time row counts EQUAL the per-window coupling-iteration counts
+     for every window `k >= 1` (499/500 exact, both arms), `cnt[0] = it[0] - 1`, plus one
+     trailing row at `max_time`. **The fluid function objects stamp the window START; ccx
+     stamps the window END.** So the two series are offset by one window, which lands
+     directly in **D10** (`|P3-P2|/P2`) and in P2/P3.
+   - Fix it STRUCTURALLY — a `+1` would be exactly the §6.22 defect wearing a fix's clothes.
+     Additive and defaulted so no Stage-10/11/13 record moves; binding test in `tests/unit/`
+     (`tests/stage_20` is not in CI); **prove it against both arms' real bytes**, not only a
+     fixture.
+
+Everything below this line is session 6's original task text, superseded where it
+conflicts (notably: ADR-039 exists; the driver exists; tests/unit/test_adr039_* exist).
+
+## 7b. THE ORIGINAL TASK TEXT (history + rationale)
+
+Each commit must leave `pytest -q tests/unit tests/stage_20` green. The full commit-by-commit
+sequence with rationale is in `/root/.claude/plans/stage-20-flexible-refactored-aurora.md`;
+session 5's own plan, which that sequence was executed from, is
+`/root/.claude/plans/stage-20-flexible-logical-kay.md`.
+
+**START HERE (session 7): ADR-039, then the campaign driver, then pre-flight, then wave 1.**
+Phases 3A/3B/3C, the V&V case object and Phase 3D are all DONE (sessions 4-6), and **ADR-037
+and ADR-038 are both `accepted`**. What is left is the pre-registration, the driver that
+byte-duplicates it, the I-clauses and the campaign.
+
+Three things make ADR-039 cheaper than it looks, and one makes it safer:
+
+- the ORDERED band registry already exists as `hg2007_flexible_foil.CLAUSE_BANDS`, with
+  `(no band)` as a first-class value — shape-8 has a real object to compare against;
+- shape-7's property (gated XOR reported-only, disjoint and exhaustive) is already asserted
+  against that registry by `test_the_gated_and_reported_only_sets_are_disjoint_and_exhaustive`;
+  what is missing is the ADR side;
+- **the binding tests go in `tests/unit/`** — `tests/stage_20` is not in CI (§6c item 3), so a
+  parity test living there would never run;
+- **`GATED_TIME_WINDOW_S` / `GATED_MAX_TIME_S` are already `None`** and
+  `is_gated_configuration` returns False while they are, so no configuration can claim the
+  gated verdict until the pre-flight fills them. The "pre-register before any campaign run"
+  ordering is structural now, not a rule to remember.
+
+**Phases 3B and 3C below are DONE except where noted** — kept for the rationale, which is
+still the specification the code was written against.
+
+**Phase 3B — authored-case integrity (DONE, `397af1c` + `460d972`).**
+
+- **C3 `precice-config.xml` template + renderer.** Committed template under
+  `aero/adapters/precice/templates/` + `SHA256SUMS` verified on every read + renderer + re-read +
+  `assert_config`, **not a writer**. Assert `found_tokens == _TOKENS` exactly before substituting,
+  then check every token is observable in the parsed model — which `10fcb70` finally makes
+  possible. Upstream numerics: `parallel-implicit`, `max-iterations 50`, relative 5e-3 on **both**
+  `Displacement` and `Force`, IQN-ILS + QR2 (`limit 1e-2`), `initial-relaxation 0.5`,
+  `max-used-iterations 100`, `time-windows-reused 15`. **Scale the RBF `support-radius`.**
+  `nearest-projection` + `nodes-mesh-with-connectivity` is the declared contingency.
+- **C4 `aero/adapters/precice/calculix.py`** — typed `.inp` writer **plus a re-reader**, and a
+  ~20-line `config.yml` reader (no YAML dep — Invariant 1). Highest-value assertions: `*CLOAD` on
+  the interface nset exists with dofs {1,2,3} all present and all exactly `0.0` (the adapter
+  OVERWRITES it — missing, the run is silently force-free); `ALPHA` present and `0.0`; `DIRECT`
+  present and `dt == time-window-size`; `C3D8I` not `C3D8`; `NLGEOM` on;
+  **`INC >= 10*ceil(max_time/dt)`**; and **new clause C6: the slab z-extent equals the emitted
+  `blockMeshDict` span**. The reader must assert `"N" + patch == interface_nset`,
+  `read-data == [Force]` (**not** FSI3's `Stress`), `write-data == [Displacement]`, and that the
+  mesh name matches the rendered XML's.
+  One structured `NX x NY x 1` block over the WHOLE section with y from
+  `geometry.hg2007_half_thickness`, so the solid's wetted curve *is* the fluid's — assert to 1e-12.
+  Plunge via `*BOUNDARY` + `*AMPLITUDE` from `FlappingKinematics(stroke_plane_deg=90,
+  pitch_amplitude_deg=0)` — ADR-024's `(1-cos)` ramp, do not re-derive; the table is **linearly
+  interpolated**, so sample densely and assert `max|table - analytic| < 1e-6*a`.
+  `*BOUNDARY Nall, 3` is plane **strain**: effective modulus `E/(1-nu^2) = 2.253e11`, so the naive
+  `Eb^3/12` hand-check is 10 % off. The prescribed nose **is** part of the preCICE interface; with
+  `ALPHA=0` and no damping, `<Sum RF.v> = P2` exactly, which is what makes D10 a real closure check.
+
+**Phase 3C — dimensional deck + readout (DONE except the V&V case object,
+`e229ecf`..`b9f317f`).** Every point below is implemented and tested; they are kept because
+they are the reasons the code looks the way it does. What is NOT done: the V&V case object
+(`hg2007_flexible_foil.py` + `hg2007_readout.py`), which needs the authored materialization
+above first.
+
+- **The `controlDict` MUST carry the preCICE adapter function object** —
+  `libs ("libpreciceAdapterFunctionObject.so")` + a `preciceAdapterFunctionObject`. No earlier
+  prompt mentions it. Without it pimpleFoam runs a happy **uncoupled** solve to `endTime`, exits 0,
+  and the Solid blocks to the ceiling.
+- **The HG section emits TWO wall patches** (`airfoil` + `airfoil_te`), and all four of these must
+  list both: every `0/` `boundaryField`, both force FOs' `patches`, the `preciceDict` interface, and
+  the mesh-motion `moving_patch`. Dropping `airfoil_te` from the force FOs biases `C_T` on **one arm
+  only** — straight into the gated increment. One test should parse the rendered `blockMeshDict`
+  boundary block and assert the wall-patch set equals all four.
+- **Do NOT route P1 through `propulsive_metrics`.** `MotionKinematics.velocity` is `Aw*cos(wt)`;
+  the solid's plunge velocity is `-aw*sin(wt)` post-ramp — exactly 90 deg out of phase, so `p_in`
+  becomes a quadrature integral ~ 0 and `C_P ~ 0`. Compute P1 from
+  `FlappingKinematics.evaluate(t)["vy"]` directly.
+- **`analyse_limit_cycle` must additionally expose `cycles: CycleSamples` and
+  `convergence: CycleConvergenceReport`.** It currently discards both, and they are exactly the two
+  arguments `paired_delta_uncertainty` needs — so the paired path cannot be called at all today.
+  Worse, the two arms' tails are anchored at different `converged_from_cycle`, so naive index-`k`
+  pairing is silently phase-shifted. `aero/vv/alignment.py` must assert bitwise-equal raw `t`,
+  bit-identical prescribed periods and **bitwise-equal segmentation anchors**.
+- **`eta` is a ratio of means, not a mean of ratios** — per-cycle `eta_k` needs its own helper
+  before D2/D4 can go through the paired path.
+- **`kept_times == watchpoint.t` bitwise is NOT achievable** across an ASCII round trip between two
+  independent accumulators; reserve bitwise for the A-family's cross-arm watch-point comparison.
+  Also set **`timePrecision 12`**: at `timePrecision 6` consecutive force rows collapse to the same
+  string and `_strictly_increasing_mask` deletes them **silently**. Have `read_force_history` return
+  `n_dropped` and raise on non-zero.
+- ccx `.dat` cadence classified **structurally**: `duplicates == 0` ⇒ per-window;
+  `duplicates == sum(iterations) - n_windows` ⇒ per-iteration, keep the **LAST** row at each time;
+  anything else RAISES.
+
+**Phase 3D — CLI (1 commit). START HERE.** Two of these are live faults, not tidying:
+
+- **`_SOLVER_VERSIONS["precice"]` says `"... + Nutils 9.2"`** (`cli.py:47-51`) and
+  `stage_str = "19"` for every precice run (`cli.py:650-659`). Both ride into MLflow tags, so a
+  Stage-20 bundle would claim a **Nutils solid** and Stage-19 provenance. Key both by CASE
+  (`_CASE_STAGE` + a per-case solver version), not by solver name — a table, not a Protocol change.
+- **`assert_provenance_describes` still has ZERO call sites.** Without it a two-container run
+  logs an empty roster and silently omits CalculiX: the ADR-038 residual this stage opened with.
+  Derive `container_sif` + `extra_container_sifs` FROM THE SPEC (both are already properties on
+  `CoupledCaseSpec`); do NOT widen `_SOLVER_SIF`, which is `dict[str, str]` feeding a single-SIF
+  `compute_provenance`. Call it immediately after `compute_provenance`, before anything runs.
+- Move the expectation off the `cli.py:115-121` hard-wire into a name-keyed registry with
+  `Field(exclude=True)` so it stays out of `config_hash`. **Note the HG expectation is DERIVED
+  from the spec** — `hg2007_expectation(spec.source.coupling_values())` — not a module constant
+  like FSI3's, so the registry holds a callable or the solver builds it per case.
+- The three `FSI_CASES` sites and `import-platform-only.yml` are **already done** (session 6:
+  both arms registered, and the fence names the six new modules).
+
+**Phase 3D is DONE** (`7f1d584`). Both faults above are closed and pinned by
+`tests/stage_20/test_cli_coupled_provenance.py`.
+
+**Phase 4 — ADRs, BEFORE any campaign run.** ADR-037 (authored-case architecture; record the two
+honest divergences — FSI3's `config_hash` moved `c524faff...` → `3f94f394...`, and the driver's K1
+became window-scoped, provably a no-op at `n_nonconverged: 0` over 8000/8000 windows); ADR-038 →
+`accepted`; **ADR-039** (the gate block). Mirror ADR-036's form byte-for-byte: pure ASCII, ` - ` not
+em-dashes, family headers at column 0, clauses at two spaces, continuations at five (measured
+target: 150 lines, ~10.4 k chars, indents in {0, 2, 5}, max width 90). Families
+P/C/I/R/K/S/**A**/D/**M**/X + VERDICT + BUDGET + CONTINGENCIES. **P must be rewritten, not copied**
+— ADR-036's P3 ("a gated run spanning more than one SIF is structurally refused") is now FALSE.
+CalculiX is **2.20** (verified live) + adapter v2.20.1. **B1 must be >= 21600 s**, not ADR-036's
+3600 s: six I4 calibrations of >=200 windows do not fit an hour.
+
+Bands are already computed (§6.13): D0 0.25 (floor), D1 0.25 (floor), D2 0.40, D3 0.25 (floor),
+D4 0.25 (floor). **Say plainly that for D3/D4 the 4x rule is decorative and 0.25 is a policy
+number.** Add shape-7 (every clause id is in the VERDICT line or the reported-only list, **and the
+two sets are disjoint**) and shape-8 (ORDERED `(clause, band)` parity plus a band-less registry),
+and **mutation-test the tests** in-process on a mutated copy of the block string.
+
+**Phase 5 — pre-flight.** **S1, I6 and I3 are DONE** (session 5, §6b) but have no `data/vv/`
+record with a four-fold tuple, so they are measurements and must be re-run into `data/vv/`
+before ADR-039 cites their numbers. Ordered by leverage, not clause number: **I7 first**
+(measured max-Courant
+— Courant on a moving mesh uses the RELATIVE flux, so §6.11's wall-cell arithmetic is probably
+conservative by a large factor, and `dt` decides the whole campaign), then I8, I6, I1, I3, I5, and
+finally **I4 calibrations that COMPLETE >=200 windows and end `all-exited`, both arms, every rung**.
+**Never extrapolate a rate from a transient.** Pre-flight FAILS on `Co > 1`; it never adjusts.
+
+**Phase 6 — launch wave 1** (the paired-increment rung, both arms) via `run_long.sh` with unique
+session names. **SUBMIT DETACHED; do NOT hold an owning `wait` across the session boundary.**
+`AERO_RUN_LONG_REAP=1` makes `wait` the OWNER of the job's lifetime — on timeout or
+SIGTERM/SIGINT/SIGHUP it kills the remote tmux session — which is right for CI and wrong for a
+14-day campaign launched from a session that will end. Submitting is unaffected by the flag.
+Poll with `run_long.sh status|logs` only, and record the session names and the poll commands in
+the handoff so the next session resumes by polling. (Operator decision, session 6.) Then update
+the handoff (`status: partial`, no tag, no verdict).
+
+## 8. HARD DON'TS
+
+- Never relax a pre-registered band. Pre-register BEFORE any campaign run.
+- Do not cite Stage 19's numbers as Stage 20 evidence (ADR-016).
+- Do not re-capture the Phase-3A goldens.
+- Fail loud on non-converged coupling and unreached periodic steady state.
+- **NEVER cancel a self-hosted CI job to free a runner** — it strands detached solves. Tell:
+  runners `busy=true` while `gh run list` shows nothing `in_progress`.
+- **Verify EVERY commit with `git log`.** Run `ruff format && ruff check --fix` before `git add`.
+  Changing handoff frontmatter stales the README STATUS block — run `scripts/regenerate_status.sh`.
+- `aero/` core is stdlib + numpy + pydantic only; add new modules to `import-platform-only.yml`.
+- The multi-hour case is **driver-only**, never in `tests/vv`.
+- **Never write a value into a provenance-bearing field you have not actually computed.**
+
+## 9. AUDIT TRAIL
+
+One commit per coherent unit, each with a body saying *why*. Record every number you measure, not
+just the ones that passed. Every band in ADR-039 must be traceable to a row in
+`hg2007_recomputed.csv` with the raw multiplier printed beside the applied number. If you deviate
+from this file, say so in the handoff's §3 with the evidence that forced it — deviating is fine,
+deviating silently is not. **If a gate fails, stop and record it.** A NO-GO with evidence is a
+result; a GO obtained by adjustment is not.
+
+Update `docs/handoffs/STAGE-20-flexible-flapping-wing-fsi-DONE-2026-07-30.md` **as you go**, and
+keep **this file** current — it is what stops session 6 being as confused as session 5 would
+otherwise be. Flip `status: partial` to `complete` only when a verdict exists.
+
+Final state each session: clean tree, pushed, PR #44 required checks green,
+`pytest -q tests/unit tests/stage_20` green, nothing running on aero-dev you did not intend.
+
+*(Note: `vv-smoke` is NOT a required check and has been intermittently red from a `pimpleFoam`
+rc=124 timeout on `cylinder_strouhal_re100` on aero-build. It is green on `main`. Treat it as
+contention unless it fails on `main` too.)*

@@ -158,7 +158,16 @@ cmd_status() {
 cmd_wait() {
   local alias=$1 session=$2 timeout=${3:-3600}
   is_alias "$alias" || die "unknown aero alias '$alias'"
-  local elapsed=0 interval=5 state
+  # Elapsed time is read from a REAL clock, not accumulated as `elapsed += interval`.
+  # Each loop also pays for `remote_state`'s SSH round trip (~0.3-1 s), so counting
+  # only the sleeps made this ceiling run ~10 % slow: a nominal 4 h wait did not fire
+  # until ~4 h 24 m. LocalSSHExecutor guards the subprocess at `timeout_s + 120`
+  # (4 h 02 m), so the guard always won the race, SIGKILLed this script before it
+  # reached the reap branch below, and AERO_RUN_LONG_REAP=1 became decorative on
+  # exactly the path it was written for. Diagnosed from moving-vv run 30615205786,
+  # which died at 4 h 02 m 32 s and left pimpleFoam running on aero-dev.
+  local start_epoch elapsed interval=5 state
+  start_epoch=$(date +%s)
 
   # When this waiter owns the job's lifetime, a signal must take the remote job
   # down with it. Without this, cancelling the CI step that runs the V&V suite
@@ -179,6 +188,7 @@ cmd_wait() {
         echo "  Logs (may be partial): $0 logs $alias $session" >&2
         return 4 ;;
     esac
+    elapsed=$(( $(date +%s) - start_epoch ))
     if [ "$elapsed" -ge "$timeout" ]; then
       if [ "$REAP" = "1" ]; then
         echo "$session@$alias: timeout after ${timeout}s — reaping (AERO_RUN_LONG_REAP=1)" >&2
@@ -191,7 +201,6 @@ cmd_wait() {
       return 2
     fi
     sleep "$interval"
-    elapsed=$((elapsed + interval))
   done
 }
 

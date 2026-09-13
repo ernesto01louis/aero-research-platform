@@ -44,7 +44,11 @@ from aero.adapters.openfoam._foam_common import (
     transport_properties,
     turbulence_properties,
 )
-from aero.adapters.openfoam.geometry import naca0012_coordinates, naca4_coordinates
+from aero.adapters.openfoam.geometry import (
+    hg2007_coordinates,
+    naca0012_coordinates,
+    naca4_coordinates,
+)
 from aero.adapters.openfoam.schemas import CaseSpec
 
 # Wall-treatment branch point (chords): below this first-cell height the mesh is treated as
@@ -62,6 +66,21 @@ def _surfaces(spec: CaseSpec) -> dict[str, NDArray[np.float64]]:
     n = spec.n_surface
     blunt = spec.trailing_edge_thickness > 0.0
     npts = 2 * n + 1
+    if spec.section is not None:
+        # Teardrop/plate (Stage 20). Symmetric, so the lower surface is the exact mirror --
+        # the same relationship the NACA 0012 path relies on, which is why this needs no
+        # change anywhere else in the C-grid writer.
+        upper = hg2007_coordinates(
+            npts,
+            chord=spec.chord,
+            nose_length=spec.section.nose_length,
+            max_half_thickness=spec.section.max_half_thickness,
+            join_x=spec.section.join_x,
+            plate_half_thickness=spec.section.plate_half_thickness,
+        )
+        lower = upper.copy()
+        lower[:, 1] *= -1.0
+        return {"upper": np.asarray(upper, np.float64), "lower": np.asarray(lower, np.float64)}
     off_baseline = spec.max_camber != 0.0 or spec.max_thickness_frac != 0.12
     if off_baseline:
         # NACA-4 shape design variables (Stage 15): upper/lower differ once cambered.

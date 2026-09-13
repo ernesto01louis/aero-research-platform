@@ -54,6 +54,38 @@ class CoupledLaunchError(RuntimeError):
     """A coupled run could not be launched, or produced no usable status."""
 
 
+class ObservabilityOptions(BaseModel):
+    """Hash-exempt run-time observability (ADR-041 V5).
+
+    None of this reaches ``CoupledCaseSpec``, and that is the point: ``config_hash`` is a
+    digest of the serialized spec, so putting these in ``ParticipantSpec.env`` -- which IS
+    hashed -- would move every digest and break both ``_reattach`` and the live digest
+    pins. They live in the launcher's command bytes instead, where they change what is
+    observed and nothing about what is computed.
+
+    ``malloc_check`` is deliberately NOT a default. It selects glibc's checking allocator
+    for both participants and its cost is unmeasured, while N3's post-ramp ClockTime is
+    the only number ADR-040 permits to size B2, against a ceiling with ~23 % headroom.
+    ADR-041 V5 therefore scopes it to ladder rungs and keeps it off for Q1, N3, the fine
+    I7 probe and the campaign.
+    """
+
+    model_config = _STRICT
+
+    core_dumps: bool = Field(
+        default=False,
+        description="ulimit -c unlimited inside the uid drop, so an abort names its site.",
+    )
+    malloc_check: bool = Field(
+        default=False,
+        description="MALLOC_CHECK_=3: glibc aborts at detection, not at the next free.",
+    )
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.core_dumps or self.malloc_check
+
+
 class CoupledLaunchPlan(BaseModel):
     """Everything the supervisor script needs, resolved to remote paths."""
 
@@ -75,6 +107,10 @@ class CoupledLaunchPlan(BaseModel):
             "precice-run/ beside the config one level in -- these are not the same "
             "directory and the stale-socket cleanup has to target the latter."
         ),
+    )
+    observability: ObservabilityOptions = Field(
+        default_factory=ObservabilityOptions,
+        description="ADR-041 V5 run-time observability; never enters config_hash.",
     )
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
@@ -146,7 +182,11 @@ class CoupledRunResult(BaseModel):
 
 
 def build_participant_command(
-    participant: ParticipantSpec, *, case_root_remote: str, sif_path: str
+    participant: ParticipantSpec,
+    *,
+    case_root_remote: str,
+    sif_path: str,
+    observability: ObservabilityOptions | None = None,
 ) -> str:
     """The full ``apptainer exec`` command for one participant. Pure; unit-test-pinned.
 
@@ -155,6 +195,14 @@ def build_participant_command(
     default, and a host ``~/OpenFOAM/...`` tree would shadow it via ``$FOAM_USER_LIBBIN``.
     The failure would appear only at run time, as ``controlDict``'s ``libs (...)`` line
     failing to load the adapter.
+
+    THIS is the MPI seam, not ``build_apptainer_exec(mpi_n=...)`` (ADR-040 L1/L4). That
+    helper prefixes ``mpirun -n N`` to the WHOLE command string, and the string it is
+    handed here is either the compound ``cd <workdir> && <solver>`` -- yielding
+    ``mpirun -n 4 cd fluid-openfoam``, which runs the solver serial and exits 0 -- or the
+    entire ``setpriv ... bash -lc '...'`` wrapper, which hoists ``mpirun`` OUTSIDE the uid
+    drop, where OpenMPI refuses to run as root. Appending it as the last element of
+    ``parts`` puts it after the ``cd`` and inside the drop, both of which it needs.
     """
     # The environment is `export`ed INSIDE the compound command, not passed to
     # build_apptainer_exec's `env=`. That helper emits `cd <target> && K=V <command>`,
@@ -163,10 +211,22 @@ def build_participant_command(
     # silently fail to reach the participant, and the only symptom would be at run time
     # (upstream's run.sh trying to build a venv from the network inside the SIF).
     parts = [f"cd {shlex.quote(participant.workdir)}"]
+    # ADR-041 V5, and it goes HERE for two reasons: after the `cd`, so a core lands in the
+    # participant's own workdir rather than wherever the supervisor started; and inside
+    # the compound that `setpriv ... bash -lc` wraps, so it applies after the uid drop.
+    # The brace group is not cosmetic -- `a && ulimit ... || true && b` parses as
+    # `(a && ulimit) || (true && b)`, which runs the solver only when the ulimit FAILS.
+    if observability is not None and observability.core_dumps:
+        parts.append("{ ulimit -c unlimited 2>/dev/null || true; }")
+    if observability is not None and observability.malloc_check:
+        parts.append("export MALLOC_CHECK_=3")
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
-    parts.append(participant.command)
+    if participant.mpi_ranks is None:
+        parts.append(participant.command)
+    else:
+        parts.append(f"mpirun -n {participant.mpi_ranks} {participant.command} -parallel")
     inner = " && ".join(parts)
     if participant.run_as_uid is not None:
         # setpriv rather than su: no PAM, no login shell, no surprise environment. HOME
@@ -219,6 +279,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
             participant,
             case_root_remote=plan.case_root_remote,
             sif_path=plan.sif_paths[participant.sif],
+            observability=plan.observability,
         )
         log = f"$CASE_ROOT/{participant.name}.log"
         lines += [
@@ -407,6 +468,45 @@ def read_coupled_status(
     )
 
 
+class StagedCoupledLaunch(BaseModel):
+    """A written-but-not-launched coupled run: everything a detached submit needs.
+
+    The campaign seam (ADR-039 B3): the supervisor script is on disk, and the caller
+    submits ``command`` under ``session`` itself — via
+    ``LocalSSHExecutor.submit_detached`` — so no ``run_long.sh wait`` ever owns a
+    multi-day wave's lifetime. ``launch_coupled`` below is the original
+    write-run-and-wait path, byte-for-byte unchanged in behaviour, for callers whose
+    runs fit inside one process's lifetime (the smoke, the pre-flight probes).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    session: str
+    command: str
+    remote_script: str
+    executor_timeout_s: int
+
+
+def stage_coupled(
+    plan: CoupledLaunchPlan,
+    *,
+    run_id: str,
+    case_root_host: Path,
+) -> StagedCoupledLaunch:
+    """Write the supervisor into the case and return the submit handle — never runs it."""
+    script_host = case_root_host / "run-coupled.sh"
+    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
+    script_host.chmod(0o755)
+
+    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
+    return StagedCoupledLaunch(
+        session=f"fsi-{run_id}",
+        command=f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}",
+        remote_script=remote_script,
+        executor_timeout_s=plan.executor_timeout_s,
+    )
+
+
 def launch_coupled(
     plan: CoupledLaunchPlan,
     executor: Executor,
@@ -415,17 +515,12 @@ def launch_coupled(
     case_root_host: Path,
 ) -> CoupledRunResult:
     """Write the supervisor into the case, run it detached, and read back its verdict."""
-    script_host = case_root_host / "run-coupled.sh"
-    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
-    script_host.chmod(0o755)
-
-    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
-    command = f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}"
+    staged = stage_coupled(plan, run_id=run_id, case_root_host=case_root_host)
     result = executor.run(
-        command,
+        staged.command,
         long_running=True,
-        session=f"fsi-{run_id}",
-        timeout_s=plan.executor_timeout_s,
+        session=staged.session,
+        timeout_s=staged.executor_timeout_s,
     )
     return read_coupled_status(
         case_root_host / "coupled-status.json",

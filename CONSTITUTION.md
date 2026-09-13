@@ -48,7 +48,12 @@ Every CFD solve and every ML training run logs four tags to MLflow:
 2. `dvc_input_hash` — sha256 over the sorted list of `dvc status -c`
    outputs for all `.dvc`-tracked inputs the case touches
 3. `container_sif_sha256` — SHA256 of the Apptainer SIF that ran the job,
-   pulled from `containers/SHA256SUMS`
+   pulled from `containers/SHA256SUMS`. A run spanning more than one
+   container (a partitioned FSI coupling runs its fluid and solid
+   participants out of different SIFs) records the **container of record**
+   here and the full roster in `ProvenanceTuple.containers`, logged as the
+   additional `container_sif_set` tag — see ADR-038. The rule below is
+   unchanged: the four tags are always present, always in this shape.
 4. `config_hash` — sha256 of the resolved Hydra config serialized as
    canonical JSON
 

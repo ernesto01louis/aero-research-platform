@@ -23,6 +23,13 @@ repos:
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
+        # preCICE's TXTTableWriter prefixes each row with "\n" rather than
+        # terminating it, so its watch-point and iteration logs legitimately have
+        # NO trailing newline — `aero/adapters/precice/_txt_table.py` documents
+        # that and relies on it to detect a partially-written final row. The
+        # Stage-20 fixtures reproduce that format byte for byte; "fixing" them
+        # would make the fixture stop resembling the thing it stands in for.
+        exclude: '^tests/stage_20/fixtures/stage19_load_path/.*\.log$'
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
       - id: mixed-line-ending

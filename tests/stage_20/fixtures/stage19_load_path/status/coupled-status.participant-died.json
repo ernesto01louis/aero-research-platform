@@ -1,0 +1,23 @@
+{
+  "participants": [
+    {
+      "ended_epoch": 1311.0,
+      "log_path": "/mnt/aero/runs/fixture/tutorial/Fluid.log",
+      "name": "Fluid",
+      "returncode": 1,
+      "started_epoch": 1000.0,
+      "state_hint": "recorded by the supervisor; re-derived from returncode on read"
+    },
+    {
+      "ended_epoch": 1311.0,
+      "log_path": "/mnt/aero/runs/fixture/tutorial/Solid.log",
+      "name": "Solid",
+      "returncode": 143,
+      "started_epoch": 1000.0,
+      "state_hint": "recorded by the supervisor; re-derived from returncode on read"
+    }
+  ],
+  "run_id": "turek_hron_fsi3-fixture",
+  "stopped_by": "participant-died",
+  "wall_clock_s": 311.0
+}
