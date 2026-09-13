@@ -2572,6 +2572,76 @@ ELIMINATED under Z1 ⇒ adoption (ADR-043 Y3's C2 and D10 moves, `ALPHA_OF_RECOR
 then V6's Q1 re-run); RECURRENCE-DETECTED or a death ⇒ the ladder is exhausted and ADR-041
 V1's **NO-GO on infrastructure** is the recorded outcome.
 
+### 6.66 SESSION 13 — THE RE-PROBE IS ELIMINATED. The ladder has an adopted mitigation.
+
+**`hg2007_flexible_foil-20260912-161321` — verdict ELIMINATED**, and it was judged by a
+rule that existed in code before the run was submitted (ADR-044 Z4). That is the whole
+point of the exercise, so it is worth stating precisely what happened in what order:
+
+1. ADR-044 accepted with Z4 and **Z1 implemented** (`d702b57`), 16:0x UTC 2026-09-12.
+2. Re-probe **submitted** 16:13 UTC.
+3. Re-probe **completed** and evaluated: `stopped_by=all-exited`, both participants rc=0,
+   **8000/8000 windows**, 20 818 s (5.78 h), **0 of 395 chunks active**, contiguous.
+4. `adr041_rung_verdict` returned **ELIMINATED** via Z1, quoting its own conditions.
+
+**It was a genuinely fresh draw, not a replay.** 1227 of 8000 windows (15.3 %) carry
+different residual values from D-C1's — determinism is divergent (§6.49), so the two runs
+explored different trajectories and both stayed quiet. Peak residual 1.886 N against
+D-C1's 1.970 N; **one** window of 8000 above 1.0 N, against D-C1's two; both inside the
+startup transient.
+
+**The ladder's state is now closed:** D-A RECURRENCE-DETECTED, D-B DIED-UNDIAGNOSED,
+D-C2 RECURRENCE-DETECTED, **D-C1 ELIMINATED on its second and final probe**. Ladder spend
+**15.3 h of the 35 h cap**. The adopted mitigation is `*DYNAMIC, ALPHA=-0.05` — CalculiX's
+own default, which ADR-039 C2 had overridden to the one value in range with zero Nyquist
+dissipation.
+
+**Adoption is now unblocked but NOT taken.** It is a commit, and per ADR-044 Z3 it
+executes: ADR-043 Y3's moves (ADR-039 C2's expectation `0.0` → `-0.05`; D10's rationale
+from exact-by-construction to bounded-by-dissipation, **the 2 % band unmoved**),
+`ALPHA_OF_RECORD` → -0.05, and then **ADR-041 V6's Q1 re-run on the adopted stack** with
+the frozen bands verbatim, before N3. ADR-040 W4 applies unchanged if Q1 rejects.
+
+**What is still not proven, and the adoption does not claim:** why the heap corruption
+stopped. Four runs died of it and two consecutive 8000-window runs on this stack did not.
+§6.58's reading — that the crash followed the numerics going bad — is consistent and
+remains unproven. V6's Q1 gate is also the first thing that can rule out the opposite
+worry: that the damping is suppressing PHYSICS rather than only the Nyquist mode.
+
+### 6.67 SESSION 13 — the GitHub failure notifications: aero-fleet DNS, not the science
+
+The operator received a burst of failed-run notifications. **Diagnosed, and it is
+infrastructure, not this branch's code or the solves.**
+
+- `vv-required` and `vv-smoke` on PR #44 ran **11 h 29 m** and ended with GitHub's own
+  *"internal error when running your job"*, conclusion `cancelled`, **runner name empty** —
+  the signature of a job that queued and was never picked up.
+- GitHub reports both self-hosted runners `aero-build-vv` and `aero-build-vv-2` as
+  **offline**, while on aero-build both `actions.runner.*` services are **active/running**
+  and the box has 21 days of uptime. Up locally, unable to reach GitHub.
+- **Root cause: every aero LXC has no DNS.** CT 210-217 are all configured
+  `nameserver: 192.168.2.1`, which **pings but serves no DNS**; `getent hosts github.com`
+  fails on aero-build, aero-dev, aero-mlflow and aero-vv alike. **Technitium at
+  192.168.2.209 resolves correctly** from the same containers
+  (`github.com → 140.82.121.4`), and it is the LAN DNS authority per the homelab atlas.
+  The post-move interim setup left the fleet pointed at the gateway instead.
+- **It predates this session**: no `vv-smoke` success in the last 40 runs, back to
+  2026-09-04. The many notifications are this session's pushes each queueing a job that
+  could never run.
+
+**No aero science was affected.** Solves reach aero-dev by IP over SSH and NFS by IP; the
+re-probe completed cleanly through the whole outage. The CalculiX rebuild also survived it
+because that build is split-host by design — buildah on the Proxmox host, which has working
+DNS, then apptainer on aero-build from a local OCI archive with no network in `%post`.
+
+**What it DOES block: `vv-required` is a stage-gated REQUIRED check on PR #44.** While the
+runners cannot reach GitHub, that check cannot pass and the PR cannot merge.
+
+**The fix is a host-side `pct` change and therefore the operator's** (CLAUDE.md Hard Rule 5
+and the provisioning gate): point the aero LXCs at 192.168.2.209. It is packaged, not run,
+at `net-ops/scripts/fix-aero-lxc-dns.sh`. Applying it means an atlas update and
+`atlas-refresh.sh` in the same session.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

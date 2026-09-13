@@ -469,6 +469,28 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6t. ELIMINATED — the ladder has an adopted mitigation; and the CI noise is fleet DNS
+
+Handoff §6.66-§6.67. **The Z4 re-probe `fsi-hg2007_flexible_foil-20260912-161321` came back
+ELIMINATED**, judged by a rule that was in code before it was submitted: all-exited, both
+rc=0, **8000/8000**, 0 of 395 chunks active, contiguous. A genuinely fresh draw — 15.3 % of
+its windows differ from D-C1's. **Ladder closed: D-A RECURRENCE, D-B DIED-UNDIAGNOSED,
+D-C2 RECURRENCE, D-C1 ELIMINATED** on its second and final probe; 15.3 h of the 35 h cap.
+The mitigation is `*DYNAMIC, ALPHA=-0.05`, CalculiX's own default.
+
+**Adoption is unblocked but NOT taken** — it is a commit that executes ADR-043 Y3 (C2's
+expectation, D10's rationale, 2 % band unmoved), moves `ALPHA_OF_RECORD`, and then runs
+**V6's Q1 re-run** on the adopted stack before N3.
+
+**The GitHub failure notifications are NOT this branch.** Every aero LXC (CT 210-217) is
+configured `nameserver: 192.168.2.1`, which pings but serves no DNS, so the self-hosted
+runners on aero-build are `active` locally yet OFFLINE to GitHub and jobs queue ~11.5 h into
+an internal error. Technitium (192.168.2.209) resolves fine. Predates this session (no
+vv-smoke success since 2026-09-04). No solve was affected — the cluster is reached by IP —
+but **`vv-required` is a required check, so PR #44 cannot merge until it is fixed.** Fix
+packaged, not run (provisioning gate): `net-ops/scripts/fix-aero-lxc-dns.sh`, dry-run by
+default.
+
 ## 6s. ADR-044 ACCEPTED with Z4 — the re-probe that decides adoption IS RUNNING
 
 Handoff §6.65. ADR-044 accepted 2026-09-12 (`d702b57`) with **Z4**: D-C1's completed run is
