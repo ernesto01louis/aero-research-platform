@@ -2642,6 +2642,57 @@ and the provisioning gate): point the aero LXCs at 192.168.2.209. It is packaged
 at `net-ops/scripts/fix-aero-lxc-dns.sh`. Applying it means an atlas update and
 `atlas-refresh.sh` in the same session.
 
+### 6.68 SESSION 13 — the fleet DNS fixed, the mitigation ADOPTED, and V6's Q1 gate running
+
+**Infrastructure (operator-approved, applied 2026-09-13).** All eight aero containers
+(CT 210-217) moved from the dead resolver `192.168.2.1` to Technitium `192.168.2.209`.
+Two things the first pass got wrong and the record now carries:
+
+1. **`pct set --nameserver` alone does not fix a RUNNING container** — PVE writes
+   `/etc/resolv.conf` at container START, and `resolvconf -u` does not apply (it is a plain
+   file). The live file had to be rewritten in place; PVE regenerates identical content from
+   the corrected config on the next boot.
+2. **GitHub had already DELETED both self-hosted runner registrations** ("automatically
+   deleted for runners that have not connected recently"), so DNS alone left them dead.
+   Re-registration was needed, and `config.sh` refuses with *"already configured"* until
+   `config.sh remove --local` clears a leftover `.runner_migrated`. Both runners are now
+   **online** and picking up work.
+
+Script: `net-ops/scripts/fix-aero-lxc-dns.sh` (dry-run by default, updated to match what was
+actually required). Atlas updated and refreshed (`homelab-atlas` `8ab673b`).
+
+**THE MITIGATION IS ADOPTED** (`712745b`). `ALPHA_OF_RECORD` = **-0.05**, and the builder
+and CLI defaults follow it so `--submit-040` — which builds its own spec from five arguments
+and cannot be handed alpha — produces the adopted configuration. `LEGACY_HHT_ALPHA` stays
+**0.0 permanently** and `_reattach` still supplies it, so no historical record silently
+re-describes itself as mitigated. The two live digest pins now name `hht_alpha: 0.0`
+EXPLICITLY rather than inheriting a default that has moved; their digests are unchanged.
+ADR-043 Y3's two declared moves are executed and recorded there: ADR-039 C2's expectation
+`0.0` → `-0.05`, and D10's rationale from exact-by-construction to bounded-by-dissipation
+with **the 2 % band unmoved and D10 still gated**. Suite **1010 green**.
+
+**V6's Q1 GATE IS RUNNING** — the first thing that can rule out the worry the ladder cannot:
+that the damping suppresses PHYSICS rather than only the Nyquist mode.
+
+```
+flexible  fsi-hg2007_flexible_foil-20260913-093428
+rigid     fsi-hg2007_rigid_foil-20260913-093449
+record    python scripts/stage20_hg2007_flexible_foil.py --record-q1 <flex> <rigid> \
+            --out data/vv/stage20_q1_equivalence_adr041.json
+```
+
+Both arms **concurrently at 4+4** (verified on the box: 8 `pimpleFoam`, 2 `ccx_preCICE`),
+500 windows at dt 2e-5 — the same shape the accepted Q1 candidate ran, recovered from its
+own deck (`2.0000000000000e-05, 1.0000000000000e-02`) rather than assumed — adr040-candidate
+numerics, `hht_alpha=-0.05`, ~45 min. **The three bands are ADR-040 Q1's verbatim**: 2 % on
+the span-mean, 5 % of baseline peak-to-peak on the trace, 5 % on the flexible-minus-rigid
+increment, against the same surviving ADR-039-numerics baselines
+`hg2007_flexible_foil-20260810-144742` / `hg2007_rigid_foil-20260810-144747`.
+
+**The record goes to a NEW path** (`stage20_q1_equivalence_adr041.json`); the accepted
+unmitigated record is never overwritten. **If it rejects, ADR-040 W4 applies** — the stack
+is inadmissible, no band widens, and the declared alternatives go to the operator.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
