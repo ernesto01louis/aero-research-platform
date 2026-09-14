@@ -54,12 +54,11 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "wall_clock_ceiling_s": 345600,
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
-            # ADR-044 adoption moved ALPHA_OF_RECORD to -0.05; these two runs were
-            # alpha 0.0, so the value is pinned EXPLICITLY here rather than inherited
-            # from a default that has since moved. The digests are unchanged.
-            "hht_alpha": 0.0,
+            # The adopted stack (ADR-043/ADR-044). Pinned explicitly rather than
+            # inherited, so a later default move announces itself here.
+            "hht_alpha": -0.05,
         },
-        "0891e66d4ef5d44d127a223d042d406e39479b18a3aa84b290de71123df71f25",
+        "bebec2d3a1203f9d1b3d44ae327af26357a67872e9f5dd52e1ce53c8682001d7",
     ),
     "rigid": (
         {
@@ -70,12 +69,11 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             "wall_clock_ceiling_s": 345600,
             "numerics_label": "adr040-candidate",
             "mpi_ranks": 4,
-            # ADR-044 adoption moved ALPHA_OF_RECORD to -0.05; these two runs were
-            # alpha 0.0, so the value is pinned EXPLICITLY here rather than inherited
-            # from a default that has since moved. The digests are unchanged.
-            "hht_alpha": 0.0,
+            # The adopted stack (ADR-043/ADR-044). Pinned explicitly rather than
+            # inherited, so a later default move announces itself here.
+            "hht_alpha": -0.05,
         },
-        "fae61ffaf316e37fa7110a49f4fd51cd484d6cf2a665b54b4f4012fd55852c40",
+        "7724059880bffc5c7cd38489e113f1db4e9bdf5de9eeb7615e30109a0ce99cdb",
     ),
 }
 
@@ -84,8 +82,16 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
 #: submissions on NFS still name. Kept so the supersession is checkable rather than
 #: merely asserted; nothing rebuilds to them any more, which is the point.
 _SUPERSEDED = {
-    "flexible": "bfc60a49d85e81d909ebcc87da6140a12a35c4ea153cd810fbec1d3a29cd1a8c",
-    "rigid": "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
+    "flexible": (
+        # attempt 1, pre-hht_alpha-field
+        "bfc60a49d85e81d909ebcc87da6140a12a35c4ea153cd810fbec1d3a29cd1a8c",
+        # the same knobs after ADR-043 added the field, still at alpha 0.0
+        "0891e66d4ef5d44d127a223d042d406e39479b18a3aa84b290de71123df71f25",
+    ),
+    "rigid": (
+        "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
+        "fae61ffaf316e37fa7110a49f4fd51cd484d6cf2a665b54b4f4012fd55852c40",
+    ),
 }
 
 
@@ -97,13 +103,13 @@ def test_the_attempt1_records_are_superseded_not_silently_broken(arm: str) -> No
     because an ADR said so. This states which of the two happened.
     """
     knobs, current = _LIVE[arm]
-    assert current != _SUPERSEDED[arm]
-    assert spec_config_digest(hg2007_case_spec(**knobs)) != _SUPERSEDED[arm]  # type: ignore[arg-type]
+    assert current not in _SUPERSEDED[arm]
+    assert spec_config_digest(hg2007_case_spec(**knobs)) not in _SUPERSEDED[arm]  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("arm", sorted(_LIVE))
 def test_the_running_arms_spec_still_rebuilds_to_the_submitted_digest(arm: str) -> None:
-    """A drift guard on the builder — and no longer the thing that keeps N3 collectable.
+    """The one assertion that keeps N3 collectable — and it guards live runs again.
 
     **The standing instruction on this test was "if this fails, do NOT update the
     constant", and it was correct for as long as the digests described runs that could
@@ -113,14 +119,19 @@ def test_the_running_arms_spec_still_rebuilds_to_the_submitted_digest(arm: str) 
     became permanently unreattachable. That cost was declared in ADR-041's D-C form 1,
     re-declared in ADR-043 Y2, and paid here.
 
-    So these constants were re-pinned rather than defended, per handoff §6.44's
-    pre-registered rule ("any spec change re-pins it in the same commit"). What they now
-    assert is narrower and still worth having: that the builder is STABLE, so a future
-    serialization change announces itself here rather than at the end of a multi-day run.
-    The predecessors are kept in `_SUPERSEDED` so the historical record stays checkable.
+    **N3 was resubmitted on the adopted stack on 2026-09-14, so these constants are once
+    again transcribed from submissions that are ACTUALLY RUNNING** — flexible
+    `hg2007_flexible_foil-20260914-122525` and rigid `hg2007_rigid_foil-20260914-122543`,
+    both 76 090 windows at alpha = -0.05. The original instruction is therefore back in force:
 
-    When N3 is resubmitted on whatever stack the ladder adopts, these are re-transcribed
-    from the new live submissions and the original instruction applies again to those.
+    **If this fails, do NOT update the constant.** Revert whatever moved the spec
+    serialization instead. The records on disk describe the runs that are executing, and
+    editing the expectation to match new code would make ``_reattach`` pass while comparing
+    a spec that is not the one that ran.
+
+    `_SUPERSEDED` keeps both earlier generations of digest — attempt 1's, and the same
+    knobs after ADR-043 added the field while alpha was still 0.0 — so the two supersessions
+    stay checkable rather than merely asserted.
     """
     knobs, expected = _LIVE[arm]
     assert spec_config_digest(hg2007_case_spec(**knobs)) == expected  # type: ignore[arg-type]

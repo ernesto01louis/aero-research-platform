@@ -2730,6 +2730,52 @@ against ADR-040 B0's measured 3.69 on the unmitigated stack, so **N3 projects 74
 against the 96 h per-submission ceiling — ~30 % headroom where B0 was sized on 23 %. The
 rigid arm runs 1.65 s/window (35.0 h) and is not binding.
 
+### 6.70 SESSION 13 — N3 IS RESUBMITTED. Both arms, contended, on the adopted stack.
+
+**Submitted 2026-09-14 12:25 UTC, recorded in the same sitting as required.**
+
+```
+flexible  run_id  hg2007_flexible_foil-20260914-122525
+          session fsi-hg2007_flexible_foil-20260914-122525
+          spec    bebec2d3a1203f9d1b3d44ae327af26357a67872e9f5dd52e1ce53c8682001d7
+rigid     run_id  hg2007_rigid_foil-20260914-122543
+          session fsi-hg2007_rigid_foil-20260914-122543
+          spec    7724059880bffc5c7cd38489e113f1db4e9bdf5de9eeb7615e30109a0ce99cdb
+
+poll    bash scripts/run_long.sh status root@aero-dev <session>
+        python scripts/stage20_hg2007_flexible_foil.py --status <submission JSON>    # + detector
+        python scripts/stage20_hg2007_flexible_foil.py --project-n3 <submission JSON>
+NEVER   run_long.sh wait   (AERO_RUN_LONG_REAP=1 makes wait the OWNER and kills the run)
+```
+
+Both submission JSONs were copied to `/mnt/aero-nfs/runs/<run_id>/n3-submission.json`
+**immediately**, before anything else. Verified live on the box: **8 `pimpleFoam` (4+4) and
+2 `ccx_preCICE`**, both tmux sessions up — genuinely contended, which is the only shape
+permitted to size B2.
+
+Configuration, every flag explicit because three argparse defaults silently sabotage this
+run: 76 090 windows at dt 2e-5 (= 1.5218 s, round-trips `.13e`), **4 ranks**,
+**adr040-candidate**, **96 h ceiling**, `hht_alpha=-0.05` (the adopted stack),
+`gated=False`, 4 processor dirs confirmed pre-submit on both arms.
+
+**Projection: 74.0 h on the binding (flexible) arm**, from Q1's own contended
+3.50 s/window measured hours earlier on this same stack — against the 96 h ceiling, ~30 %
+headroom. The ramp clears at window 50 725, ~52 h in.
+
+**THE STOP RULE IS ARMED** (§6.46 item 3): if one arm dies **pre-ramp — before window
+50 726** — `run_long.sh kill root@aero-dev <partner session>` immediately and record BOTH.
+A flexible-arm death on the adopted stack is the NO-GO-on-infrastructure conversation, not
+a quiet third attempt.
+
+**The digest pins are re-transcribed to these two live runs** per §6.44's lifecycle, and
+the test's original instruction is back in force: if it fails, do NOT update the constant —
+revert whatever moved the spec serialization. `_SUPERSEDED` now keeps BOTH earlier
+generations (attempt 1's, and the same knobs after ADR-043 added the field at alpha 0.0) so
+each supersession stays checkable.
+
+**While N3 burns: local work only.** Nothing else may touch aero-dev — contention purity is
+the whole point of the measurement.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

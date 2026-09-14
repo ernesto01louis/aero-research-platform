@@ -469,6 +469,18 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6u. N3 IS RUNNING — both arms, contended, on the adopted stack
+
+Handoff §6.69-§6.70. **Q1 PASSED on the adopted stack** (all three frozen bands; the
+damping changes the interface forces by LESS than the unmitigated stack's own deviation
+from baseline — so it is not suppressing physics), and **N3 was resubmitted 2026-09-14
+12:25 UTC**: `fsi-hg2007_flexible_foil-20260914-122525` + `fsi-hg2007_rigid_foil-20260914-122543`,
+76 090 windows, 4+4 contended (verified: 8 pimpleFoam, 2 ccx_preCICE), α=-0.05, 96 h
+ceiling, **projecting 74.0 h** from Q1's own contended 3.50 s/window. Ramp clears ~52 h in.
+**STOP RULE ARMED: one arm dies before window 50 726 ⇒ kill the partner and record both.**
+Poll with `--status` / `--project-n3`; **NEVER `run_long.sh wait`**. Digest pins
+re-transcribed to these live runs. **Nothing else may touch aero-dev until it lands.**
+
 ## 6t. ELIMINATED — the ladder has an adopted mitigation; and the CI noise is fleet DNS
 
 Handoff §6.66-§6.67. **The Z4 re-probe `fsi-hg2007_flexible_foil-20260912-161321` came back
