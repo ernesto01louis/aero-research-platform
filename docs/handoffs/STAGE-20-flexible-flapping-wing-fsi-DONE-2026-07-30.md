@@ -2693,6 +2693,43 @@ increment, against the same surviving ADR-039-numerics baselines
 unmitigated record is never overwritten. **If it rejects, ADR-040 W4 applies** — the stack
 is inadmissible, no band widens, and the declared alternatives go to the operator.
 
+### 6.69 SESSION 13 — Q1 PASSES on the adopted stack. The damping does not move the physics.
+
+**ADR-041 V6's gate is the one thing the ladder structurally could not check: whether
+α = -0.05 suppresses PHYSICS rather than only the Nyquist mode. It does not.** All three
+ADR-040 Q1 bands hold, verbatim and unwidened, recorded at the new path
+`data/vv/stage20_q1_equivalence_adr041.json` with the accepted unmitigated record
+untouched:
+
+| clause | band | flexible | rigid |
+|---|---|---|---|
+| Q1a span-mean per arm | 2 % | **0.0350 %** | **0.0041 %** |
+| Q1b trace / baseline peak-to-peak | 5 % | **2.2520 %** | **2.3313 %** |
+| Q1c increment of span-means | 5 % | **3.1112 %** | — |
+
+**The comparison that matters is against the UNMITIGATED Q1, not just against the bands:**
+
+| | unmitigated Q1 | adopted Q1 (α = -0.05) |
+|---|---|---|
+| flexible span-mean | 0.0463 % | **0.0350 %** |
+| flexible trace/amp | 2.2465 % | **2.2520 %** |
+| rigid span-mean | 0.0021 % | **0.0041 %** |
+| rigid trace/amp | 2.3087 % | **2.3313 %** |
+
+**The damping changes the interface forces by less than the unmitigated stack's own
+deviation from the ADR-039-numerics baseline.** At this measurement's resolution the
+physics is unmoved, which is exactly the reassurance V6 exists to provide and the reason
+it is a gate rather than a formality. ADR-040 W4 is not triggered.
+
+Both arms ran **concurrently at 4+4**, 500 windows at dt 2e-5 — the shape recovered from
+the accepted Q1 candidate's own deck — against the same surviving baselines
+`hg2007_flexible_foil-20260810-144742` / `hg2007_rigid_foil-20260810-144747`.
+
+**The contended rate, which is what sizes N3:** binding (flexible) arm **3.50 s/window**
+against ADR-040 B0's measured 3.69 on the unmitigated stack, so **N3 projects 74.0 h**
+against the 96 h per-submission ceiling — ~30 % headroom where B0 was sized on 23 %. The
+rigid arm runs 1.65 s/window (35.0 h) and is not binding.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
