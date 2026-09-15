@@ -492,7 +492,8 @@ vs `/src/CalculiX/`), CalculiX's `u_calloc.c` wrappers pass-through, the `keysta
 pinned benign, closed vocabulary, heap-family classes only decide, an allocation-only site in
 the adapter's copies of CalculiX's drivers is a human call. Reviewed adversarially (15
 findings fixed) before commit; it read the first attempt as NO-REPORT-DIED before the hunt
-ended, then the hunt itself. Side find, fixed in its own commit (`e5c3eee`):
+ended, then the hunt itself. Side find, fixed inside the same commit `84a4c08` (the
+pre-commit hook refused the split; handoff §6.75):
 `read_coupled_status` called every rc ≥ 128 "killed" — CalculiX's `exit(201)` is not a
 signal death. Suite **1056 passed, 3 skipped**.
 

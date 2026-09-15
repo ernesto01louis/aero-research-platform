@@ -3024,7 +3024,9 @@ human call and files are ordered by mtime, not name; the uninstrumented campaign
 refused; a missing supervisor record refuses instead of a traceback; and the record's
 `off_campaign_configuration` is COMPUTED from the knobs — the first hunt attempt ran α of
 record with only the container moved, and a literal note would have called it off on both.
-One launcher bug the real record exposed, fixed in its own commit (`e5c3eee`):
+One launcher bug the real record exposed, fixed inside the reader commit `84a4c08` (the
+split into its own commit was refused by the pre-commit hook: the moved launcher test
+imported the reader module the hook's stash had hidden — recorded rather than rewritten):
 `read_coupled_status` labelled every rc ≥ 128 "killed", so CalculiX's `exit(201)` read as a
 signal death and the peer's 143 as the culprit — a shell reports a signal as 128 + signum
 and Linux has 64 signals, so only 129–192 is "killed" now. Reader: 39 tests. Suite at
