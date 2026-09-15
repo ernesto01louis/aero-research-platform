@@ -5,9 +5,14 @@ PR #44 (draft), **1056 tests green + 3 pre-existing skips**
 (`PATH="$PWD/.venv/bin:$PATH" pytest -q tests/unit tests/stage_20`), mypy clean on aero/,
 tree clean, pushed.
 
-**Nothing is running on aero-dev and nothing may be submitted until the operator has
-answered session 14's decision memo (handoff §6.77).** The sanitizer hunt has LANDED and
-been read; ADR-045 is still `proposed`. The answer is the operator's explicit word.
+**Nothing is running on aero-dev.** The sanitizer hunt LANDED and was read (§6.76);
+**ADR-045 is ACCEPTED as amended A1–A15 (§6.78)**; C2/C3, C7, C1 and C6 are in code
+(§6.79–§6.80). **Two things wait on the operator's word:** (1) **R3's calibration
+finding (§6.79)** — two draws of the same submission differ over windows 4001–8000 by more
+than Q1b's band, so R3(a) as pre-registered cannot be passed; four options are put, the
+agent recommends restarting at w400 where the signal resolves; (2) **C5, the container
+build** (`VARIANT=adr045 bash scripts/build_calculix_sif.sh`, provisioning gate) — it is
+also the adapter patch's first compilation. Nothing is submitted until both are answered.
 
 FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision state read:
 
@@ -15,9 +20,8 @@ FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision s
     sed -n '3,6p' docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md
     python3 -c "import json;r=json.load(open('/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json'));print(r['verdict'],r['windows_reached'],r['participants'])"
 
-If the ADR's Status line still says `proposed` and no explicit acceptance is in the
-conversation, there is NO implementation work: do not write R1's C, do not touch the deck
-or the renderer version, do not rebuild a container, do not spend B0.
+The Status line says `accepted`. If the operator has NOT answered §6.79 (R3) and §6.80
+(the build), there is no run to submit and no container to build: local work only.
 
 READ FIRST, IN THIS ORDER — all of them, before writing anything:
 
@@ -66,8 +70,15 @@ STATE — settled; do not re-derive, do not re-litigate:
 
 YOUR TASK, IN THIS ORDER
 
-1. Run the FIRST COMMAND block. Read the operator's answer to §6.77's memo.
-2. **If ACCEPTED (explicit word):** the acceptance commit flips the Status line AND records
+1. Run the FIRST COMMAND block. Read the operator's answers to §6.79 (R3's clause) and
+   §6.80 (the build). With the build approved: run it, verify the SIF's sha256, add it to
+   `containers/SHA256SUMS`, move `SOLID_SIF_OF_RECORD` to `calculix-precice-adr045.sif`,
+   re-pin the live digests in the same commit. With R3's option chosen: amend the ADR
+   (an amendment commit BEFORE the treatment), then C8 behind the B0 gate — segment 1 =
+   the identical 8000-window submission on the new SIF with `--ckpt-at` covering the
+   restart window, killed once the checkpoint and the fluid dump exist; segment 2 =
+   `--restart`; then `--score-r3 --out data/vv/stage20_adr045_r3.json`.
+2. **The acceptance is done; the text below is what an acceptance would have required:** the acceptance commit flips the Status line AND records
    the nine §6.75 corrections as amendments in the ADR text (the ADR-044 `d702b57`
    pattern: Status hunk + body amendments, Date line unchanged). Then Phase C in clause
    order, each commit suite-green, `git log` after each: C1 adapter C (patch file under

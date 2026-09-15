@@ -35,8 +35,14 @@ CALCULIX_VERSION="2.20"
 # and SIF. The campaign container is the unsanitised one and is NOT rebuilt by this path --
 # its digest stays what containers/SHA256SUMS rosters.
 SANITIZE="${SANITIZE:-}"
-SUFFIX=""
-[ -n "$SANITIZE" ] && SUFFIX="-${SANITIZE}"
+# ADR-045 (Stage 20): since b3dcf5f the Dockerfile applies containers/calculix-precice-
+# adr045.patch unconditionally, so every image this recipe builds carries the checkpoint/
+# restart hooks. The SIF name says so, and the unpatched campaign container
+# (calculix-precice.sif, ac0805d6...) stays on disk untouched: the records that name its
+# digest keep resolving. VARIANT is the name tag; SANITIZE appends the diagnostic suffix.
+VARIANT="${VARIANT:-adr045}"
+SUFFIX="-${VARIANT}"
+[ -n "$SANITIZE" ] && SUFFIX="${SUFFIX}-${SANITIZE}"
 OCI_TAG="localhost/aero/calculix-precice${SUFFIX}:${CALCULIX_VERSION}"
 OCI_ARCHIVE_HOST="/mnt/aero-nfs/tmp/calculix-precice${SUFFIX}-oci.tar"
 OCI_ARCHIVE_LXC="/mnt/aero/tmp/calculix-precice${SUFFIX}-oci.tar"

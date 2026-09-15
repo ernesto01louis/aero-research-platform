@@ -3269,6 +3269,47 @@ restart where a shift would show; (2) is the fallback if the operator wants the 
 restart kept. (1) spends 3 h to record a foregone conclusion; (4) is defensible and cheap.
 Either of (2)/(3) is an amendment commit BEFORE the treatment, on the operator's word.
 
+### 6.80 SESSION 14 — C1 and C6 landed as code; the container build is proposed, not run
+
+**`b3dcf5f`** carries the mechanism, read off the adapter source in the buildah overlay
+layers rather than off the ADR (four read-only maps, 109 findings; the subagent session
+limit then closed the critic, so the design was finished solo):
+
+- **The adapter patch** `containers/calculix-precice-adr045.patch` (449 lines, applies
+  cleanly to a fresh v2.20.2 checkout, verified with `patch --dry-run`; exempt from the
+  whitespace hook because a blank diff context line IS a space). `adapter/AeroCheckpoint.[ch]`
+  dump the R1 table + `theta dtheta ttime tper qam[2] energy[4]` atomically with a checksum,
+  two generations on an env cadence; two hooks in `nonlingeo_precice.c` — WRITE at the end
+  of the `icutb == 0` prologue (live arrays; the ADR's line 1685 sees stale `*ini` copies and
+  `prediction()` later zeroes `accold` — A14), RESTORE after the initial-acceleration
+  procedure and before `Precice_Setup` (mass matrix, `energyref`, `emax` are the control's;
+  the coupling mesh is registered at the restored `vold`; the step is re-entered at
+  `theta = t_r/tper` — no reduced period, no new step). The Dockerfile applies it with
+  `--forward` after the checkout and records its sha256 beside the upstream commit.
+  **Not compiled yet: no C compiler on this host.** The build is the check.
+- **Launcher** `CheckpointOptions`: hash-exempt exports for the Solid only; inert options
+  leave the pinned command bytes unchanged; every submission now exports
+  `AERO_CKPT_EVERY=2000` (R2) and records it beside the observability.
+- **Driver** `--restart SUBMISSION --restart-window W`: verifies the solid checkpoint and a
+  full fluid dump per processor at `W·dt`, rotates every log / the supervisor record / the
+  CalculiX outputs to `.seg<n>` (A8), patches an explicit fluid `startTime` (A13), rewrites
+  preCICE's `<max-time>` to the remaining time through the sanctioned mutation (A7),
+  computes the R5 bounds from the reference run at the same window, submits
+  `fsi-<run_id>-seg<n>` INTO the same case root, and writes the record with top-level
+  `restart_generations` / `restart_windows` (R7). `_reattach` refuses a gated verdict on a
+  restarted solve without a passing R3 (A4). 9 tests. Suite **1086 passed, 3 skipped**.
+- **A12–A15** recorded in the ADR.
+
+**What is NOT done, and why.** C5 — the container build — is a provisioning action
+(buildah on the Proxmox host, apptainer on aero-build, a new SIF published to
+`/mnt/aero/containers`) and is **proposed, not run**: `VARIANT=adr045 bash
+scripts/build_calculix_sif.sh` from the repo root on the host produces
+`calculix-precice-adr045.sif` (the unpatched `calculix-precice.sif`, `ac0805d6…`, stays on
+disk so every record naming it keeps resolving); the follow-up commit adds its digest to
+`containers/SHA256SUMS`, moves `SOLID_SIF_OF_RECORD` to the new name and re-pins. The
+build is also the patch's first compilation. **C8** waits on the operator's R3 answer
+(§6.79) AND on C5. aero-dev is idle; B0 untouched at ~76 h.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
