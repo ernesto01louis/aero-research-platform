@@ -469,6 +469,42 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6z. SESSION 14 — the hunt LANDED with NO report and a different death; the reader is in code; ADR-045 waits
+
+Handoff §6.75–§6.76. **`fsi-hg2007_flexible_foil-20260915-113918` ended 14:31 UTC, 2.87 h,
+window 2 369 of 8 000, `participant-died`, Solid rc=201 = CalculiX's own "solution seems to
+diverge" stop (`checkconvergence.c:587` → `stop.f:25`), NOT the rc=134 allocator abort — and
+zero `asan-solid.*` files.** The ADR-041 detector on the same run reads PRECURSOR (parity ratio
+59.8, even ~36 N vs odd 1e3→3e3 N over the last forty windows): the unmitigated period-2 mode
+ran to a Newton-divergence abort before the heap corruption fired. **R6 reading:
+`no-report-died` — NOT exoneration**, for three reasons in §6.76: the run outlived every
+earlier unmitigated death (1 487/1 703/1 996) with the divergence in full swing; the death it
+had is the one α = -0.05 already removes; and SPOOLES/ARPACK/libprecice/MPI are
+UNINSTRUMENTED, so a store inside them is invisible to ASan and lands in a redzone instead of
+glibc's chunk header (hypothesis, recorded as such). Record:
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json`. **B0: ~76 h
+left.** aero-dev is clear. Nothing resubmitted.
+
+**The reader is pre-registered code** (`84a4c08`, the operator's choice at session
+open): `aero/adapters/precice/asan.py` + `asan_hunt_verdict` + `--asan-evaluate`, 39 tests
+with the real first-attempt report verbatim; ownership by frame PATH (`/src/calculix-adapter/`
+vs `/src/CalculiX/`), CalculiX's `u_calloc.c` wrappers pass-through, the `keystart.f:71` READ
+pinned benign, closed vocabulary, heap-family classes only decide, an allocation-only site in
+the adapter's copies of CalculiX's drivers is a human call. Reviewed adversarially (15
+findings fixed) before commit; it read the first attempt as NO-REPORT-DIED before the hunt
+ended, then the hunt itself. Side find, fixed in its own commit (`e5c3eee`):
+`read_coupled_status` called every rc ≥ 128 "killed" — CalculiX's `exit(201)` is not a
+signal death. Suite **1056 passed, 3 skipped**.
+
+**ADR-045 is still `proposed`.** R6's second bullet applies (survivable-only; R1–R3 only if R3
+passes). Handoff §6.75 carries **nine measured corrections** to the proposed text — the ones
+that bite: `config_hash` does NOT move on a deck edit (bump `RENDERER_VERSION`); R7's gate hook
+cannot sit in the spec-derived `gated` while `restart_generations` stays out of `spec_knobs`;
+R5's energy band spans 3.7 decades; `decomposePar -force` deletes the fluid's checkpoints, so a
+relaunch cannot use the submit path; `precice-run/` removal is already done by the supervisor;
+`stage16_urans_cert.py` is the restart precedent. The R6 reading and the acceptance question
+are ONE decision for the operator.
+
 ## 6x. ADR-045 IS DRAFTED AND WAITING ON THE OPERATOR — checkpoint/restart
 
 Handoff §6.73. **`docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md`,
@@ -496,7 +532,9 @@ allowed to do. Handoff §6.74 records why session 13 handed over BOTH open threa
 of splitting them — ADR-045 R6 is the rule that reads the sanitizer result, so the evidence
 and the rule that interprets it belong in one session.
 
-## 6w. THE SANITIZER HUNT IS RUNNING — and it is pointed at the UNMITIGATED stack on purpose
+## 6w. THE SANITIZER HUNT (LANDED 2026-09-15 14:31 UTC — see §6z; kept as the record of why it ran) — pointed at the UNMITIGATED stack on purpose
+
+**Outcome (session 14): `no-report-died` at window 2 369 — CalculiX's own divergence stop, rc=201, no ASan report; NOT exoneration. Handoff §6.76.** The rest of this section is session 13's text.
 
 Handoff §6.72. Everything before this was about SURVIVING the crash; this is the only
 option that could REMOVE it. glibc's `corrupted double-linked list` fires where it trips

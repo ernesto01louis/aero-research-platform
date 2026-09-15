@@ -2955,6 +2955,189 @@ may do at all, and it carries the three R6 readings including the one that is ea
 wrong: **no ASan report is not exoneration.** Suite measured at handover: **1017 passed,
 3 skipped**, mypy clean on 170 files, tree clean, pushed.
 
+### 6.75 SESSION 14 — the R6 reader was in code before the hunt landed
+
+Session open (13:49 UTC): the hunt was **running** at window ~1 890 of 8 000 after 2 h 11 m
+(~4.2 s/window, not the ~2.5x slowdown §6.72 estimated — ASan cost ~1.6x here), 4 pimpleFoam +
+1 ccx_preCICE + mpirun alive, no `asan-solid.*`, and its `.sta` already showed **7–8 Newton
+iterations per increment** — ADR-044 Z2's sick signature (healthy runs never exceed 6), as the
+unmitigated α = 0.0 stack must. Nothing else was put on aero-dev; polling was `run_long.sh
+status` + an `ls` + a line count, never `wait`. Suite at open: 1017 passed, 3 skipped; PR #44
+all 13 checks green (the fleet DNS fix of §6.68 holds — vv-required is green).
+
+**Two facts checked while it ran, both bearing on R6's first reading.** (1) Upstream's
+"different invalid free" is **#173 — `Remove an invalid free on nodeIDs`, 2026-08-04,
+`adapter/PreciceInterface.c`** — and it is INSIDE the pinned v2.20.2 (GitHub `compare` puts the
+commit six behind the tag); nothing on upstream master since the tag touches code. So "upstream
+already fixed it" is not an available reading; any patch would be ours. (2) The adapter and
+CalculiX sources are readable on this host without a network: the buildah build-cache layers
+under `/mnt/pve/Storage/containers-storage/overlay/<layer>/diff/src/{calculix-adapter,
+CalculiX/ccx_2.20/src}` (three adapter layers: the v2.20.1 build of 2026-07-28, the campaign
+v2.20.2 build of 2026-09-07, the ASan build of 2026-09-15). A prune would delete them; the
+durable source is the tag the Dockerfile re-clones.
+
+**The reader — pre-registered, the operator's choice at session open (`84a4c08`).**
+The rule that reads the hunt was fixed BEFORE its report existed, in the shape of
+`--adr041-evaluate`, whose verdict is computed and never typed in:
+
+- `aero/adapters/precice/asan.py` (stdlib + pydantic) parses every report in an
+  `asan-solid.<pid>` file — header, `READ/WRITE of size N`, and EVERY stack (the faulting
+  access and the `allocated by` / `freed by` stacks a heap report carries) — and classifies each
+  frame by **who owns its source PATH**: `/src/calculix-adapter/` ⇒ `adapter` (the C we
+  compile, including the adapter's OWN copies of `ccx_2.20.c` and `nonlingeo_precice.c`),
+  `/src/CalculiX/` ⇒ `calculix-upstream`, library frames ⇒ `runtime`, anything else ⇒
+  `unknown` (never decisive). Path, not basename: CalculiX ships a `ccx_2.20.c` too, and the
+  one real report on disk prints both prefixes. CalculiX's allocator wrappers
+  (`u_calloc.c`/`u_realloc.c`/`u_free.c`) sit on top of EVERY allocation stack and are treated
+  as runtime, so the site is the caller that sized the object.
+- The known-benign `keystart.f:71` global-buffer-overflow READ (§6.72) is pinned by content and
+  never decides anything; a verdict rests on the first **heap-relevant** report (a heap-family
+  bug class, or any WRITE), read on every stack — a write in upstream Fortran through a buffer
+  the adapter sized is still a line we compile.
+- `asan_hunt_verdict` (beside `adr041_rung_verdict`) has a CLOSED vocabulary: `adapter-line`
+  / `calculix-line` / `no-report-completed` / `no-report-died` / `unclassified`. The two
+  `no-report-*` terms exist so silence is recorded as silence — R6's "not exoneration".
+- Driver `--asan-evaluate <submission>` refuses a run without `observability.asan`, refuses a
+  running or vanished job, reads `coupled-status.json`, the reports and `Solid.log`, runs the
+  ADR-041 detector on the same run (was the divergence signature present?) and writes
+  `asan-hunt-verdict.json` beside the run with every frame, every owner and the rule.
+- 21 tests (`tests/unit/test_asan_hunt_verdict.py`), the real 51-line report of the first
+  attempt embedded verbatim. A no-cost end-to-end run on the first attempt's record
+  (`…-113507`, 32 s, rc=134, the benign READ only) read **NO-REPORT-DIED with the benign
+  report flagged** — the reader's first real output, before the hunt ended.
+
+Written and passing at 14:25 UTC; the hunt ended at 14:31 UTC. **Reviewed adversarially
+before it was committed** — three skeptics (parser / attribution / driver) and a coverage
+critic, 15 findings, every one fixed and pinned by a test, the ones that change a reading:
+a named thread on a `freed by thread T1 (name) here:` line no longer merges that stack into
+the access stack; the bug class comes from the `SUMMARY:` line (so `calloc parameters
+overflow` reads as `calloc-overflow`, a heap-family class); the context sections ASan
+prints (`Thread T1 created by`, `... in frame`) can never become a site; an unsymbolized frame
+inside `ccx_preCICE` itself is `unknown`, not runtime; **a WRITE of a non-heap class (SEGV,
+stack or global overflow) is not decisive** — ASan reports a store into a heap redzone as a
+heap-family error, so those cannot be the chunk-header write; **an allocation-only
+attribution inside the adapter's verbatim-derived copies of CalculiX's drivers
+(`ccx_2.20.c`, `nonlingeo_precice.c`, `dyna_precice.c`) is a human call** — CalculiX NNEWs
+nearly every object of the dynamic step from those lines — while adapter-authored code
+(`adapter/*`, `PreciceInterface.c`, `CCXHelpers.c`) decides; more than one report file is a
+human call and files are ordered by mtime, not name; the uninstrumented campaign SIF is
+refused; a missing supervisor record refuses instead of a traceback; and the record's
+`off_campaign_configuration` is COMPUTED from the knobs — the first hunt attempt ran α of
+record with only the container moved, and a literal note would have called it off on both.
+One launcher bug the real record exposed, fixed in its own commit (`e5c3eee`):
+`read_coupled_status` labelled every rc ≥ 128 "killed", so CalculiX's `exit(201)` read as a
+signal death and the peer's 143 as the culprit — a shell reports a signal as 128 + signum
+and Linux has 64 signals, so only 129–192 is "killed" now. Reader: 39 tests. Suite at
+commit: **1056 passed, 3 skipped**; mypy clean on 171 files. (The full suite took 627 s once
+— `test_coupling_window_schedule.py` reads the real I4/Q1 runs on NFS while the hunt was
+writing 100 MB of logs to the same share; 24 s once the share was quiet.)
+
+**Nine things the exploration measured that ADR-045 has wrong or silent** — recorded here so
+they are corrections to a proposed text, not discoveries during implementation:
+
+| # | ADR-045 says / assumes | measured |
+|---|---|---|
+| 1 | the `TIME=TOTAL TIME` deck edit "moves deck bytes and therefore `config_hash`" (R1) | `config_hash` is a digest of the serialized SPEC only (`case.py:586-606`); a deck-byte change moves NOTHING. The declared mechanism is bumping `RENDERER_VERSION` (`template.py:110-112`, "bumped whenever a rendered byte changes") — same for F3's `writePrecision` |
+| 2 | `ccx_2.20.c:1041` / `:1795-1797` (Links) | those are CalculiX's pristine file; the file compiled is the adapter's copy (`:1121` / `:2146-2149`) — same basename, our code |
+| 3 | "`precice-run/` must be removed before the relaunch" (R1) | the supervisor already does it on every launch (`launcher.py:306`) |
+| 4 | R7 hooks `restart_generations` into the `gated` derivation | `gated` is derived inside `hg2007_case_spec` from spec fields only (`hg2007_flexible_foil.py:578-592`), and `restart_generations` cannot enter `spec_knobs` (passed verbatim to the factory by `_reattach` :983 — a new key is a TypeError and moves the digest). The two cannot both hold; R7 needs a collect-side gate, not a spec-side one |
+| 5 | R5's "kinetic + internal energy inside the control run's observed band" | `nener=1` unconditionally for implicit `*DYNAMIC` (`dynamics.f:252-260`) and `Solid.log` carries the series per window — but over the control run it spans 3.7 decades (1.6e-11 → 7.7e-8 J), so a global band is vacuous; the guard needs a phase-aware bound |
+| 6 | no restart precedent in the repo | `scripts/stage16_urans_cert.py` has one: `patch_controldict_for_restart` (`startFrom latestTime`, :327-337), `read_concat_series` across segments (:342), `restart_continuation: True` in provenance (:404-421) |
+| 7 | (silent) the three clocks of a restart segment | fluid `startTime`/`endTime` are ABSOLUTE (keep `endTime` = full `max_time`); preCICE has no restart, so `<max-time>` must be the REMAINING time; CalculiX's `*DYNAMIC` second field is a STEP PERIOD, so it reduces too. Only `max_time` is a spec field, and it tracks the fluid — so the digest does not move on the clock's account |
+| 8 | (silent) relaunch mechanics | `_prepare_and_submit` allocates a FRESH run_id and `decomposePar -force` (`solver.py:625`) deletes every `processor*/` — the fluid's checkpoints. A relaunch cannot go through the submit path; the supervisor also truncates `Fluid.log`/`Solid.log` and overwrites `coupled-status.json` |
+| 9 | (silent) R3(b)/(d) readers | `WatchpointTrace` refuses a non-monotonic Time column (`watchpoint.py:56-66`, names "restarted into an existing log"); `read_iterations_log` keeps QNColumns NAMES only (`logs.py:189`); no lift series exists on the coupled path; no `(first_window, last_window)` selector; Q1 as coded is fx span-mean 2 % / trace 5 % / two-arm increment 5 %, so R3(a)'s single-arm "2 % / 5 % / 5 % on lift, thrust, power" needs its mapping written down before the treatment |
+
+None of these is implemented (R6 forbids it) — they are the corrections an acceptance
+commit would carry.
+
+### 6.76 SESSION 14 — the hunt LANDED: no report, and a different death
+
+`fsi-hg2007_flexible_foil-20260915-113918` ended **14:31:25 UTC after 10 322 s (2.87 h)**,
+`stopped_by=participant-died`, **Solid rc=201**, Fluid rc=1 (broken pipe on the next
+`Force` mapping). **Window 2 369 of 8 000.** Zero `asan-solid.*` files. Zero memory-error
+text in either log (`AddressSanitizer|ABORTING|corrupted|double free|free\(\)|Segmentation`
+all absent). aero-dev is clear (no `pimpleFoam`/`ccx_preCICE`/`mpirun`).
+
+**rc=201 is CalculiX's own Newton-divergence stop, not the allocator.** The tail of
+`Solid.log` is `*ERROR: solution seems to diverge; please try automatic incrementation;
+program stops` — printed at `checkconvergence.c:587` in the pinned 2.20 source, followed by
+`FORTRAN(stop,())` → `stop.f:25 call exit(201)`. Every earlier flexible death was rc=134
+(`corrupted double-linked list`). This run died of the NUMERICS of the unmitigated stack:
+
+- the ADR-041 detector on this run (written into the verdict record) reads **PRECURSOR** — the
+  parity prong fired at chunk w2141-2160 (ratio 4.61), worst ratio **59.8**, 110 of 113 chunks
+  active; the last forty windows alternate **~36 N on even windows against 1.0e3 → 3.2e3 N on
+  odd**, growing ~6 %/window — the period-2 Nyquist mode of ADR-043, exactly as in attempt 1,
+  D-A and D-C2;
+- `.sta`: ITER ≥ 8 first at increment 1 787, then 2 551 increments at ≥ 8; the last increment
+  (2 369) is attempt `1U` after 9 iterations with residual norms of 1e7–1e8 in the `.cvg`;
+- the Newton count led the residual-parity signature by ~370 windows here (ITER ≥ 8 from
+  inc 1 787; the parity prong fired at the chunk ending w2 160) — the independent measurement
+  ADR-044 Z2 recorded, behaving as it did on attempt 1, D-A and D-C2.
+
+**The R6 reading, computed by the pre-registered reader and written to
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json`:
+`no-report-died`.** In R6's words: *no report at all: this is NOT exoneration.* Three reasons,
+each specific to what this run did:
+
+1. **It outlived every earlier unmitigated death and did not die of the heap.** Attempt 1,
+   D-A and D-C2 died of the corruption at w1 703, w1 487 and w1 996 with the divergence in
+   progress; this run carried the same divergence to w2 369 and CalculiX gave up first. That
+   is what R6 warned of: ASan's allocator (redzones, quarantine, different chunk layout) can
+   hide the bug glibc's allocator trips over. It is consistent with the hypothesis; it does
+   not test it.
+2. **The death that did occur is the one the adopted stack already removed.** α = 0.0 was
+   chosen for the hunt because it reproduces the crash cheaply (§6.72); on the adopted
+   α = -0.05 stack D-C1 and its re-probe completed 8 000/8 000 and N3 attempt 2 ran 21 897
+   windows with the solid quiet. A Newton-divergence stop on the unmitigated stack says
+   nothing about the crash that killed attempt 2.
+3. **The hunt's instrumentation does not cover the whole solid.** The wrappers instrument
+   what they compile — CalculiX's own C and Fortran and the adapter — and nothing else:
+   **SPOOLES** (`-lspooles`, the apt package `libspooles2.2`, the direct solver that factors
+   the system at every Newton iteration), ARPACK/LAPACK/BLAS, libprecice, yaml-cpp, OpenMPI
+   and libgfortran are uninstrumented. An out-of-bounds store executed inside one of them is
+   invisible to ASan's instrumentation and, under ASan's allocator, lands in a redzone
+   instead of the next chunk's header — so glibc's message could not appear either. The
+   failure would change shape rather than be reported. **Recorded as a hypothesis** (SPOOLES
+   is the heap-heaviest uninstrumented component and the crash is specific to the flexible
+   arm's deformation, §6.48), not as a finding; making silence informative would need the
+   uninstrumented libraries built from source under ASan, which is not in any pre-registered
+   plan and is not proposed here.
+
+**Two independent readers of the raw files agree, and sharpen four things.** One read the
+logs for what killed the process, one read the container for what ASan could and could not
+see; neither saw the verdict record first. (1) preCICE completed **2 368** windows
+(`precice-Solid-iterations.log`, 12 833 coupling iterations); the solid died INSIDE window
+2 369 at its first coupling iteration, after nine Newton iterations whose residual
+alternated 3 195 → 248 → 37 → 152 → 8 → 219 → 1.7 → 227 → 1.8 N — the fixed-increment
+divergence test `ram1>ram2 && ram>ram2 && ram>c1·qam` fired, `DIRECT` in the deck sends it to
+the `program stops` branch. (2) **Everything linked from source was instrumented**: all
+1 126 objects in the adapter's build dir carry `-fsanitize=address` in their DWARF producer
+string — CalculiX's C, its Fortran (`mafillsm.o` references `__asan_report_store8`), the
+adapter's C and C++, and ccx's own `spooles.c` glue; no `-fsanitize-recover` anywhere, so an
+instrumented error would have written its report and aborted regardless of
+`halt_on_error=0`. **Nothing linked as a library was**: `libspooles.so.2.2` (1 419 exported
+functions, 0 `__asan_` symbols, imports `malloc/free/memcpy/memset`; its `ALLOCATE` macro is
+raw `malloc`, and ccx's `spooles.c` builds and frees a full set of `InpMtx / FrontMtx /
+SubMtxManager / ChvManager / DenseMtx` objects on every one of this run's 85 370
+factorizations), `libprecice.so.3`, ARPACK/LAPACK/BLAS, yaml-cpp, OpenMPI, libgfortran,
+libstdc++. Only their allocation and copy calls pass through libasan's interceptors; a plain
+pointer store inside them is unchecked. (3) `intercept_memcmp=0` suppressed the
+`keystart.f:71` READ that the first attempt had fired at window 0 — so this run carries **no
+in-process positive control** that reporting was live; the control is the sibling run four
+minutes earlier on the same SIF digest. (4) The run never reached w21 897, where attempt 2
+died on the adopted stack; three of the five earlier death windows were passed, two were not.
+
+**Budget.** The hunt spent **2.87 h** of B0 (10 322 s wall clock, uncontended), not the
+~4–5 h estimated: **B0 stands at ~76 h** of its 134 h. A third N3 attempt needs ~74 h. ADR-045
+R3 needs ~3 h.
+
+**What R6 makes of it.** Its second bullet applies verbatim: *returns no report at all: the
+crash is survivable-only, and R1–R3 are the path — but only if R3 passes.* The first bullet
+(a patchable line) is not available. Nothing is resubmitted; ADR-045 stays `proposed`; the
+reading and the acceptance question go to the operator together (§6.74's reason for the
+handover), with the nine corrections of §6.75 attached to the text being accepted.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
