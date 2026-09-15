@@ -131,3 +131,38 @@ def test_the_knob_rides_in_spec_knobs_so_reattach_can_rebuild() -> None:
     rebuilt = hg2007_case_spec(**knobs, hht_alpha=driver.LEGACY_HHT_ALPHA)  # type: ignore[arg-type]
     assert rebuilt.source.solid.hht_alpha == 0.0
     assert hg2007_case_spec(**knobs).source.solid.hht_alpha == ALPHA_OF_RECORD  # type: ignore[arg-type]
+
+
+# --- the diagnostic solid-SIF knob (Stage 20, the N3-attempt-2 investigation) ----------
+
+
+def test_a_diagnostic_solid_container_can_never_be_gated(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The sanitizer build must be runnable through the normal path AND unable to gate.
+
+    A diagnostic that could mint a gated bundle is worse than no diagnostic: the campaign's
+    verdict would rest on a container nobody adopted.
+    """
+    import aero.vv.fsi.hg2007_flexible_foil as campaign
+
+    monkeypatch.setattr(campaign, "GATED_040_TIME_WINDOW_S", 2e-05)
+    monkeypatch.setattr(campaign, "GATED_040_MAX_TIME_S", 0.16)
+    monkeypatch.setattr(campaign, "GATED_040_NUMERICS_LABEL", "adr040-candidate")
+    monkeypatch.setattr(campaign, "GATED_040_MPI_RANKS", 4)
+
+    assert campaign.hg2007_case_spec(**_KNOBS).gated is True  # type: ignore[arg-type]
+    diagnostic = campaign.hg2007_case_spec(  # type: ignore[arg-type]
+        **_KNOBS, solid_sif="calculix-precice-address.sif"
+    )
+    assert diagnostic.gated is False
+    # ...and it really is the sanitizer container that would run
+    assert any(p.sif == "calculix-precice-address.sif" for p in diagnostic.participants)
+
+
+def test_asan_and_malloc_check_are_refused_together() -> None:
+    """Both instrument the allocator; ASan replaces the heap glibc would be checking."""
+    from aero.adapters.precice.launcher import ObservabilityOptions
+    from pydantic import ValidationError
+
+    ObservabilityOptions(asan=True, core_dumps=True)
+    with pytest.raises(ValidationError):
+        ObservabilityOptions(asan=True, malloc_check=True)

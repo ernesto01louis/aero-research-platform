@@ -31,10 +31,16 @@ set -euo pipefail
 
 REPO_ROOT="${1:-$(pwd)}"
 CALCULIX_VERSION="2.20"
-OCI_TAG="localhost/aero/calculix-precice:${CALCULIX_VERSION}"
-OCI_ARCHIVE_HOST="/mnt/aero-nfs/tmp/calculix-precice-oci.tar"
-OCI_ARCHIVE_LXC="/mnt/aero/tmp/calculix-precice-oci.tar"
-SIF="calculix-precice.sif"
+# DIAGNOSTIC variant (Stage 20): SANITIZE=address builds a SEPARATE AddressSanitizer image
+# and SIF. The campaign container is the unsanitised one and is NOT rebuilt by this path --
+# its digest stays what containers/SHA256SUMS rosters.
+SANITIZE="${SANITIZE:-}"
+SUFFIX=""
+[ -n "$SANITIZE" ] && SUFFIX="-${SANITIZE}"
+OCI_TAG="localhost/aero/calculix-precice${SUFFIX}:${CALCULIX_VERSION}"
+OCI_ARCHIVE_HOST="/mnt/aero-nfs/tmp/calculix-precice${SUFFIX}-oci.tar"
+OCI_ARCHIVE_LXC="/mnt/aero/tmp/calculix-precice${SUFFIX}-oci.tar"
+SIF="calculix-precice${SUFFIX}.sif"
 DEF="${REPO_ROOT}/containers/calculix-precice.def"
 DOCKERFILE="${REPO_ROOT}/containers/calculix-precice.Dockerfile"
 CONTAINERS_LXC="/mnt/aero/containers"
@@ -52,6 +58,7 @@ mkdir -p "$(dirname "$OCI_ARCHIVE_HOST")"
 log "buildah bud — CalculiX ${CALCULIX_VERSION} + preCICE adapter"
 buildah bud \
     --layers=true \
+    --build-arg "SANITIZE=${SANITIZE}" \
     -f "$DOCKERFILE" \
     -t "$OCI_TAG" \
     "${REPO_ROOT}/containers"
@@ -71,6 +78,9 @@ buildah push "$OCI_TAG" "oci-archive:${OCI_ARCHIVE_HOST}"
 log "apptainer build on ${SSH_TARGET} from ${OCI_ARCHIVE_LXC}"
 ssh -o BatchMode=yes "$SSH_TARGET" "mkdir -p ${BUILD_DIR_LXC}"
 scp -q "$DEF" "${SSH_TARGET}:${BUILD_DIR_LXC}/calculix-precice.def"
+# the .def bootstraps from a hardcoded archive path; the variant build feeds it its own
+ssh -o BatchMode=yes "$SSH_TARGET" \
+    "sed -i 's#calculix-precice-oci\.tar#calculix-precice${SUFFIX}-oci.tar#' ${BUILD_DIR_LXC}/calculix-precice.def"
 ssh -o BatchMode=yes "$SSH_TARGET" "set -euo pipefail
     [ -f /root/.config/aero/signing.env ] || { echo 'signing.env absent' >&2; exit 1; }
     cd ${BUILD_DIR_LXC}

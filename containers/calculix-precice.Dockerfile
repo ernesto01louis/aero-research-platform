@@ -16,6 +16,20 @@
 # a SIF by containers/calculix-precice.def with a filesystem-only %post.
 
 ARG PRECICE_VERSION=3.4.1
+
+# DIAGNOSTIC ONLY (Stage 20, the N3-attempt-2 investigation). Empty for the campaign image,
+# which is what `containers/SHA256SUMS` rosters; set to `address` to build a separate
+# AddressSanitizer variant of ccx_preCICE. glibc reports `corrupted double-linked list`
+# when it TRIPS OVER poisoned heap metadata, which can be thousands of coupling windows
+# after the bad write -- attempt 2 died with the solid quiet for its last 7 698 windows.
+# ASan reports the invalid write where it HAPPENS, with file and line.
+#
+# It is injected through compiler WRAPPERS rather than through make variables, because the
+# adapter's Makefile assigns CFLAGS with `=` (a command-line override would drop
+# -DARCH/-DSPOOLES/-DARPACK and the build would fail) and its link rule hardcodes
+# `$(FC) -fopenmp -Wall -O3` with no LDFLAGS hook at all. Wrapping mpicc/mpifort/mpic++
+# covers every compile AND the link, and touches no upstream byte.
+ARG SANITIZE=
 ARG CALCULIX_VERSION=2.20
 # ADR-042 X1a: bumped v2.20.1 -> v2.20.2 as the D-C form 2 rung. Same CalculiX 2.20 --
 # there is no adapter for 2.21/2.22 and porting one is a manual merge into the solver's
@@ -59,6 +73,18 @@ RUN mkdir -p /src && cd /src \
              sha256sum "ccx_${CALCULIX_VERSION}.src.tar.bz2"; exit 1; }) \
     && tar xjf "ccx_${CALCULIX_VERSION}.src.tar.bz2"
 
+ARG SANITIZE
+RUN if [ -n "$SANITIZE" ]; then \
+        set -eux; \
+        for tool in mpicc mpifort mpic++; do \
+            real="$(command -v "$tool")"; \
+            printf '#!/bin/sh\nexec %s -fsanitize=%s -g -fno-omit-frame-pointer "$@"\n' \
+                "$real" "$SANITIZE" > "/usr/local/bin/$tool"; \
+            chmod +x "/usr/local/bin/$tool"; \
+        done; \
+        /usr/local/bin/mpicc --version >/dev/null; \
+    fi
+
 # gfortran >= 10 rejects the argument-type mismatches in CalculiX's legacy Fortran
 # without -fallow-argument-mismatch.
 RUN git clone https://github.com/precice/calculix-adapter.git /src/calculix-adapter \
@@ -87,7 +113,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates wget \
         libarpack2t64 libspooles2.2 libyaml-cpp0.8 \
-        libgfortran5 libgomp1 openmpi-bin \
+        libgfortran5 libgomp1 openmpi-bin libasan8 \
     && wget -q "https://github.com/precice/precice/releases/download/v${PRECICE_VERSION}/libprecice3_${PRECICE_VERSION}_noble.deb" \
     && apt-get install -y --no-install-recommends "./libprecice3_${PRECICE_VERSION}_noble.deb" \
     && rm -f "libprecice3_${PRECICE_VERSION}_noble.deb" \

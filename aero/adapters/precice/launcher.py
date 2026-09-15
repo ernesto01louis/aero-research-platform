@@ -80,6 +80,26 @@ class ObservabilityOptions(BaseModel):
         default=False,
         description="MALLOC_CHECK_=3: glibc aborts at detection, not at the next free.",
     )
+    asan: bool = Field(
+        default=False,
+        description=(
+            "ASAN_OPTIONS for a sanitizer-built participant. Reports the invalid WRITE "
+            "where it happens rather than where glibc later trips over the poisoned "
+            "chunk -- N3 attempt 2 died with the solid quiet for its last 7 698 windows, "
+            "so the write and the abort are thousands of windows apart. Mutually "
+            "exclusive with malloc_check: ASan replaces the allocator glibc would check."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_allocator_checker(self) -> ObservabilityOptions:
+        if self.asan and self.malloc_check:
+            raise ValueError(
+                "asan and malloc_check both instrument the allocator and conflict; "
+                "ASan replaces malloc, so MALLOC_CHECK_ would be inspecting a heap it "
+                "does not own"
+            )
+        return self
 
     @property
     def any_enabled(self) -> bool:
@@ -220,6 +240,13 @@ def build_participant_command(
         parts.append("{ ulimit -c unlimited 2>/dev/null || true; }")
     if observability is not None and observability.malloc_check:
         parts.append("export MALLOC_CHECK_=3")
+    if observability is not None and observability.asan:
+        # halt_on_error so the FIRST bad write is the one reported; detect_leaks off
+        # because ccx frees nothing at exit and the report would bury the finding.
+        parts.append(
+            "export ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1"
+            ":print_stacktrace=1:log_path=/case/asan-solid"
+        )
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")

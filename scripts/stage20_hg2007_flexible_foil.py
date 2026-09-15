@@ -108,6 +108,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     LEGACY_HHT_ALPHA,
     NUMERICS_STACKS,
     RUNGS,
+    SOLID_SIF_OF_RECORD,
     adr041_rung_verdict,
     evaluate_predicates,
     hg2007_case_spec,
@@ -822,6 +823,7 @@ def _prepare_and_submit(
     adr041_rung: str | None = None,
     coupling_scheme: str = LEGACY_COUPLING_SCHEME,
     hht_alpha: float = ALPHA_OF_RECORD,
+    solid_sif: str = SOLID_SIF_OF_RECORD,
 ) -> Path:
     """prepare -> mesh (sync) -> [decompose] -> stage -> submit detached -> persist."""
     spec = hg2007_case_spec(
@@ -834,6 +836,7 @@ def _prepare_and_submit(
         mpi_ranks=mpi_ranks,
         coupling_scheme=coupling_scheme,  # type: ignore[arg-type]
         hht_alpha=hht_alpha,
+        solid_sif=solid_sif,
     )
     if gated_intent and not is_template_of_record(spec.source.template_sha256):
         # ADR-041 V7, checked BEFORE the general refusal so the diagnosis is the specific
@@ -877,7 +880,12 @@ def _prepare_and_submit(
     # is a rlimit call and the next unexplained abort becomes a measurement instead of a
     # mystery. MALLOC_CHECK_ is armed ONLY on a ladder rung: it is an unmeasured allocator
     # perturbation, and N3's post-ramp ClockTime is the one number permitted to size B2.
-    observability = ObservabilityOptions(core_dumps=True, malloc_check=adr041_rung is not None)
+    observability = ObservabilityOptions(
+        core_dumps=True,
+        # ASan replaces the allocator, so MALLOC_CHECK_ has nothing to check under it
+        malloc_check=adr041_rung is not None and not getattr(args, "asan", False),
+        asan=getattr(args, "asan", False),
+    )
     plan = plan.model_copy(update={"observability": observability})
     staged = stage_coupled(
         plan,
@@ -926,6 +934,7 @@ def _prepare_and_submit(
             # retro-break a submission describing a run already on disk.
             "coupling_scheme": coupling_scheme,
             "hht_alpha": hht_alpha,
+            "solid_sif": solid_sif,
         },
         "spec_sha256": spec_config_digest(spec),
         "gated": spec.gated,
@@ -970,6 +979,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
     # a record written before this key describes a run that really was parallel-implicit.
     knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
     knobs.setdefault("hht_alpha", LEGACY_HHT_ALPHA)
+    knobs.setdefault("solid_sif", SOLID_SIF_OF_RECORD)
     spec = hg2007_case_spec(**knobs)
     digest = spec_config_digest(spec)
     if digest != submission["spec_sha256"]:
@@ -2240,6 +2250,19 @@ def main(argv: list[str] | None = None) -> int:
         "preCICE accelerates only second-to-first data under serial coupling",
     )
     parser.add_argument(
+        "--solid-sif",
+        default=SOLID_SIF_OF_RECORD,
+        dest="solid_sif",
+        help="solid container basename. DIAGNOSTIC: pointing this away from the SIF of "
+        "record (e.g. at the AddressSanitizer build) can never claim the gated verdict",
+    )
+    parser.add_argument(
+        "--asan",
+        action="store_true",
+        help="export ASAN_OPTIONS for a sanitizer-built solid participant; implies no "
+        "MALLOC_CHECK_, since ASan replaces the allocator glibc would check",
+    )
+    parser.add_argument(
         "--hht-alpha",
         type=float,
         default=ALPHA_OF_RECORD,
@@ -2325,6 +2348,7 @@ def main(argv: list[str] | None = None) -> int:
             adr041_rung=args.adr041_rung,
             coupling_scheme=args.coupling,
             hht_alpha=args.hht_alpha,
+            solid_sif=args.solid_sif,
         )
         return 0
     if args.collect_probe:

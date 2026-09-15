@@ -248,8 +248,15 @@ ALPHA_OF_RECORD = -0.05
 #: submission rebuilds to.
 LEGACY_HHT_ALPHA = 0.0
 
+#: The solid container the campaign runs. A DIAGNOSTIC may point elsewhere -- the
+#: AddressSanitizer build, for instance -- and must never be able to claim the gated
+#: verdict while doing so, which is what the fence below is for.
+SOLID_SIF_OF_RECORD = "calculix-precice.sif"
 
-def is_campaign_configuration(*, template_sha256_hex: str, hht_alpha: float) -> bool:
+
+def is_campaign_configuration(
+    *, template_sha256_hex: str, hht_alpha: float, solid_sif: str = SOLID_SIF_OF_RECORD
+) -> bool:
     """ADR-041 V7's fence, extended by ADR-043 to the deck knob the ladder now moves.
 
     Same one-way property as V7: it can only ever REFUSE. ADR-040 L5's five inputs stay
@@ -257,7 +264,11 @@ def is_campaign_configuration(*, template_sha256_hex: str, hht_alpha: float) -> 
     allowed to vary and the campaign is not, so a diagnostic probe cannot mint a bundle
     claiming the gated verdict once B2's sentinels are filled.
     """
-    return is_template_of_record(template_sha256_hex) and hht_alpha == ALPHA_OF_RECORD
+    return (
+        is_template_of_record(template_sha256_hex)
+        and hht_alpha == ALPHA_OF_RECORD
+        and solid_sif == SOLID_SIF_OF_RECORD
+    )
 
 
 def is_template_of_record(template_sha256_hex: str) -> bool:
@@ -577,6 +588,7 @@ def hg2007_case_spec(
         and is_campaign_configuration(
             template_sha256_hex=template_sha256(template_for_scheme(coupling_scheme)),
             hht_alpha=hht_alpha,
+            solid_sif=solid_sif,
         ),
     )
 
