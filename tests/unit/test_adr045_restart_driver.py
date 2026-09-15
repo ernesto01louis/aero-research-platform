@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 import pytest
 from aero.adapters.precice.case import CASE_ROOT_DIRNAME, spec_config_digest
@@ -126,7 +127,10 @@ def _write_run(
     driver = _driver()
     spec = hg2007_case_spec(**_KNOBS)  # type: ignore[arg-type]
     host = tmp_path / name
-    PreciceCoupledSolver()._write_case(spec, host)
+    # The case writer chowns the tree to the participant uid, which a non-root CI runner
+    # cannot do (and this test does not care about ownership).
+    with mock.patch("aero.adapters.precice.solver._chown_tree"):
+        PreciceCoupledSolver()._write_case(spec, host)
     root = host / CASE_ROOT_DIRNAME
     exchange = next(root.glob("hg2007-*-foil"))
     solid = exchange / "solid-calculix"
