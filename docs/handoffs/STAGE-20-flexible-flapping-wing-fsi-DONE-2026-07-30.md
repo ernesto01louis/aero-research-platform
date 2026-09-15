@@ -3192,6 +3192,24 @@ their hours are not in `session_duration_hours`). The copy-paste prompt for sess
 `docs/handoff-bundle/STAGE-20-SESSION-15-PROMPT.md`; it opens with the idle check and the
 ADR's Status line, because whether the operator has answered is what the session may do.
 
+### 6.78 SESSION 14 — ADR-045 ACCEPTED as amended; nothing built yet
+
+The operator answered §6.77's memo on 2026-09-15 with *"id go with your rexommendation"* —
+option (1), accept as amended. **`docs/adrs/ADR-045…md` Status is now `accepted`, carrying
+A1–A10** (the nine measured corrections of §6.75 plus A10, the R3(a) band mapping that the
+scorer commit must fix before the treatment). The commit that lands this section is that
+acceptance, exactly as ADR-041 → ADR-044 were done. R6 is spent.
+
+**What acceptance does NOT do.** Nothing is implemented and no B0 hour is spent by it. The
+order from here is the ADR's clause order, each commit suite-green: C1 the adapter C (a
+patch file under `containers/`, applied after the `git checkout v2.20.2`; the R1 table with
+two generations every 2000 windows; the R5 validate-on-read guard per A5), C2 the deck
+`TIME=TOTAL TIME` + C3 `writePrecision 17` + the `RENDERER_VERSION` bump + the same-commit
+re-pin (A1), C5 the container rebuild (propose-first), C6 the relaunch driver (A7/A8) with
+the top-level `restart_generations` and the collect-side gate (A4), **C7 the R3 scorer with
+A10's mapping written down and the control passing against itself**, then — behind the B0
+stop gate, ~3 h, B0 ≈ 76 h — C8 the treatment. R3 fails ⇒ ADR-041 V7's NO-GO, recorded.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

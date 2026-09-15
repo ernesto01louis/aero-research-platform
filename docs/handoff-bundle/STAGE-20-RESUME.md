@@ -497,7 +497,7 @@ pre-commit hook refused the split; handoff §6.75):
 `read_coupled_status` called every rc ≥ 128 "killed" — CalculiX's `exit(201)` is not a
 signal death. Suite **1056 passed, 3 skipped**.
 
-**ADR-045 is still `proposed`.** R6's second bullet applies (survivable-only; R1–R3 only if R3
+**ADR-045 is ACCEPTED as amended (A1–A10), handoff §6.78** — R6's second bullet applied (survivable-only; R1–R3 only if R3
 passes). Handoff §6.75 carries **nine measured corrections** to the proposed text — the ones
 that bite: `config_hash` does NOT move on a deck edit (bump `RENDERER_VERSION`); R7's gate hook
 cannot sit in the spec-derived `gated` while `restart_generations` stays out of `spec_knobs`;
@@ -507,9 +507,9 @@ relaunch cannot use the submit path; `precice-run/` removal is already done by t
 are ONE decision for the operator — the memo is handoff §6.77. **Session 15's prompt:
 `docs/handoff-bundle/STAGE-20-SESSION-15-PROMPT.md` — start there.**
 
-## 6x. ADR-045 IS DRAFTED AND WAITING ON THE OPERATOR — checkpoint/restart
+## 6x. ADR-045 — ACCEPTED 2026-09-15 as amended by A1–A10 (handoff §6.78); the text below is the draft's history
 
-Handoff §6.73. **`docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md`,
+**Accepted on the operator's word after the hunt's reading (§6z). Implementation runs in clause order, scorer before treatment, B0 stop gate before the ~3 h treatment. Nothing built at acceptance.** Handoff §6.73. **`docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md`,
 Status `proposed` (`295d7db`). The commit is the DRAFT, not the acceptance** — acceptance is
 a separate commit flipping the Status line, as with ADR-041 to ADR-044. No code, no
 container, no B0 until then.

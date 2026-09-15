@@ -1,9 +1,14 @@
 # ADR-045 — Checkpoint/restart for the coupled flexible arm: family R
 
-- **Status:** proposed. **Nothing in this ADR is implemented, nothing is submitted, and no
-  B0 hour is spent until the operator accepts this text.** R6 makes adoption conditional on
-  the sanitizer hunt that is running as this is written, precisely so that the expensive
-  parts are not built if the crash turns out to be fixable.
+- **Status:** accepted — **as amended by A1–A10 below.** The sanitizer hunt landed on
+  2026-09-15 with no report (handoff §6.76: `no-report-died`, CalculiX's own divergence
+  stop, NOT exoneration), so R6's second bullet is the operative clause and no patchable
+  line exists. The operator chose option (1) of session 14's memo (handoff §6.77) on
+  2026-09-15 — *"id go with your rexommendation"* — and this commit is that acceptance
+  (the ADR-044 `d702b57` pattern). **Acceptance implements nothing and spends nothing:**
+  R1–R7 land as suite-green commits in clause order, the R3 scorer exists and passes the
+  control against itself BEFORE the treatment is submitted, and the first B0 hour is that
+  ~3 h treatment, behind the B0 stop gate. R3 fails ⇒ ADR-041 V7's NO-GO, unrescued.
 - **Date:** 2026-09-15
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 20)
 - **Stage:** 20
@@ -94,14 +99,15 @@ deck in seconds (10 380 equations).
 restart that begins a new `*STEP` at step-time 0 would **replay the plunge from the
 beginning** while the solid carried the displacement field of window 40 000 — and it would
 not error, it would produce numbers. The fix is `*AMPLITUDE, TIME=TOTAL TIME` (parsed at
-`amplitudes.f:72`) plus the restored `ttime`. That moves deck bytes and therefore
-`config_hash`, so it lands with a same-commit re-pin; but it **cannot** move any number in a
+`amplitudes.f:72`) plus the restored `ttime`. That moves deck bytes; the RECORD moves
+through the `RENDERER_VERSION` bump (amendment A1 — a deck byte alone moves no digest), so
+it lands with a same-commit re-pin; but it **cannot** move any number in a
 non-restarted run, because with a single step starting at `ttime = 0`, step time and total
 time are the same quantity. That is a testable claim and R3 is where it gets tested, not
 asserted.
 
 **And `precice-run/` must be removed before the relaunch**, or the new participants attach
-to a dead rendezvous.
+to a dead rendezvous — the supervisor already does this on every launch (amendment A3).
 
 ## R2 — cadence and retention
 
@@ -179,7 +185,8 @@ numbers, in a campaign whose entire product is trustworthy numbers.
 
 Pre-registered guard, **validate on read**: every value finite; `|displacement|` bounded by a
 fixed multiple of the prescribed plunge amplitude; kinetic + internal energy inside the
-control run's observed band; the solid's window index matching the fluid's. A failed
+control run's band **at the same window index** (amendment A5 — the global band spans 3.7
+decades and would pass anything); the solid's window index matching the fluid's. A failed
 validation steps back one generation; a second failure **refuses the restart and records the
 run as a death**. Standing rule on top: after a crash, **prefer generation N-1** — written
 2000 windows before the death — over the newest one.
@@ -210,10 +217,36 @@ A restarted solve is not one continuous integration and must never silently clai
   conjunct would wrongly imply otherwise.
 - The gate derivation gains one condition instead: a gated wave-1 solve may carry restarts
   **only** if R3 passed and the count is recorded. `restart_generations > 0` with no passing
-  R3 on record derives `gated=False` unconditionally, by the same L5 mechanism that already
-  refuses a non-default coupling scheme.
+  R3 on record refuses the gated verdict unconditionally — at the boundary where the
+  submission record is read back (amendment A4: the spec-side `gated` cannot see a value
+  that must stay out of the spec), with the same one-way force as the L5 fence.
 - Everything ADR-039 and ADR-040 forbid stays forbidden. This ADR buys completion, not
   latitude.
+
+## Amendments at acceptance (A1–A10) — measured in session 14, handoff §6.75
+
+Every item below was read off disk or source before acceptance, so the corrections are
+part of the text being accepted rather than discoveries made while implementing it. **None
+moves a band, a floor, a grid, a span or a ceiling.** Clause numbers refer to the sections
+above.
+
+| # | clause | as proposed | as accepted |
+|---|---|---|---|
+| A1 | R1, F3 | the `TIME=TOTAL TIME` deck edit "moves deck bytes and therefore `config_hash`" | `config_hash` digests the serialized SPEC only (`aero/adapters/precice/case.py:586-606`); a deck byte moves nothing. The record moves by bumping `RENDERER_VERSION` (`aero/adapters/precice/template.py`, "bumped whenever a rendered byte changes") in the same commit as the deck edit and F3's `writePrecision`, with the same-commit re-pin of every live digest |
+| A2 | Links | `ccx_2.20.c:1041` / `:1795-1797` | those are CalculiX's pristine file; the file compiled into `ccx_preCICE` is the adapter's copy `/src/calculix-adapter/ccx_2.20.c` (`:1121` / `:2146-2149`). Ownership of a line is decided by its PATH, never its basename |
+| A3 | R1 | "`precice-run/` must be removed before the relaunch" | already done by the supervisor on every launch (`launcher.py:306`); no new work |
+| A4 | R7 | `restart_generations > 0` without a passing R3 "derives `gated=False` … by the same L5 mechanism" | `gated` is derived inside `hg2007_case_spec` from spec fields only, and `restart_generations` must stay OUT of `spec_knobs` (they are passed verbatim to the factory by `_reattach`; a new key is a TypeError and moves the digest). The refusal therefore sits where the record is read back — `_reattach` / `--collect-probe` / `--verdict` — reading the record's top-level `restart_generations` and the R3 record at `data/vv/stage20_adr045_r3.json`; one-way, like the L5 fence |
+| A5 | R5 | "kinetic + internal energy inside the control run's observed band" | `nener=1` unconditionally for implicit `*DYNAMIC` and `Solid.log` prints the energies every converged window — but over the control run the sum spans 3.7 decades (1.6e-11 → 7.7e-8 J), so a global band is vacuous. The guard compares against the control run's value **at the same window index**, within a factor of 10 either way, plus finiteness, the displacement bound and the window-index match |
+| A6 | (silent) | no restart precedent in the repo | `scripts/stage16_urans_cert.py` is one: `patch_controldict_for_restart` (`startFrom latestTime`), `read_concat_series` across segments, `restart_continuation: True` in provenance. Reused where it fits |
+| A7 | (silent) | the clocks of a restart segment | three clocks, not one: the fluid's `startTime`/`endTime` are ABSOLUTE (start at the checkpoint time, keep `endTime` = full `max_time`); preCICE has no restart and starts at 0, so the rendered `<max-time>` is the REMAINING time; CalculiX's `*DYNAMIC` second field is a STEP PERIOD, so it is the remaining time too, with `INC` covering the remainder. Only `max_time` is a spec field and it tracks the fluid, so the digest does not move on the clock's account |
+| A8 | (silent) | relaunch mechanics | `_prepare_and_submit` allocates a FRESH run_id and `decomposePar -force` deletes every `processor*/` — the fluid's checkpoints. A restart relaunches INTO the existing case root through a dedicated driver path that skips prepare/mesh/decompose, rotates `Fluid.log`, `Solid.log`, `coupled-status.json` and every `precice-*.log` to a `.seg<n>` name first (the supervisor truncates the logs; `WatchpointTrace` refuses a non-monotonic Time column), and records the generation in the submission record's top level |
+| A9 | R3(b)/(d) | the readers exist | `read_iterations_log` keeps the QN column NAMES only; no lift series exists on the coupled path; no window-range selector exists. Added additively in the scorer commit; segment-2 rows map onto global windows by the restart offset (preCICE's `TimeWindow` and watchpoint `Time` restart at zero) |
+| A10 | R3(a) | "the frozen Q1 bands (2 % / 5 % / 5 %)" on lift, thrust, interface power | Q1 as coded is Q1a 2 % span-mean on fx, Q1b 5 % of peak-to-peak in max deviation, Q1c 5 % on the two-arm increment. Single-arm, Q1c has no meaning. **The mapping is fixed in the scorer commit, before the treatment is submitted, with the control's own numbers beside it** (a near-zero mean, as lift's is by symmetry, makes a relative span-mean band meaningless and Q1b is the clause that applies); no band is widened |
+
+The acceptance commit records these; each lands in code in the clause-order commits that
+follow (handoff §6.78 onward). R6 is spent: the hunt's reading is on the record and cannot
+be re-read to a different bullet.
+
 
 ## Consequences
 
@@ -237,7 +270,8 @@ helps**, and the NO-GO stands exactly where ADR-041 V7 put it.
 - Handoff §6.71 (the death arithmetic), §6.72 (the sanitizer hunt); RESUME §6w.
 - `runs/hg2007_flexible_foil-20260912-161321/` — the R3 control, completed 8000/8000.
 - `nonlingeo_precice.c` v2.20.2 `:1684-1685` (checkpoint write), `:3762-3764` (read).
-- CalculiX 2.20 `ccx_2.20.c:1041` (`accold` allocation), `:1795-1797` (`jrstrt`),
+- CalculiX 2.20 `ccx_2.20.c:1041` (`accold` allocation), `:1795-1797` (`jrstrt`) — the
+  PRISTINE file; the adapter's compiled copy has them at `:1121` / `:2146-2149` (A2),
   `nonlingeo.c:1397` (initial-acceleration procedure), `restartwrite.f` / `restartread.f`
   (zero occurrences of `accold`), `amplitudes.f:72` (`TIME=TOTALTIME`).
 - ADR-036 (no-restart), ADR-039/040 (the frozen bands and FORBIDDEN lists), ADR-041 V7
