@@ -469,6 +469,24 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6v. N3 ATTEMPT 2 DIED PRE-RAMP — stop rule executed; this is the NO-GO conversation
+
+Handoff §6.71. **Flexible died at w21 897 of 76 090 (pre-ramp), rc=134, same signature.**
+Stop rule fired and was executed: the rigid partner was killed (it had reached w60 622
+healthy, but was uncontended once its partner died, so its rate could not size B2). Both
+recorded.
+
+**The mitigation worked; the crash is independent of it.** Attempt 2 showed NO sustained
+divergence — one ~50-window transient that recovered, then 7 698 windows with the solid at
+essentially zero, and it died anyway. That reverses §6.58's softening: §6.55's Fact 1 was
+right. On the adopted stack the flexible arm has now run 37 897 windows for 1 death (~22x
+better than unmitigated's ~1 730) — but the campaign is 1 166 675 windows per wave, so
+**~31 expected deaths per wave, and ~17 even at B4's 10-cycle floor.** Scope reduction does
+not rescue it; the blocker is mean time to crash and there is no checkpoint/restart path.
+
+**ADR-041 V7 pre-registered this as the NO-GO-on-infrastructure conversation. Nothing has
+been resubmitted.** B0 has ~79 h left; a third attempt needs ~74 h.
+
 ## 6u. N3 IS RUNNING — both arms, contended, on the adopted stack
 
 Handoff §6.69-§6.70. **Q1 PASSED on the adopted stack** (all three frozen bands; the

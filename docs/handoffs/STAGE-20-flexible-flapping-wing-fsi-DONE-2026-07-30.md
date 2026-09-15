@@ -2776,6 +2776,64 @@ each supersession stays checkable.
 **While N3 burns: local work only.** Nothing else may touch aero-dev — contention purity is
 the whole point of the measurement.
 
+### 6.71 SESSION 13 — N3 ATTEMPT 2 DIED PRE-RAMP. The stop rule fired. This is the NO-GO.
+
+**The flexible arm died at window 21 897 of 76 090 — 28.8 % in, pre-ramp** (the ramp ends
+at 50 725), after 17.5 h: `stopped_by=participant-died`, Solid **rc=134** (SIGABRT),
+`corrupted double-linked list`, the same signature as every previous death.
+
+**The pre-registered stop rule fired and was executed immediately**, not deliberated:
+`run_long.sh kill root@aero-dev fsi-hg2007_rigid_foil-20260914-122543` → *killed (recorded
+as failed, rc=143)*, box confirmed clear. **Both arms are recorded.** The rigid partner had
+reached **window 60 622 and was healthy** (max residual 5.0e-2 N) — it had cleared the ramp
+— and killing it was still correct: once its partner died it was running UNCONTENDED, and
+an uncontended rate is not the quantity B2 is allowed to be sized from (ADR-040 N3). Its
+collect refuses for the honest reason (no supervisor status file — it was killed), so its
+facts are taken from its logs.
+
+**THE MITIGATION WORKED. THE CRASH IS NOT THE DIVERGENCE.** This is the finding, and it
+reverses §6.58's softening of §6.55's Fact 1 — the original reading was right:
+
+| run | sustained divergence before death? |
+|---|---|
+| attempt 1 | YES — doubling over ~150 windows into death at w1703 |
+| D-A | YES — detector fired w1460, died w1487 |
+| D-C2 | YES — detector fired w1820, died w1996 |
+| **N3 attempt 2** | **NO** |
+
+Attempt 2 carried **one ~50-window transient** (w14 152-14 199: 26.4, 92.2, 2.2, 298.1,
+18.8 N) which **recovered completely**, then ran **7 698 further windows with the solid at
+essentially zero** — the last twelve windows before the abort all read 0.0000 — and died
+anyway. Only **8 windows out of 21 897** ever reached 1.0 N, three of them in startup.
+The detector correctly returned INCONCLUSIVE rather than PRECURSOR: the transient produced
+two consecutive ACTIVE chunks but only one of them exceeded the 4.0 ratio (3.49 then
+132.97), which is exactly the single-chunk artefact the two-chunk rule was written to
+ignore.
+
+**THE NUMBER THAT DECIDES IT.** Flexible-arm windows survived on the adopted stack:
+
+| run | windows | outcome |
+|---|---|---|
+| D-C1 | 8 000 | completed |
+| D-C1 re-probe | 8 000 | completed |
+| N3 attempt 2 | 21 897 | **died** |
+| **total** | **37 897** | **1 death** |
+
+≈ **37 900 windows per death** — a 22x improvement on the unmitigated stack's ~1 730, and
+still **~31 expected deaths per wave** against the gated campaign's 1 166 675 windows.
+**Even at B4's 10-cycle floor (659 750 windows) it is ~17 deaths per wave.** No settled-cycle
+reduction available under B4 rescues this, because the blocker is not campaign length but
+mean time to crash, and there is no checkpoint/restart path in this harness.
+
+**ADR-041 V7 names this outcome in advance**: *"A flexible-arm death on the ADOPTED stack in
+the resubmission is the NO-GO-on-infrastructure conversation, not a quiet third attempt."*
+**Nothing has been resubmitted and nothing will be without the operator.**
+
+**Budget:** this session spent ~15.3 h of ladder, ~1 h of Q1 and ~38.8 h of N3 attempt 2
+(both arms), leaving **roughly 79 h of B0's 134 h**. A third N3 attempt would need ~74 h and
+would very nearly exhaust it — on a stack whose measured failure rate says it would not
+finish.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
