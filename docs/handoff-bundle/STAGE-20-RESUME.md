@@ -469,6 +469,25 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6x. ADR-045 IS DRAFTED AND WAITING ON THE OPERATOR — checkpoint/restart
+
+Handoff §6.73. **`docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md`,
+Status `proposed` (`295d7db`). The commit is the DRAFT, not the acceptance** — acceptance is
+a separate commit flipping the Status line, as with ADR-041 to ADR-044. No code, no
+container, no B0 until then.
+
+Read it before re-deriving anything: the fluid **already** checkpoints every 2000 windows
+with the deformed mesh, its Euler `ddtScheme` is what makes that exact, the adapter says
+`restart` zero times but already assembles the whole window-start state at
+`nonlingeo_precice.c:1685`, CalculiX's native restart fires only at step end and drops
+`accold`, and `plunge.amp` has no `TIME=` so a naive restart replays the plunge from zero
+**without erroring**.
+
+**R6 gates the whole family on §6.72's sanitizer result** — do not start writing C before
+that lands. **R3's control is already bought** (the completed 8000/8000 Z4 re-probe), so the
+transparency test costs one ~3 h probe, not two. **R5 is the one to reread**: a checkpoint
+written just before a heap-corruption death can contain garbage and restart from it silently.
+
 ## 6w. THE SANITIZER HUNT IS RUNNING — and it is pointed at the UNMITIGATED stack on purpose
 
 Handoff §6.72. Everything before this was about SURVIVING the crash; this is the only

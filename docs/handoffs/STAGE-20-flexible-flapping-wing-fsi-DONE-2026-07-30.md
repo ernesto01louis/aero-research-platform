@@ -2884,6 +2884,55 @@ a watch fires on the first `asan-solid.*` report or on the run ending.
 checkpoint work becomes optional. **If it names CalculiX Fortran**, the realistic paths are
 an upstream report and checkpoint/restart.
 
+### 6.73 SESSION 13 — ADR-045 drafted: checkpoint/restart, and what reading the source changed
+
+**PROPOSED, not accepted** (`295d7db`). Nothing is implemented and nothing runs until the
+operator accepts. Five facts were read off disk and source rather than assumed, and three of
+them changed the design:
+
+- **The fluid already checkpoints.** `writeControl timeStep; writeInterval 2000;
+  purgeWrite 2` — and the completed control run's `processor0/0.12` and `0.16` each hold
+  `U p phi Uf cellDisplacement pointDisplacement meshPhi polyMesh uniform/time`, the
+  **deformed** mesh included. Half the mechanism was already in the case by accident of the
+  write settings.
+- **And its restart is state-exact, because of one line.** `ddtSchemes { default Euler; }` —
+  one old time level. Under `backward` the first restarted step would silently drop to first
+  order. That property expires if the numerics are ever re-opened.
+- **The solid checkpoints nothing.** `nonlingeo_precice.c` v2.20.2 contains `restart` **zero**
+  times — but `Precice_WriteIterationCheckpoint` at `:1685` sits exactly where the converged
+  window-start state is assembled in named arrays. **A disk checkpoint is a serialization of
+  a snapshot the adapter already takes.**
+- **CalculiX's own restart is the wrong tool twice.** `restartwrite` fires at STEP end
+  (`ccx_2.20.c:1795`, `jrstrt` counts steps) and this case is one step of `INC=400000`; and
+  `accold` appears **zero** times in `restartwrite.f` and `restartread.f`. A purpose-built
+  dump carries strictly more state (accold + the HHT force history) for far less intrusion —
+  ~15 of `restartwrite`'s arguments are not even in the adapter's scope.
+- **The amplitude trap.** `plunge.amp` declares `*AMPLITUDE, NAME=PLUNGE` with no `TIME=`,
+  so CalculiX indexes it by STEP time. A restarted step beginning at step-time 0 would
+  **replay the plunge from the start** against a window-40 000 displacement field — and would
+  not error, it would produce numbers. `TIME=TOTAL TIME` (`amplitudes.f:72`) plus a restored
+  `ttime` fixes it, moves `config_hash`, and cannot move any number in a non-restarted run.
+
+**R3 pre-registers the transparency test against a control that is already bought**: the
+completed 8000/8000 Z4 re-probe. Treatment = the same submission with one restart at w4000;
+four acceptance clauses fixed before the run, including the one most likely to fail —
+coupling iterations back within ±1 of the control's mean inside 30 windows, which is the only
+bound on the **unrecoverable** loss of IQN-ILS's 15 reused windows.
+
+**R5 is the clause that matters most.** The checkpoints that matter are written shortly
+before a heap-corruption death, and poisoned allocator metadata need not confine itself to
+allocator metadata. A restart from a corrupted checkpoint **resumes from garbage without
+failing**. Guard: validate on read, step back a generation, refuse after two — and prefer
+generation N-1 after a crash.
+
+**R6 makes the family conditional on the sanitizer hunt**, so ~300 lines of C against a
+solver we do not maintain are not written if §6.72 names a line we can patch. And R7 keeps
+the fence honest: a restart is not a configuration change, so `is_campaign_configuration`
+does NOT grow a fourth conjunct — instead `restart_generations > 0` without a passing R3 on
+record derives `gated=False`.
+
+**If R3 fails, nothing here helps and ADR-041 V7's NO-GO stands exactly where it is.**
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
