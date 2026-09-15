@@ -260,13 +260,15 @@ def read_r3_iterations(case_root: Path, *, restart_windows: Sequence[int]) -> Wi
 def read_r3_residuals(case_root: Path, *, restart_windows: Sequence[int]) -> SolidResidualSeries:
     """The ADR-041 detector's input across the rotated ``Solid.log`` segments, on global windows."""
     segments = segment_files(case_root, "Solid", "log", restart_windows=restart_windows)
-    windows: list[SolidResidualWindow] = []
+    by_window: dict[int, SolidResidualWindow] = {}
     for path, offset in zip(segments.paths, segments.offsets, strict=True):
         series = read_solid_residuals(path)
         for w in series.windows:
-            if w.window + offset > (windows[-1].window if windows else 0):
-                windows.append(w.model_copy(update={"window": w.window + offset}))
-    return SolidResidualSeries(path=segments.paths[-1], windows=tuple(windows))
+            # A segment stopped deliberately AFTER its checkpoint carries windows the next
+            # segment recomputes; the later segment wins those, like every other record.
+            by_window[w.window + offset] = w.model_copy(update={"window": w.window + offset})
+    ordered = tuple(by_window[k] for k in sorted(by_window))
+    return SolidResidualSeries(path=segments.paths[-1], windows=ordered)
 
 
 def _q1_pair(control: NDArray[np.float64], treatment: NDArray[np.float64]) -> dict[str, Any]:

@@ -106,6 +106,80 @@ class ObservabilityOptions(BaseModel):
         return self.core_dumps or self.malloc_check
 
 
+class CheckpointOptions(BaseModel):
+    """Hash-exempt checkpoint/restart controls for the SOLID participant (ADR-045 R1/R2/R5).
+
+    Like :class:`ObservabilityOptions`, these live in the launcher's command bytes and never
+    in ``config_hash``: a checkpoint cadence changes what is written to disk, and a restart
+    changes where the step is entered, but neither changes the deck, the numerics, the
+    container or the coupling -- ADR-045 R7 says a restart is not a configuration change.
+    The adapter reads them from the environment (``adapter/AeroCheckpoint.h`` in
+    ``containers/calculix-precice-adr045.patch``).
+    """
+
+    model_config = _STRICT
+
+    every_windows: int = Field(
+        default=0, ge=0, description="Write a checkpoint every N converged windows (0: never)."
+    )
+    at_windows: tuple[int, ...] = Field(
+        default=(), description="Extra window indices to checkpoint at (R3's restart point)."
+    )
+    keep: int = Field(default=2, ge=1, description="Generations kept on disk (R2: two).")
+    restart_file: str | None = Field(
+        default=None,
+        description="Path INSIDE the participant workdir (or /case/...) of the checkpoint to "
+        "re-enter the step from; None for a fresh start.",
+    )
+    restart_window: int | None = Field(default=None, ge=1)
+    max_displacement: float | None = Field(default=None, gt=0.0, description="R5 bound.")
+    energy_min: float | None = Field(default=None, ge=0.0, description="R5 bound, J.")
+    energy_max: float | None = Field(default=None, gt=0.0, description="R5 bound, J.")
+
+    @model_validator(mode="after")
+    def _restart_is_bounded(self) -> CheckpointOptions:
+        if self.restart_file is not None and (
+            self.restart_window is None
+            or self.max_displacement is None
+            or self.energy_min is None
+            or self.energy_max is None
+        ):
+            raise ValueError(
+                "a restart carries its R5 bounds: restart_window, max_displacement, "
+                "energy_min and energy_max are all required with restart_file (ADR-045 R5 -- "
+                "a checkpoint written before a heap-corruption death may be garbage, and the "
+                "guard is what refuses it)"
+            )
+        return self
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.every_windows > 0 or bool(self.at_windows) or self.restart_file is not None
+
+    def exports(self) -> str:
+        """The ``export ...`` line for the Solid's compound command; empty when inert."""
+        pairs: list[tuple[str, str]] = []
+        if self.every_windows > 0:
+            pairs.append(("AERO_CKPT_EVERY", str(self.every_windows)))
+        if self.at_windows:
+            pairs.append(("AERO_CKPT_AT", ",".join(str(w) for w in self.at_windows)))
+        if self.every_windows > 0 or self.at_windows:
+            pairs.append(("AERO_CKPT_KEEP", str(self.keep)))
+        if self.restart_file is not None:
+            pairs.extend(
+                [
+                    ("AERO_RESTART_FILE", self.restart_file),
+                    ("AERO_RESTART_WINDOW", str(self.restart_window)),
+                    ("AERO_RESTART_MAX_DISP", repr(float(self.max_displacement or 0.0))),
+                    ("AERO_RESTART_ENERGY_MIN", repr(float(self.energy_min or 0.0))),
+                    ("AERO_RESTART_ENERGY_MAX", repr(float(self.energy_max or 0.0))),
+                ]
+            )
+        if not pairs:
+            return ""
+        return "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in pairs)
+
+
 class CoupledLaunchPlan(BaseModel):
     """Everything the supervisor script needs, resolved to remote paths."""
 
@@ -131,6 +205,10 @@ class CoupledLaunchPlan(BaseModel):
     observability: ObservabilityOptions = Field(
         default_factory=ObservabilityOptions,
         description="ADR-041 V5 run-time observability; never enters config_hash.",
+    )
+    checkpoint: CheckpointOptions = Field(
+        default_factory=CheckpointOptions,
+        description="ADR-045 checkpoint/restart controls for the Solid; never enters config_hash.",
     )
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
@@ -207,6 +285,7 @@ def build_participant_command(
     case_root_remote: str,
     sif_path: str,
     observability: ObservabilityOptions | None = None,
+    checkpoint: CheckpointOptions | None = None,
 ) -> str:
     """The full ``apptainer exec`` command for one participant. Pure; unit-test-pinned.
 
@@ -255,6 +334,11 @@ def build_participant_command(
             "export ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:intercept_memcmp=0"
             ":print_stacktrace=1:log_path=/case/asan-solid"
         )
+    # ADR-045: the checkpoint cadence and a restart apply to the SOLID only, and go here
+    # for the same reasons as the ASAN_OPTIONS export above -- after the cd, inside the
+    # uid drop, in the command bytes and never in the hashed ParticipantSpec.env.
+    if checkpoint is not None and participant.name == "Solid" and checkpoint.any_enabled:
+        parts.append(checkpoint.exports())
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
@@ -315,6 +399,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
             case_root_remote=plan.case_root_remote,
             sif_path=plan.sif_paths[participant.sif],
             observability=plan.observability,
+            checkpoint=plan.checkpoint,
         )
         log = f"$CASE_ROOT/{participant.name}.log"
         lines += [

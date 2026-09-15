@@ -202,6 +202,25 @@ def test_segments_join_on_global_windows_and_the_later_segment_wins(tmp_path: Pa
     assert (treatment.residuals.first_window, treatment.residuals.last_window) == (1, N)
 
 
+def test_a_segment_stopped_after_its_checkpoint_is_overridden_by_the_next(tmp_path: Path) -> None:
+    """Segment 1 is the full submission killed ~100 windows past the checkpoint (A12): the
+    windows it ran beyond the restart point are recomputed by segment 2, which wins."""
+    control_root, treatment_root = _pair(tmp_path, _control_signals())
+    # rewrite segment 1 to run to R + 100 with a DIFFERENT residual on those extra windows
+    seg1 = treatment_root / "Solid.seg1.log"
+    text = seg1.read_text(encoding="utf-8")
+    extra = "".join(
+        f"---[precice] \x1b[0m it 1 (min: 1, max: 50), time-window {w}, t {w * DT} (max: 0.16), "
+        f"Dt 2e-05, max-dt 2e-05\n largest residual force= 99.000000 in node 1 and dof 2\n"
+        for w in range(R + 1, R + 101)
+    )
+    seg1.write_text(text + extra, encoding="utf-8")
+    control = read_r3_inputs(control_root, dt=DT, restart_windows=[])
+    treatment = read_r3_inputs(treatment_root, dt=DT, restart_windows=[R])
+    assert treatment.residuals.is_contiguous
+    assert treatment.residuals.by_window()[R + 50] == control.residuals.by_window()[R + 50]
+
+
 def test_a_rotation_without_a_recorded_restart_is_refused(tmp_path: Path) -> None:
     _, treatment_root = _pair(tmp_path, _control_signals())
     with pytest.raises(R3Error, match="segment file"):

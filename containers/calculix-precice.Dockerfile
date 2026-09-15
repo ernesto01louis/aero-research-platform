@@ -85,6 +85,14 @@ RUN if [ -n "$SANITIZE" ]; then \
         /usr/local/bin/mpicc --version >/dev/null; \
     fi
 
+# ADR-045 R1/R2/R5 (Stage 20): the checkpoint/restart patch to the adapter -- a purpose-
+# built state dump at the converged window boundary (adapter/AeroCheckpoint.[ch], two
+# hooks in nonlingeo_precice.c, one Makefile line). It touches no CalculiX byte. The
+# patch's sha256 is recorded beside the upstream commit so the provenance names both;
+# `--forward` makes a patch that no longer applies a loud build failure, never a silent
+# skip.
+COPY calculix-precice-adr045.patch /src/calculix-precice-adr045.patch
+
 # gfortran >= 10 rejects the argument-type mismatches in CalculiX's legacy Fortran
 # without -fallow-argument-mismatch.
 RUN git clone https://github.com/precice/calculix-adapter.git /src/calculix-adapter \
@@ -92,6 +100,8 @@ RUN git clone https://github.com/precice/calculix-adapter.git /src/calculix-adap
     && git checkout "${CALCULIX_ADAPTER_REF}" \
     && mkdir -p /opt/aero \
     && git rev-parse HEAD > /opt/aero/calculix-adapter.commit \
+    && patch -p1 --forward < /src/calculix-precice-adr045.patch \
+    && sha256sum /src/calculix-precice-adr045.patch | cut -d' ' -f1 > /opt/aero/calculix-adapter.patch.sha256 \
     && make CCX="/src/CalculiX/ccx_${CALCULIX_VERSION}/src" \
             SPOOLES_INCLUDE="-I/usr/include/spooles" \
             ADDITIONAL_FFLAGS="-fallow-argument-mismatch" \
@@ -105,7 +115,7 @@ ARG PRECICE_VERSION
 
 LABEL org.aero.component   ="calculix-precice"
 LABEL org.aero.stage       ="20"
-LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.2"
+LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.2 + ADR-045 checkpoint/restart patch"
 LABEL org.aero.maintainer  ="aero-research-platform"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -121,6 +131,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=build /opt/calculix /opt/calculix
 COPY --from=build /opt/aero/calculix-adapter.commit /opt/aero/calculix-adapter.commit
+COPY --from=build /opt/aero/calculix-adapter.patch.sha256 /opt/aero/calculix-adapter.patch.sha256
 
 ENV PATH=/opt/calculix/bin:$PATH
 ENV OMP_NUM_THREADS=1

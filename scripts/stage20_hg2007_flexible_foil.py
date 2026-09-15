@@ -78,7 +78,9 @@ from aero.adapters.precice.case import (  # noqa: E402
     assert_provenance_describes,
     spec_config_digest,
 )
+from aero.adapters.precice.config import rewrite_max_time  # noqa: E402
 from aero.adapters.precice.launcher import (  # noqa: E402
+    CheckpointOptions,
     CoupledLaunchError,
     ObservabilityOptions,
     read_coupled_status,
@@ -929,7 +931,14 @@ def _prepare_and_submit(
         malloc_check=adr041_rung is not None and not getattr(args, "asan", False),
         asan=getattr(args, "asan", False),
     )
-    plan = plan.model_copy(update={"observability": observability})
+    # ADR-045 R2: every coupled run this driver submits checkpoints its solid on the
+    # pre-registered cadence (2000 windows, two generations) -- hash-exempt, like the
+    # observability, and recorded in the submission as a fact about the run.
+    checkpoint = CheckpointOptions(
+        every_windows=int(getattr(args, "ckpt_every", CKPT_EVERY_WINDOWS)),
+        at_windows=_ckpt_at(getattr(args, "ckpt_at", None)),
+    )
+    plan = plan.model_copy(update={"observability": observability, "checkpoint": checkpoint})
     staged = stage_coupled(
         plan,
         run_id=case_dir.run_id,
@@ -951,6 +960,7 @@ def _prepare_and_submit(
         # ADR-041 V5: which observability was active is a FACT about the run, recorded
         # here, not a discipline a later reader has to take on trust.
         "observability": json.loads(observability.model_dump_json()),
+        "checkpoint": json.loads(checkpoint.model_dump_json()),
         "adr041_rung": adr041_rung,
         "note": ADR041_PROBE_NOTE if adr041_rung is not None else None,
         "label": label,
@@ -998,6 +1008,42 @@ def _prepare_and_submit(
     return out
 
 
+#: ADR-045 R2's checkpoint cadence, in coupling windows (matches the fluid's writeInterval).
+CKPT_EVERY_WINDOWS = 2000
+
+
+def _ckpt_at(raw: str | None) -> tuple[int, ...]:
+    if not raw:
+        return ()
+    return tuple(int(v) for v in str(raw).split(",") if v.strip())
+
+
+def _assert_restart_admissible(submission: dict[str, Any]) -> None:
+    """ADR-045 R7 as accepted (amendment A4): a restarted GATED solve is admissible only
+    with a passing R3 on record.
+
+    The refusal sits here, at the boundary where the record is read back, because the
+    spec-side ``gated`` derivation cannot see a value that must stay out of ``spec_knobs``.
+    One-way, like the L5 fence: it can only refuse. A non-gated restart (the R3 treatment
+    itself) passes through, as it must.
+    """
+    generations = int(submission.get("restart_generations", 0) or 0)
+    if generations <= 0 or not submission.get("gated"):
+        return
+    record = _REPO_ROOT / "data" / "vv" / R3_RECORD_NAME
+    if not record.is_file():
+        raise SystemExit(
+            f"{submission['run_id']} carries {generations} restart(s) and claims gated=True, "
+            f"but no R3 record exists at {record}: ADR-045 R7 refuses the gated verdict"
+        )
+    r3 = json.loads(record.read_text(encoding="utf-8"))
+    if not r3.get("passed"):
+        raise SystemExit(
+            f"{submission['run_id']} carries {generations} restart(s) and claims gated=True, "
+            f"but {record} did not pass: ADR-045 R7 refuses the gated verdict"
+        )
+
+
 def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any, Any, Any]:
     """Gate on {done, failed}, recover rc, rebuild the spec, and reattach."""
     session = submission["session"]
@@ -1032,6 +1078,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
             "campaign (sentinel fill, rung edit, or default drift); the record no longer "
             "describes the run and collecting would silently mix configurations"
         )
+    _assert_restart_admissible(submission)
     solver = _solver(args)
     case_dir = CaseDir(
         run_id=submission["run_id"],
@@ -1807,6 +1854,272 @@ def _score_r3(args: argparse.Namespace) -> int:
         f"iterations {score['d']['control_mean_iterations']:.2f})"
     )
     print(f"  wrote {out}")
+    return 0
+
+
+#: The fluid checkpoint a restart needs, per processor directory (ADR-045 F1, measured on
+#: the control run: the full dumps carry these; the per-step stubs carry only force/moment).
+_FLUID_RESTART_FILES = (
+    "U",
+    "p",
+    "phi",
+    "pointDisplacement",
+    "cellDisplacement",
+    "polyMesh/points",
+    "uniform/time",
+)
+#: R5: the displacement bound is this multiple of the largest prescribed plunge so far.
+RESTART_DISPLACEMENT_FACTOR = 3.0
+#: R5: the energy band is this factor either way of the reference run's E_int + E_kin at
+#: the same window (amendment A5).
+RESTART_ENERGY_FACTOR = 10.0
+_ENERGY_RE = re.compile(r"^\s*(internal|kinetic) energy\s*=\s*(\S+)")
+#: Everything a relaunch would otherwise truncate or overwrite (amendment A8).
+_ROTATE_ROOT = ("Fluid.log", "Solid.log", "coupled-status.json", "run-coupled.sh")
+
+
+def _energy_at_window(solid_log: Path, window: int) -> float:
+    """E_int + E_kin CalculiX printed for `window` (one block per converged window)."""
+    internal: list[float] = []
+    kinetic: list[float] = []
+    with solid_log.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            found = _ENERGY_RE.match(line)
+            if found is None:
+                continue
+            (internal if found.group(1) == "internal" else kinetic).append(float(found.group(2)))
+            if len(internal) >= window and len(kinetic) >= window:
+                break
+    if len(internal) < window or len(kinetic) < window:
+        raise SystemExit(
+            f"{solid_log}: only {min(len(internal), len(kinetic))} energy blocks, window "
+            f"{window} needs at least that many -- the reference does not reach the restart"
+        )
+    return internal[window - 1] + kinetic[window - 1]
+
+
+def _plunge_bound(plunge_amp: Path, window: int) -> float:
+    """R5's |displacement| bound: RESTART_DISPLACEMENT_FACTOR x the largest prescribed
+    plunge up to `window` (row N of plunge.amp IS the plunge at window N)."""
+    rows = [
+        line
+        for line in plunge_amp.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("*")
+    ]
+    values = [abs(float(line.split(",")[1])) for line in rows[: window + 1]]
+    if len(values) < window + 1:
+        raise SystemExit(f"{plunge_amp}: {len(values)} rows, window {window} needs {window + 1}")
+    return RESTART_DISPLACEMENT_FACTOR * max(values)
+
+
+def _rotate(path: Path, n: int) -> Path | None:
+    """``name.ext`` -> ``name.seg<n>.ext`` (``dir`` -> ``dir.seg<n>``); None if absent."""
+    if not path.exists():
+        return None
+    target = (
+        path.with_name(f"{path.stem}.seg{n}{path.suffix}")
+        if path.is_file()
+        else path.with_name(f"{path.name}.seg{n}")
+    )
+    if target.exists():
+        raise SystemExit(f"{target} already exists -- a previous rotation was not recorded")
+    path.rename(target)
+    return target
+
+
+def _restart(args: argparse.Namespace) -> int:
+    """ADR-045 R1/R2/R5/R7 (amendments A7, A8, A12-A15): relaunch a coupled run INTO its
+    own case root from a checkpointed window boundary.
+
+    Never through ``_prepare_and_submit`` (it allocates a fresh run id and ``decomposePar
+    -force`` deletes the fluid's checkpoints). Nothing rendered from the spec changes, so
+    the digest does not move: the solid re-enters the SAME step at theta = t_r / tper
+    (A7 revised -- no reduced period, no new step), the fluid starts from its own dump at
+    the checkpoint time (explicit ``startTime``, never ``latestTime``: the force objects
+    leave a field-less stub directory at every step), and preCICE, which has no restart
+    and starts at zero, gets the REMAINING time through the one sanctioned mutation.
+    """
+    path = Path(args.restart)
+    submission = _submission(path)
+    window = int(args.restart_window)
+    status = _run_long("status", f"root@{submission['host']}", submission["session"])
+    state = (status.stdout.strip() or status.stderr.strip()).split(":")[-1].strip()
+    if status.returncode == 2:
+        raise SystemExit(f"{submission['session']} is still running ({state}); stop it first")
+    if status.returncode not in (0, 1):
+        raise SystemExit(
+            f"{submission['session']} is {state!r} (run_long rc={status.returncode}); a job "
+            "with no exit record is not one to relaunch into blind"
+        )
+    knobs = submission["spec_knobs"]
+    dt = float(knobs["time_window_size"])
+    max_time = float(knobs["max_time"])
+    requested = round(max_time / dt)
+    if not 0 < window < requested:
+        raise SystemExit(f"restart window {window} is not inside (0, {requested})")
+    case_host = Path(submission["case_host_path"])
+    case_root = case_host / CASE_ROOT_DIRNAME
+    exchange = next(case_root.glob("hg2007-*-foil"))
+    solid_dir = exchange / "solid-calculix"
+    fluid_dir = exchange / "fluid-openfoam"
+
+    # --- what the restart resumes from, verified on disk ------------------------------
+    checkpoint = solid_dir / f"aero-checkpoint-w{window}.bin"
+    if not checkpoint.is_file():
+        raise SystemExit(f"{checkpoint}: no solid checkpoint for window {window}")
+    t_name = f"{window * dt:.12g}"
+    processors = sorted(fluid_dir.glob("processor*"))
+    if not processors:
+        raise SystemExit(f"{fluid_dir}: no processor directories -- was this run decomposed?")
+    for proc in processors:
+        missing = [f for f in _FLUID_RESTART_FILES if not (proc / t_name / f).exists()]
+        if missing:
+            raise SystemExit(
+                f"{proc / t_name}: not a restartable fluid dump (missing {missing}); purgeWrite "
+                "may have retired it -- restart from a generation that is still on disk"
+            )
+
+    # --- R5 bounds from the reference run at the same window ----------------------------
+    reference = _submission(Path(args.restart_reference))
+    ref_root = Path(reference["case_host_path"]) / CASE_ROOT_DIRNAME
+    ref_exchange = next(ref_root.glob("hg2007-*-foil"))
+    ref_energy = _energy_at_window(solid_log_path(ref_root), window)
+    bounds = {
+        "reference_run_id": reference["run_id"],
+        "reference_energy_j": ref_energy,
+        "energy_min": ref_energy / RESTART_ENERGY_FACTOR,
+        "energy_max": ref_energy * RESTART_ENERGY_FACTOR,
+        "max_displacement": _plunge_bound(ref_exchange / "solid-calculix" / "plunge.amp", window),
+    }
+
+    # --- rotate what a relaunch would truncate or overwrite (A8) -----------------------
+    n = 1 + len(list(case_root.glob("Solid.seg*.log")))
+    rotated: list[str] = []
+    for name in _ROTATE_ROOT:
+        moved = _rotate(case_root / name, n)
+        if moved is not None:
+            rotated.append(str(moved.relative_to(case_root)))
+    for participant_dir in (solid_dir, fluid_dir):
+        for log in sorted(participant_dir.glob("precice-*.log")):
+            moved = _rotate(log, n)
+            if moved is not None:
+                rotated.append(str(moved.relative_to(case_root)))
+        moved = _rotate(participant_dir / "precice-profiling", n)
+        if moved is not None:
+            rotated.append(str(moved.relative_to(case_root)))
+    for ccx_out in sorted(solid_dir.glob("hg2007-*-solid.*")):
+        if ccx_out.suffix in {".sta", ".cvg", ".dat", ".frd", ".12d"}:
+            moved = _rotate(ccx_out, n)
+            if moved is not None:
+                rotated.append(str(moved.relative_to(case_root)))
+
+    # --- the fluid clock: explicit startTime at the dump (A13) -------------------------
+    control_dict = fluid_dir / "system" / "controlDict"
+    before = control_dict.read_text(encoding="utf-8")
+    after, count = re.subn(
+        r"^startTime\s+\S+;", f"startTime       {t_name};", before, count=1, flags=re.M
+    )
+    if count != 1:
+        raise SystemExit(f"{control_dict}: no startTime line to patch")
+    control_dict.write_text(after, encoding="utf-8")
+    mutations = [
+        {
+            "kind": "fluid-startTime",
+            "path": str(control_dict.relative_to(case_root)),
+            "detail": f"startTime {t_name} (window {window}) for restart segment {n + 1}",
+            "before_sha256": hashlib.sha256(before.encode()).hexdigest(),
+            "after_sha256": hashlib.sha256(after.encode()).hexdigest(),
+        }
+    ]
+    # --- the preCICE clock: the REMAINING time, through the sanctioned mutation (A7) ---
+    config = exchange / "precice-config.xml"
+    before = config.read_bytes()
+    remaining = float(f"{max_time - window * dt:.13e}")
+    rewrite_max_time(config, config, max_time=remaining)
+    mutations.append(
+        {
+            "kind": "max-time",
+            "path": str(config.relative_to(case_root)),
+            "detail": f"<max-time> {remaining!r} s = the remaining coupled time after window "
+            f"{window}; preCICE has no restart and starts at zero (ADR-045 A7)",
+            "before_sha256": hashlib.sha256(before).hexdigest(),
+            "after_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
+        }
+    )
+
+    # --- the solid: the same deck, re-entered at theta = t_r / tper (A7 revised) ---------
+    solver = _solver(args)
+    spec_knobs = dict(knobs)
+    spec_knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
+    spec_knobs.setdefault("hht_alpha", LEGACY_HHT_ALPHA)
+    spec_knobs.setdefault("solid_sif", SOLID_SIF_OF_RECORD)
+    spec = hg2007_case_spec(**spec_knobs)
+    if spec_config_digest(spec) != submission["spec_sha256"]:
+        raise SystemExit(
+            "the code moved under this run: the spec rebuilt from the record no longer "
+            "digests to the one that ran -- a restart must re-enter the SAME configuration"
+        )
+    case_dir = CaseDir(
+        run_id=submission["run_id"],
+        spec=spec,
+        host_path=case_host,
+        remote_path=Path(submission["case_remote_path"]),
+    )
+    plan = solver.launch_plan(case_dir)
+    observability = ObservabilityOptions.model_validate(submission.get("observability") or {})
+    checkpoint_options = CheckpointOptions(
+        every_windows=int(getattr(args, "ckpt_every", CKPT_EVERY_WINDOWS)),
+        at_windows=_ckpt_at(getattr(args, "ckpt_at", None)),
+        restart_file=checkpoint.name,
+        restart_window=window,
+        max_displacement=bounds["max_displacement"],
+        energy_min=bounds["energy_min"],
+        energy_max=bounds["energy_max"],
+    )
+    plan = plan.model_copy(
+        update={"observability": observability, "checkpoint": checkpoint_options}
+    )
+    segment_run_id = f"{submission['run_id']}-seg{n + 1}"
+    staged = stage_coupled(plan, run_id=segment_run_id, case_root_host=case_root)
+    executor = _executor(args, timeout_s=int(knobs["wall_clock_ceiling_s"]))
+    submit = executor.submit_detached(staged.command, session=staged.session)
+    if submit.transport_failed or submit.returncode != 0:
+        raise SystemExit(f"submit failed: {submit.stderr}")
+
+    previous_windows = [int(w) for w in submission.get("restart_windows", [])]
+    record = dict(submission)
+    record.update(
+        {
+            "restart_generations": len(previous_windows) + 1,
+            "restart_windows": [*previous_windows, window],
+            "restart": {
+                "segment": n + 1,
+                "from_window": window,
+                "checkpoint_file": str(checkpoint.relative_to(case_root)),
+                "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                "fluid_time_dir": t_name,
+                "bounds": bounds,
+                "rotated": rotated,
+                "mutations": mutations,
+                "parent_submission": str(path),
+                "note": "ADR-045 R7: a restarted solve is not one continuous integration and "
+                "never silently claims to be; the segments join on global windows (A9)",
+            },
+            "checkpoint": json.loads(checkpoint_options.model_dump_json()),
+            "session": staged.session,
+            "submitted_at": _utc_now(),
+            "poll": {
+                "status": f"scripts/run_long.sh status root@{submission['host']} {staged.session}",
+                "logs": f"scripts/run_long.sh logs root@{submission['host']} {staged.session}",
+            },
+        }
+    )
+    out = Path(args.out or (case_host / f"restart-seg{n + 1}-submission.json"))
+    out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"restarted DETACHED as {staged.session} from window {window} (segment {n + 1})")
+    print(f"  rotated {len(rotated)} file(s); bounds {bounds}")
+    print(f"  submission JSON: {out}")
+    print(f"  poll: {record['poll']['status']}")
     return 0
 
 
@@ -2732,6 +3045,37 @@ def main(argv: list[str] | None = None) -> int:
         help="the window R3's clauses are evaluated after when the treatment record carries "
         "no restart (a control-vs-control calibration); the real treatment's own record wins",
     )
+    parser.add_argument(
+        "--restart",
+        type=Path,
+        metavar="SUBMISSION",
+        help="ADR-045: relaunch a finished coupled run INTO its own case root from the solid "
+        "checkpoint and fluid dump at --restart-window (rotates the logs, patches the fluid "
+        "startTime and the preCICE remaining time, re-enters the same solid step)",
+    )
+    parser.add_argument(
+        "--restart-reference",
+        type=Path,
+        default=Path("/mnt/aero-nfs/runs")
+        / R3_CONTROL_RUN_ID
+        / "ladder-DC1-reprobe-submission.json",
+        dest="restart_reference",
+        help="the completed run whose energy and prescribed plunge at the restart window fix "
+        "the R5 bounds (default: R3's control)",
+    )
+    parser.add_argument(
+        "--ckpt-every",
+        type=int,
+        default=CKPT_EVERY_WINDOWS,
+        dest="ckpt_every",
+        help="ADR-045 R2: solid checkpoint cadence in windows for every submission (0: none)",
+    )
+    parser.add_argument(
+        "--ckpt-at",
+        default=None,
+        dest="ckpt_at",
+        help="ADR-045: extra comma-separated windows to checkpoint at (R3's restart point)",
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
@@ -2878,6 +3222,8 @@ def main(argv: list[str] | None = None) -> int:
         return _asan_evaluate(args)
     if args.score_r3:
         return _score_r3(args)
+    if args.restart:
+        return _restart(args)
     if args.status:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
@@ -2897,7 +3243,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
         "--record-q1 / --project-n3 / --size-040 / --adr041-evaluate / --asan-evaluate / "
-        "--score-r3 / "
+        "--score-r3 / --restart / "
         "--submit / --submit-040 / "
         "--status / --collect / --verdict"
     )
