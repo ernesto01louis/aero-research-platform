@@ -42,6 +42,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -58,12 +59,31 @@ from aero.adapters.openfoam.solver_log import (  # noqa: E402
     read_courant_history,
     read_fluid_cost_history,
 )
+from aero.adapters.precice.asan import (  # noqa: E402
+    ADAPTER_SOURCE_BASENAMES,
+    ADAPTER_SOURCE_PREFIX,
+    CALCULIX_ALLOCATOR_WRAPPERS,
+    CALCULIX_SOURCE_PREFIX,
+    HEAP_KINDS,
+    KNOWN_BENIGN_ACCESS,
+    KNOWN_BENIGN_KIND,
+    KNOWN_BENIGN_SITE_BASENAME,
+    KNOWN_BENIGN_SITE_LINE,
+    RUNTIME_PATH_MARKERS,
+    find_asan_reports,
+    read_asan_reports,
+)
 from aero.adapters.precice.case import (  # noqa: E402
     CASE_ROOT_DIRNAME,
     assert_provenance_describes,
     spec_config_digest,
 )
-from aero.adapters.precice.launcher import ObservabilityOptions, stage_coupled  # noqa: E402
+from aero.adapters.precice.launcher import (  # noqa: E402
+    CoupledLaunchError,
+    ObservabilityOptions,
+    read_coupled_status,
+    stage_coupled,
+)
 from aero.adapters.precice.logs import (  # noqa: E402
     ACTIVATION_FLOOR_N,
     BLOCK_GROWTH_LIMIT,
@@ -73,6 +93,7 @@ from aero.adapters.precice.logs import (  # noqa: E402
     MIN_ACTIVE_FRACTION,
     PARITY_CONSECUTIVE_CHUNKS,
     PARITY_RATIO_LIMIT,
+    CouplingConvergenceError,
     SolidLogError,
     evaluate_divergence,
     find_iterations_logs,
@@ -110,6 +131,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     RUNGS,
     SOLID_SIF_OF_RECORD,
     adr041_rung_verdict,
+    asan_hunt_verdict,
     evaluate_predicates,
     hg2007_case_spec,
     is_gated_configuration,
@@ -715,6 +737,17 @@ CONTINGENCIES - MECHANISM (allowed, declared in advance) vs GATE (forbidden); it
 
 def _utc_now() -> str:
     return datetime.now(tz=UTC).isoformat(timespec="seconds")
+
+
+def _git_head() -> str:
+    """The commit the evaluator ran from, so a record names the rule that produced it."""
+    result = subprocess.run(
+        ["git", "-C", str(_REPO_ROOT), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
 def _write_bundle(record: dict[str, Any], out: Path) -> None:
@@ -1397,6 +1430,233 @@ def _adr041_evaluate(args: argparse.Namespace) -> int:
     print(f"  why: {why}")
     print(f"  wrote {tsv}")
     print(f"  wrote {verdict_path}")
+    return 0
+
+
+def _asan_evaluate(args: argparse.Namespace) -> int:
+    """Read a finished sanitizer hunt against ADR-045 R6 and write the reading beside the run.
+
+    The reading is DERIVED, never typed in: every report in ``<run>/tutorial/asan-solid.*``
+    is parsed, every frame is classified by who owns its source path, and
+    ``asan_hunt_verdict`` maps that plus the run's own outcome onto R6's closed vocabulary.
+    What lands on NFS is every report with every frame and its owner, the pinned
+    classification rules, the supervisor's record, the ADR-041 detector's reading of the
+    same run (was the divergence signature present when it died?), and the verdict -- so a
+    later reader can re-derive the decision without this driver. The pre-registered
+    exclusion rides in code: the keystart.f:71 READ is flagged and ignored, never chased.
+    """
+    path = Path(args.asan_evaluate)
+    submission = _submission(path)
+    observability = submission.get("observability") or {}
+    if not observability.get("asan"):
+        raise SystemExit(
+            f"{path} did not run with --asan (observability.asan is not true). A sanitizer "
+            "reading of a run whose solid was not instrumented would record silence as "
+            "evidence."
+        )
+    knobs = submission["spec_knobs"]
+    solid_sif = knobs.get("solid_sif", SOLID_SIF_OF_RECORD)
+    if solid_sif == SOLID_SIF_OF_RECORD:
+        raise SystemExit(
+            f"{path} ran the solid on {solid_sif!r}, the campaign container, which is not "
+            "built with a sanitizer: --asan only exports ASAN_OPTIONS. Silence from an "
+            "uninstrumented binary is not a reading."
+        )
+    run_id = submission["run_id"]
+    case_host = Path(submission["case_host_path"])
+    case_root = case_host / CASE_ROOT_DIRNAME
+    status = _run_long("status", f"root@{submission['host']}", submission["session"])
+    state = (status.stdout.strip() or status.stderr.strip()).split(":")[-1].strip()
+    if status.returncode == 2:
+        raise SystemExit(
+            f"{submission['session']} is still running ({state}); R6 reads a FINISHED hunt, "
+            "and a reading taken early would call an unfinished hunt clean."
+        )
+    if status.returncode not in (0, 1):
+        raise SystemExit(
+            f"{submission['session']} is {state!r} (run_long rc={status.returncode}): no "
+            "sentinel and no exit code, so the supervisor's record cannot be trusted to "
+            "describe how the run ended. No automatic reading -- inspect the job directory "
+            "and the case by hand."
+        )
+
+    try:
+        coupled = read_coupled_status(
+            case_root / "coupled-status.json",
+            case_root_host=case_root,
+            executor_returncode=status.returncode,
+        )
+        solid_outcome = coupled.outcome("Solid")
+    except CoupledLaunchError as exc:
+        raise SystemExit(
+            f"{submission['session']}: {exc} No automatic reading -- a killed job or a "
+            "supervisor that never wrote its record leaves nothing the reader may trust; "
+            "inspect the job directory and the case by hand."
+        ) from exc
+    report_paths = find_asan_reports(case_root)
+    reports = tuple(report for p in report_paths for report in read_asan_reports(p))
+    requested = round(
+        submission["spec_knobs"]["max_time"] / submission["spec_knobs"]["time_window_size"]
+    )
+    # The first hunt attempt died at 32 s, before any coupling window: a Solid.log with no
+    # window marker is a legitimate shape for THIS reader (it is not for a rung verdict).
+    solid_log_parse_error: str | None = None
+    divergence = None
+    try:
+        series = read_solid_residuals(solid_log_path(case_root))
+    except SolidLogError as exc:
+        solid_log_parse_error = str(exc)
+        reached = 0
+    else:
+        divergence = evaluate_divergence(series)
+        reached = series.last_window
+    # The window the solid was IN when it stopped (from Solid.log) and the windows the
+    # coupling actually COMPLETED (from preCICE's iterations log) differ by one on a death.
+    windows_completed: int | None = None
+    try:
+        exchange = next(case_root.glob("hg2007-*-foil"))
+        iterations = read_iterations_log(
+            find_iterations_logs(exchange)["Solid"],
+            participant="Solid",
+            max_iterations_configured=50,
+        )
+        windows_completed = iterations.n_windows
+    except (StopIteration, KeyError, OSError, CouplingConvergenceError):
+        windows_completed = None
+    # CalculiX announces its own stops (`*ERROR: solution seems to diverge ...`); the
+    # tail's *ERROR lines are quoted so a numerical death is named, not left to a reader.
+    solid_error_lines = [
+        line.strip()
+        for line in solid_outcome.log_tail.splitlines()
+        if line.strip().startswith("*ERROR")
+    ]
+    # The ASAN_OPTIONS that actually ran, from the staged supervisor's bytes: which
+    # interceptors were on decides whether silence had an in-process positive control
+    # (intercept_memcmp=0 suppresses the keystart.f:71 READ that proves reporting is live).
+    asan_options: str | None = None
+    supervisor = case_root / "run-coupled.sh"
+    if supervisor.is_file():
+        found = re.search(
+            r"ASAN_OPTIONS=(\S+)", supervisor.read_text(encoding="utf-8", errors="replace")
+        )
+        asan_options = found.group(1) if found else None
+    completed = coupled.ok and reached >= requested
+    verdict, why = asan_hunt_verdict(
+        reports,
+        completed=completed,
+        stopped_by=coupled.stopped_by,
+        solid_error_lines=solid_error_lines,
+        n_report_files=len(report_paths),
+    )
+    n_benign = sum(1 for r in reports if r.known_benign)
+    # Which of the campaign fence's conjuncts this run was off, COMPUTED from its knobs
+    # rather than asserted: the first hunt attempt ran alpha of record with only the
+    # container moved, and a literal note would have called it off on both.
+    off_record = {
+        "hht_alpha": float(knobs.get("hht_alpha", LEGACY_HHT_ALPHA)) != ALPHA_OF_RECORD,
+        "solid_sif": solid_sif != SOLID_SIF_OF_RECORD,
+    }
+    off_names = ", ".join(k for k, v in off_record.items() if v) or "nothing"
+    out = case_host / "asan-hunt-verdict.json"
+    prior: dict[str, Any] | None = None
+    if out.is_file():
+        prior = json.loads(out.read_text(encoding="utf-8"))
+
+    record = {
+        "adr": "ADR-045",
+        "clause": "R6",
+        "note": "diagnostic sanitizer hunt; sizes nothing",
+        "off_campaign_configuration": off_record,
+        "run_id": run_id,
+        "session": submission["session"],
+        "run_state": state,
+        "run_returncode": status.returncode,
+        "stopped_by": coupled.stopped_by,
+        "wall_clock_s": coupled.wall_clock_s,
+        "participants": [
+            {"name": o.name, "returncode": o.returncode, "state": o.state} for o in coupled.outcomes
+        ],
+        "solid_log_tail": solid_outcome.log_tail,
+        "solid_error_lines": solid_error_lines,
+        "asan_options": asan_options,
+        "windows_requested": requested,
+        "windows_reached": reached,
+        "windows_completed_by_coupling": windows_completed,
+        "completed": completed,
+        "report_files": [str(p) for p in report_paths],
+        "reports": [
+            {
+                **json.loads(r.model_dump_json()),
+                "known_benign": r.known_benign,
+                "heap_relevant": r.heap_relevant,
+                "sites": [s.site_text for s in r.sites],
+                "one_line": r.one_line(),
+            }
+            for r in reports
+        ],
+        "known_benign_ignored": n_benign,
+        "verdict": verdict,
+        "why": why,
+        "classification": {
+            "adapter_source_prefix": ADAPTER_SOURCE_PREFIX,
+            "calculix_source_prefix": CALCULIX_SOURCE_PREFIX,
+            "calculix_allocator_wrappers_are_runtime": sorted(CALCULIX_ALLOCATOR_WRAPPERS),
+            "adapter_basename_fallback": sorted(ADAPTER_SOURCE_BASENAMES),
+            "runtime_path_markers": list(RUNTIME_PATH_MARKERS),
+            "heap_relevant": {
+                "kinds": sorted(HEAP_KINDS),
+                "or_access": "WRITE",
+            },
+            "known_benign": {
+                "kind": KNOWN_BENIGN_KIND,
+                "access": KNOWN_BENIGN_ACCESS,
+                "site": f"{KNOWN_BENIGN_SITE_BASENAME}:{KNOWN_BENIGN_SITE_LINE}",
+            },
+        },
+        "divergence": None if divergence is None else json.loads(divergence.model_dump_json()),
+        "solid_log_parse_error": solid_log_parse_error,
+        "solid_sif": solid_sif,
+        "spec_knobs": knobs,
+        "observability": observability,
+        "evaluator_git_sha": _git_head(),
+        "evaluated_at": _utc_now(),
+        "first_evaluated_at": (prior or {}).get("first_evaluated_at")
+        or (prior or {}).get("evaluated_at")
+        or _utc_now(),
+    }
+    if prior is not None:
+        print(
+            f"NOTE: a prior reading from {prior.get('evaluated_at')} is being replaced "
+            f"(it read {str(prior.get('verdict', '?')).upper()})"
+        )
+    out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    print(f"ADR-045 R6 reading of {run_id}: {verdict.upper()}")
+    print(
+        f"  run {state} (rc={status.returncode}), stopped_by={coupled.stopped_by}, windows "
+        f"{reached}/{requested}, completed={completed}, wall clock {coupled.wall_clock_s:.0f} s"
+    )
+    print(
+        f"  solid {solid_outcome.state} rc={solid_outcome.returncode} on {solid_sif}; off the "
+        f"campaign configuration in: {off_names}"
+    )
+    print(
+        f"  {len(report_paths)} report file(s), {len(reports)} report(s), "
+        f"{n_benign} known-benign ignored"
+    )
+    for r in reports:
+        print(f"    {'BENIGN  ' if r.known_benign else 'REPORT  '}{r.one_line()}")
+    if solid_error_lines:
+        print(f"  Solid.log's own error lines: {' / '.join(solid_error_lines)}")
+    print(f"  ASAN_OPTIONS as staged: {asan_options}")
+    if divergence is None:
+        print(
+            f"  ADR-041 detector on the same run: no window to evaluate ({solid_log_parse_error})"
+        )
+    else:
+        print(f"  ADR-041 detector on the same run: {divergence.one_line()}")
+    print(f"  why: {why}")
+    print(f"  wrote {out}")
     return 0
 
 
@@ -2288,6 +2548,15 @@ def main(argv: list[str] | None = None) -> int:
         help="evaluate a finished ADR-041 ladder rung under V2 and write its verdict, "
         "its per-window series and the bounds that produced them beside the run",
     )
+    parser.add_argument(
+        "--asan-evaluate",
+        type=Path,
+        dest="asan_evaluate",
+        metavar="ASAN_SUBMISSION",
+        help="read a finished --asan hunt against ADR-045 R6: parse every asan-solid.* "
+        "report, classify each frame by who owns its source line, ignore the known-benign "
+        "keystart.f:71 READ, and write the derived reading beside the run",
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
@@ -2430,6 +2699,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.adr041_evaluate:
         return _adr041_evaluate(args)
+    if args.asan_evaluate:
+        return _asan_evaluate(args)
     if args.status:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
@@ -2448,7 +2719,8 @@ def main(argv: list[str] | None = None) -> int:
         return _verdict(args)
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
-        "--record-q1 / --project-n3 / --adr041-evaluate / --submit / --submit-040 / "
+        "--record-q1 / --project-n3 / --size-040 / --adr041-evaluate / --asan-evaluate / "
+        "--submit / --submit-040 / "
         "--status / --collect / --verdict"
     )
 

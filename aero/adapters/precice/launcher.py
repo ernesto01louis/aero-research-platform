@@ -444,6 +444,10 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
     return "\n".join(lines)
 
 
+#: Linux signals are 1..64; a shell reports a signal death as 128 + signum.
+_MAX_SIGNAL = 64
+
+
 def _tail(path: Path, *, lines: int = 40) -> str:
     if not path.is_file():
         return ""
@@ -473,11 +477,16 @@ def read_coupled_status(
         # Keeping that distinct from a nonzero exit is what identifies which participant
         # actually died first: in a `participant-died` teardown the culprit carries its
         # own status (e.g. 1) while its peer carries 143.
+        # A signal death is 128 + signum and Linux has 64 signals, so 129..192 is the
+        # only range a shell reports for one. CalculiX's own error exit is 201
+        # (`stop.f: call exit(201)`, printed as `*ERROR: solution seems to diverge`), and
+        # reading that as "killed" named the wrong culprit on a real record: the peer's
+        # 143 looked like the death and the solver's own stop looked like the teardown.
         if rc is None:
             state: str = "running"
         elif rc == 0:
             state = "exited-ok"
-        elif rc >= 128:
+        elif 128 < rc <= 128 + _MAX_SIGNAL:
             state = "killed"
         else:
             state = "exited-fail"

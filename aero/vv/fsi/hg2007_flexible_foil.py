@@ -36,6 +36,7 @@ caption reading "thrust coefficient".
 from __future__ import annotations
 
 import csv
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -45,6 +46,7 @@ from aero.adapters.openfoam._foam_common import FluidNumericsSpec
 from aero.adapters.openfoam.flexible_foil import FlexibleFoilSpec
 from aero.adapters.openfoam.geometry import hg2007_coordinates
 from aero.adapters.openfoam.schemas import TeardropPlateSection
+from aero.adapters.precice.asan import ADAPTER_UPSTREAM_DERIVED_BASENAMES, AsanReport
 from aero.adapters.precice.calculix import CalculiXMaterial, CalculiXSolidSpec
 from aero.adapters.precice.case import (
     AuthoredSource,
@@ -347,6 +349,153 @@ def adr041_rung_verdict(
             "not until w72261, at full amplitude"
         )
     return "inconclusive", report.reason
+
+
+#: ADR-045 R6's closed vocabulary for reading the sanitizer hunt. Closed for the same
+#: reason ADR-041 V1's is: every outcome the hunt can have maps to exactly one term, and
+#: "we will decide when we see it" is unreachable. The two ``no-report-*`` terms exist so
+#: that silence is recorded as silence -- R6 says in as many words that no report is NOT
+#: exoneration, because ASan's allocator changes the heap layout enough to hide a bug
+#: glibc's allocator trips over.
+AsanHuntVerdict = Literal[
+    "adapter-line",
+    "calculix-line",
+    "no-report-completed",
+    "no-report-died",
+    "unclassified",
+]
+
+
+def asan_hunt_verdict(
+    reports: Sequence[AsanReport],
+    *,
+    completed: bool,
+    stopped_by: str,
+    solid_error_lines: Sequence[str] = (),
+    n_report_files: int | None = None,
+) -> tuple[AsanHuntVerdict, str]:
+    """Map the hunt's ASan reports plus the run's outcome onto ADR-045 R6's vocabulary.
+
+    ``completed`` is the run's own outcome: every requested window finished and every
+    participant exited zero. ``stopped_by`` is the supervisor's word for why it ended.
+    ``solid_error_lines`` are CalculiX's own ``*ERROR`` lines from the tail of ``Solid.log``,
+    so a death the solver announced itself is named rather than left to "read by hand".
+
+    The ordering is the pre-registration's. The known-benign ``keystart.f:71`` READ never
+    decides anything (handoff §6.72). The first **heap-family** report decides, read by the
+    OWNER of the lines it names: the faulting access first; then, for a heap object, where
+    it was allocated or freed. An access site anywhere in the adapter tree is a line we
+    compile. An allocation or free site is ours only when it lies in code the adapter
+    AUTHORED (``adapter/*``, ``CCXHelpers.c``, ``PreciceInterface.c`` ...); an allocation
+    inside the adapter's verbatim-derived copies of CalculiX's drivers (``ccx_2.20.c``,
+    ``nonlingeo_precice.c`` ...) says only that the object was allocated where CalculiX
+    allocates it, and that attribution goes to a human. A WRITE of a non-heap class (a
+    SEGV, a stack or global overflow) cannot be the write that poisoned a chunk header --
+    ASan reports a store into a heap redzone as a heap-family error -- so it is recorded
+    with its sites and handed over, never read as the bug. So is anything that names a
+    line no pinned rule recognises.
+    """
+    benign = [r for r in reports if r.known_benign]
+    findings = [r for r in reports if not r.known_benign]
+    decisive = [r for r in findings if r.heap_relevant]
+    ignored = (
+        f" ({len(benign)} known-benign keystart.f:71 READ report(s) ignored)" if benign else ""
+    )
+    if n_report_files is not None and n_report_files > 1:
+        return "unclassified", (
+            f"{n_report_files} report files are present and the reader takes the FIRST "
+            "heap-family report; with more than one process reporting, which report came "
+            "first is a human's call -- order them by hand" + ignored
+        )
+    if decisive:
+        report = decisive[0]
+        named = "; ".join(f"{s.role}: {s.site.site_text}" for s in report.stacks if s.site)
+        if not report.sites:
+            return "unclassified", (
+                f"the first heap-family report has no source-level frame in any stack "
+                f"({report.one_line()}) -- read it by hand{ignored}"
+            )
+        owners = report.owners
+        if "unknown" in owners:
+            return "unclassified", (
+                "the first heap-family report names a frame no pinned rule recognises (a "
+                "source path outside both trees, or our own binary unsymbolized) -- "
+                f"{named}{ignored}"
+            )
+        access = report.access_stack
+        access_site = access.site if access is not None else None
+        if access_site is not None and access_site.owner == "adapter":
+            return "adapter-line", (
+                "ADR-045 R6 bullet 1: the faulting access is in a line we compile "
+                f"(/src/calculix-adapter) -- {named}{ignored}"
+            )
+        authored = [
+            s.role
+            for s in report.stacks
+            if s.site is not None
+            and s.site.owner == "adapter"
+            and s.site.basename not in ADAPTER_UPSTREAM_DERIVED_BASENAMES
+        ]
+        if authored:
+            return "adapter-line", (
+                "ADR-045 R6 bullet 1: the object was "
+                f"{'/'.join(authored)} in code the adapter authored -- {named}{ignored}"
+            )
+        derived = [
+            s.role
+            for s in report.stacks
+            if s.site is not None
+            and s.site.owner == "adapter"
+            and s.site.basename in ADAPTER_UPSTREAM_DERIVED_BASENAMES
+        ]
+        if derived:
+            return "unclassified", (
+                f"the access is upstream and the only adapter line is the {'/'.join(derived)} "
+                "site inside the adapter's verbatim-derived copy of a CalculiX driver, where "
+                "CalculiX allocates nearly everything -- whether that is our sizing or "
+                f"upstream's is a human call -- {named}{ignored}"
+            )
+        if owners == frozenset({"calculix-upstream"}):
+            return "calculix-line", (
+                "ADR-045 R6 bullet 2: every line the report names is CalculiX source we do "
+                f"not maintain -- {named}{ignored}"
+            )
+        return "unclassified", f"owners {sorted(owners)} -- {named}{ignored}"
+    if findings:
+        listed = " | ".join(r.one_line() for r in findings)
+        return "unclassified", (
+            f"{len(findings)} report(s) that are neither the known-benign keystart.f:71 READ "
+            "nor a heap-family class, so they cannot be the write that poisoned a chunk "
+            f"header: {listed} -- read by hand{ignored}"
+        )
+    if completed:
+        return "no-report-completed", (
+            "the run completed every window with no heap-family report. This is NOT "
+            "exoneration: ASan's allocator shifts the heap layout enough to hide the bug "
+            "glibc's allocator trips over (ADR-045 R6; RESUME 6w)" + ignored
+        )
+    if stopped_by == "participant-died":
+        announced = (
+            " Solid.log ends with the solver's own error: " + " / ".join(solid_error_lines)
+            if solid_error_lines
+            else " Solid.log carries no *ERROR line of its own -- read its tail by hand"
+        )
+        return "no-report-died", (
+            "the run ended 'participant-died' with no heap-family report. NOT exoneration: "
+            "a death ASan did not catch is outside its instrumentation, or not a memory "
+            "error at all." + announced + ignored
+        )
+    if stopped_by == "ceiling":
+        return "unclassified", (
+            "the supervisor stopped the run at its wall-clock ceiling before every window "
+            "and no heap-family report was written. Nothing died and nothing completed: "
+            "the tail is a SIGTERM, not evidence. Not exoneration, and not a death" + ignored
+        )
+    return "unclassified", (
+        f"the run ended {stopped_by!r} without completing every window and with no "
+        "heap-family report -- an inconsistent outcome (a clean exit before the span); "
+        "inspect the supervisor record and the logs by hand" + ignored
+    )
 
 
 def is_gated_configuration_040(

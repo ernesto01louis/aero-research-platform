@@ -487,3 +487,52 @@ def test_malloc_check_reaches_the_participant(shim_bin: Path, tmp_path: Path) ->
 
     assert result.ok
     assert "MALLOC_CHECK_=3" in (root / "Solid.log").read_text(encoding="utf-8")
+
+
+def test_calculix_exit_201_is_the_solvers_own_stop_not_a_signal_death(tmp_path: Path) -> None:
+    """The hunt died rc=201 (`stop.f: call exit(201)`); a shell reports signals as 129..192.
+
+    Reading 201 as 'killed' named the peer's 143 as the death and the solver's own stop as
+    the teardown -- the reverse of what Solid.log says.
+    """
+    case_root = tmp_path / "tutorial"
+    case_root.mkdir()
+    (case_root / "Solid.log").write_text("*ERROR: solution seems to diverge\n", encoding="utf-8")
+    (case_root / "Fluid.log").write_text("broken pipe\n", encoding="utf-8")
+    payload = {
+        "run_id": "r",
+        "stopped_by": "participant-died",
+        "started_epoch": 1,
+        "ended_epoch": 2,
+        "wall_clock_s": 1,
+        "participants": [
+            {
+                "name": "Fluid",
+                "returncode": 143,
+                "started_epoch": 1,
+                "ended_epoch": 2,
+                "log_path": str(case_root / "Fluid.log"),
+            },
+            {
+                "name": "Solid",
+                "returncode": 201,
+                "started_epoch": 1,
+                "ended_epoch": 2,
+                "log_path": str(case_root / "Solid.log"),
+            },
+            {
+                "name": "Other",
+                "returncode": 134,
+                "started_epoch": 1,
+                "ended_epoch": 2,
+                "log_path": str(case_root / "Fluid.log"),
+            },
+        ],
+    }
+    (case_root / "coupled-status.json").write_text(json.dumps(payload), encoding="utf-8")
+    result = read_coupled_status(
+        case_root / "coupled-status.json", case_root_host=case_root, executor_returncode=1
+    )
+    assert result.outcome("Fluid").state == "killed"  # 128 + SIGTERM
+    assert result.outcome("Other").state == "killed"  # 128 + SIGABRT: the allocator abort
+    assert result.outcome("Solid").state == "exited-fail"  # CalculiX's own exit(201)
