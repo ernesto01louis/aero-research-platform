@@ -138,6 +138,16 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     is_gated_configuration_040,
     is_template_of_record,
 )
+from aero.vv.fsi.hg2007_r3 import (  # noqa: E402
+    R3_EARLY_WINDOWS,
+    R3_LATE_WINDOWS,
+    R3_REFILL_WINDOWS,
+    R3_SPAN_MEAN_BAND,
+    R3_TRACE_BAND,
+    read_r3_inputs,
+    score_r3,
+    two_draw_context,
+)
 from aero.vv.fsi.hg2007_readout import (  # noqa: E402
     FLUID_STAMP,
     ArmReadout,
@@ -1660,6 +1670,146 @@ def _asan_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+#: ADR-045 R3's control: the completed Z4 re-probe, 8000/8000 windows, untouchable.
+R3_CONTROL_RUN_ID = "hg2007_flexible_foil-20260912-161321"
+#: R3's pre-registered restart window.
+R3_RESTART_WINDOW = 4000
+#: The ONE file that may carry an R3 verdict (data/vv/, add-commit discipline); the
+#: scorer's calibration on the control alone goes anywhere else.
+R3_RECORD_NAME = "stage20_adr045_r3.json"
+#: The knobs a treatment must share with the control, verbatim, for the comparison to be
+#: the pre-registered one (the ceiling is a budget, not a configuration).
+_R3_SHAPE_KNOBS = (
+    "arm",
+    "rung",
+    "time_window_size",
+    "max_time",
+    "numerics_label",
+    "mpi_ranks",
+    "coupling_scheme",
+    "hht_alpha",
+    "solid_sif",
+)
+
+
+def _score_r3(args: argparse.Namespace) -> int:
+    """ADR-045 R3: score the treatment against the control, four clauses, all required.
+
+    The clauses, their bands and their windows are the module's constants -- fixed before
+    the treatment ran -- and every number they were computed from lands in the record, so
+    a later reader re-derives the verdict without this driver. The treatment's restart
+    windows come from its submission record (top level, A4/A8); a control-vs-control
+    reading (no restart on disk) is the scorer's own calibration and is refused as an R3
+    record unless ``--out`` points outside data/vv.
+    """
+    control_sub = _submission(Path(args.score_r3[0]))
+    treatment_sub = _submission(Path(args.score_r3[1]))
+    if control_sub["run_id"] != R3_CONTROL_RUN_ID:
+        raise SystemExit(
+            f"R3's control is {R3_CONTROL_RUN_ID} (ADR-045 R3: already bought, already "
+            f"completed); {control_sub['run_id']} is not it"
+        )
+    # The same legacy defaults _reattach supplies: a record written before a knob existed
+    # describes the configuration that knob's default names.
+    legacy = {
+        "coupling_scheme": LEGACY_COUPLING_SCHEME,
+        "hht_alpha": LEGACY_HHT_ALPHA,
+        "solid_sif": SOLID_SIF_OF_RECORD,
+    }
+    c_knobs = {**legacy, **control_sub["spec_knobs"]}
+    t_knobs = {**legacy, **treatment_sub["spec_knobs"]}
+    differ = {
+        k: (c_knobs.get(k), t_knobs.get(k))
+        for k in _R3_SHAPE_KNOBS
+        if c_knobs.get(k) != t_knobs.get(k)
+    }
+    if differ:
+        raise SystemExit(
+            f"the treatment is not the control's shape: {differ}. R3 is the IDENTICAL "
+            "submission with one deliberate restart, and nothing else may differ"
+        )
+    dt = float(c_knobs["time_window_size"])
+    requested = round(float(c_knobs["max_time"]) / dt)
+    restarts = [int(w) for w in treatment_sub.get("restart_windows", [])]
+    restart_window = restarts[0] if restarts else int(args.restart_window)
+    if restarts and restart_window != R3_RESTART_WINDOW:
+        raise SystemExit(
+            f"the treatment restarted at window {restart_window}; R3 pre-registers "
+            f"{R3_RESTART_WINDOW}"
+        )
+    control_root = Path(control_sub["case_host_path"]) / CASE_ROOT_DIRNAME
+    treatment_root = Path(treatment_sub["case_host_path"]) / CASE_ROOT_DIRNAME
+    control = read_r3_inputs(control_root, dt=dt, restart_windows=[])
+    treatment = read_r3_inputs(treatment_root, dt=dt, restart_windows=restarts)
+    score = score_r3(control, treatment, restart_window=restart_window, requested_windows=requested)
+    record: dict[str, Any] = {
+        "adr": "ADR-045",
+        "clause": "R3",
+        "control_run_id": control_sub["run_id"],
+        "treatment_run_id": treatment_sub["run_id"],
+        "treatment_restart_windows": restarts,
+        "control_is_treatment": control_sub["run_id"] == treatment_sub["run_id"],
+        "pre_registered": {
+            "early_windows": R3_EARLY_WINDOWS,
+            "late_windows": R3_LATE_WINDOWS,
+            "refill_windows": R3_REFILL_WINDOWS,
+            "q1a_span_mean_band": R3_SPAN_MEAN_BAND,
+            "q1b_trace_band": R3_TRACE_BAND,
+            "restart_window": R3_RESTART_WINDOW,
+        },
+        **score,
+        "evaluator_git_sha": _git_head(),
+        "evaluated_at": _utc_now(),
+    }
+    if args.r3_baseline:
+        baseline_sub = _submission(Path(args.r3_baseline))
+        baseline = read_r3_inputs(
+            Path(baseline_sub["case_host_path"]) / CASE_ROOT_DIRNAME, dt=dt, restart_windows=[]
+        )
+        record["two_draw_context"] = {
+            "baseline_run_id": baseline_sub["run_id"],
+            **two_draw_context(
+                control, baseline, restart_window=restart_window, requested_windows=requested
+            ),
+        }
+    out = (
+        Path(args.out)
+        if args.out
+        else Path(f"/tmp/stage20_adr045_r3_{treatment_sub['run_id']}.json")
+    )
+    if record["control_is_treatment"] and out.name == R3_RECORD_NAME:
+        raise SystemExit(
+            "a control-vs-control reading is the scorer's calibration, not an R3 result; "
+            f"it may not be written as {R3_RECORD_NAME}"
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    verdict = "PASS" if score["passed"] else "FAIL"
+    print(f"ADR-045 R3 {verdict}: {treatment_sub['run_id']} vs control {control_sub['run_id']}")
+    for clause in ("a", "b", "c", "d"):
+        print(f"  ({clause}) {'pass' if score[clause]['passed'] else 'FAIL'}")
+    for q in ("thrust", "lift", "power"):
+        row = score["a"][q]
+        print(
+            f"      {q}: span-mean rel {row['span_mean_relative_difference']:.3e} "
+            f"(Q1a {'applies' if row['q1a_applicable'] else 'n/a: |mean|/p2p=' + format(row['control_mean_over_peak_to_peak'], '.3f')}), "
+            f"trace/p2p {row['trace_deviation_over_amplitude']:.3e}"
+        )
+    print(
+        f"      (b) early max|d| {score['b']['early_max_abs_delta']:.3e} vs late "
+        f"{score['b']['late_max_abs_delta']:.3e}"
+        + (" [identical run]" if score["b"]["identical_run_degenerate"] else "")
+    )
+    print(f"      (c) {score['c']['verdict']} at {score['c']['windows_reached']}/{requested}")
+    print(
+        f"      (d) refilled at window {score['d']['refilled_at_window']} (deadline "
+        f"{score['d']['deadline_window']}; control QN {score['d']['control_mean_qn_columns']:.1f}, "
+        f"iterations {score['d']['control_mean_iterations']:.2f})"
+    )
+    print(f"  wrote {out}")
+    return 0
+
+
 def _report_divergence(case_root: Path, *, live: bool) -> None:
     """Print the ADR-041 V2 detector's verdict for a run. Read-only; never kills.
 
@@ -2557,6 +2707,31 @@ def main(argv: list[str] | None = None) -> int:
         "report, classify each frame by who owns its source line, ignore the known-benign "
         "keystart.f:71 READ, and write the derived reading beside the run",
     )
+    parser.add_argument(
+        "--score-r3",
+        nargs=2,
+        type=Path,
+        metavar=("CONTROL_SUBMISSION", "TREATMENT_SUBMISSION"),
+        dest="score_r3",
+        help="ADR-045 R3: score a restarted treatment against the control on the four "
+        "pre-registered clauses and write the record (--out data/vv/stage20_adr045_r3.json "
+        "for the real treatment; a control-vs-control calibration may not go there)",
+    )
+    parser.add_argument(
+        "--r3-baseline",
+        type=Path,
+        dest="r3_baseline",
+        help="optional: another completed draw of the control's shape, to record what "
+        "determinism alone does to R3(a)/(b) -- context, never a clause",
+    )
+    parser.add_argument(
+        "--restart-window",
+        type=int,
+        default=R3_RESTART_WINDOW,
+        dest="restart_window",
+        help="the window R3's clauses are evaluated after when the treatment record carries "
+        "no restart (a control-vs-control calibration); the real treatment's own record wins",
+    )
     parser.add_argument("--collect-probe", type=Path)
     parser.add_argument("--collect-cost", type=Path)
     parser.add_argument("--record-l6", type=Path, dest="record_l6")
@@ -2701,6 +2876,8 @@ def main(argv: list[str] | None = None) -> int:
         return _adr041_evaluate(args)
     if args.asan_evaluate:
         return _asan_evaluate(args)
+    if args.score_r3:
+        return _score_r3(args)
     if args.status:
         submission = _submission(args.status)
         result = _run_long("status", f"root@{submission['host']}", submission["session"])
@@ -2720,6 +2897,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.error(
         "choose a mode: --probe / --collect-probe / --collect-cost / --record-l6 / "
         "--record-q1 / --project-n3 / --size-040 / --adr041-evaluate / --asan-evaluate / "
+        "--score-r3 / "
         "--submit / --submit-040 / "
         "--status / --collect / --verdict"
     )

@@ -63,6 +63,8 @@ jobs:
               # Stage 20, ADR-045 R6: the AddressSanitizer report reader. Pure stdlib +
               # pydantic; named so a regex-or-parsing convenience import fails loudly.
               "aero.adapters.precice.asan",
+              # ADR-045 R3: the restart-transparency scorer (numpy only).
+              "aero.vv.fsi.hg2007_r3",
               # ADR-037: `case.py` carries the fluid and solid specs so `config_hash`
               # covers the geometry, which pulls the OpenFOAM writer into every consumer
               # of the coupled case -- including `launcher.py`. Named explicitly rather

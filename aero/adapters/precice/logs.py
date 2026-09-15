@@ -59,6 +59,10 @@ class TimeWindowIterations(BaseModel):
     total_iterations: int = Field(..., ge=0)
     iterations: int = Field(..., ge=0)
     converged: bool
+    #: The IQN-ILS diagnostic columns of this row, by name, when the participant ran the
+    #: acceleration (``QNColumns`` IS the quasi-Newton history depth; ADR-045 R3(d)
+    #: measures it). Empty for the peer participant.
+    quasi_newton: dict[str, int] = Field(default_factory=dict)
 
 
 class CouplingIterationReport(BaseModel):
@@ -171,14 +175,17 @@ def read_iterations_log(
         raise CouplingConvergenceError(
             f"{path}: header only — the coupling completed no time windows"
         )
+    extra = table.columns[len(_ITERATIONS_COLUMNS) :]
+    extra_values = {name: table.ints(name) for name in extra}
     windows = tuple(
         TimeWindowIterations(
             time_window=int(row[0]),
             total_iterations=int(row[1]),
             iterations=int(row[2]),
             converged=int(row[3]) == 1,
+            quasi_newton={name: extra_values[name][i] for name in extra},
         )
-        for row in table.rows
+        for i, row in enumerate(table.rows)
     )
     return CouplingIterationReport(
         path=path,
