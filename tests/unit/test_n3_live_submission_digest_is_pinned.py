@@ -58,7 +58,7 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             # inherited, so a later default move announces itself here.
             "hht_alpha": -0.05,
         },
-        "bebec2d3a1203f9d1b3d44ae327af26357a67872e9f5dd52e1ce53c8682001d7",
+        "162b2d25b0509c1afe2cf6efc24b57bc44aa30a981a113c8f7d8f80d82f4b651",
     ),
     "rigid": (
         {
@@ -73,24 +73,31 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             # inherited, so a later default move announces itself here.
             "hht_alpha": -0.05,
         },
-        "7724059880bffc5c7cd38489e113f1db4e9bdf5de9eeb7615e30109a0ce99cdb",
+        "f89d8e6b6b2c8654ad2627b6504282ef11ef37c79ff14c805c4221ae623368ff",
     ),
 }
 
 
-#: The digests these knobs produced before ADR-043, i.e. what the two attempt-1
-#: submissions on NFS still name. Kept so the supersession is checkable rather than
-#: merely asserted; nothing rebuilds to them any more, which is the point.
+#: The digests these knobs produced in earlier generations of the serialization -- what
+#: the attempt-1 and attempt-2 submissions on NFS still name. Kept so each supersession is
+#: checkable rather than merely asserted; nothing rebuilds to them any more, which is the
+#: point.
 _SUPERSEDED = {
     "flexible": (
         # attempt 1, pre-hht_alpha-field
         "bfc60a49d85e81d909ebcc87da6140a12a35c4ea153cd810fbec1d3a29cd1a8c",
         # the same knobs after ADR-043 added the field, still at alpha 0.0
         "0891e66d4ef5d44d127a223d042d406e39479b18a3aa84b290de71123df71f25",
+        # N3 attempt 2 (hg2007_flexible_foil-20260914-122525, died w21 897, 2026-09-15):
+        # alpha -0.05 under renderer version "1", before ADR-045 A1 bumped it
+        "bebec2d3a1203f9d1b3d44ae327af26357a67872e9f5dd52e1ce53c8682001d7",
     ),
     "rigid": (
         "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
         "fae61ffaf316e37fa7110a49f4fd51cd484d6cf2a665b54b4f4012fd55852c40",
+        # N3 attempt 2 (hg2007_rigid_foil-20260914-122543, killed at w60 622 by the stop
+        # rule): renderer version "1"
+        "7724059880bffc5c7cd38489e113f1db4e9bdf5de9eeb7615e30109a0ce99cdb",
     ),
 }
 
@@ -119,19 +126,20 @@ def test_the_running_arms_spec_still_rebuilds_to_the_submitted_digest(arm: str) 
     became permanently unreattachable. That cost was declared in ADR-041's D-C form 1,
     re-declared in ADR-043 Y2, and paid here.
 
-    **N3 was resubmitted on the adopted stack on 2026-09-14, so these constants are once
-    again transcribed from submissions that are ACTUALLY RUNNING** — flexible
-    `hg2007_flexible_foil-20260914-122525` and rigid `hg2007_rigid_foil-20260914-122543`,
-    both 76 090 windows at alpha = -0.05. The original instruction is therefore back in force:
+    N3 attempt 2 (`hg2007_flexible_foil-20260914-122525` / `hg2007_rigid_foil-20260914-122543`)
+    ran on these knobs at renderer version "1" and **died on 2026-09-15** (flexible at
+    w21 897; the rigid partner killed by the stop rule) -- there is NO submission executing.
+    **ADR-045 A1 then moved the renderer to "2"** (`*AMPLITUDE ... TIME=TOTAL TIME`,
+    `writePrecision 17`), which moves every spec digest; the attempt-2 records on NFS are
+    the third superseded generation, and nothing downstream reads them through `_reattach`
+    (their facts are in the handoff). The constants below are the N3 shape re-pinned to the
+    serialization as it stands, so the next submission on this shape is collectable.
 
-    **If this fails, do NOT update the constant.** Revert whatever moved the spec
-    serialization instead. The records on disk describe the runs that are executing, and
-    editing the expectation to match new code would make ``_reattach`` pass while comparing
-    a spec that is not the one that ran.
-
-    `_SUPERSEDED` keeps both earlier generations of digest — attempt 1's, and the same
-    knobs after ADR-043 added the field while alpha was still 0.0 — so the two supersessions
-    stay checkable rather than merely asserted.
+    **While a submission is executing, if this fails, do NOT update the constant.** Revert
+    whatever moved the spec serialization instead: editing the expectation to match new
+    code would make ``_reattach`` pass while comparing a spec that is not the one that ran.
+    A deliberate move -- an accepted ADR that declares its digest cost -- re-pins here in
+    the same commit and widens `_SUPERSEDED`, as ADR-043 and ADR-045 did.
     """
     knobs, expected = _LIVE[arm]
     assert spec_config_digest(hg2007_case_spec(**knobs)) == expected  # type: ignore[arg-type]

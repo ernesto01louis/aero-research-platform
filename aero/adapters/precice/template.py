@@ -108,8 +108,15 @@ def scheme_for_template(template: str) -> CouplingSchemeKind:
 
 
 #: Bumped whenever a rendered byte changes, so two bundles are comparable at a glance.
-#: It rides in ``AuthoredSource.renderer_version`` and therefore in the manifest.
-RENDERER_VERSION = "1"
+#: It rides in ``AuthoredSource.renderer_version`` and therefore in the manifest -- and in
+#: ``config_hash``, which digests the serialized spec and never the rendered bytes; this is
+#: the declared way a rendered-byte change moves the record (ADR-045 A1).
+#:
+#: "2" (2026-09-15, ADR-045 R1/F3): the solid deck's ``*AMPLITUDE`` card carries
+#: ``TIME=TOTAL TIME`` and the fluid's ``controlDict`` writes fields at ``writePrecision 17``
+#: (a double round-trips; 12 digits perturbed a restart at ~1e-12 relative). Neither moves
+#: a number in an unrestarted run; both move every spec digest, re-pinned in the same commit.
+RENDERER_VERSION = "2"
 
 #: The NAMES of the two watch-points the template declares on ``Solid-Mesh`` -- distinct
 #: from the ``@NOSE_WATCH_POINT@`` token, which carries their COORDINATES. Named here

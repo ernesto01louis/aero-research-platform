@@ -360,7 +360,7 @@ writeControl    timeStep;
 writeInterval   {write_interval};
 purgeWrite      {spec.purge_write};
 writeFormat     ascii;
-writePrecision  12;
+writePrecision  17;
 writeCompression off;
 timeFormat      general;
 timePrecision   {_TIME_PRECISION};

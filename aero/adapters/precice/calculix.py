@@ -94,6 +94,8 @@ _ALL_NSET = "Nall"
 _PLATE_ELSET = "Eplate"
 _NOSE_ELSET = "Enose"
 _AMPLITUDE_NAME = "PLUNGE"
+#: ADR-045 R1: index the plunge by TOTAL time so a restarted ``*STEP`` cannot replay it.
+_AMPLITUDE_TIME_BASE = "TOTAL TIME"
 _ELEMENT_TYPE = "C3D8I"
 
 #: ``INC`` is sized at this multiple of the number of coupled windows. An implicit
@@ -369,6 +371,12 @@ class AmplitudeTable(BaseModel):
     n_rows: int = Field(..., ge=2)
     t: tuple[float, ...] = Field(..., min_length=2)
     value: tuple[float, ...] = Field(..., min_length=2)
+    #: The clock the table is indexed by. CalculiX's default is STEP time, which restarts
+    #: at zero with every ``*STEP``; ADR-045 R1 pins TOTAL time so a restarted step keeps
+    #: looking the plunge up where the run actually is. In a single step from ``ttime = 0``
+    #: the two clocks are the same quantity, so the pin moves no number in an unrestarted
+    #: run (verified in the source: ``amplitudes.f:72`` sets ``namta(3,nam) = -nam``).
+    time_base: str = Field(default="STEP TIME", pattern=r"^(STEP TIME|TOTAL TIME)$")
 
     @model_validator(mode="after")
     def _same_length(self) -> AmplitudeTable:
@@ -596,6 +604,7 @@ def _amplitude_table(spec: CalculiXSolidSpec) -> AmplitudeTable:
         n_rows=n_rows,
         t=tuple(float(v) for v in t),
         value=tuple(float(v) for v in y),
+        time_base=_AMPLITUDE_TIME_BASE,
     )
 
 
@@ -639,7 +648,12 @@ def _mesh_text(spec: CalculiXSolidSpec) -> str:
 
 
 def _amplitude_text(table: AmplitudeTable) -> str:
-    lines = [f"*AMPLITUDE, NAME={table.name}"]
+    card = f"*AMPLITUDE, NAME={table.name}"
+    if table.time_base == "TOTAL TIME":
+        # ADR-045 R1 (amendment A1): the one deck byte the checkpoint/restart family
+        # needs. CalculiX strips blanks from the parameter, so the readable form is fine.
+        card += ", TIME=TOTAL TIME"
+    lines = [card]
     lines.extend(f"{_num(t)}, {_num(v)}" for t, v in zip(table.t, table.value, strict=True))
     return "\n".join(lines) + "\n"
 
@@ -806,6 +820,7 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
     boundaries: list[tuple[str, int, int, float | None, str | None]] = []
     cload: list[tuple[str, int, float]] = []
     amplitude_name = ""
+    amplitude_time_base = "STEP TIME"
     amplitude_rows: list[tuple[float, float]] = []
     nlgeom = False
     max_increments = 0
@@ -840,6 +855,9 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
                 section_materials[parameters.get("ELSET", "")] = parameters.get("MATERIAL", "")
             elif keyword == "AMPLITUDE":
                 amplitude_name = parameters.get("NAME", "")
+                amplitude_time_base = " ".join(parameters.get("TIME", "STEP TIME").upper().split())
+                if amplitude_time_base == "TOTALTIME":
+                    amplitude_time_base = "TOTAL TIME"
             elif keyword == "STEP":
                 # Value-aware: ccx accepts NLGEOM=NO, which explicitly DEACTIVATES
                 # geometric nonlinearity — a presence test read it as on (session-7
@@ -923,6 +941,7 @@ def read_calculix_deck(path: Path) -> CalculiXDeck:
             n_rows=len(amplitude_rows),
             t=tuple(row[0] for row in amplitude_rows),
             value=tuple(row[1] for row in amplitude_rows),
+            time_base=amplitude_time_base,
         ),
         wetted_upper=upper,
         wetted_lower=lower,
@@ -1068,6 +1087,12 @@ def assert_calculix_deck(deck: CalculiXDeck, spec: CalculiXSolidSpec) -> None:
 
     if deck.amplitude.name != _AMPLITUDE_NAME:
         problems.append(f"amplitude name {deck.amplitude.name!r} != {_AMPLITUDE_NAME!r}")
+    if deck.amplitude.time_base != _AMPLITUDE_TIME_BASE:
+        problems.append(
+            f"amplitude time base {deck.amplitude.time_base!r} != {_AMPLITUDE_TIME_BASE!r} — "
+            "a restarted *STEP would replay the plunge from zero against a late displacement "
+            "field and produce numbers instead of an error (ADR-045 R1)"
+        )
     if deck.amplitude.t[-1] < spec.max_time:
         problems.append(
             f"the amplitude table ends at t={deck.amplitude.t[-1]!r} < max_time "
