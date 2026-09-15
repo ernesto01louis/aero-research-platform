@@ -3271,7 +3271,7 @@ Either of (2)/(3) is an amendment commit BEFORE the treatment, on the operator's
 
 ### 6.80 SESSION 14 — C1 and C6 landed as code; the container build is proposed, not run
 
-**`b3dcf5f`** carries the mechanism, read off the adapter source in the buildah overlay
+**`7b30bd9`** carries the mechanism, read off the adapter source in the buildah overlay
 layers rather than off the ADR (four read-only maps, 109 findings; the subagent session
 limit then closed the critic, so the design was finished solo):
 
