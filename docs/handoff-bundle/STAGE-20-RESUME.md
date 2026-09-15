@@ -469,6 +469,43 @@ else runs on aero-dev until it lands — a contended rung is not the pre-registe
 measurement. Its verdict is one of ADR-041 V1's five terms; a clean D-A adopts the
 unmitigated stack and goes straight to the V6 Q1 re-run, anything else steps to D-B.
 
+## 6w. THE SANITIZER HUNT IS RUNNING — and it is pointed at the UNMITIGATED stack on purpose
+
+Handoff §6.72. Everything before this was about SURVIVING the crash; this is the only
+option that could REMOVE it. glibc's `corrupted double-linked list` fires where it trips
+over poisoned metadata, not where the bad write happened — attempt 2 died at w21 897 with
+the solid quiet for its last 7 698 windows, so the gap is enormous. ASan reports the
+invalid write at the instant it happens, with file and line.
+
+**RUNNING: `fsi-hg2007_flexible_foil-20260915-113918`** — flexible only, uncontended,
+8000 windows, `--hht-alpha 0.0 --solid-sif calculix-precice-address.sif --asan`. Verified
+armed in `run-coupled.sh` (diagnostic SIF on the solid, `ASAN_OPTIONS` exported). Record at
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-submission.json`.
+Reports land as `/case/asan-solid.<pid>` = `<run>/tutorial/asan-solid.*`. Nothing else on
+aero-dev until it lands.
+
+**Why the unmitigated stack.** α = 0.0 dies every ~1 729 windows against the adopted
+stack's ~37 900, so under ASan's ~2.5x the reproduction costs **~4 h instead of ~88 h** —
+and B0 has ~79 h. Same signature, same component, two coupling schemes, two adapter
+versions ⇒ one bug whose trigger rate the damping reduces, not two. **This is a
+DIAGNOSTIC run and sizes nothing** — it is off the campaign stack in two ways at once.
+
+**The fence already refuses it**: `is_campaign_configuration` is template-of-record AND
+alpha-of-record AND **solid-sif-of-record** (third conjunct added `1ab4b4f`), so a
+sanitizer container can never claim the gated verdict.
+
+**Do NOT re-chase the first finding.** ASan's first stop was a global-buffer-overflow READ
+12 bytes off a 5-byte `'NODE'` literal via gfortran's string compare at `keystart.f:71`
+during deck parsing. It fires on every run including the two that completed 8000 windows,
+and a READ cannot corrupt heap metadata. Retuned with `intercept_memcmp=0:halt_on_error=0`
+(`168290f`); heap checking untouched.
+
+**Reading the result.** A report naming the adapter's C (which we compile; upstream fixed a
+*different* invalid free in that file three weeks ago) ⇒ a patch is plausible and
+checkpoint/restart becomes optional. A report naming CalculiX Fortran ⇒ upstream report +
+checkpoint/restart. **No report by ~8000 windows is not exoneration** — it means ASan's
+allocator shifted the layout enough to hide it; say so rather than calling it clean.
+
 ## 6v. N3 ATTEMPT 2 DIED PRE-RAMP — stop rule executed; this is the NO-GO conversation
 
 Handoff §6.71. **Flexible died at w21 897 of 76 090 (pre-ramp), rc=134, same signature.**
