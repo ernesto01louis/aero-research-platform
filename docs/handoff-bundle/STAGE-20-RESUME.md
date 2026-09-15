@@ -497,8 +497,12 @@ pre-commit hook refused the split; handoff §6.75):
 `read_coupled_status` called every rc ≥ 128 "killed" — CalculiX's `exit(201)` is not a
 signal death. Suite **1056 passed, 3 skipped**.
 
-**ADR-045 is ACCEPTED as amended (A1–A10), handoff §6.78** — R6's second bullet applied (survivable-only; R1–R3 only if R3
-passes). Handoff §6.75 carries **nine measured corrections** to the proposed text — the ones
+**ADR-045 is ACCEPTED as amended (A1–A11), handoff §6.78** — R6's second bullet applied (survivable-only; R1–R3 only if R3
+passes). **C2/C3 (`23e2326`) and C7 (`a2fb4ce`) are in.** **OPEN with the operator (handoff §6.79): the R3
+calibration shows two draws of the SAME submission differ over windows 4001–8000 by 35 % (thrust) and
+51 % (lift) of the control's peak-to-peak — above Q1b's 5 % — so R3(a) as pre-registered cannot be
+passed by any treatment. Four options put (run as-is / amend with the two-draw yardstick / restart at
+w400 where the signal resolves / decline). Nothing is submitted until the operator answers.** Handoff §6.75 carries **nine measured corrections** to the proposed text — the ones
 that bite: `config_hash` does NOT move on a deck edit (bump `RENDERER_VERSION`); R7's gate hook
 cannot sit in the spec-derived `gated` while `restart_generations` stays out of `spec_knobs`;
 R5's energy band spans 3.7 decades; `decomposePar -force` deletes the fluid's checkpoints, so a

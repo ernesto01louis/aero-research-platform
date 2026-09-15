@@ -241,11 +241,30 @@ above.
 | A7 | (silent) | the clocks of a restart segment | three clocks, not one: the fluid's `startTime`/`endTime` are ABSOLUTE (start at the checkpoint time, keep `endTime` = full `max_time`); preCICE has no restart and starts at 0, so the rendered `<max-time>` is the REMAINING time; CalculiX's `*DYNAMIC` second field is a STEP PERIOD, so it is the remaining time too, with `INC` covering the remainder. Only `max_time` is a spec field and it tracks the fluid, so the digest does not move on the clock's account |
 | A8 | (silent) | relaunch mechanics | `_prepare_and_submit` allocates a FRESH run_id and `decomposePar -force` deletes every `processor*/` — the fluid's checkpoints. A restart relaunches INTO the existing case root through a dedicated driver path that skips prepare/mesh/decompose, rotates `Fluid.log`, `Solid.log`, `coupled-status.json` and every `precice-*.log` to a `.seg<n>` name first (the supervisor truncates the logs; `WatchpointTrace` refuses a non-monotonic Time column), and records the generation in the submission record's top level |
 | A9 | R3(b)/(d) | the readers exist | `read_iterations_log` keeps the QN column NAMES only; no lift series exists on the coupled path; no window-range selector exists. Added additively in the scorer commit; segment-2 rows map onto global windows by the restart offset (preCICE's `TimeWindow` and watchpoint `Time` restart at zero) |
-| A10 | R3(a) | "the frozen Q1 bands (2 % / 5 % / 5 %)" on lift, thrust, interface power | Q1 as coded is Q1a 2 % span-mean on fx, Q1b 5 % of peak-to-peak in max deviation, Q1c 5 % on the two-arm increment. Single-arm, Q1c has no meaning. **The mapping is fixed in the scorer commit, before the treatment is submitted, with the control's own numbers beside it** (a near-zero mean, as lift's is by symmetry, makes a relative span-mean band meaningless and Q1b is the clause that applies); no band is widened |
+| A10 | R3(a) | "the frozen Q1 bands (2 % / 5 % / 5 %)" on lift, thrust, interface power | Q1 as coded is Q1a 2 % span-mean on fx, Q1b 5 % of peak-to-peak in max deviation, Q1c 5 % on the two-arm increment. Single-arm, Q1c has no meaning. **Fixed in the scorer commit (`a2fb4ce`) from the control's own numbers over windows 4001–8000:** Q1a applies where the control's `|mean| / peak-to-peak ≥ 1` — thrust 1.48 (yes), lift 0.017 and interface power 0.023 (no: a relative band on a near-zero mean is meaningless); Q1b applies to all three. No band is widened |
+| A11 | R3(b) | "strictly exceeds" | a treatment identical to the control has no transient and no shift; `max|Δ| = 0` in both windows reads as transparent, because the clause exists to refuse a SHIFT. Δ is the magnitude of the trailing-edge displacement-vector difference |
 
 The acceptance commit records these; each lands in code in the clause-order commits that
 follow (handoff §6.78 onward). R6 is spent: the hunt's reading is on the record and cannot
 be re-read to a different bullet.
+
+**R3 calibration finding (session 14, `a2fb4ce`, `data/vv/stage20_adr045_r3_calibration.json`) —
+OPEN with the operator, before any treatment is submitted.** The control against itself
+passes all four clauses. But the same submission run TWICE — D-C1 on 2026-09-10 and its
+re-probe, the control, on 2026-09-12, both 8000/8000 — differ over windows 4001–8000 by
+**35 % of the control's thrust peak-to-peak and 51 % of its lift peak-to-peak** in max
+deviation (the thrust difference is a smooth ~1e-5 N offset, lag-1 autocorrelation 0.96; the
+lift difference is window-to-window noise), and their trailing-edge displacements differ by
+**~1.5e-5 m early against ~1.3e-5 m late** (the control's own displacement there is
+~1.2–2.0e-4 m). Q1b's 5 % band is therefore BELOW the two-draw noise floor at these windows:
+the force signals are nearly flat there (thrust peak-to-peak 6.7e-5 N against a 1e-4 N mean),
+so the peak-to-peak normalisation that made Q1 discriminating on the I4 startup transient
+(peak-to-peak 0.69 N) collapses. **As written, R3(a) cannot be passed by any treatment,
+transparent or not, and R3(b) sits at the noise floor.** The pre-registration checked every
+clause against the control's files but not against two draws of it. This is not a band
+being relaxed after a result: no treatment has run. It is a test found unable to resolve its
+question, found by the scorer it required, before the B0 hour it protects. The operator
+decides how R3 proceeds (handoff §6.79 puts the options); nothing is submitted until then.
 
 
 ## Consequences

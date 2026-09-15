@@ -3210,6 +3210,65 @@ the top-level `restart_generations` and the collect-side gate (A4), **C7 the R3 
 A10's mapping written down and the control passing against itself**, then — behind the B0
 stop gate, ~3 h, B0 ≈ 76 h — C8 the treatment. R3 fails ⇒ ADR-041 V7's NO-GO, recorded.
 
+### 6.79 SESSION 14 — C2/C3 and C7 landed; the R3 calibration says the test cannot resolve
+
+Acceptance done, the clause-order commits began (handoff §6.78's C-list), with no B0 spent:
+
+- **C2/C3 (`23e2326`)**: `*AMPLITUDE, NAME=PLUNGE, TIME=TOTAL TIME` written and read back
+  (the self-check refuses a step-time table), `writePrecision 17`, `RENDERER_VERSION`
+  `"1"` → `"2"` — the declared way a rendered byte moves the record (A1) — and the live
+  digest pin re-pinned in the same commit (flexible `bebec2d3` → `162b2d25`, rigid
+  `77240598` → `f89d8e6b`); N3 attempt 2's records are the third superseded generation.
+- **C7 (`a2fb4ce`)**: `aero/vv/fsi/hg2007_r3.py` scores the four clauses across the
+  rotated segments a relaunch leaves (A8/A9), `read_iterations_log` keeps the per-window
+  `QNColumns` values, driver `--score-r3`. A10 fixed from the control's numbers (Q1a on
+  thrust only; Q1b on all three), A11 the identical-run reading. **The control against
+  itself passes all four**: refill at window 4010 of 4030, control QN mean 54.1,
+  iterations 5.75. The reader of record for R3 is this code, and it existed before any
+  treatment. Suite 1076 passed, 3 skipped.
+
+**The finding.** `--r3-baseline` measures what determinism alone does: D-C1 (2026-09-10) and
+the control (2026-09-12) are the SAME submission run twice, both 8000/8000, and over windows
+4001–8000 they differ by **35 % of the control's thrust peak-to-peak and 51 % of its lift
+peak-to-peak** (`data/vv/stage20_adr045_r3_calibration.json`, `two_draw_context`). The
+thrust difference is a smooth ~1e-5 N offset (lag-1 autocorrelation 0.96); the lift
+difference is window-to-window noise (autocorrelation −0.47). Their trailing-edge
+displacements differ by ~1.5e-5 m over 4001–4200 and ~1.3e-5 m over 7801–8000, against a
+control displacement of 1.2–2.0e-4 m. Over windows 1–4000 the same two draws differ by only
+0.3 % of the thrust peak-to-peak — because that peak-to-peak is the 0.69 N startup transient,
+while over 4001–8000 the thrust is nearly flat (peak-to-peak 6.7e-5 N on a 1e-4 N mean). **The
+peak-to-peak normalisation that made Q1 discriminating on the I4 transient collapses on a
+flat segment, and Q1b's 5 % band lies well below the two-draw noise floor.** R3(a) as
+pre-registered cannot be passed by any treatment; R3(b)'s "early strictly exceeds late" is
+what two draws already do by ~15 %, so it neither refutes nor confirms.
+
+This was found by the scorer R3 required, on runs already bought, before the ~3 h treatment
+it protects — the pre-registration checked every clause against the control's files (R3 says
+so) but not against two draws of the control. **No band is relaxed and no treatment has run.
+The operator decides how R3 proceeds; nothing is submitted until then.** Options put:
+
+1. **Run the treatment as pre-registered.** (a) fails by construction; the recorded outcome
+   is R3 FAIL ⇒ ADR-041 V7's NO-GO. Honest only if the record says the test could not
+   resolve its question — which it would.
+2. **Amend R3(a)/(b) before the treatment, with the two-draw pair as the yardstick** (the
+   ADR-044 Z4 discipline: the rule predates the run it grades). One candidate, stated for
+   the operator to accept, reject or change: a restart is transparent when the treatment is
+   indistinguishable from another draw — its max deviation from the control, per quantity,
+   does not exceed the two-draw max deviation by more than the frozen Q1b band (5 % of the
+   control's peak-to-peak), and its trailing-edge |Δ| early/late ratio is not worse than the
+   two-draw pair's. Q1a stays as fixed (thrust, 2 %). (c) and (d) stay verbatim.
+3. **Move R3 to a segment where the signal is resolvable** — restart at window 400 instead
+   of 4000, scoring windows 401–8000, where the startup transient makes Q1b discriminating
+   (two-draw floor 0.3 %). The restart then happens where the coupling is hardest, which is
+   the stricter test of R4.3, and the treatment costs the same ~3 h. It changes R3's
+   pre-registered window (4000) and its R2 checkpoint cadence would have to include w400.
+4. **Decline R3 as unresolvable** — record the NO-GO now, without the treatment.
+
+The agent's view: (3) is the cleanest — it keeps the frozen bands verbatim and puts the
+restart where a shift would show; (2) is the fallback if the operator wants the w4000
+restart kept. (1) spends 3 h to record a foregone conclusion; (4) is defensible and cheap.
+Either of (2)/(3) is an amendment commit BEFORE the treatment, on the operator's word.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
