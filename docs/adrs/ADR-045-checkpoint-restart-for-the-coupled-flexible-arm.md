@@ -134,9 +134,21 @@ purchased.
   may not inject a shift.
 - **(c)** the ADR-041 divergence detector returns ELIMINATED on the treatment, on the same
   grid and the same bounds.
-- **(d)** coupling iterations per window return to within ±1 of the control's mean inside 30
-  windows of the restart. This is the clause that bounds the IQN-ILS loss in R4.3, and it is
-  the one most likely to fail.
+- **(d)** the IQN-ILS history refills. `precice-Solid-iterations.log` carries a `QNColumns`
+  column, which **is** the quasi-Newton history depth, so this clause measures the quantity
+  itself rather than a proxy: `QNColumns` returns to the control's windows-4001-8000 mean,
+  and `Iterations` to within ±1 of the control's mean, both inside **30 windows** of the
+  restart. This is the clause that bounds the unrecoverable loss in R4.3, and it is the one
+  most likely to fail.
+
+**Every clause was checked against the control run before this ADR was written** — the
+ADR-041 round-1 lesson was a pre-registered clause that could not be evaluated. (a) fluid
+`postProcessing/forces1/0/force.dat` + `forceCoeffs1/0/coefficient.dat`, and the
+`aeroInterfacePower <t> <power> <fx> <fy>` lines the coded function object writes into
+`Fluid.log`; (b) `precice-Solid-watchpoint-Trailing-Edge.log`, 8001 lines; (c)
+`adr041-D-C1-solid-residuals.tsv` beside the run, produced by the detector already in code;
+(d) `precice-Solid-iterations.log`, 8000 rows carrying `Iterations` and `QNColumns`. Nothing
+in R3 needs an artefact that does not exist.
 
 **Cost:** one 8000-window uncontended probe, ≈3 h of B0. **It sizes nothing** — the same
 fence every ladder probe carries.
