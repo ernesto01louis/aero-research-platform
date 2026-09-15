@@ -243,8 +243,16 @@ def build_participant_command(
     if observability is not None and observability.asan:
         # halt_on_error so the FIRST bad write is the one reported; detect_leaks off
         # because ccx frees nothing at exit and the report would bury the finding.
+        # intercept_memcmp=0: CalculiX's legacy Fortran compares fixed-length character
+        # variables against shorter literals, so gfortran's string compare reads past a
+        # 5-byte 'NODE' literal in readinput.c and ASan's memcmp interceptor flags a
+        # global-buffer-overflow READ during deck parsing on EVERY run -- including the two
+        # that completed 8000 windows. It is a real but benign length mismatch (the same
+        # one -fallow-argument-mismatch exists for) and it is not heap corruption.
+        # halt_on_error=0: a startup read must not end the hunt. Heap checking is
+        # untouched, which is the thing actually being looked for -- a WRITE.
         parts.append(
-            "export ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1"
+            "export ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:intercept_memcmp=0"
             ":print_stacktrace=1:log_path=/case/asan-solid"
         )
     if participant.env:
