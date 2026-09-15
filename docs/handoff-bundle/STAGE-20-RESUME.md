@@ -488,6 +488,14 @@ that lands. **R3's control is already bought** (the completed 8000/8000 Z4 re-pr
 transparency test costs one ~3 h probe, not two. **R5 is the one to reread**: a checkpoint
 written just before a heap-corruption death can contain garbage and restart from it silently.
 
+## 6y. SESSION 14's PROMPT EXISTS — start there
+
+`docs/handoff-bundle/STAGE-20-SESSION-14-PROMPT.md`. It opens with the aero-dev status
+command on purpose: whether the sanitizer hunt is still running changes what the session is
+allowed to do. Handoff §6.74 records why session 13 handed over BOTH open threads instead
+of splitting them — ADR-045 R6 is the rule that reads the sanitizer result, so the evidence
+and the rule that interprets it belong in one session.
+
 ## 6w. THE SANITIZER HUNT IS RUNNING — and it is pointed at the UNMITIGATED stack on purpose
 
 Handoff §6.72. Everything before this was about SURVIVING the crash; this is the only

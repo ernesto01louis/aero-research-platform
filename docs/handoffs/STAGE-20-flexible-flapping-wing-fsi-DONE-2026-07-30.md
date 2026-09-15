@@ -2933,6 +2933,28 @@ record derives `gated=False`.
 
 **If R3 fails, nothing here helps and ADR-041 V7's NO-GO stands exactly where it is.**
 
+### 6.74 SESSION 13 CLOSE — the handover, and why it is a handover and not a split
+
+The operator asked whether a fresh session should take ADR-045 while this one stayed on the
+running hunt. **The recommendation was a handover of BOTH, not a parallel split**, for
+three reasons that are worth recording because the same question will recur:
+
+1. **Both threads need aero-dev, and only one may have it.** The sanitizer hunt is live;
+   ADR-045's R3 transparency probe needs the same box. A second session would be doing
+   local-only work either way.
+2. **ADR-045 R6 sequences them deliberately.** It gates writing ~300 lines of C on the
+   sanitizer result, precisely so the work is not done if the crash turns out to be
+   patchable. Running the two in parallel spends exactly what R6 exists to protect.
+3. **The seam would be in the wrong place.** R6 is the rule that READS the sanitizer
+   report. Putting the evidence in one session and the rule that interprets it in another
+   splits a single decision in half.
+
+`docs/handoff-bundle/STAGE-20-SESSION-14-PROMPT.md` is the copy-paste prompt. It opens with
+the box-status command, because whether the hunt is still running changes what the session
+may do at all, and it carries the three R6 readings including the one that is easy to get
+wrong: **no ASan report is not exoneration.** Suite measured at handover: **1017 passed,
+3 skipped**, mypy clean on 170 files, tree clean, pushed.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
