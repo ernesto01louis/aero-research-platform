@@ -2834,6 +2834,56 @@ the resubmission is the NO-GO-on-infrastructure conversation, not a quiet third 
 would very nearly exhaust it — on a stack whose measured failure rate says it would not
 finish.
 
+### 6.72 SESSION 13 — hunting the crash itself: an AddressSanitizer build
+
+The operator chose to pursue checkpoint/restart AND asked what else to do. The answer is
+this: **every other option so far has been about SURVIVING the crash; a sanitizer build is
+the only one that could remove it.**
+
+**Why ASan and not a core dump.** glibc's `corrupted double-linked list` fires where it
+TRIPS OVER poisoned heap metadata, not where the bad write happened — N3 attempt 2 proved
+the gap is enormous, dying at w21 897 with the solid quiet for its last 7 698 windows. ASan
+reports the invalid write at the instant it happens, with file and line.
+
+**Built** (`1ab4b4f`): `calculix-precice-address.sif`, sha256 `6a5f496f…`, verified to link
+`libasan.so.8`. The campaign SIF is untouched at `ac0805d6…`. The sanitizer is injected via
+**compiler wrappers**, not make variables, because the adapter's Makefile assigns `CFLAGS`
+with `=` (a command-line override drops `-DARCH`/`-DSPOOLES`/`-DARPACK`) and its link rule
+hardcodes `$(FC) -fopenmp -Wall -O3` with no `LDFLAGS` hook. One recipe, one `SANITIZE`
+ARG, empty for the campaign — no second Dockerfile to drift.
+
+Two knobs run it through the normal path so provenance, supervisor, logs and `_reattach`
+keep working: **`--solid-sif`** (rides in `spec_knobs`, frozen legacy default) and
+**`--asan`** (exports `ASAN_OPTIONS` from launcher bytes, hash-exempt). **The fence grew a
+third conjunct** — `is_campaign_configuration` is now template-of-record AND
+alpha-of-record AND **solid-sif-of-record** — so a diagnostic container can never claim the
+gated verdict. `ObservabilityOptions` refuses `asan` with `malloc_check`, since ASan
+replaces the allocator glibc would be checking.
+
+**First finding, and it is NOT the bug** (`168290f`). ASan stopped within seconds on a
+**global-buffer-overflow READ** of 12 bytes off a 5-byte `'NODE'` literal, through
+gfortran's string compare at `keystart.f:71` ← `readinput.c:341` ← `ccx_2.20.c:195`. That is
+CalculiX's legacy Fortran comparing fixed-length character variables against shorter
+literals — the same class `-fallow-argument-mismatch` exists for. It is a READ of read-only
+data during DECK PARSING, it happens on every run including the two that completed 8 000
+windows, and **a read cannot corrupt heap metadata**. Retuned with `intercept_memcmp=0`
+(kills that interceptor's Fortran-string noise) and `halt_on_error=0` (a startup read must
+not end the hunt); heap checking is untouched, which is the entire point.
+
+**The hunt is running on the UNMITIGATED stack, deliberately.** `α = 0.0` dies every
+**~1 729 windows** against the adopted stack's ~37 900, so under ASan's ~2.5x slowdown the
+reproduction costs **~4 h instead of ~88 h** — and B0 has only ~79 h left, so the adopted-
+stack hunt would have consumed essentially all of it for one sample. Same signature, same
+component, across two coupling schemes and two adapter versions, so it is one bug whose
+trigger rate the damping reduces rather than two bugs.
+`fsi-hg2007_flexible_foil-20260915-113918`, flexible only, uncontended, ASan armed;
+a watch fires on the first `asan-solid.*` report or on the run ending.
+
+**If it names a line we own** — the adapter is C we compile ourselves, and upstream fixed a
+*different* invalid free in that exact file three weeks ago — a patch is plausible and the
+checkpoint work becomes optional. **If it names CalculiX Fortran**, the realistic paths are
+an upstream report and checkpoint/restart.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
