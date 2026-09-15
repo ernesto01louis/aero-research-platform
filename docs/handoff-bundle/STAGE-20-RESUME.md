@@ -504,7 +504,8 @@ cannot sit in the spec-derived `gated` while `restart_generations` stays out of 
 R5's energy band spans 3.7 decades; `decomposePar -force` deletes the fluid's checkpoints, so a
 relaunch cannot use the submit path; `precice-run/` removal is already done by the supervisor;
 `stage16_urans_cert.py` is the restart precedent. The R6 reading and the acceptance question
-are ONE decision for the operator.
+are ONE decision for the operator — the memo is handoff §6.77. **Session 15's prompt:
+`docs/handoff-bundle/STAGE-20-SESSION-15-PROMPT.md` — start there.**
 
 ## 6x. ADR-045 IS DRAFTED AND WAITING ON THE OPERATOR — checkpoint/restart
 

@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-08-13
-session_duration_hours: 31
+date_completed: 2026-09-15
+session_duration_hours: 33
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: c77447558f6a307e64a254eeb78743c53cde48a9
+git_sha_end: 811418f29d568bb0bf0e0d8334157a77f6b7e1f3
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
@@ -3139,6 +3139,58 @@ crash is survivable-only, and R1–R3 are the path — but only if R3 passes.* T
 (a patchable line) is not available. Nothing is resubmitted; ADR-045 stays `proposed`; the
 reading and the acceptance question go to the operator together (§6.74's reason for the
 handover), with the nine corrections of §6.75 attached to the text being accepted.
+
+### 6.77 SESSION 14 CLOSE — one decision for the operator: the R6 reading and ADR-045, together
+
+Session 13 handed both threads over so that the evidence and the rule that reads it would
+sit in one session (§6.74). They did. This is the memo that session put to the operator,
+recorded here because a chat message is not a record.
+
+**The reading.** `no-report-died` (§6.76). No patchable line exists, so R6's first bullet is
+closed; its second applies verbatim: *the crash is survivable-only, and R1–R3 are the path —
+but only if R3 passes.* Silence is not exoneration, for the three reasons in §6.76, and the
+hunt's own death was the unmitigated numerics, not the heap.
+
+**The arithmetic.** B0 ≈ **76 h**. A third N3 attempt needs ~74 h and would not fit beside
+anything else. ADR-045's R3 treatment needs ~3 h of B0, but only after C1–C7 — the adapter
+C, the deck edit with the `RENDERER_VERSION` bump and re-pin, the container rebuild, the
+relaunch driver, the R5 guard and the R3 scorer — none of which spends B0. R2's rework is
+≈ 60 h per wave at ~31 restarts and is a line item in any B-band sizing, not overhead.
+
+**The decision — ADR-045, one of three:**
+
+1. **Accept, as amended by §6.75's nine corrections.** The acceptance commit flips the Status
+   line and records the corrections in the text (the ADR-044 `d702b57` pattern); then
+   Phase C in clause order; the first B0 hour is spent at the R3 treatment, after the scorer
+   exists and has passed the control against itself. R3 fails ⇒ ADR-041 V7's NO-GO is the
+   recorded outcome.
+2. **Decline.** ADR-041 V7's NO-GO on infrastructure is recorded now; Stage 20 stays
+   `partial` with no campaign; the reader, the two verdict records and the corrections stay
+   as evidence of why.
+3. **Amend further** before deciding — the text stays `proposed`.
+
+Stated for completeness and NOT recommended: a wider hunt with SPOOLES, ARPACK and preCICE
+built from source under ASan (the uninstrumented components). It is outside every
+pre-registered plan, it is the sixth lever the session-14 prompt forbade, and it would need
+its own ADR before a single hour.
+
+**Recommendation: (1), accept as amended.** Four reasons. It is the only pre-registered path
+left that changes the mean-time-to-crash arithmetic rather than the numerics. Acceptance
+itself spends nothing — the first B0 hour is gated behind a scorer written first against a
+control already bought. The nine corrections are structural but bounded: none moves a
+band, a floor, a grid, a span or a ceiling, and each was measured off disk. And its honest
+limits stand exactly as the ADR states them — R4.3 unfixable, R5 bounded not eliminated,
+R2's rework real, and R3 may fail, in which case the NO-GO stands where V7 put it. The
+operator may reasonably choose (2); if so, choose it deliberately.
+
+**What session 14 landed.** `84a4c08` the reader (+ the launcher's exit-201 fix), `60549c4`
+and `811418f` the records, this close. Verdict records on NFS beside both hunt attempts.
+Suite **1056 passed, 3 skipped**; mypy clean on 171 files; PR #44 checks green on the
+previous push, re-running on this one. aero-dev idle; nothing submitted; B0 untouched since
+the hunt. Frontmatter bumped for the first time since session 11 (sessions 12 and 13 left it;
+their hours are not in `session_duration_hours`). The copy-paste prompt for session 15 is
+`docs/handoff-bundle/STAGE-20-SESSION-15-PROMPT.md`; it opens with the idle check and the
+ADR's Status line, because whether the operator has answered is what the session may do.
 
 ## 7. Open items for the next stage (and beyond)
 
