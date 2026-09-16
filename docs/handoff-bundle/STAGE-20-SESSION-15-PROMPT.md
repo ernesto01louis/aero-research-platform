@@ -10,8 +10,9 @@ tree clean, pushed.
 (§6.79–§6.80). **C5 is BUILT (§6.81): `calculix-precice-adr045.sif` is the solid container of record.**
 **One thing waits on the operator's word: R3's calibration finding (§6.79)** — two draws of
 the same submission differ over windows 4001–8000 by more than Q1b's band, so R3(a) as
-pre-registered cannot be passed; four options are put, the agent recommends restarting at
-w400 where the signal resolves. Nothing is submitted until it is answered.
+pre-registered cannot be passed. Option 3 (restart at w400) was chosen and then refuted
+by its own calibration (§6.82); the live question is option 2 with the concrete two-draw
+yardstick (factor 2, restart at 4000) or decline. Nothing is submitted until it is answered.
 
 FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision state read:
 

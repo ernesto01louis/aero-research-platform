@@ -3338,6 +3338,47 @@ new container with `--ckpt-at` covering the restart window, killed once the chec
 the fluid dump exist, `--restart`, and `--score-r3 --out data/vv/stage20_adr045_r3.json`.
 B0 ≈ 76 h, the treatment ~3 h, behind the B0 gate. aero-dev idle.
 
+### 6.82 SESSION 15 — option 3 refuted by its own calibration; the corrected R3 question
+
+The operator chose §6.79's option 3 (restart at window 400). **Before committing it, the
+scorer was calibrated at that window, and the numbers refute it** —
+`data/vv/stage20_adr045_r3_calibration_w400.json`, D-C1 against the control over windows
+401–8000: thrust max deviation **96 %** of the control's peak-to-peak (35 % at 4001–8000),
+lift **153 %** (51 %), Q1a applicable to nothing (thrust `|mean|/p2p` 0.077), trailing-edge
+`|Δ|` 5.1e-6 early against 1.26e-5 late — growing, so (b) fails for two draws on its own.
+The "0.3 % floor over windows 1–4000" that motivated option 3 was the max deviation divided
+by the 0.69 N startup peak-to-peak; excluding windows 1–400 removes that normaliser and the
+floor collapses again. Nothing is wrong with the runs. The two-draw thrust deviation is a
+**~1e-5 N floor everywhere** (RMS 7–8e-6 N in every quiet band) plus **two localised
+transients** where the draws differ by 1–2e-3 N (windows 201–400 and around w1376), while
+the thrust itself is nearly flat after the startup (peak-to-peak 5–7e-5 N on a 1e-4 N mean).
+**No restart window inside an 8000-window probe makes a peak-to-peak-normalised per-window
+band resolvable.** Option 3 is withdrawn, uncommitted; the pre-registered restart window
+stays 4000, where the fluid dump and the solid checkpoint already exist by cadence.
+
+**The corrected question — one option that can resolve, or decline.**
+
+- **Option 2, made concrete (the two-draw yardstick).** A restart is transparent when the
+  restarted run is indistinguishable from another fresh draw. With the two draws already
+  bought (D-C1, the control), pre-registered BEFORE the treatment: over windows 4001–8000,
+  per quantity (thrust, lift, interface power), the treatment's RMS deviation from the
+  control ≤ **2×** the two-draw RMS deviation, and its span-mean difference ≤ max(Q1a's 2 %
+  of the control mean, 2× the two-draw span-mean difference); (b) becomes: the treatment's
+  late-window (7801–8000) RMS deviation ≤ 2× the two-draw late-window RMS — no shift beyond
+  draw noise; (c) and (d) verbatim. The factor 2 is a judgment stated in advance, not
+  tuned to a result; a restart that doubles the natural run-to-run scatter is a shift.
+- **Option 4: decline** — record ADR-041 V7's NO-GO now; the reader, the records and the
+  calibrations stay as the evidence of why.
+
+Option 1 (run it as written for a foregone FAIL) stands but spends 3 h to learn nothing.
+**The agent's recommendation: option 2 as stated.** It is the only reading of "transparent"
+the data can support, it costs the same ~3 h, and its yardstick comes from runs that
+predate the treatment. The operator's word amends the ADR; nothing is submitted before it.
+
+The compile-error fix and the rebuild the operator also asked for were already done in
+§6.81 (`e23e3df`, `d448da3`): `calculix-precice-adr045.sif` `ca1937f7…` is the container of
+record.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
