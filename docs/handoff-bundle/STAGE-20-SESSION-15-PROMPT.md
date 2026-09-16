@@ -5,7 +5,9 @@ PR #44 (draft), **1092 tests green + 3 pre-existing skips**
 (`PATH="$PWD/.venv/bin:$PATH" pytest -q tests/unit tests/stage_20`), mypy clean on aero/,
 tree clean, pushed.
 
-**Nothing is running on aero-dev.** The sanitizer hunt LANDED and was read (§6.76);
+**The R3 treatment's segment 1 `fsi-hg2007_flexible_foil-20260916-152606` was submitted 15:26 UTC
+2026-09-16 (§6.84) — it may be running, killed at w4000 by design, restarted as `-seg1`, or
+finished: read §6.84 and the box before doing anything.** The sanitizer hunt LANDED and was read (§6.76);
 **ADR-045 is ACCEPTED as amended A1–A17 (§6.78, §6.83)**; C2/C3, C7, C1 and C6 are in code
 (§6.79–§6.80). **C5 is BUILT (§6.81): `calculix-precice-adr045.sif` is the solid container of record.**
 **R3 is AMENDED (A17, §6.83): the two-draw yardstick, the amplitude limit and the episode rule are pre-registered; the restart window stays 4000; the corrected cost is ≈ 5.9 h.** C8 (the treatment) is the next B0 spend — read §6.83 for the exact command, the watch commands and the kill-then-restart sequence (A12). If §6.84 exists, the treatment is already submitted: read it for the run id and the segment state before touching aero-dev.
@@ -13,6 +15,9 @@ tree clean, pushed.
 FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision state read:
 
     ssh root@aero-dev 'pgrep -x pimpleFoam; pgrep -x ccx_preCICE; pgrep -x mpirun; true'
+    bash scripts/run_long.sh status root@aero-dev fsi-hg2007_flexible_foil-20260916-152606
+    ls /mnt/aero-nfs/runs/hg2007_flexible_foil-20260916-152606/tutorial/hg2007-flexible-foil/solid-calculix/aero-checkpoint-w*.bin
+    ls -d /mnt/aero-nfs/runs/hg2007_flexible_foil-20260916-152606/tutorial/hg2007-flexible-foil/fluid-openfoam/processor0/0.08
     sed -n '3,6p' docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md
     python3 -c "import json;r=json.load(open('/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json'));print(r['verdict'],r['windows_reached'],r['participants'])"
 

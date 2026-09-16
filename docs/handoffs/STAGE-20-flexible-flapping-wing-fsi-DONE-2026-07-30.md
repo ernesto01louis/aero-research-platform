@@ -3466,6 +3466,24 @@ B0 arithmetic including restart rework (R2's ≈ 60 h per wave at ≈ 31 restart
 remaining hours), and how ADR-040's partner-kill stop rule changes now that a death is
 followed by a restart rather than a kill of the partner. Not started; it is the next memo.
 
+### 6.84 SESSION 15 — R3 treatment segment 1 SUBMITTED: `hg2007_flexible_foil-20260916-152606`
+
+Submitted 15:26 UTC 2026-09-16 from tip `e07d368` (clean tree), behind the B0 gate stated in
+§6.83 (≈ 76 h → ≈ 70 h). **`fsi-hg2007_flexible_foil-20260916-152606` on aero-dev**, record
+`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260916-152606/r3-treatment-submission.json`.
+Verified after submission: 4 `pimpleFoam` + 1 `ccx_preCICE` alive; `run-coupled.sh` runs the
+solid on `/opt/aero/containers/calculix-precice-adr045.sif` with `AERO_CKPT_EVERY=2000
+AERO_CKPT_KEEP=2` exported; the record's `spec_knobs` are the control's on every shape knob
+(`solid_sif` is the only difference, as A16 requires), `checkpoint.every_windows 2000`,
+`observability.malloc_check false` (not shape, §6.83), `provenance.git_sha e07d368`,
+containers `calculix-precice-adr045.sif ca1937f7…` + `precice-fsi.sif ce795873…`.
+
+Expected timeline at the control's 2.60 s/window: `aero-checkpoint-w2000.bin` ≈ 16:53 UTC
+(the C code's first runtime write), `w4000` + the fluid `processor*/0.08` dump ≈ 18:20 UTC,
+after which segment 1 is killed deliberately (A12) and segment 2 is launched with
+`--restart /mnt/aero-nfs/runs/hg2007_flexible_foil-20260916-152606/r3-treatment-submission.json
+--restart-window 4000`. Nothing else touches aero-dev while it runs; never `wait`.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
