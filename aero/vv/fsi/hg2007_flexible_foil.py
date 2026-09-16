@@ -253,7 +253,14 @@ LEGACY_HHT_ALPHA = 0.0
 #: The solid container the campaign runs. A DIAGNOSTIC may point elsewhere -- the
 #: AddressSanitizer build, for instance -- and must never be able to claim the gated
 #: verdict while doing so, which is what the fence below is for.
-SOLID_SIF_OF_RECORD = "calculix-precice.sif"
+#:
+#: Moved 2026-09-16 (ADR-045 R1, the accepted amendments A1/A12): the recipe now carries the
+#: checkpoint/restart patch, so the image built from it is named for its bytes. The
+#: unpatched ``calculix-precice.sif`` (``ac0805d6...``) stays on disk and in SHA256SUMS so
+#: every record that names it keeps resolving; ``LEGACY_SOLID_SIF`` is what ``_reattach``
+#: supplies for a record written before the knob existed, because that is what ran.
+SOLID_SIF_OF_RECORD = "calculix-precice-adr045.sif"
+LEGACY_SOLID_SIF = "calculix-precice.sif"
 
 
 def is_campaign_configuration(
@@ -580,7 +587,7 @@ def hg2007_case_spec(
     ddt_scheme: str = "Euler",
     run_as_uid: int = 1000,
     fluid_sif: str = "precice-fsi.sif",
-    solid_sif: str = "calculix-precice.sif",
+    solid_sif: str = SOLID_SIF_OF_RECORD,
     numerics_label: str = "adr039-baseline",
     mpi_ranks: int = 1,
     coupling_scheme: CouplingSchemeKind = LEGACY_COUPLING_SCHEME,

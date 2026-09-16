@@ -498,7 +498,7 @@ pre-commit hook refused the split; handoff §6.75):
 signal death. Suite **1056 passed, 3 skipped**.
 
 **ADR-045 is ACCEPTED as amended (A1–A11), handoff §6.78** — R6's second bullet applied (survivable-only; R1–R3 only if R3
-passes). **C2/C3 (`23e2326`), C7 (`a2fb4ce`) and C1/C6 (`7b30bd9`: the adapter patch, launcher exports, `--restart`) are in. C5 (the container build, `VARIANT=adr045 bash scripts/build_calculix_sif.sh`) is PROPOSED, not run — it is also the patch's first compilation.** **OPEN with the operator (handoff §6.79): the R3
+passes). **C2/C3 (`23e2326`), C7 (`a2fb4ce`) and C1/C6 (`7b30bd9`: the adapter patch, launcher exports, `--restart`) are in. C5 is BUILT (2026-09-16, handoff §6.81): `calculix-precice-adr045.sif` `ca1937f7…` is the solid container of record; one include-order compile error fixed on the way (`e23e3df`). What remains is the operator's R3 option (§6.79) → amendment → C8.** **OPEN with the operator (handoff §6.79): the R3
 calibration shows two draws of the SAME submission differ over windows 4001–8000 by 35 % (thrust) and
 51 % (lift) of the control's peak-to-peak — above Q1b's 5 % — so R3(a) as pre-registered cannot be
 passed by any treatment. Four options put (run as-is / amend with the two-draw yardstick / restart at

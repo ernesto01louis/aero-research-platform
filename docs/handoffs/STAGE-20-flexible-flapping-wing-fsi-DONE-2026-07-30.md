@@ -3310,6 +3310,34 @@ disk so every record naming it keeps resolving); the follow-up commit adds its d
 build is also the patch's first compilation. **C8** waits on the operator's R3 answer
 (§6.79) AND on C5. aero-dev is idle; B0 untouched at ~76 h.
 
+### 6.81 SESSION 15 — C5 built: the patched solid container is the container of record
+
+The operator approved the build on 2026-09-16 ("alright then run it now"). **The first
+compilation of the patch failed on one line** — `CalculiX.h:1744: unknown type name 'FILE'`:
+CalculiX's header uses `FILE` and the libc prototypes without including them and relies on
+every translation unit including `<math.h>`, `<stdio.h>`, `<stdlib.h>` first, which
+`AeroCheckpoint.h` now does (`e23e3df`). Everything else compiled the first time, both hooks
+in `nonlingeo_precice.c` included. The rebuild went through: **`calculix-precice-adr045.sif`,
+sha256 `ca1937f7c1be62dc45f4d50e18368a4e5f90d24edbad9d05ea0bd259a55198d3`**, 446 MB, signed
+and PGP-verified on aero-build, published to `/mnt/aero/containers`. Verified inside the
+image: the baked patch digest equals the repo's (`0201994f…`), the adapter commit is v2.20.2's
+`f362a16d`, `ccx_preCICE -v` answers "This is Version 2.20", and the binary carries the
+`aero-checkpoint` strings. The unpatched `calculix-precice.sif` is untouched.
+
+**The record moved with it.** `SOLID_SIF_OF_RECORD` → `calculix-precice-adr045.sif`;
+`LEGACY_SOLID_SIF` (`calculix-precice.sif`) is what `_reattach`, `--restart` and `--score-r3`
+supply for a record written before the knob existed, because that is what ran; the ASan
+reader refuses both uninstrumented names. Every spec digest moved a fourth time and the
+live pin is re-pinned (flexible `162b2d25` → `be97434a`, rigid `f89d8e6b` → `5fcc563f`;
+`_SUPERSEDED` widened). A16: R3's shape check exempts the container, refuses a treatment on
+the unpatched image, and records both names. Suite **1087 passed, 3 skipped**.
+
+**What remains before the treatment (C8):** the operator's word on R3's clause (§6.79 —
+recommended: restart at window 400), an amendment commit carrying it, then segment 1 on the
+new container with `--ckpt-at` covering the restart window, killed once the checkpoint and
+the fluid dump exist, `--restart`, and `--score-r3 --out data/vv/stage20_adr045_r3.json`.
+B0 ≈ 76 h, the treatment ~3 h, behind the B0 gate. aero-dev idle.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**

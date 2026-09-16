@@ -7,12 +7,11 @@ tree clean, pushed.
 
 **Nothing is running on aero-dev.** The sanitizer hunt LANDED and was read (§6.76);
 **ADR-045 is ACCEPTED as amended A1–A15 (§6.78)**; C2/C3, C7, C1 and C6 are in code
-(§6.79–§6.80). **Two things wait on the operator's word:** (1) **R3's calibration
-finding (§6.79)** — two draws of the same submission differ over windows 4001–8000 by more
-than Q1b's band, so R3(a) as pre-registered cannot be passed; four options are put, the
-agent recommends restarting at w400 where the signal resolves; (2) **C5, the container
-build** (`VARIANT=adr045 bash scripts/build_calculix_sif.sh`, provisioning gate) — it is
-also the adapter patch's first compilation. Nothing is submitted until both are answered.
+(§6.79–§6.80). **C5 is BUILT (§6.81): `calculix-precice-adr045.sif` is the solid container of record.**
+**One thing waits on the operator's word: R3's calibration finding (§6.79)** — two draws of
+the same submission differ over windows 4001–8000 by more than Q1b's band, so R3(a) as
+pre-registered cannot be passed; four options are put, the agent recommends restarting at
+w400 where the signal resolves. Nothing is submitted until it is answered.
 
 FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision state read:
 
@@ -70,10 +69,8 @@ STATE — settled; do not re-derive, do not re-litigate:
 
 YOUR TASK, IN THIS ORDER
 
-1. Run the FIRST COMMAND block. Read the operator's answers to §6.79 (R3's clause) and
-   §6.80 (the build). With the build approved: run it, verify the SIF's sha256, add it to
-   `containers/SHA256SUMS`, move `SOLID_SIF_OF_RECORD` to `calculix-precice-adr045.sif`,
-   re-pin the live digests in the same commit. With R3's option chosen: amend the ADR
+1. Run the FIRST COMMAND block. Read the operator's answer to §6.79 (R3's clause). The
+   build is done and recorded (§6.81). With R3's option chosen: amend the ADR
    (an amendment commit BEFORE the treatment), then C8 behind the B0 gate — segment 1 =
    the identical 8000-window submission on the new SIF with `--ckpt-at` covering the
    restart window, killed once the checkpoint and the fluid dump exist; segment 2 =

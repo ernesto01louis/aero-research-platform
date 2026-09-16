@@ -353,7 +353,12 @@ def test_two_draw_context_reports_what_determinism_alone_does(tmp_path: Path) ->
 
 
 def _submission(
-    path: Path, run_id: str, case_host: Path, *, restarts: list[int] | None = None
+    path: Path,
+    run_id: str,
+    case_host: Path,
+    *,
+    restarts: list[int] | None = None,
+    solid_sif: str | None = None,
 ) -> Path:
     driver = _driver()
     record: dict[str, Any] = {
@@ -374,7 +379,9 @@ def _submission(
             "mpi_ranks": 4,
             "coupling_scheme": "parallel-implicit",
             "hht_alpha": -0.05,
-            "solid_sif": "calculix-precice.sif",
+            # the control ran the unpatched image; a treatment runs the container of record
+            "solid_sif": solid_sif
+            or (driver.LEGACY_SOLID_SIF if restarts is None else driver.SOLID_SIF_OF_RECORD),
         },
     }
     if restarts is not None:
@@ -448,3 +455,23 @@ def test_the_real_control_reads_as_transparent_against_itself_and_fixes_a10() ->
     assert score["b"]["identical_run_degenerate"] is True
     assert score["c"]["verdict"] == "eliminated" and score["c"]["windows_reached"] == 8000
     assert score["d"]["refilled_at_window"] is not None and score["d"]["refilled_at_window"] <= 4030
+
+
+def test_a_treatment_on_the_unpatched_container_is_refused(tmp_path: Path) -> None:
+    """R1 rebuilds the solid container; the mechanism under test lives in the patched one."""
+    driver = _driver()
+    control_root, treatment_root = _pair(tmp_path, _control_signals())
+    control = _submission(tmp_path / "c.json", driver.R3_CONTROL_RUN_ID, control_root.parent)
+    treat = _submission(
+        tmp_path / "t.json",
+        "hg2007_flexible_foil-treat",
+        treatment_root.parent,
+        restarts=[R],
+        solid_sif=driver.LEGACY_SOLID_SIF,
+    )
+    with pytest.raises(SystemExit, match="container of record"):
+        driver._score_r3(
+            driver.argparse.Namespace(
+                score_r3=[control, treat], r3_baseline=None, restart_window=R, out=None
+            )
+        )

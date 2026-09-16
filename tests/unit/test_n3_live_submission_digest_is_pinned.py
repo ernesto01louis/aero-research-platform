@@ -58,7 +58,7 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             # inherited, so a later default move announces itself here.
             "hht_alpha": -0.05,
         },
-        "162b2d25b0509c1afe2cf6efc24b57bc44aa30a981a113c8f7d8f80d82f4b651",
+        "be97434a412c953546939fd057c1ac89f65fc4c3c702d6841ed96473fc6f7b9a",
     ),
     "rigid": (
         {
@@ -73,7 +73,7 @@ _LIVE: dict[str, tuple[dict[str, object], str]] = {
             # inherited, so a later default move announces itself here.
             "hht_alpha": -0.05,
         },
-        "f89d8e6b6b2c8654ad2627b6504282ef11ef37c79ff14c805c4221ae623368ff",
+        "5fcc563f529a6981a920b7cf1a1187c7ba29426867808f5c3bb33e78200da9e8",
     ),
 }
 
@@ -91,6 +91,9 @@ _SUPERSEDED = {
         # N3 attempt 2 (hg2007_flexible_foil-20260914-122525, died w21 897, 2026-09-15):
         # alpha -0.05 under renderer version "1", before ADR-045 A1 bumped it
         "bebec2d3a1203f9d1b3d44ae327af26357a67872e9f5dd52e1ce53c8682001d7",
+        # renderer "2" on the UNPATCHED solid container of record (2026-09-15, before
+        # ADR-045 R1's rebuild moved SOLID_SIF_OF_RECORD to calculix-precice-adr045.sif)
+        "162b2d25b0509c1afe2cf6efc24b57bc44aa30a981a113c8f7d8f80d82f4b651",
     ),
     "rigid": (
         "ed1ba571cb3d4a69c7ec24ea9a29658c0d3e7154eb0bdad01c81bb2ccab2117c",
@@ -98,6 +101,8 @@ _SUPERSEDED = {
         # N3 attempt 2 (hg2007_rigid_foil-20260914-122543, killed at w60 622 by the stop
         # rule): renderer version "1"
         "7724059880bffc5c7cd38489e113f1db4e9bdf5de9eeb7615e30109a0ce99cdb",
+        # renderer "2" on the unpatched solid container of record
+        "f89d8e6b6b2c8654ad2627b6504282ef11ef37c79ff14c805c4221ae623368ff",
     ),
 }
 
@@ -130,9 +135,11 @@ def test_the_running_arms_spec_still_rebuilds_to_the_submitted_digest(arm: str) 
     ran on these knobs at renderer version "1" and **died on 2026-09-15** (flexible at
     w21 897; the rigid partner killed by the stop rule) -- there is NO submission executing.
     **ADR-045 A1 then moved the renderer to "2"** (`*AMPLITUDE ... TIME=TOTAL TIME`,
-    `writePrecision 17`), which moves every spec digest; the attempt-2 records on NFS are
-    the third superseded generation, and nothing downstream reads them through `_reattach`
-    (their facts are in the handoff). The constants below are the N3 shape re-pinned to the
+    `writePrecision 17`), and **ADR-045 R1's rebuild moved `SOLID_SIF_OF_RECORD` to
+    `calculix-precice-adr045.sif`** (2026-09-16); each moves every spec digest. The
+    attempt-2 records on NFS are the third superseded generation, the renderer-2/unpatched
+    digests the fourth, and nothing downstream reads them through `_reattach` (their facts
+    are in the handoff). The constants below are the N3 shape re-pinned to the
     serialization as it stands, so the next submission on this shape is collectable.
 
     **While a submission is executing, if this fails, do NOT update the constant.** Revert

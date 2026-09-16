@@ -53,3 +53,11 @@ ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8  precice-fsi.si
 #              the solid container to `calculix-precice.sif`.
 ac0805d63a05f5258e966fc01cc9e272b2b4be9bbdb5e9ad35b68696ed5a2402  calculix-precice.sif
 6a5f496fba02ee063ae9894eb21c8e0fad0b791dca54d83a387ad3f69dfd9414  calculix-precice-address.sif
+#   Stage 20, 2026-09-16 — `calculix-precice-adr045.sif` is the SOLID CONTAINER OF RECORD
+#              (ADR-045 R1/A12, accepted 2026-09-15): the same recipe with
+#              containers/calculix-precice-adr045.patch applied after the v2.20.2 checkout
+#              (patch sha256 0201994fa246e603491f8660678b26382bcb03be56e2b3bb836afccb8cd3871f,
+#              adapter commit f362a16d, baked into /opt/aero/ inside the image), signed and
+#              verified on aero-build. `calculix-precice.sif` above is the UNPATCHED image
+#              every run before this date executed on; it stays here so those records resolve.
+ca1937f7c1be62dc45f4d50e18368a4e5f90d24edbad9d05ea0bd259a55198d3  calculix-precice-adr045.sif

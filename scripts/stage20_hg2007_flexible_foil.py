@@ -129,6 +129,7 @@ from aero.vv.fsi.hg2007_flexible_foil import (  # noqa: E402
     GATED_TIME_WINDOW_S,
     LEGACY_COUPLING_SCHEME,
     LEGACY_HHT_ALPHA,
+    LEGACY_SOLID_SIF,
     NUMERICS_STACKS,
     RUNGS,
     SOLID_SIF_OF_RECORD,
@@ -1068,7 +1069,7 @@ def _reattach(args: argparse.Namespace, submission: dict[str, Any]) -> tuple[Any
     # a record written before this key describes a run that really was parallel-implicit.
     knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
     knobs.setdefault("hht_alpha", LEGACY_HHT_ALPHA)
-    knobs.setdefault("solid_sif", SOLID_SIF_OF_RECORD)
+    knobs.setdefault("solid_sif", LEGACY_SOLID_SIF)
     spec = hg2007_case_spec(**knobs)
     digest = spec_config_digest(spec)
     if digest != submission["spec_sha256"]:
@@ -1512,8 +1513,8 @@ def _asan_evaluate(args: argparse.Namespace) -> int:
             "evidence."
         )
     knobs = submission["spec_knobs"]
-    solid_sif = knobs.get("solid_sif", SOLID_SIF_OF_RECORD)
-    if solid_sif == SOLID_SIF_OF_RECORD:
+    solid_sif = knobs.get("solid_sif", LEGACY_SOLID_SIF)
+    if solid_sif in {SOLID_SIF_OF_RECORD, LEGACY_SOLID_SIF}:
         raise SystemExit(
             f"{path} ran the solid on {solid_sif!r}, the campaign container, which is not "
             "built with a sanitizer: --asan only exports ASAN_OPTIONS. Silence from an "
@@ -1725,7 +1726,10 @@ R3_RESTART_WINDOW = 4000
 #: scorer's calibration on the control alone goes anywhere else.
 R3_RECORD_NAME = "stage20_adr045_r3.json"
 #: The knobs a treatment must share with the control, verbatim, for the comparison to be
-#: the pre-registered one (the ceiling is a budget, not a configuration).
+#: the pre-registered one (the ceiling is a budget, not a configuration). The solid
+#: container is deliberately absent: R1 rebuilds it, so the control ran the unpatched
+#: image and the treatment MUST run the patched one of record (amendment A16); both names
+#: are written into the record instead.
 _R3_SHAPE_KNOBS = (
     "arm",
     "rung",
@@ -1735,7 +1739,6 @@ _R3_SHAPE_KNOBS = (
     "mpi_ranks",
     "coupling_scheme",
     "hht_alpha",
-    "solid_sif",
 )
 
 
@@ -1761,7 +1764,7 @@ def _score_r3(args: argparse.Namespace) -> int:
     legacy = {
         "coupling_scheme": LEGACY_COUPLING_SCHEME,
         "hht_alpha": LEGACY_HHT_ALPHA,
-        "solid_sif": SOLID_SIF_OF_RECORD,
+        "solid_sif": LEGACY_SOLID_SIF,
     }
     c_knobs = {**legacy, **control_sub["spec_knobs"]}
     t_knobs = {**legacy, **treatment_sub["spec_knobs"]}
@@ -1770,6 +1773,13 @@ def _score_r3(args: argparse.Namespace) -> int:
         for k in _R3_SHAPE_KNOBS
         if c_knobs.get(k) != t_knobs.get(k)
     }
+    control_is_treatment = control_sub["run_id"] == treatment_sub["run_id"]
+    if not control_is_treatment and t_knobs["solid_sif"] != SOLID_SIF_OF_RECORD:
+        raise SystemExit(
+            f"the treatment ran the solid on {t_knobs['solid_sif']!r}; R3's treatment is the "
+            f"restarted run on the container of record, {SOLID_SIF_OF_RECORD!r} (ADR-045 R1, "
+            "A16) -- a restart on an unpatched container is not the mechanism under test"
+        )
     if differ:
         raise SystemExit(
             f"the treatment is not the control's shape: {differ}. R3 is the IDENTICAL "
@@ -1795,7 +1805,9 @@ def _score_r3(args: argparse.Namespace) -> int:
         "control_run_id": control_sub["run_id"],
         "treatment_run_id": treatment_sub["run_id"],
         "treatment_restart_windows": restarts,
-        "control_is_treatment": control_sub["run_id"] == treatment_sub["run_id"],
+        "control_is_treatment": control_is_treatment,
+        "control_solid_sif": c_knobs["solid_sif"],
+        "treatment_solid_sif": t_knobs["solid_sif"],
         "pre_registered": {
             "early_windows": R3_EARLY_WINDOWS,
             "late_windows": R3_LATE_WINDOWS,
@@ -2052,7 +2064,7 @@ def _restart(args: argparse.Namespace) -> int:
     spec_knobs = dict(knobs)
     spec_knobs.setdefault("coupling_scheme", LEGACY_COUPLING_SCHEME)
     spec_knobs.setdefault("hht_alpha", LEGACY_HHT_ALPHA)
-    spec_knobs.setdefault("solid_sif", SOLID_SIF_OF_RECORD)
+    spec_knobs.setdefault("solid_sif", LEGACY_SOLID_SIF)
     spec = hg2007_case_spec(**spec_knobs)
     if spec_config_digest(spec) != submission["spec_sha256"]:
         raise SystemExit(
