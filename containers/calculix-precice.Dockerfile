@@ -16,8 +16,28 @@
 # a SIF by containers/calculix-precice.def with a filesystem-only %post.
 
 ARG PRECICE_VERSION=3.4.1
+
+# DIAGNOSTIC ONLY (Stage 20, the N3-attempt-2 investigation). Empty for the campaign image,
+# which is what `containers/SHA256SUMS` rosters; set to `address` to build a separate
+# AddressSanitizer variant of ccx_preCICE. glibc reports `corrupted double-linked list`
+# when it TRIPS OVER poisoned heap metadata, which can be thousands of coupling windows
+# after the bad write -- attempt 2 died with the solid quiet for its last 7 698 windows.
+# ASan reports the invalid write where it HAPPENS, with file and line.
+#
+# It is injected through compiler WRAPPERS rather than through make variables, because the
+# adapter's Makefile assigns CFLAGS with `=` (a command-line override would drop
+# -DARCH/-DSPOOLES/-DARPACK and the build would fail) and its link rule hardcodes
+# `$(FC) -fopenmp -Wall -O3` with no LDFLAGS hook at all. Wrapping mpicc/mpifort/mpic++
+# covers every compile AND the link, and touches no upstream byte.
+ARG SANITIZE=
 ARG CALCULIX_VERSION=2.20
-ARG CALCULIX_ADAPTER_REF=v2.20.1
+# ADR-042 X1a: bumped v2.20.1 -> v2.20.2 as the D-C form 2 rung. Same CalculiX 2.20 --
+# there is no adapter for 2.21/2.22 and porting one is a manual merge into the solver's
+# main loop. v2.20.2 is 90 commits on and fixes uninitialized PreciceInterface counters
+# (#165), memory access issues during adapter initialization (#154) and two leaks (#166),
+# in the C that sits between CalculiX and preCICE -- the right component and the right
+# class for a heap corruption that has ended 3 of 3 coupled runs.
+ARG CALCULIX_ADAPTER_REF=v2.20.2
 
 # Same Ubuntu 24.04 digest the SU2 image uses.
 FROM docker.io/library/ubuntu@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b5cfca2330194ebcc41c7b AS build
@@ -53,6 +73,26 @@ RUN mkdir -p /src && cd /src \
              sha256sum "ccx_${CALCULIX_VERSION}.src.tar.bz2"; exit 1; }) \
     && tar xjf "ccx_${CALCULIX_VERSION}.src.tar.bz2"
 
+ARG SANITIZE
+RUN if [ -n "$SANITIZE" ]; then \
+        set -eux; \
+        for tool in mpicc mpifort mpic++; do \
+            real="$(command -v "$tool")"; \
+            printf '#!/bin/sh\nexec %s -fsanitize=%s -g -fno-omit-frame-pointer "$@"\n' \
+                "$real" "$SANITIZE" > "/usr/local/bin/$tool"; \
+            chmod +x "/usr/local/bin/$tool"; \
+        done; \
+        /usr/local/bin/mpicc --version >/dev/null; \
+    fi
+
+# ADR-045 R1/R2/R5 (Stage 20): the checkpoint/restart patch to the adapter -- a purpose-
+# built state dump at the converged window boundary (adapter/AeroCheckpoint.[ch], two
+# hooks in nonlingeo_precice.c, one Makefile line). It touches no CalculiX byte. The
+# patch's sha256 is recorded beside the upstream commit so the provenance names both;
+# `--forward` makes a patch that no longer applies a loud build failure, never a silent
+# skip.
+COPY calculix-precice-adr045.patch /src/calculix-precice-adr045.patch
+
 # gfortran >= 10 rejects the argument-type mismatches in CalculiX's legacy Fortran
 # without -fallow-argument-mismatch.
 RUN git clone https://github.com/precice/calculix-adapter.git /src/calculix-adapter \
@@ -60,6 +100,8 @@ RUN git clone https://github.com/precice/calculix-adapter.git /src/calculix-adap
     && git checkout "${CALCULIX_ADAPTER_REF}" \
     && mkdir -p /opt/aero \
     && git rev-parse HEAD > /opt/aero/calculix-adapter.commit \
+    && patch -p1 --forward < /src/calculix-precice-adr045.patch \
+    && sha256sum /src/calculix-precice-adr045.patch | cut -d' ' -f1 > /opt/aero/calculix-adapter.patch.sha256 \
     && make CCX="/src/CalculiX/ccx_${CALCULIX_VERSION}/src" \
             SPOOLES_INCLUDE="-I/usr/include/spooles" \
             ADDITIONAL_FFLAGS="-fallow-argument-mismatch" \
@@ -72,8 +114,8 @@ FROM docker.io/library/ubuntu@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b
 ARG PRECICE_VERSION
 
 LABEL org.aero.component   ="calculix-precice"
-LABEL org.aero.stage       ="19"
-LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.1"
+LABEL org.aero.stage       ="20"
+LABEL org.aero.solver      ="CalculiX 2.20 + preCICE adapter v2.20.2 + ADR-045 checkpoint/restart patch"
 LABEL org.aero.maintainer  ="aero-research-platform"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -81,7 +123,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates wget \
         libarpack2t64 libspooles2.2 libyaml-cpp0.8 \
-        libgfortran5 libgomp1 openmpi-bin \
+        libgfortran5 libgomp1 openmpi-bin libasan8 \
     && wget -q "https://github.com/precice/precice/releases/download/v${PRECICE_VERSION}/libprecice3_${PRECICE_VERSION}_noble.deb" \
     && apt-get install -y --no-install-recommends "./libprecice3_${PRECICE_VERSION}_noble.deb" \
     && rm -f "libprecice3_${PRECICE_VERSION}_noble.deb" \
@@ -89,6 +131,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=build /opt/calculix /opt/calculix
 COPY --from=build /opt/aero/calculix-adapter.commit /opt/aero/calculix-adapter.commit
+COPY --from=build /opt/aero/calculix-adapter.patch.sha256 /opt/aero/calculix-adapter.patch.sha256
 
 ENV PATH=/opt/calculix/bin:$PATH
 ENV OMP_NUM_THREADS=1

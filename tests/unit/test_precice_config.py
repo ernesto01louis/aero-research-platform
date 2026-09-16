@@ -11,6 +11,7 @@ from aero.adapters.precice.config import (
     assert_config,
     parse_precice_config,
     read_precice_config,
+    rewrite_for_restart,
     rewrite_max_time,
 )
 
@@ -226,6 +227,79 @@ def test_rewrite_max_time_refuses_ambiguous_source(tmp_path: Path) -> None:
     )
     with pytest.raises(PreciceConfigError, match="max-time"):
         rewrite_max_time(source, tmp_path / "out.xml", max_time=8.0)
+
+
+def _write(path: Path, text: str) -> Path:
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_the_parser_captures_exchange_initialize() -> None:
+    """The model must SEE initialize, or the structural check is blind to A18."""
+    scheme = _parse(FSI3_CONFIG).coupling_scheme
+    assert scheme.exchange_initialize == (False, False)
+    withinit = FSI3_CONFIG.replace(
+        '<exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" />',
+        '<exchange data="Displacement" mesh="Solid-Mesh" from="Solid" to="Fluid" initialize="true" />',
+    )
+    assert _parse(withinit).coupling_scheme.exchange_initialize == (False, True)
+
+
+def test_rewrite_for_restart_sets_max_time_and_initialize_on_every_exchange(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "precice-config.xml"
+    source.write_text(FSI3_CONFIG, encoding="utf-8")
+    dest = tmp_path / "out" / "precice-config.xml"
+
+    produced = rewrite_for_restart(source, dest, max_time=8.0)
+
+    assert produced.coupling_scheme.max_time == 8.0
+    assert produced.coupling_scheme.exchange_initialize == (True, True)
+    assert produced.coupling_scheme.max_iterations == 100  # untouched
+    text = dest.read_text(encoding="utf-8")
+    assert text.count('initialize="true"') == 2
+    # exactly the two exchange lines and the one max-time line moved; nothing else
+    differing = [
+        i
+        for i, (a, b) in enumerate(zip(FSI3_CONFIG.splitlines(), text.splitlines(), strict=True))
+        if a != b
+    ]
+    assert len(differing) == 3
+    for i in differing:
+        line = text.splitlines()[i]
+        assert "max-time" in line or "<exchange" in line
+
+
+def test_rewrite_for_restart_is_idempotent_on_an_already_initialized_exchange(
+    tmp_path: Path,
+) -> None:
+    """A second restart of the same case must not double the attribute."""
+    once = tmp_path / "once.xml"
+    rewrite_for_restart(_write(tmp_path / "src.xml", FSI3_CONFIG), once, max_time=8.0)
+    twice = tmp_path / "twice.xml"
+    produced = rewrite_for_restart(once, twice, max_time=6.0)
+    assert twice.read_text(encoding="utf-8").count('initialize="true"') == 2
+    assert produced.coupling_scheme.max_time == 6.0
+
+
+def test_rewrite_for_restart_structural_check_catches_a_smuggled_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import aero.adapters.precice.config as config_module
+
+    source = tmp_path / "precice-config.xml"
+    source.write_text(FSI3_CONFIG, encoding="utf-8")
+    real_write = Path.write_text
+
+    def sneaky(self: Path, data: str, *args: object, **kwargs: object) -> int:
+        if self.name == "precice-config.xml" and "initialize=" in data:
+            data = data.replace('<max-iterations value="100" />', '<max-iterations value="7" />')
+        return real_write(self, data, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "write_text", sneaky)
+    with pytest.raises(config_module.PreciceConfigError, match="beyond max-time and exchange"):
+        rewrite_for_restart(source, tmp_path / "out" / "precice-config.xml", max_time=8.0)
 
 
 def test_rewrite_max_time_structural_check_catches_a_smuggled_change(

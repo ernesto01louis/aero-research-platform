@@ -241,6 +241,9 @@ class CouplingSchemeDecl(BaseModel):
     first: str = Field(..., min_length=1)
     second: str = Field(..., min_length=1)
     exchanges: tuple[tuple[str, str, str, str], ...] = ()  # (data, mesh, from, to)
+    exchange_initialize: tuple[
+        bool, ...
+    ] = ()  # per-exchange initialize="true", aligned with exchanges
     convergence_measures: tuple[ConvergenceMeasureDecl, ...] = ()
     acceleration: AccelerationDecl | None = None
 
@@ -444,6 +447,10 @@ def _read_coupling_scheme(element: _Element, *, source: Path) -> CouplingSchemeD
             )
             for e in element.find_all("exchange")
         ),
+        exchange_initialize=tuple(
+            e.attrib.get("initialize", "false").strip().lower() == "true"
+            for e in element.find_all("exchange")
+        ),
         convergence_measures=tuple(measures),
         acceleration=(
             None if not accelerations else _read_acceleration(accelerations[0], source=source)
@@ -533,10 +540,85 @@ def read_precice_config(path: Path) -> PreciceConfig:
 # --------------------------------------------------------------------------------------
 
 
-class PreciceConfigExpectation(BaseModel):
-    """What a campaign asserts about the configuration BEFORE it runs it."""
+class _Unset:
+    """Sentinel: "this expectation says nothing about the field".
+
+    Needed because for an optionally-present XML element, ``None`` is a real assertion —
+    "there must be no such element" — and is therefore not available to mean "do not
+    check". Upstream's perpendicular-flap acceleration has no ``<preconditioner>`` while
+    FSI3's has ``residual-sum``, and an authored case must be able to pin either.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "UNSET"
+
+
+UNSET = _Unset()
+
+
+class MeshExpectation(BaseModel):
+    """A declared mesh: its dimensionality and its ORDERED ``use-data``."""
 
     model_config = _STRICT
+
+    dimensions: int = Field(..., ge=1, le=3)
+    use_data: tuple[str, ...] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Ordered, because watch-point log columns are generated in exactly this order "
+            "(see PreciceConfig.watchpoint_columns) — reordering silently renames columns."
+        ),
+    )
+
+
+class ParticipantDataExpectation(BaseModel):
+    """Which data a participant reads and writes, and on which mesh."""
+
+    model_config = _STRICT
+
+    read_data: tuple[tuple[str, str], ...] = ()  # (data, mesh)
+    write_data: tuple[tuple[str, str], ...] = ()
+
+
+class MappingExpectation(BaseModel):
+    """One ``mapping:*`` block, including the basis function and its support radius."""
+
+    model_config = _STRICT
+
+    kind: str = Field(..., min_length=1)
+    direction: Literal["read", "write"]
+    from_mesh: str = Field(..., min_length=1)
+    to_mesh: str = Field(..., min_length=1)
+    constraint: str = Field(..., min_length=1)
+    basis_function: str | None = None
+    support_radius: float | None = None
+
+
+class PreciceConfigExpectation(BaseModel):
+    """What a campaign asserts about the configuration BEFORE it runs it.
+
+    Everything below ``acceleration_kind`` is a Stage-20 ADDITIVE extension, every field
+    defaulting to "do not check". Stage 19's expectation literal and its tests are
+    therefore byte-identical under it.
+
+    The extension exists because an AUTHORED case's claim is stronger than a tutorial's.
+    A tutorial is verified by per-file digest, so the configuration only has to be spot-
+    checked; an authored config is RENDERED, and its C-family claim is "every token this
+    renderer substituted is observable in the parsed model". That was not achievable
+    before: ``MappingDecl.support_radius`` and every ``AccelerationDecl`` field are parsed
+    and were never asserted, so a mis-scaled RBF support radius — upstream's ``1.`` is one
+    metre on a 0.09 m chord — would have rendered, parsed, and run.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        validate_default=True,
+        arbitrary_types_allowed=True,  # for the _Unset sentinel
+    )
 
     participants: tuple[str, ...] = Field(..., min_length=2)
     coupling_scheme: CouplingSchemeKind
@@ -555,6 +637,191 @@ class PreciceConfigExpectation(BaseModel):
     )
     watch_points: Mapping[str, tuple[float, ...]]  # "Participant/WatchPoint" -> coordinate
     acceleration_kind: str = Field(..., min_length=1)
+
+    # --- Stage-20 additive extension; None everywhere means "unchanged from Stage 19" ---
+
+    max_time: float | None = Field(
+        default=None,
+        gt=0.0,
+        description=(
+            "Asserted only for an AUTHORED case. On the tutorial path max-time is the one "
+            "permitted mutation (gate C2), so asserting it there would refuse the mutation "
+            "the campaign just declared; on the authored path it is a rendered token, and "
+            "leaving it unasserted would falsify the C-family claim on its face."
+        ),
+    )
+    data_kinds: Mapping[str, str] | None = None  # data name -> "scalar" | "vector"
+    meshes: Mapping[str, MeshExpectation] | None = None
+    participant_data: Mapping[str, ParticipantDataExpectation] | None = None
+    mappings: tuple[MappingExpectation, ...] | None = Field(
+        default=None,
+        description=(
+            "ORDERED, not a set or a mapping keyed by radius: a case commonly declares two "
+            "mappings (read and write) with the SAME support radius, and any unordered "
+            "container loses that multiplicity."
+        ),
+    )
+    acceleration_data: tuple[tuple[str, str], ...] | None = None  # ordered (data, mesh)
+    acceleration_preconditioner: str | None | _Unset = UNSET
+    acceleration_filter_type: str | None | _Unset = UNSET
+    acceleration_filter_limit: float | None = None
+    acceleration_initial_relaxation: float | None = None
+    acceleration_max_used_iterations: int | None = None
+    acceleration_time_windows_reused: int | None = None
+    m2n_exchange_directory: str | None = None
+    exchanges: tuple[tuple[str, str, str, str], ...] | None = None  # (data, mesh, from, to)
+    first_participant: str | None = None
+    second_participant: str | None = None
+
+
+def _extended_problems(config: PreciceConfig, expected: PreciceConfigExpectation) -> list[str]:
+    """The Stage-20 additive assertions. Every one is skipped when unset.
+
+    Kept separate from `assert_config`'s Stage-19 body so that body is visibly unchanged:
+    a reviewer comparing against the tagged v0.0.19 record can see at a glance that no
+    existing check moved.
+    """
+    problems: list[str] = []
+    scheme = config.coupling_scheme
+
+    if expected.max_time is not None and scheme.max_time != expected.max_time:
+        problems.append(f"max-time {scheme.max_time!r} != expected {expected.max_time!r}")
+
+    if expected.data_kinds is not None:
+        got = {d.name: d.kind for d in config.data}
+        if got != dict(expected.data_kinds):
+            problems.append(f"data kinds {got} != expected {dict(expected.data_kinds)}")
+
+    if expected.meshes is not None:
+        for mesh_name, want_mesh in expected.meshes.items():
+            try:
+                mesh = config.mesh(mesh_name)
+            except PreciceConfigError as exc:
+                problems.append(str(exc))
+                continue
+            if mesh.dimensions != want_mesh.dimensions:
+                problems.append(
+                    f"mesh {mesh_name!r} dimensions {mesh.dimensions} != expected "
+                    f"{want_mesh.dimensions}"
+                )
+            if tuple(mesh.use_data) != tuple(want_mesh.use_data):
+                problems.append(
+                    f"mesh {mesh_name!r} use-data {tuple(mesh.use_data)} != expected "
+                    f"{tuple(want_mesh.use_data)} (ORDER matters: it fixes watch-point columns)"
+                )
+
+    if expected.participant_data is not None:
+        for name, want_data in expected.participant_data.items():
+            try:
+                participant = config.participant(name)
+            except PreciceConfigError as exc:
+                problems.append(str(exc))
+                continue
+            got_read = tuple(participant.read_data)
+            got_write = tuple(participant.write_data)
+            if got_read != tuple(want_data.read_data):
+                problems.append(
+                    f"participant {name!r} read-data {got_read} != expected "
+                    f"{tuple(want_data.read_data)}"
+                )
+            if got_write != tuple(want_data.write_data):
+                problems.append(
+                    f"participant {name!r} write-data {got_write} != expected "
+                    f"{tuple(want_data.write_data)}"
+                )
+
+    if expected.mappings is not None:
+        got_mappings = tuple(
+            (
+                m.kind,
+                m.direction,
+                m.from_mesh,
+                m.to_mesh,
+                m.constraint,
+                m.basis_function,
+                m.support_radius,
+            )
+            for participant in config.participants
+            for m in participant.mappings
+        )
+        want_mappings = tuple(
+            (
+                m.kind,
+                m.direction,
+                m.from_mesh,
+                m.to_mesh,
+                m.constraint,
+                m.basis_function,
+                m.support_radius,
+            )
+            for m in expected.mappings
+        )
+        if got_mappings != want_mappings:
+            problems.append(f"mappings {got_mappings} != expected {want_mappings}")
+
+    acceleration = scheme.acceleration
+    acc_fields = (
+        ("acceleration_filter_limit", "filter_limit", "filter limit"),
+        ("acceleration_initial_relaxation", "initial_relaxation", "initial-relaxation"),
+        ("acceleration_max_used_iterations", "max_used_iterations", "max-used-iterations"),
+        ("acceleration_time_windows_reused", "time_windows_reused", "time-windows-reused"),
+    )
+    if acceleration is None:
+        wanted_any = expected.acceleration_data is not None or any(
+            getattr(expected, field) is not None for field, _, _ in acc_fields
+        )
+        if wanted_any:
+            problems.append("no acceleration block, but acceleration internals were expected")
+    else:
+        if expected.acceleration_data is not None and tuple(acceleration.data) != tuple(
+            expected.acceleration_data
+        ):
+            problems.append(
+                f"acceleration data {tuple(acceleration.data)} != expected "
+                f"{tuple(expected.acceleration_data)}"
+            )
+        for field, attribute, label in acc_fields:
+            want = getattr(expected, field)
+            if want is None:
+                continue
+            got = getattr(acceleration, attribute)
+            if got != want:
+                problems.append(f"acceleration {label} {got!r} != expected {want!r}")
+        # The two sentinel-guarded ones: UNSET means "do not check", None means "assert absent".
+        for field, attribute, label in (
+            ("acceleration_preconditioner", "preconditioner", "preconditioner"),
+            ("acceleration_filter_type", "filter_type", "filter type"),
+        ):
+            want = getattr(expected, field)
+            if isinstance(want, _Unset):
+                continue
+            got = getattr(acceleration, attribute)
+            if got != want:
+                problems.append(f"acceleration {label} {got!r} != expected {want!r}")
+
+    if expected.m2n_exchange_directory is not None:
+        got_dirs = tuple(sorted({m.exchange_directory or "" for m in config.m2n}))
+        if got_dirs != (expected.m2n_exchange_directory,):
+            problems.append(
+                f"m2n exchange-directory {got_dirs} != expected "
+                f"('{expected.m2n_exchange_directory}',)"
+            )
+
+    if expected.exchanges is not None:
+        got_exchanges = tuple(scheme.exchanges)
+        if got_exchanges != tuple(expected.exchanges):
+            problems.append(f"exchanges {got_exchanges} != expected {tuple(expected.exchanges)}")
+
+    if expected.first_participant is not None and scheme.first != expected.first_participant:
+        problems.append(
+            f"first participant {scheme.first!r} != expected {expected.first_participant!r}"
+        )
+    if expected.second_participant is not None and scheme.second != expected.second_participant:
+        problems.append(
+            f"second participant {scheme.second!r} != expected {expected.second_participant!r}"
+        )
+
+    return problems
 
 
 def assert_config(config: PreciceConfig, expected: PreciceConfigExpectation) -> None:
@@ -628,6 +895,8 @@ def assert_config(config: PreciceConfig, expected: PreciceConfigExpectation) -> 
                 f"watch-point {key} at {point.coordinate} != expected {tuple(coordinate)}"
             )
 
+    problems.extend(_extended_problems(config, expected))
+
     if problems:
         raise PreciceConfigError(
             f"{config.source_path}: configuration does not match the pre-registered "
@@ -678,6 +947,84 @@ def rewrite_max_time(source: Path, dest: Path, *, max_time: float) -> PreciceCon
             f"{dest}: rewriting <max-time> changed something else as well — refusing to run. "
             "The ONLY permitted modification to the upstream configuration is max-time "
             "(ADR-036 C2).\n"
+            f"  produced: {produced.model_dump_json()}\n"
+            f"  expected: {want.model_dump_json()}"
+        )
+    return produced
+
+
+_EXCHANGE_RE = re.compile(r'(<exchange\b)((?:\s+[a-zA-Z-]+="[^"]*")*)(\s*/>)')
+
+
+def rewrite_for_restart(source: Path, dest: Path, *, max_time: float) -> PreciceConfig:
+    """The restart's TWO declared mutations (ADR-045 A7 + A18), and nothing else.
+
+    A restart starts a FRESH preCICE instance. preCICE has no cross-process restart, so
+    (A7) ``<max-time>`` becomes the REMAINING coupled time, and (A18) every ``<exchange>``
+    gains ``initialize="true"`` so the participants SEED the first-window coupling data
+    from their restored state. Without A18 preCICE initialises read-data to zero, and the
+    fluid — whose mesh is already at the restored deformation — snaps its interface back to
+    undeformed in one time-window: a ~O(10^2 m/s) spurious mesh velocity, an O(10^8 N)
+    force, and an immediate divergence (session-15 finding, handoff §6.85). ``initialize``
+    is inert for the from-rest control (implicit coupling converges to the same fixed
+    point regardless of the initial guess), so it belongs only on the restart path and the
+    base template is untouched.
+
+    As with :func:`rewrite_max_time` the check is structural: `dest` is re-parsed and must
+    equal the source under exactly a ``max_time`` update and ``initialize`` set on every
+    exchange. Any other edit aborts the run.
+    """
+    if max_time <= 0.0:
+        raise PreciceConfigError(f"max_time must be positive, got {max_time!r}")
+    original = read_precice_config(source)
+    if not original.coupling_scheme.exchanges:
+        raise PreciceConfigError(f"{source}: no <exchange> elements to initialise on restart")
+
+    text = source.read_text(encoding="utf-8")
+    matches = _MAX_TIME_RE.findall(text)
+    if len(matches) != 1:
+        raise PreciceConfigError(
+            f"{source}: found {len(matches)} <max-time value=.../> elements, expected exactly "
+            "one — refusing to guess which one bounds the restart"
+        )
+    text = _MAX_TIME_RE.sub(rf"\g<1>{max_time!r}\g<3>", text, count=1)
+
+    exchanges_seen = 0
+
+    def _add_initialize(match: re.Match[str]) -> str:
+        nonlocal exchanges_seen
+        exchanges_seen += 1
+        attrs = match.group(2)
+        if "initialize=" in attrs:
+            return match.group(0)  # already set: leave byte-for-byte
+        return f'{match.group(1)}{attrs} initialize="true"{match.group(3)}'
+
+    text = _EXCHANGE_RE.sub(_add_initialize, text)
+    if exchanges_seen != len(original.coupling_scheme.exchanges):
+        raise PreciceConfigError(
+            f"{source}: matched {exchanges_seen} <exchange/> by text but parsed "
+            f"{len(original.coupling_scheme.exchanges)} — the writer and parser disagree"
+        )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text, encoding="utf-8")
+
+    produced = read_precice_config(dest)
+    want = original.model_copy(
+        update={
+            "source_path": produced.source_path,
+            "source_sha256": produced.source_sha256,
+            "coupling_scheme": original.coupling_scheme.model_copy(
+                update={
+                    "max_time": max_time,
+                    "exchange_initialize": tuple(True for _ in original.coupling_scheme.exchanges),
+                }
+            ),
+        }
+    )
+    if produced != want:
+        raise PreciceConfigError(
+            f"{dest}: the restart rewrite changed something beyond max-time and exchange "
+            "initialize — refusing to run (ADR-045 A18).\n"
             f"  produced: {produced.model_dump_json()}\n"
             f"  expected: {want.model_dump_json()}"
         )

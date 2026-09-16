@@ -1,0 +1,47 @@
+{
+  "case_dir": "turek-hron-fsi3",
+  "declared_mutations": [
+    {
+      "after_sha256": "53c3045f969b6c4f456ae3f78f99955a6b59362df24101bc85628c643a80f6ae",
+      "before_sha256": "a9ff2ddd03eb3b5728a455ace08a4df9e4f06ce90ea24ee5a55654ebd76193a8",
+      "detail": "installed the upstream variant 'blockMeshDict_refined' as system/blockMeshDict (a declared cost/resolution choice among upstream-authored meshes)",
+      "kind": "fluid-mesh-dict",
+      "path": "turek-hron-fsi3/fluid-openfoam/system/blockMeshDict"
+    },
+    {
+      "after_sha256": "00fdff014c038975f3fd0b733776f2699eebf402d4f8bc8a5179b6294f500734",
+      "before_sha256": "a9e6c2293f844bf58bba6cc7b79897f125b649a37dead3eea0483f01f5110fef",
+      "detail": "shortened <max-time> to 2.5 s to fit the pre-declared wall-clock budget; verified structurally that nothing else changed",
+      "kind": "max-time",
+      "path": "turek-hron-fsi3/precice-config.xml"
+    }
+  ],
+  "files": [
+    {
+      "path": "tools/log.sh",
+      "sha256": "381f34ca5864140d205d18ac8ae254f7f36d8e7038ab706ae8aa600d9c869fd0"
+    },
+    {
+      "path": "turek-hron-fsi3/fluid-openfoam/system/blockMeshDict",
+      "sha256": "a9ff2ddd03eb3b5728a455ace08a4df9e4f06ce90ea24ee5a55654ebd76193a8"
+    },
+    {
+      "path": "turek-hron-fsi3/fluid-openfoam/system/blockMeshDict_refined",
+      "sha256": "53c3045f969b6c4f456ae3f78f99955a6b59362df24101bc85628c643a80f6ae"
+    },
+    {
+      "path": "turek-hron-fsi3/precice-config.xml",
+      "sha256": "a9e6c2293f844bf58bba6cc7b79897f125b649a37dead3eea0483f01f5110fef"
+    },
+    {
+      "path": "turek-hron-fsi3/solid-nutils/run.sh",
+      "sha256": "29f865a1a70f82169222f8b8fc7db6ed54137d78717b8d73ca3af74d9c5397be"
+    }
+  ],
+  "pin": {
+    "archive_sha256": "0d576d1ff7410cf7d272b0cef70c15343f17b3bae95ff68ad986a4ac33079033",
+    "branch": "develop",
+    "commit": "cd33e2dbacc5a2f4a1202e215890f54a2ce2e79e",
+    "repo": "precice/tutorials"
+  }
+}

@@ -338,7 +338,11 @@ class BenchmarkRunner:
         case_dir = self.solver.prepare(spec)
         mesh = self.solver.mesh(case_dir, self.executor)
         if not getattr(mesh, "ok", False):
-            raise BenchmarkError(f"{case.name}: blockMesh failed — case did not mesh")
+            # Report the reason the adapter recorded rather than re-inventing one.
+            # "blockMesh failed" was hard-coded here and named the wrong component for
+            # every non-blockMesh failure — including an unreachable host (Stage 20).
+            detail = getattr(mesh, "failure", "") or "the adapter recorded no reason"
+            raise BenchmarkError(f"{case.name}: case did not mesh — {detail}")
         result = self.solver.run(case_dir, self.executor)
         if getattr(result, "returncode", 1) != 0:
             raise BenchmarkError(f"{case.name}: solver failed (rc={result.returncode})")

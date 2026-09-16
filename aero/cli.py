@@ -37,6 +37,8 @@ from aero.provenance import ProvenanceError, compute_provenance
 if TYPE_CHECKING:
     from omegaconf import DictConfig
 
+    from aero.adapters.precice.config import PreciceConfigExpectation
+
 app = typer.Typer(name="aero", help="aero-research-platform CLI.", no_args_is_help=True)
 
 # One platform version-string per solver, logged as the MLflow `solver_version`
@@ -48,8 +50,26 @@ _SOLVER_VERSIONS: dict[str, str] = {
     "nekrs": "NekRS v23.0",
     "jax-fluids": "JAX-Fluids v0.2.1+ac7c090f",  # pinned commit, not the broken v0.2.1 tag (ADR-008)
     # The coupled stack, not a single solver: OpenFOAM v2412 fluid + Nutils solid,
-    # coupled by preCICE 3.4.1 with openfoam-adapter 2c3062c (ADR-035).
+    # coupled by preCICE 3.4.1 with openfoam-adapter 2c3062c (ADR-035). This is the
+    # Stage-19 (Turek-Hron) participant pair; Stage 20 couples a CalculiX solid instead
+    # and overrides both this and the stage below by CASE -- see _CASE_PROVENANCE.
     "precice": "preCICE 3.4.1 (OpenFOAM-ESI v2412 + Nutils 9.2)",
+}
+
+#: Per-CASE overrides for the two provenance-bearing strings that were derived from the
+#: SOLVER name. Both ride into MLflow tags, and one solver adapter can drive materially
+#: different physics: `precice` runs a Nutils solid for Turek-Hron FSI3 and a CalculiX solid
+#: for Heathcote-Gursul, across two containers. Keyed by case name, so a Stage-20 bundle
+#: cannot inherit Stage 19's stack description or its stage number (ADR-037).
+_CASE_PROVENANCE: dict[str, tuple[str, str]] = {
+    "hg2007_flexible_foil": (
+        "20",
+        "preCICE 3.4.1 (OpenFOAM-ESI v2412 + CalculiX 2.20 / calculix-adapter v2.20.1)",
+    ),
+    "hg2007_rigid_foil": (
+        "20",
+        "preCICE 3.4.1 (OpenFOAM-ESI v2412 + CalculiX 2.20 / calculix-adapter v2.20.1)",
+    ),
 }
 
 # Per-solver SIF basenames — looked up in containers/SHA256SUMS during
@@ -95,7 +115,14 @@ _SOLVER_EXTRAS_HINT: dict[str, str] = {
 }
 
 
-def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: Path) -> Solver:
+def _build_solver(
+    name: str,
+    *,
+    host_root: Path,
+    remote_root: Path,
+    repo_root: Path,
+    case_name: str | None = None,
+) -> Solver:
     """Construct the named solver adapter — openfoam/su2/pyfr/nekrs/jax-fluids."""
     if name == "openfoam":
         return OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
@@ -112,17 +139,52 @@ def _build_solver(name: str, *, host_root: Path, remote_root: Path, repo_root: P
             host_nfs_root=host_root, remote_nfs_root=remote_root, repo_root=repo_root
         )
     if name == "precice":
-        from aero.vv.fsi import TUREK_HRON_FSI3_EXPECTATION
-
         return PreciceCoupledSolver(
             host_nfs_root=host_root,
             remote_nfs_root=remote_root,
-            expectation=TUREK_HRON_FSI3_EXPECTATION,
+            expectation=_precice_expectation(case_name),
         )
     raise typer.BadParameter(
         f"unknown solver {name!r} — choose one of 'openfoam', 'su2', 'pyfr', 'nekrs', "
         "'jax-fluids', 'precice'"
     )
+
+
+def _coupled_spec_or_none(spec: object) -> Any:
+    """`spec` as a `CoupledCaseSpec`, or None.
+
+    Lazy-imported so the single-solver CLI paths do not pull the coupled adapter (which
+    since ADR-037 carries the OpenFOAM and CalculiX writers) for a case that has no use
+    for it.
+    """
+    from aero.adapters.precice.case import CoupledCaseSpec
+
+    return spec if isinstance(spec, CoupledCaseSpec) else None
+
+
+def _precice_expectation(case_name: str | None) -> PreciceConfigExpectation | None:
+    """The configuration expectation for a coupled case, resolved by NAME.
+
+    Was hard-wired to `TUREK_HRON_FSI3_EXPECTATION`, which is wrong for any second coupled
+    case: an authored case's expectation is DERIVED from its own spec (every rendered token
+    has to be observable in the parsed model), not a module constant. So this is a registry
+    of resolvers rather than of values.
+
+    The expectation never enters `config_hash`: it describes what the configuration must
+    say, not what the case IS, and `PreciceCoupledSolver` takes it as a constructor argument
+    rather than a spec field precisely so it cannot.
+    """
+    from aero.vv.fsi import TUREK_HRON_FSI3_EXPECTATION
+
+    if case_name is None or case_name == "turek_hron_fsi3":
+        return TUREK_HRON_FSI3_EXPECTATION
+    if case_name.startswith("hg2007_"):
+        # Derived per run from the spec the solver is about to materialize; the authored
+        # materializer asserts it itself inside `write_precice_config`, so passing None here
+        # is not a gap -- it avoids asserting the SAME expectation twice from two sources,
+        # which is how two copies drift.
+        return None
+    return TUREK_HRON_FSI3_EXPECTATION
 
 
 def _build_executor(
@@ -397,7 +459,11 @@ def run(
     # --- solve ---------------------------------------------------------------
     host_root, remote_root = _detect_nfs_roots()
     solver = _build_solver(
-        solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
+        solver_name,
+        host_root=host_root,
+        remote_root=remote_root,
+        repo_root=repo_root,
+        case_name=case,
     )
     ssh = _build_executor(
         executor,
@@ -621,7 +687,20 @@ def vv_run(
     # selection overrides that with the SIF the solver actually runs in. The
     # config_hash is the case spec (mesh-agnostic), so cross-solver runs share
     # a config_hash, distinguished only by `solver_version` and the SIF SHA.
-    container_sif = _SOLVER_SIF.get(solver_name, Path(default_sif).name)
+    # A COUPLED case knows which containers it runs; a single-solver case does not, and the
+    # per-solver table is the right answer there. `_SOLVER_SIF` is `dict[str, str]` feeding a
+    # single-SIF `compute_provenance`, so widening it cannot express a two-container run --
+    # the spec's own `container_of_record` / `extra_container_sifs` are what ADR-038 added
+    # for exactly this, and they resolve to real digests in the tuple's roster.
+    from aero.adapters.precice.case import CoupledCaseError, assert_provenance_describes
+
+    coupled = _coupled_spec_or_none(spec)
+    if coupled is not None:
+        container_sif = coupled.container_of_record
+        extra_container_sifs: tuple[str, ...] = coupled.extra_container_sifs
+    else:
+        container_sif = _SOLVER_SIF.get(solver_name, Path(default_sif).name)
+        extra_container_sifs = ()
     try:
         db_dsn = resolve_dsn()
         provenance = compute_provenance(
@@ -630,14 +709,28 @@ def vv_run(
             # The case spec IS the V&V run's config — hash it for config_hash.
             resolved_config=spec.model_dump(mode="json"),
             allow_dirty=allow_dirty,
+            extra_container_sifs=extra_container_sifs,
         )
+        if coupled is not None:
+            # ADR-038's real obligation, enforced at the point the digests exist and BEFORE
+            # anything runs: a run's provenance must name every SIF it runs, or the four-fold
+            # tuple does not describe what happened. This replaced Stage 19's blanket refusal
+            # of gated multi-container runs, and until now it had no call site.
+            assert_provenance_describes(coupled, provenance)
     except ProvenanceError as exc:
         typer.echo(f"provenance error: {exc}", err=True)
+        raise typer.Exit(code=4) from exc
+    except CoupledCaseError as exc:
+        typer.echo(f"provenance does not describe the case: {exc}", err=True)
         raise typer.Exit(code=4) from exc
 
     host_root, remote_root = _detect_nfs_roots()
     solver = _build_solver(
-        solver_name, host_root=host_root, remote_root=remote_root, repo_root=repo_root
+        solver_name,
+        host_root=host_root,
+        remote_root=remote_root,
+        repo_root=repo_root,
+        case_name=case,
     )
     ssh = _build_executor(
         executor,
@@ -647,8 +740,11 @@ def vv_run(
         container_image=container_image,
         projected_hours=projected_hours,
     )
-    # Stage is informational on the MLflow side; each adapter is tagged with
-    # the stage that introduced it.
+    # Stage and solver_version are provenance-bearing: both ride into MLflow tags. They
+    # default to the adapter that introduced the solver, but one adapter can drive materially
+    # different physics -- `precice` runs a Nutils solid for Turek-Hron and a CalculiX solid
+    # for Heathcote-Gursul -- so a per-CASE override wins where one is registered. Without it
+    # a Stage-20 bundle claims a Nutils solid and Stage-19 provenance (ADR-037).
     if solver_name == "precice":
         stage_str = "19"
     elif solver_name == "jax-fluids":
@@ -657,13 +753,15 @@ def vv_run(
         stage_str = "07"
     else:
         stage_str = "06"
+    solver_version = _SOLVER_VERSIONS[solver_name]
+    stage_str, solver_version = _CASE_PROVENANCE.get(case, (stage_str, solver_version))
     runner = BenchmarkRunner(
         solver=solver,
         executor=ssh,
         tracking_uri=tracking_uri,
         experiment=experiment,
         db_dsn=db_dsn,
-        solver_version=_SOLVER_VERSIONS[solver_name],
+        solver_version=solver_version,
         stage=stage_str,
     )
 

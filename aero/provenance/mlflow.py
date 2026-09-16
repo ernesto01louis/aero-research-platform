@@ -53,10 +53,20 @@ def start_provenance_run(
 
     from aero.provenance.db import mirror_provenance_row
 
-    tags = dict(provenance.as_mlflow_tags())
+    provenance_tags = provenance.as_mlflow_tags()
+    tags = dict(provenance_tags)
     tags["case_name"] = case_name
     tags["stage"] = stage
     if extra_tags:
+        # A caller's extra tag must never shadow a provenance tag: the run would
+        # then be logged under a digest the tuple never produced, and the Postgres
+        # mirror (written from the tuple) would silently disagree with MLflow.
+        shadowed = sorted(set(extra_tags) & set(provenance_tags))
+        if shadowed:
+            raise ProvenanceError(
+                f"extra_tags would overwrite provenance tag(s) {shadowed} — the MLflow tags "
+                "and the Postgres mirror would then describe different runs"
+            )
         tags.update(extra_tags)
 
     missing = [

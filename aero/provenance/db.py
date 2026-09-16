@@ -23,8 +23,8 @@ DSN_ENV_VAR = "AERO_PROVENANCE_DSN"
 
 _INSERT_SQL = (
     "INSERT INTO mlflow_artifact_provenance "
-    "(run_id, git_sha, dvc_input_hash, container_sif_sha256, config_hash) "
-    "VALUES (%s, %s, %s, %s, %s)"
+    "(run_id, git_sha, dvc_input_hash, container_sif_sha256, config_hash, container_sif_set) "
+    "VALUES (%s, %s, %s, %s, %s, %s)"
 )
 
 
@@ -63,6 +63,9 @@ def mirror_provenance_row(*, run_id: str, provenance: ProvenanceTuple, db_dsn: s
                     provenance.dvc_input_hash,
                     provenance.container_sif_sha256,
                     provenance.config_hash,
+                    # NULL, not "", for a single-container run: "no roster" and "an
+                    # empty roster" must stay distinguishable in a query (ADR-038).
+                    provenance.container_set_tag() or None,
                 ),
             )
     except psycopg2.Error as exc:

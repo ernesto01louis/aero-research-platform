@@ -37,7 +37,12 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-from aero.adapters.precice.case import CoupledCaseSpec, ParticipantSpec, TutorialPin
+from aero.adapters.precice.case import (
+    CoupledCaseSpec,
+    ParticipantSpec,
+    TutorialPin,
+    TutorialSource,
+)
 from aero.adapters.precice.config import PreciceConfigExpectation
 from aero.vv._base import BenchmarkError, MetricSpec, ReferenceData, Series, SolverLike
 
@@ -165,13 +170,16 @@ def fsi3_case_spec(
     gated = is_gated_configuration(fluid_mesh_dict=fluid_mesh_dict, max_time=max_time)
     return CoupledCaseSpec(
         name=name,
-        pin=TutorialPin(
-            commit=TUTORIALS_COMMIT,
-            archive_sha256=archive_sha,
-            manifest_path=root / _REFERENCE_DIR / _MANIFEST,
+        source=TutorialSource(
+            pin=TutorialPin(
+                commit=TUTORIALS_COMMIT,
+                archive_sha256=archive_sha,
+                manifest_path=root / _REFERENCE_DIR / _MANIFEST,
+            ),
+            archive_path=archive,
+            tutorial_case="turek-hron-fsi3",
+            fluid_mesh_dict=fluid_mesh_dict,  # type: ignore[arg-type]
         ),
-        archive_path=archive,
-        tutorial_case="turek-hron-fsi3",
         participants=(
             ParticipantSpec(
                 name="Fluid",
@@ -197,7 +205,6 @@ def fsi3_case_spec(
         ),
         container_of_record=sif,
         max_time=max_time,
-        fluid_mesh_dict=fluid_mesh_dict,  # type: ignore[arg-type]
         wall_clock_ceiling_s=wall_clock_ceiling_s,
         analysis_discard_s=ANALYSIS_DISCARD_S,
         analysis_min_cycles=ANALYSIS_MIN_CYCLES,

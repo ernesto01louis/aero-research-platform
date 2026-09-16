@@ -26,6 +26,14 @@ DISPLACEMENT_Y_COLUMN = "Displacement1"
 TIP_UX = "flap_tip_ux"
 TIP_UY = "flap_tip_uy"
 
+#: Stage-20 signal names. `D0_PITCH` is the chord line's angle, from the nose watch-point to
+#: the trailing-edge one -- the pitch the flexibility PRODUCED, which is the whole point of
+#: the experiment and is never prescribed. It is also the right fundamental: it oscillates at
+#: the plunge frequency, whereas thrust is at twice it.
+D0_PITCH = "te_pitch_deg"
+NOSE_UY = "nose_uy"
+TE_UX = "te_ux"
+
 
 def analyse_displacement_watchpoint(
     trace: WatchpointTrace,

@@ -1,0 +1,8 @@
+# The repo-wide `*.log` rule (.gitignore:60) would silently swallow this fixture.
+#
+# These filenames are NOT cosmetic: `find_iterations_logs` globs
+# `precice-*-iterations.log` and `watchpoint_path` builds
+# `precice-<Participant>-watchpoint-<name>.log`, so renaming them to dodge the ignore
+# rule would stop the fixture exercising the code paths it exists to pin. Re-include
+# them here instead.
+!*.log
