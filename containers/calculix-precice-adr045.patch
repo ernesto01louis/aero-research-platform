@@ -279,8 +279,8 @@ diff -ruN a/adapter/AeroCheckpoint.c b/adapter/AeroCheckpoint.c
 +}
 diff -ruN a/adapter/AeroCheckpoint.h b/adapter/AeroCheckpoint.h
 --- a/adapter/AeroCheckpoint.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/adapter/AeroCheckpoint.h	2026-09-15 21:45:32.759186388 +0200
-@@ -0,0 +1,62 @@
++++ b/adapter/AeroCheckpoint.h	2026-09-16 15:08:08.573079617 +0200
+@@ -0,0 +1,68 @@
 +/* AeroCheckpoint -- a purpose-built state dump for the coupled nonlinear-dynamic step.
 + *
 + * aero-research-platform, Stage 20, ADR-045 R1/R2/R5 (as accepted, amendments A1-A15).
@@ -305,6 +305,12 @@ diff -ruN a/adapter/AeroCheckpoint.h b/adapter/AeroCheckpoint.h
 + */
 +#ifndef AERO_CHECKPOINT_H
 +#define AERO_CHECKPOINT_H
++
++/* CalculiX.h uses FILE and the libc prototypes without including them; every CalculiX
++   translation unit includes these three first, and so must this one. */
++#include <math.h>
++#include <stdio.h>
++#include <stdlib.h>
 +
 +#include "CalculiX.h"
 +
