@@ -147,6 +147,7 @@ from aero.vv.fsi.hg2007_r3 import (  # noqa: E402
     R3_REFILL_WINDOWS,
     R3_SPAN_MEAN_BAND,
     R3_TRACE_BAND,
+    R3_YARDSTICK_FACTOR,
     read_r3_inputs,
     score_r3,
     two_draw_context,
@@ -1720,6 +1721,9 @@ def _asan_evaluate(args: argparse.Namespace) -> int:
 
 #: ADR-045 R3's control: the completed Z4 re-probe, 8000/8000 windows, untouchable.
 R3_CONTROL_RUN_ID = "hg2007_flexible_foil-20260912-161321"
+#: R3's reference draw (A17): D-C1, the SAME submission run two days earlier, 8000/8000.
+#: Its deviation from the control is the yardstick a transparent restart must stay within.
+R3_REFERENCE_RUN_ID = "hg2007_flexible_foil-20260910-084806"
 #: R3's pre-registered restart window.
 R3_RESTART_WINDOW = 4000
 #: The ONE file that may carry an R3 verdict (data/vv/, add-commit discipline); the
@@ -1798,12 +1802,28 @@ def _score_r3(args: argparse.Namespace) -> int:
     treatment_root = Path(treatment_sub["case_host_path"]) / CASE_ROOT_DIRNAME
     control = read_r3_inputs(control_root, dt=dt, restart_windows=[])
     treatment = read_r3_inputs(treatment_root, dt=dt, restart_windows=restarts)
-    score = score_r3(control, treatment, restart_window=restart_window, requested_windows=requested)
+    reference_sub = _submission(Path(args.r3_reference))
+    if reference_sub["run_id"] != R3_REFERENCE_RUN_ID:
+        raise SystemExit(
+            f"R3's reference draw is {R3_REFERENCE_RUN_ID} (ADR-045 A17: the same submission "
+            f"run twice, both completed); {reference_sub['run_id']} is not it"
+        )
+    reference = read_r3_inputs(
+        Path(reference_sub["case_host_path"]) / CASE_ROOT_DIRNAME, dt=dt, restart_windows=[]
+    )
+    score = score_r3(
+        control,
+        treatment,
+        reference=reference,
+        restart_window=restart_window,
+        requested_windows=requested,
+    )
     record: dict[str, Any] = {
         "adr": "ADR-045",
         "clause": "R3",
         "control_run_id": control_sub["run_id"],
         "treatment_run_id": treatment_sub["run_id"],
+        "reference_run_id": reference_sub["run_id"],
         "treatment_restart_windows": restarts,
         "control_is_treatment": control_is_treatment,
         "control_solid_sif": c_knobs["solid_sif"],
@@ -1814,23 +1834,22 @@ def _score_r3(args: argparse.Namespace) -> int:
             "refill_windows": R3_REFILL_WINDOWS,
             "q1a_span_mean_band": R3_SPAN_MEAN_BAND,
             "q1b_trace_band": R3_TRACE_BAND,
+            "yardstick_factor": R3_YARDSTICK_FACTOR,
             "restart_window": R3_RESTART_WINDOW,
+            "amplitude_limit": "windows 4001-8000 lie at 1.3-3.3 % of the full plunge "
+            "amplitude, inside the first sixth of the startup ramp; a pass is evidence about "
+            "restarts THERE, not in settled full-amplitude cycles (A17)",
         },
         **score,
+        "two_draw_context": {
+            "reference_run_id": reference_sub["run_id"],
+            **two_draw_context(
+                control, reference, restart_window=restart_window, requested_windows=requested
+            ),
+        },
         "evaluator_git_sha": _git_head(),
         "evaluated_at": _utc_now(),
     }
-    if args.r3_baseline:
-        baseline_sub = _submission(Path(args.r3_baseline))
-        baseline = read_r3_inputs(
-            Path(baseline_sub["case_host_path"]) / CASE_ROOT_DIRNAME, dt=dt, restart_windows=[]
-        )
-        record["two_draw_context"] = {
-            "baseline_run_id": baseline_sub["run_id"],
-            **two_draw_context(
-                control, baseline, restart_window=restart_window, requested_windows=requested
-            ),
-        }
     out = (
         Path(args.out)
         if args.out
@@ -1843,21 +1862,24 @@ def _score_r3(args: argparse.Namespace) -> int:
         )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    verdict = "PASS" if score["passed"] else "FAIL"
-    print(f"ADR-045 R3 {verdict}: {treatment_sub['run_id']} vs control {control_sub['run_id']}")
+    print(
+        f"ADR-045 R3 {score['verdict'].upper()}: {treatment_sub['run_id']} vs control "
+        f"{control_sub['run_id']} (reference draw {reference_sub['run_id']})"
+    )
     for clause in ("a", "b", "c", "d"):
         print(f"  ({clause}) {'pass' if score[clause]['passed'] else 'FAIL'}")
     for q in ("thrust", "lift", "power"):
         row = score["a"][q]
         print(
-            f"      {q}: span-mean rel {row['span_mean_relative_difference']:.3e} "
-            f"(Q1a {'applies' if row['q1a_applicable'] else 'n/a: |mean|/p2p=' + format(row['control_mean_over_peak_to_peak'], '.3f')}), "
-            f"trace/p2p {row['trace_deviation_over_amplitude']:.3e}"
+            f"      {q}: RMS deviation {row['treatment_rms_deviation']:.3e} vs reference "
+            f"{row['reference_rms_deviation']:.3e} (ratio {row['rms_ratio']:.2f} of "
+            f"{R3_YARDSTICK_FACTOR:g}); span-mean diff {row['treatment_span_mean_difference']:.3e}"
+            f" <= {row['span_mean_limit']:.3e}; episodes {score['e']['episodes'][q]['spans']}"
         )
     print(
-        f"      (b) early max|d| {score['b']['early_max_abs_delta']:.3e} vs late "
-        f"{score['b']['late_max_abs_delta']:.3e}"
-        + (" [identical run]" if score["b"]["identical_run_degenerate"] else "")
+        f"      (b) late RMS |d| {score['b']['late_rms_delta']:.3e} vs reference "
+        f"{score['b']['late_reference_rms_delta']:.3e} (ratio {score['b']['late_rms_ratio']:.2f});"
+        f" early max |d| {score['b']['early_max_abs_delta']:.3e}"
     )
     print(f"      (c) {score['c']['verdict']} at {score['c']['windows_reached']}/{requested}")
     print(
@@ -3043,11 +3065,12 @@ def main(argv: list[str] | None = None) -> int:
         "for the real treatment; a control-vs-control calibration may not go there)",
     )
     parser.add_argument(
-        "--r3-baseline",
+        "--r3-reference",
         type=Path,
-        dest="r3_baseline",
-        help="optional: another completed draw of the control's shape, to record what "
-        "determinism alone does to R3(a)/(b) -- context, never a clause",
+        default=Path("/mnt/aero-nfs/runs") / R3_REFERENCE_RUN_ID / "ladder-DC1-submission.json",
+        dest="r3_reference",
+        help="ADR-045 A17: the reference draw (D-C1) whose deviation from the control is the "
+        "yardstick a transparent restart must stay within",
     )
     parser.add_argument(
         "--restart-window",

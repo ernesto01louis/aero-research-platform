@@ -1,18 +1,14 @@
 Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). Resuming a partial stage,
 session 15. Repo /root/projects/aero-research-platform, branch
 stage-20-flexible-flapping-wing-fsi (tip = latest on the branch — verify with git log),
-PR #44 (draft), **1056 tests green + 3 pre-existing skips**
+PR #44 (draft), **1092 tests green + 3 pre-existing skips**
 (`PATH="$PWD/.venv/bin:$PATH" pytest -q tests/unit tests/stage_20`), mypy clean on aero/,
 tree clean, pushed.
 
 **Nothing is running on aero-dev.** The sanitizer hunt LANDED and was read (§6.76);
-**ADR-045 is ACCEPTED as amended A1–A15 (§6.78)**; C2/C3, C7, C1 and C6 are in code
+**ADR-045 is ACCEPTED as amended A1–A17 (§6.78, §6.83)**; C2/C3, C7, C1 and C6 are in code
 (§6.79–§6.80). **C5 is BUILT (§6.81): `calculix-precice-adr045.sif` is the solid container of record.**
-**One thing waits on the operator's word: R3's calibration finding (§6.79)** — two draws of
-the same submission differ over windows 4001–8000 by more than Q1b's band, so R3(a) as
-pre-registered cannot be passed. Option 3 (restart at w400) was chosen and then refuted
-by its own calibration (§6.82); the live question is option 2 with the concrete two-draw
-yardstick (factor 2, restart at 4000) or decline. Nothing is submitted until it is answered.
+**R3 is AMENDED (A17, §6.83): the two-draw yardstick, the amplitude limit and the episode rule are pre-registered; the restart window stays 4000; the corrected cost is ≈ 5.9 h.** C8 (the treatment) is the next B0 spend — read §6.83 for the exact command, the watch commands and the kill-then-restart sequence (A12). If §6.84 exists, the treatment is already submitted: read it for the run id and the segment state before touching aero-dev.
 
 FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision state read:
 
@@ -20,8 +16,8 @@ FIRST COMMAND, BEFORE ANYTHING ELSE — the box must be idle, and the decision s
     sed -n '3,6p' docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md
     python3 -c "import json;r=json.load(open('/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json'));print(r['verdict'],r['windows_reached'],r['participants'])"
 
-The Status line says `accepted`. If the operator has NOT answered §6.79 (R3) and §6.80
-(the build), there is no run to submit and no container to build: local work only.
+The Status line says `accepted`. If pgrep shows pimpleFoam/ccx_preCICE alive, the R3 treatment
+(§6.83/§6.84) is running: poll it, never `wait`, nothing else on the box.
 
 READ FIRST, IN THIS ORDER — all of them, before writing anything:
 
@@ -31,9 +27,9 @@ READ FIRST, IN THIS ORDER — all of them, before writing anything:
 3. docs/handoffs/STAGE-20-flexible-flapping-wing-fsi-DONE-2026-07-30.md — **§6.75 (the
    reader, and the NINE measured corrections to ADR-045's proposed text), §6.76 (the hunt's
    reading and why silence is not exoneration), §6.77 (the decision memo)**, then §6.71–6.74.
-4. **docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md — still
-   PROPOSED.** Read it whole; R6's SECOND bullet is now the operative clause; §6.75's table
-   is what an acceptance commit must carry as amendments.
+4. **docs/adrs/ADR-045-checkpoint-restart-for-the-coupled-flexible-arm.md — ACCEPTED as
+   amended A1–A17.** Read it whole; R6's SECOND bullet is the operative clause; A17 is R3 as
+   it will be scored.
 5. ADR-041 (V7 = the NO-GO clause), ADR-043, ADR-044. ADR-039/040 FROZEN; FORBIDDEN lists
    carry over unconditionally.
 6. The session-14 plan `/root/.claude/plans/stage-20-flexible-parsed-sonnet.md` — Phase C
@@ -62,20 +58,22 @@ STATE — settled; do not re-derive, do not re-litigate:
   out of `spec_knobs`; R5's energy band spans 3.7 decades; `decomposePar -force` deletes
   the fluid's checkpoints so a relaunch cannot use the submit path; `precice-run/` removal
   is already the supervisor's; `stage16_urans_cert.py` is the restart precedent.
-- **B0 has ~76 h left.** A third N3 attempt needs ~74 h. ADR-045 R3's treatment needs ~3 h,
-  but only AFTER C1–C7 (adapter C, deck + renderer bump + re-pin, container rebuild,
-  relaunch driver, R5 guard, R3 scorer) — which cost no B0.
+- **B0 has ~76 h left before the R3 treatment, ~70 h after it.** A third N3 attempt needs
+  ~74 h before restart rework. The treatment is ≈ 5.9 h (2.60 s/window), not 3 h.
 - Q1 PASSED on the adopted stack; the digest pins name N3 attempt 2; `<<B2-PENDING-I4>>`
   stands unfilled permanently. Nothing has been resubmitted.
 
 YOUR TASK, IN THIS ORDER
 
-1. Run the FIRST COMMAND block. Read the operator's answer to §6.79 (R3's clause). The
-   build is done and recorded (§6.81). With R3's option chosen: amend the ADR
-   (an amendment commit BEFORE the treatment), then C8 behind the B0 gate — segment 1 =
-   the identical 8000-window submission on the new SIF with `--ckpt-at` covering the
-   restart window, killed once the checkpoint and the fluid dump exist; segment 2 =
-   `--restart`; then `--score-r3 --out data/vv/stage20_adr045_r3.json`.
+1. Run the FIRST COMMAND block. R3 is amended (A17) and the build is done (§6.81). C8 is
+   behind the B0 gate — segment 1 = the identical 8000-window submission on the SIF of
+   record (checkpoint cadence 2000 covers w4000), killed once `aero-checkpoint-w4000.bin`
+   and the fluid `0.08` dump exist; segment 2 = `--restart … --restart-window 4000`; then
+   `--score-r3 <control> <treatment> --out data/vv/stage20_adr045_r3.json`. The verdict
+   is `pass` / `fail` / `inconclusive-episode` (one re-probe, then UNRESOLVED = NO-GO).
+   **After R3, before any N3 attempt 3 (the operator's standing instruction):** bring the
+   B0 arithmetic including restart rework, and how the partner-kill stop rule changes
+   when a death is followed by a restart. A memo, not a run.
 2. **The acceptance is done; the text below is what an acceptance would have required:** the acceptance commit flips the Status line AND records
    the nine §6.75 corrections as amendments in the ADR text (the ADR-044 `d702b57`
    pattern: Status hunk + body amendments, Date line unchanged). Then Phase C in clause

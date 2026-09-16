@@ -22,10 +22,12 @@ import numpy as np
 import pytest
 from aero.vv.fsi.hg2007_r3 import (
     R3_EARLY_WINDOWS,
+    R3_EPISODE_FACTOR,
     R3_LATE_WINDOWS,
     R3_REFILL_WINDOWS,
     R3_SPAN_MEAN_BAND,
     R3_TRACE_BAND,
+    R3_YARDSTICK_FACTOR,
     R3Error,
     read_r3_inputs,
     score_r3,
@@ -142,27 +144,48 @@ def _write_run(root: Path, signals: dict[str, Signal], *, split_at: int | None) 
         (tutorial / f"Solid{tag}.log").write_text("".join(lines), encoding="utf-8")
 
 
+def _reference_signals() -> dict[str, Signal]:
+    """A second draw: the control plus a small deterministic scatter (the two-draw floor)."""
+    base = _control_signals()
+    return _with(
+        base,
+        fx=lambda w: base["fx"](w) + 1.0e-7 * math.sin(w / 3.0),
+        fy=lambda w: base["fy"](w) + 2.0e-5 * math.sin(w / 3.0 + 1.0),
+        power=lambda w: base["power"](w) + 4.0e-8 * math.sin(w / 3.0 + 2.0),
+        d0=lambda w: base["d0"](w) + 1.0e-9 * math.sin(w / 3.0),
+        d1=lambda w: base["d1"](w) + 5.0e-8 * math.sin(w / 3.0 + 0.5),
+    )
+
+
 def _pair(
     tmp_path: Path, treatment_signals: dict[str, Signal], *, split: bool = True
 ) -> tuple[Path, Path]:
     control = tmp_path / "control"
     treatment = tmp_path / "treatment"
+    reference = tmp_path / "reference"
     _write_run(control, _control_signals(), split_at=None)
     _write_run(treatment, treatment_signals, split_at=R if split else None)
+    _write_run(reference, _reference_signals(), split_at=None)
     return control / "tutorial", treatment / "tutorial"
 
 
 def _score(control_root: Path, treatment_root: Path, *, restarts: list[int]) -> dict[str, Any]:
     control = read_r3_inputs(control_root, dt=DT, restart_windows=[])
     treatment = read_r3_inputs(treatment_root, dt=DT, restart_windows=restarts)
+    reference = read_r3_inputs(
+        control_root.parent.parent / "reference" / "tutorial", dt=DT, restart_windows=[]
+    )
     return score_r3(
         control,
         treatment,
+        reference=reference,
         restart_window=R,
         requested_windows=N,
         early_windows=50,
         late_windows=50,
         refill_windows=10,
+        episode_clearance=200,
+        episode_max_windows=100,
     )
 
 
@@ -180,8 +203,10 @@ def test_the_bands_are_q1s_verbatim_and_the_windows_are_the_adrs() -> None:
     assert R3_SPAN_MEAN_BAND == driver._Q1_SPAN_MEAN_BAND == 0.02
     assert R3_TRACE_BAND == driver._Q1_TRACE_BAND == 0.05
     assert (R3_EARLY_WINDOWS, R3_LATE_WINDOWS, R3_REFILL_WINDOWS) == (200, 200, 30)
+    assert (R3_YARDSTICK_FACTOR, R3_EPISODE_FACTOR) == (2.0, 10.0)
     assert driver.R3_RESTART_WINDOW == 4000
     assert driver.R3_CONTROL_RUN_ID == "hg2007_flexible_foil-20260912-161321"
+    assert driver.R3_REFERENCE_RUN_ID == "hg2007_flexible_foil-20260910-084806"
 
 
 # --- the segment join ----------------------------------------------------------------------
@@ -229,45 +254,70 @@ def test_a_rotation_without_a_recorded_restart_is_refused(tmp_path: Path) -> Non
         segment_files(treatment_root, "Solid", "log", restart_windows=[R, 2 * R])
 
 
-# --- the four clauses ----------------------------------------------------------------------
+# --- the clauses as accepted (A17) --------------------------------------------------------
 
 
-def test_an_identical_treatment_is_transparent_on_all_four_clauses(tmp_path: Path) -> None:
+def test_an_identical_treatment_is_transparent(tmp_path: Path) -> None:
     control_root, treatment_root = _pair(tmp_path, _control_signals())
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["passed"] is True
-    assert score["a"]["thrust"]["q1a_applicable"] is True
-    assert score["a"]["lift"]["q1a_applicable"] is False  # |mean| / p2p ~ 0
-    assert score["a"]["power"]["q1a_applicable"] is False
-    assert score["b"]["identical_run_degenerate"] is True
+    assert score["verdict"] == "pass" and score["passed"] is True
+    for q in ("thrust", "lift", "power"):
+        assert score["a"][q]["treatment_rms_deviation"] == 0.0
+        assert score["a"][q]["rms_within_factor"] and score["a"][q]["span_mean_within_limit"]
+        assert score["e"]["episodes"][q]["spans"] == []
+    assert score["b"]["late_rms_delta"] == 0.0 and score["b"]["passed"] is True
     assert score["c"]["verdict"] == "eliminated"
     assert score["d"]["refilled_at_window"] == R + 1
 
 
-def test_a_thrust_shift_beyond_two_percent_fails_q1a(tmp_path: Path) -> None:
+def test_a_treatment_within_the_two_draw_scatter_passes(tmp_path: Path) -> None:
+    """Another draw's worth of scatter, in the other direction, is what transparent means."""
+    base = _control_signals()
+    control_root, treatment_root = _pair(
+        tmp_path,
+        _with(
+            base,
+            fx=lambda w: base["fx"](w) - 1.0e-7 * math.sin(w / 3.0),
+            fy=lambda w: base["fy"](w) - 2.0e-5 * math.sin(w / 3.0 + 1.0),
+            d1=lambda w: base["d1"](w) - 5.0e-8 * math.sin(w / 3.0 + 0.5),
+        ),
+    )
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert score["verdict"] == "pass"
+    assert 0.9 < score["a"]["thrust"]["rms_ratio"] < 1.1
+
+
+def test_scatter_beyond_twice_the_reference_fails_a(tmp_path: Path) -> None:
+    base = _control_signals()
+    control_root, treatment_root = _pair(
+        tmp_path, _with(base, fx=lambda w: base["fx"](w) + 3.0e-7 * math.sin(w / 3.0))
+    )
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert score["a"]["thrust"]["rms_within_factor"] is False
+    assert score["verdict"] == "fail"
+
+
+def test_a_span_mean_shift_beyond_the_limit_fails_a(tmp_path: Path) -> None:
     base = _control_signals()
     control_root, treatment_root = _pair(
         tmp_path, _with(base, fx=lambda w: base["fx"](w) * (1.03 if w > R else 1.0))
     )
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["a"]["thrust"]["q1a_within_band"] is False
-    assert score["a"]["passed"] is False and score["passed"] is False
+    assert score["a"]["thrust"]["span_mean_within_limit"] is False
+    assert score["verdict"] == "fail"
 
 
-def test_a_lift_trace_deviation_beyond_five_percent_of_peak_to_peak_fails_q1b(
-    tmp_path: Path,
-) -> None:
+def test_a_late_window_shift_fails_b(tmp_path: Path) -> None:
     base = _control_signals()
     control_root, treatment_root = _pair(
-        tmp_path, _with(base, fy=lambda w: base["fy"](w) + (2.0e-3 if w > R else 0.0))
+        tmp_path, _with(base, d1=lambda w: base["d1"](w) + (1.0e-6 if w > R else 0.0))
     )
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["a"]["lift"]["q1a_within_band"] is None  # not applicable, never gates
-    assert score["a"]["lift"]["q1b_within_band"] is False
-    assert score["a"]["passed"] is False
+    assert score["b"]["late_rms_ratio"] > R3_YARDSTICK_FACTOR
+    assert score["b"]["passed"] is False and score["verdict"] == "fail"
 
 
-def test_a_decaying_transient_passes_b_and_a_shift_fails_it(tmp_path: Path) -> None:
+def test_a_decaying_transient_passes_b(tmp_path: Path) -> None:
     base = _control_signals()
     control_root, treatment_root = _pair(
         tmp_path,
@@ -277,26 +327,58 @@ def test_a_decaying_transient_passes_b_and_a_shift_fails_it(tmp_path: Path) -> N
         ),
     )
     score = _score(control_root, treatment_root, restarts=[R])
-    assert (
-        score["b"]["passed"] is True
-        and score["b"]["early_max_abs_delta"] > score["b"]["late_max_abs_delta"]
-    )
-    control_root, treatment_root = _pair(
-        tmp_path / "shift", _with(base, d1=lambda w: base["d1"](w) + (1.0e-6 if w > R else 0.0))
-    )
+    assert score["b"]["passed"] is True and score["b"]["early_max_abs_delta"] > 1.0e-7
+
+
+def _episode(base: dict[str, Signal], lo: int, hi: int, size: float = 5.0e-5) -> dict[str, Signal]:
+    return _with(base, fx=lambda w: base["fx"](w) + (size if lo <= w <= hi else 0.0))
+
+
+def test_an_isolated_episode_far_from_the_restart_is_inconclusive_not_fail(tmp_path: Path) -> None:
+    """The episode rule (e): one span, short, well clear of the restart, and (a) passes
+    with it excised -- the test cannot attribute it, so one re-probe is permitted."""
+    base = _control_signals()
+    control_root, treatment_root = _pair(tmp_path, _episode(base, R + 500, R + 540))
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["b"]["passed"] is False
+    assert score["a"]["thrust"]["passed"] is False
+    assert score["e"]["episodes"]["thrust"]["spans"] == [(R + 500, R + 540)]
+    assert score["e"]["episodes"]["thrust"]["isolated"] is True
+    assert score["a"]["thrust"]["with_episode_excised"]["passed"] is True
+    assert score["verdict"] == "inconclusive-episode" and score["passed"] is False
+
+
+def test_an_episode_inside_the_clearance_or_two_episodes_is_a_plain_fail(tmp_path: Path) -> None:
+    base = _control_signals()
+    control_root, treatment_root = _pair(tmp_path / "near", _episode(base, R + 50, R + 90))
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert score["e"]["episodes"]["thrust"]["isolated"] is False and score["verdict"] == "fail"
+    two = _with(
+        base,
+        fx=lambda w: (
+            base["fx"](w)
+            + (5.0e-5 if (R + 500 <= w <= R + 520 or R + 700 <= w <= R + 720) else 0.0)
+        ),
+    )
+    control_root, treatment_root = _pair(tmp_path / "two", two)
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert len(score["e"]["episodes"]["thrust"]["spans"]) == 2 and score["verdict"] == "fail"
+
+
+def test_an_episode_touching_the_late_window_is_a_fail(tmp_path: Path) -> None:
+    base = _control_signals()
+    control_root, treatment_root = _pair(tmp_path, _episode(base, N - 60, N - 30))
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert score["e"]["episodes"]["thrust"]["isolated"] is False and score["verdict"] == "fail"
 
 
 def test_a_divergent_treatment_fails_c(tmp_path: Path) -> None:
     base = _control_signals()
-    # the period-2 signature: odd windows grow, even stay -- the parity prong fires
     control_root, treatment_root = _pair(
-        tmp_path, _with(base, resid=lambda w: 5.0 * (1.03 ** (w - R)) if (w > R and w % 2) else 5.0)
+        tmp_path,
+        _with(base, resid=lambda w: 5.0 * (1.03 ** (w - R)) if (w > R and w % 2) else 5.0),
     )
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["c"]["verdict"] == "recurrence-detected"
-    assert score["c"]["passed"] is False
+    assert score["c"]["verdict"] == "recurrence-detected" and score["verdict"] == "fail"
 
 
 def test_a_slow_history_refill_fails_d(tmp_path: Path) -> None:
@@ -305,13 +387,7 @@ def test_a_slow_history_refill_fails_d(tmp_path: Path) -> None:
         tmp_path, _with(base, qn=lambda w: min(50.0, 2.0 * (w - R)) if w > R else 50.0)
     )
     score = _score(control_root, treatment_root, restarts=[R])
-    assert score["d"]["refilled_at_window"] == R + 25
-    assert score["d"]["passed"] is False  # deadline R + 10 in this shrunken fixture
-    control_root, treatment_root = _pair(
-        tmp_path / "fast", _with(base, qn=lambda w: min(50.0, 10.0 * (w - R)) if w > R else 50.0)
-    )
-    score = _score(control_root, treatment_root, restarts=[R])
-    assert score["d"]["refilled_at_window"] == R + 5 and score["d"]["passed"] is True
+    assert score["d"]["refilled_at_window"] == R + 25 and score["d"]["passed"] is False
 
 
 def test_a_treatment_that_did_not_complete_cannot_pass_c(tmp_path: Path) -> None:
@@ -320,18 +396,8 @@ def test_a_treatment_that_did_not_complete_cannot_pass_c(tmp_path: Path) -> None
     text = solid_log.read_text(encoding="utf-8")
     cut = text.index(f"time-window {N - R - 100},")
     solid_log.write_text(text[:cut], encoding="utf-8")
-    control = read_r3_inputs(control_root, dt=DT, restart_windows=[])
-    treatment = read_r3_inputs(treatment_root, dt=DT, restart_windows=[R])
-    score = score_r3(
-        control,
-        treatment,
-        restart_window=R,
-        requested_windows=N,
-        early_windows=50,
-        late_windows=50,
-        refill_windows=10,
-    )
-    assert score["c"]["completed"] is False and score["c"]["passed"] is False
+    score = _score(control_root, treatment_root, restarts=[R])
+    assert score["c"]["completed"] is False and score["verdict"] == "fail"
 
 
 def test_two_draw_context_reports_what_determinism_alone_does(tmp_path: Path) -> None:
@@ -344,9 +410,7 @@ def test_two_draw_context_reports_what_determinism_alone_does(tmp_path: Path) ->
     ctx = two_draw_context(
         control, other, restart_window=R, requested_windows=N, early_windows=50, late_windows=50
     )
-    assert (
-        ctx["late_max_abs_delta"] > ctx["early_max_abs_delta"]
-    )  # drift grows: context, not a clause
+    assert ctx["late_max_abs_delta"] > ctx["early_max_abs_delta"]
 
 
 # --- the driver mode -------------------------------------------------------------------------
@@ -390,9 +454,17 @@ def _submission(
     return path
 
 
+def _reference_submission(tmp_path: Path, control_root: Path) -> Path:
+    driver = _driver()
+    return _submission(
+        tmp_path / "ref.json", driver.R3_REFERENCE_RUN_ID, control_root.parent.parent / "reference"
+    )
+
+
 def test_the_driver_refuses_the_wrong_control_and_a_different_shape(tmp_path: Path) -> None:
     driver = _driver()
     control_root, treatment_root = _pair(tmp_path, _control_signals())
+    ref_sub = _reference_submission(tmp_path, control_root)
     wrong = _submission(tmp_path / "c.json", "hg2007_flexible_foil-wrong", control_root.parent)
     treat = _submission(
         tmp_path / "t.json", "hg2007_flexible_foil-treat", treatment_root.parent, restarts=[R]
@@ -400,7 +472,7 @@ def test_the_driver_refuses_the_wrong_control_and_a_different_shape(tmp_path: Pa
     with pytest.raises(SystemExit, match="control is"):
         driver._score_r3(
             driver.argparse.Namespace(
-                score_r3=[wrong, treat], r3_baseline=None, restart_window=R, out=None
+                score_r3=[wrong, treat], r3_reference=ref_sub, restart_window=R, out=None
             )
         )
     control = _submission(tmp_path / "c2.json", driver.R3_CONTROL_RUN_ID, control_root.parent)
@@ -410,7 +482,7 @@ def test_the_driver_refuses_the_wrong_control_and_a_different_shape(tmp_path: Pa
     with pytest.raises(SystemExit, match="not the control's shape"):
         driver._score_r3(
             driver.argparse.Namespace(
-                score_r3=[control, treat], r3_baseline=None, restart_window=R, out=None
+                score_r3=[control, treat], r3_reference=ref_sub, restart_window=R, out=None
             )
         )
 
@@ -418,12 +490,13 @@ def test_the_driver_refuses_the_wrong_control_and_a_different_shape(tmp_path: Pa
 def test_a_control_vs_control_reading_may_not_be_written_as_the_r3_record(tmp_path: Path) -> None:
     driver = _driver()
     control_root, _ = _pair(tmp_path, _control_signals())
+    ref_sub = _reference_submission(tmp_path, control_root)
     control = _submission(tmp_path / "c.json", driver.R3_CONTROL_RUN_ID, control_root.parent)
     out = _REPO_ROOT / "data" / "vv" / driver.R3_RECORD_NAME
     with pytest.raises(SystemExit, match="calibration"):
         driver._score_r3(
             driver.argparse.Namespace(
-                score_r3=[control, control], r3_baseline=None, restart_window=R, out=out
+                score_r3=[control, control], r3_reference=ref_sub, restart_window=R, out=out
             )
         )
     assert not out.exists()
@@ -434,25 +507,33 @@ def test_a_control_vs_control_reading_may_not_be_written_as_the_r3_record(tmp_pa
 _CONTROL = Path("/mnt/aero-nfs/runs/hg2007_flexible_foil-20260912-161321")
 
 
-@pytest.mark.skipif(not (_CONTROL / "tutorial").is_dir(), reason="the NFS share is not mounted")
-def test_the_real_control_reads_as_transparent_against_itself_and_fixes_a10() -> None:
+_REFERENCE = Path("/mnt/aero-nfs/runs/hg2007_flexible_foil-20260910-084806")
+
+
+@pytest.mark.skipif(
+    not ((_CONTROL / "tutorial").is_dir() and (_REFERENCE / "tutorial").is_dir()),
+    reason="the NFS share is not mounted",
+)
+def test_the_real_control_reads_as_transparent_against_itself_with_dc1_as_the_yardstick() -> None:
     control = read_r3_inputs(_CONTROL / "tutorial", dt=DT, restart_windows=[])
-    score = score_r3(control, control, restart_window=4000, requested_windows=8000)
-    assert score["passed"] is True, json.dumps({k: score[k]["passed"] for k in "abcd"})
+    reference = read_r3_inputs(_REFERENCE / "tutorial", dt=DT, restart_windows=[])
+    score = score_r3(
+        control, control, reference=reference, restart_window=4000, requested_windows=8000
+    )
+    assert score["verdict"] == "pass", json.dumps({k: score[k]["passed"] for k in "abcde"})
     a = score["a"]
-    # A10, from the control's own numbers over windows 4001-8000
-    assert (
-        a["thrust"]["q1a_applicable"] is True
-        and a["thrust"]["control_mean_over_peak_to_peak"] > 1.0
-    )
-    assert (
-        a["lift"]["q1a_applicable"] is False and a["lift"]["control_mean_over_peak_to_peak"] < 0.05
-    )
-    assert (
-        a["power"]["q1a_applicable"] is False
-        and a["power"]["control_mean_over_peak_to_peak"] < 0.05
-    )
-    assert score["b"]["identical_run_degenerate"] is True
+    # the two-draw yardstick over windows 4001-8000, measured in session 15 (handoff 6.83)
+    assert a["thrust"]["reference_rms_deviation"] == pytest.approx(7.79e-6, rel=0.02)
+    assert a["lift"]["reference_rms_deviation"] == pytest.approx(4.11e-4, rel=0.02)
+    assert a["power"]["reference_rms_deviation"] == pytest.approx(1.97e-6, rel=0.02)
+    assert score["b"]["late_reference_rms_delta"] == pytest.approx(1.09e-5, rel=0.02)
+    # the as-written Q1 numbers ride along informationally (A10): thrust is the only
+    # resolvable mean over 4001-8000
+    assert a["thrust"]["as_written"]["q1a_applicable"] is True
+    assert a["lift"]["as_written"]["q1a_applicable"] is False
+    assert a["power"]["as_written"]["q1a_applicable"] is False
+    for q in ("thrust", "lift", "power"):
+        assert score["e"]["episodes"][q]["spans"] == []
     assert score["c"]["verdict"] == "eliminated" and score["c"]["windows_reached"] == 8000
     assert score["d"]["refilled_at_window"] is not None and score["d"]["refilled_at_window"] <= 4030
 
@@ -461,6 +542,7 @@ def test_a_treatment_on_the_unpatched_container_is_refused(tmp_path: Path) -> No
     """R1 rebuilds the solid container; the mechanism under test lives in the patched one."""
     driver = _driver()
     control_root, treatment_root = _pair(tmp_path, _control_signals())
+    ref_sub = _reference_submission(tmp_path, control_root)
     control = _submission(tmp_path / "c.json", driver.R3_CONTROL_RUN_ID, control_root.parent)
     treat = _submission(
         tmp_path / "t.json",
@@ -472,6 +554,6 @@ def test_a_treatment_on_the_unpatched_container_is_refused(tmp_path: Path) -> No
     with pytest.raises(SystemExit, match="container of record"):
         driver._score_r3(
             driver.argparse.Namespace(
-                score_r3=[control, treat], r3_baseline=None, restart_window=R, out=None
+                score_r3=[control, treat], r3_reference=ref_sub, restart_window=R, out=None
             )
         )

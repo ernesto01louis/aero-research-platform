@@ -3379,6 +3379,93 @@ The compile-error fix and the rebuild the operator also asked for were already d
 §6.81 (`e23e3df`, `d448da3`): `calculix-precice-adr045.sif` `ca1937f7…` is the container of
 record.
 
+### 6.83 SESSION 15 — R3 amended (A17): the two-draw yardstick, the amplitude limit and the episode rule, pre-registered before the treatment
+
+**The operator's word (2026-09-16): "Option 2 as stated in §6.82"**, with two things to record in
+the amendment commit before the treatment is submitted: (1) the limit of what a pass says, and
+(2) the verdict if the treatment fails only through an isolated large deviation far from the
+restart, decided now. Both are in ADR-045 as amendment A17, in the scorer's module docstring,
+and in every R3 record the driver writes (`pre_registered.amplitude_limit`, `e.rule`). The
+restart window stays 4000.
+
+**The clauses as accepted.** The reference draw is D-C1 (`hg2007_flexible_foil-20260910-084806`),
+the control is its re-probe (`…-20260912-161321`); a restart is transparent when the treatment is
+indistinguishable from another fresh draw. (a) per quantity over windows 4001–8000, RMS
+deviation from the control ≤ 2× the reference draw's, and span-mean difference ≤ max(Q1a's 2 %
+of the control mean, 2× the reference's); (b) late-window (7801–8000) RMS trailing-edge
+difference ≤ 2× the reference's, the early transient recorded not gated; (c), (d) verbatim;
+(e) the episode rule: (a) failing ONLY through one contiguous span (gaps < 50 merged) above
+10× the reference RMS, ≤ 400 windows, starting ≥ w5000, not touching 7801–8000, with (a)
+passing when the span is excised and (b)–(d) passing ⇒ `inconclusive-episode`, one re-probe
+permitted, a second `inconclusive-episode` UNRESOLVED and the NO-GO stands; anything else is
+`fail`. **The limit:** windows 4001–8000 sit at 1.3–3.3 % of the full plunge amplitude, inside
+the first sixth of the 1.0145 s ramp — a pass says restarts are transparent THERE, nothing
+about settled full-amplitude cycles.
+
+**The yardstick, measured** (`data/vv/stage20_adr045_r3_calibration.json` re-run: control
+against itself, D-C1 as the reference; verdict `pass`, every clause):
+
+| quantity | reference RMS (4001–8000) | RMS limit (2×) | span-mean limit | rule that set the limit |
+|---|---|---|---|---|
+| thrust | 7.79e-6 N | 1.56e-5 N | 1.99e-6 N | Q1a's 2 % of \|mean\| 9.97e-5 N |
+| lift | 4.11e-4 N | 8.22e-4 N | 2.59e-5 N | 2× the two-draw difference 1.29e-5 N |
+| interface power | 1.97e-6 W | 3.94e-6 W | 1.03e-7 W | 2× the two-draw difference 5.14e-8 W |
+| TE displacement, late | 1.09e-5 m | 2.18e-5 m | — | (b) |
+
+Episode thresholds (10× RMS): thrust 7.79e-5 N, lift 4.11e-3 N, power 1.97e-5 W. Note for the
+reader of a future record: the two draws' own lift max deviation over 4001–8000 is 6.99e-3 N,
+above lift's episode threshold, so a reference-like lift burst in the treatment WILL register
+as a span; it decides nothing unless (a) fails, and the reference RMS the factor is applied
+to already contains that burst. (d) refills at window 4010 against the 4030 deadline (control
+QN 54.1, iterations 5.75).
+
+**Code:** `score_r3(control, treatment, *, reference, …)` with `R3_YARDSTICK_FACTOR = 2.0`,
+`R3_EPISODE_FACTOR = 10.0`, `R3_EPISODE_GAP = 50`, `R3_EPISODE_MAX_WINDOWS = 400`,
+`R3_EPISODE_CLEARANCE = 1000`, verdict `pass` / `fail` / `inconclusive-episode`; the driver's
+`--score-r3` takes `--r3-reference` (default D-C1's `ladder-DC1-submission.json`) and writes
+`reference_run_id`, `pre_registered.yardstick_factor`, `pre_registered.amplitude_limit`,
+`two_draw_context` and `verdict`. Tests: `tests/unit/test_adr045_r3_scorer.py` (21: identity
+passes; a draw's worth of scatter passes; 3× scatter fails (a); a 3 % span-mean shift fails (a);
+a late shift fails (b), a decaying transient passes it; an isolated far episode is
+`inconclusive-episode`; an episode inside the clearance, two episodes, or one touching the late
+window is `fail`; (c), (d), incomplete, wrong control, wrong shape, unpatched container refused;
+the real control against itself with D-C1 pins the yardstick numbers above to 2 %). Suite
+**1092 passed, 3 skipped**; mypy clean.
+
+**Cost, corrected.** The control ran at 2.60 s/window, so 8000 windows is ≈ 5.8 h; ADR-045's
+"≈3 h" was wrong. The treatment is ≈ 5.9 h of B0 (segment 1 to the w4000 checkpoint plus a
+few windows, then 4000 restarted windows), a re-probe the same again. **B0: ≈ 76 h before,
+≈ 70 h after the treatment.** A third N3 attempt needs ≈ 74 h before restart rework.
+
+**C8, the submission (behind the B0 gate above).** Segment 1 is the control's shape on the
+container of record, with the checkpoint cadence 2000 (`aero-checkpoint-w2000.bin` at ~1.4 h is
+the C code's FIRST runtime test — a refusal or a crash there is a code bug and is recorded as
+one, not as evidence about restarts):
+
+    PATH="$PWD/.venv/bin:$PATH" python scripts/stage20_hg2007_flexible_foil.py \
+      --probe flexible mid --probe-dt 2e-5 --probe-windows 8000 --ranks 4 \
+      --numerics adr040-candidate --coupling parallel-implicit --hht-alpha -0.05 \
+      --timeout 86400 --out /tmp/claude-0/.../r3-treatment-submission.json
+
+then the JSON is copied beside the run as `r3-treatment-submission.json`. The shape check
+compares `arm rung time_window_size max_time numerics_label mpi_ranks coupling_scheme
+hht_alpha`; the control's `MALLOC_CHECK_` (a D-C1 rung's V5 observability) is not shape and the
+treatment runs without it, as a campaign wave would. Watch, never wait:
+
+    bash scripts/run_long.sh status root@aero-dev fsi-<run_id>
+    ls /mnt/aero-nfs/runs/<run_id>/tutorial/hg2007-flexible-foil/solid-calculix/aero-checkpoint-w*.bin
+    ls -d /mnt/aero-nfs/runs/<run_id>/tutorial/hg2007-flexible-foil/fluid-openfoam/processor0/0.08
+
+Once `aero-checkpoint-w4000.bin` and the fluid `0.08` dump both exist: `run_long.sh kill`
+(deliberate, A12, rc=143 recorded), then
+`--restart <submission> --restart-window 4000` (segment 2, `fsi-<run_id>-seg1`), then
+`--score-r3 <control> <treatment> --out data/vv/stage20_adr045_r3.json`.
+
+**Standing instruction from the operator, for AFTER R3:** before any N3 attempt 3, bring the
+B0 arithmetic including restart rework (R2's ≈ 60 h per wave at ≈ 31 restarts against the
+remaining hours), and how ADR-040's partner-kill stop rule changes now that a death is
+followed by a restart rather than a kill of the partner. Not started; it is the next memo.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
