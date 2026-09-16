@@ -278,6 +278,9 @@ def test_a_restart_rotates_patches_the_clocks_and_records_the_segment(
     # A7: preCICE gets the remaining time
     config = (exchange / "precice-config.xml").read_text(encoding="utf-8")
     assert f'max-time value="{float(f"{(N - W) * DT:.13e}")!r}"' in config
+    # A18: every exchange gains initialize="true" so the fresh preCICE seeds from the
+    # restored state instead of snapping the fluid interface to zero (session-15 finding)
+    assert config.count('initialize="true"') == 2
     # the Solid's exports carry the restart and its R5 bounds; the cadence continues
     script = (root / "run-coupled.sh").read_text(encoding="utf-8")
     assert f"AERO_RESTART_FILE=aero-checkpoint-w{W}.bin" in script
@@ -294,7 +297,10 @@ def test_a_restart_rotates_patches_the_clocks_and_records_the_segment(
     assert record["restart"]["bounds"]["reference_energy_j"] == pytest.approx(3.0e-9 * W)
     assert record["restart"]["bounds"]["energy_min"] == pytest.approx(3.0e-10 * W)
     assert record["restart"]["bounds"]["max_displacement"] > 0.0
-    assert [m["kind"] for m in record["restart"]["mutations"]] == ["fluid-startTime", "max-time"]
+    assert [m["kind"] for m in record["restart"]["mutations"]] == [
+        "fluid-startTime",
+        "max-time+exchange-initialize",
+    ]
     assert record["spec_sha256"] == json.loads(sub.read_text(encoding="utf-8"))["spec_sha256"]
     assert record["session"] == session
 

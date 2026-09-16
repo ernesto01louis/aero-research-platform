@@ -241,6 +241,9 @@ class CouplingSchemeDecl(BaseModel):
     first: str = Field(..., min_length=1)
     second: str = Field(..., min_length=1)
     exchanges: tuple[tuple[str, str, str, str], ...] = ()  # (data, mesh, from, to)
+    exchange_initialize: tuple[
+        bool, ...
+    ] = ()  # per-exchange initialize="true", aligned with exchanges
     convergence_measures: tuple[ConvergenceMeasureDecl, ...] = ()
     acceleration: AccelerationDecl | None = None
 
@@ -442,6 +445,10 @@ def _read_coupling_scheme(element: _Element, *, source: Path) -> CouplingSchemeD
                 e.attr("from", source=source),
                 e.attr("to", source=source),
             )
+            for e in element.find_all("exchange")
+        ),
+        exchange_initialize=tuple(
+            e.attrib.get("initialize", "false").strip().lower() == "true"
             for e in element.find_all("exchange")
         ),
         convergence_measures=tuple(measures),
@@ -940,6 +947,84 @@ def rewrite_max_time(source: Path, dest: Path, *, max_time: float) -> PreciceCon
             f"{dest}: rewriting <max-time> changed something else as well — refusing to run. "
             "The ONLY permitted modification to the upstream configuration is max-time "
             "(ADR-036 C2).\n"
+            f"  produced: {produced.model_dump_json()}\n"
+            f"  expected: {want.model_dump_json()}"
+        )
+    return produced
+
+
+_EXCHANGE_RE = re.compile(r'(<exchange\b)((?:\s+[a-zA-Z-]+="[^"]*")*)(\s*/>)')
+
+
+def rewrite_for_restart(source: Path, dest: Path, *, max_time: float) -> PreciceConfig:
+    """The restart's TWO declared mutations (ADR-045 A7 + A18), and nothing else.
+
+    A restart starts a FRESH preCICE instance. preCICE has no cross-process restart, so
+    (A7) ``<max-time>`` becomes the REMAINING coupled time, and (A18) every ``<exchange>``
+    gains ``initialize="true"`` so the participants SEED the first-window coupling data
+    from their restored state. Without A18 preCICE initialises read-data to zero, and the
+    fluid — whose mesh is already at the restored deformation — snaps its interface back to
+    undeformed in one time-window: a ~O(10^2 m/s) spurious mesh velocity, an O(10^8 N)
+    force, and an immediate divergence (session-15 finding, handoff §6.85). ``initialize``
+    is inert for the from-rest control (implicit coupling converges to the same fixed
+    point regardless of the initial guess), so it belongs only on the restart path and the
+    base template is untouched.
+
+    As with :func:`rewrite_max_time` the check is structural: `dest` is re-parsed and must
+    equal the source under exactly a ``max_time`` update and ``initialize`` set on every
+    exchange. Any other edit aborts the run.
+    """
+    if max_time <= 0.0:
+        raise PreciceConfigError(f"max_time must be positive, got {max_time!r}")
+    original = read_precice_config(source)
+    if not original.coupling_scheme.exchanges:
+        raise PreciceConfigError(f"{source}: no <exchange> elements to initialise on restart")
+
+    text = source.read_text(encoding="utf-8")
+    matches = _MAX_TIME_RE.findall(text)
+    if len(matches) != 1:
+        raise PreciceConfigError(
+            f"{source}: found {len(matches)} <max-time value=.../> elements, expected exactly "
+            "one — refusing to guess which one bounds the restart"
+        )
+    text = _MAX_TIME_RE.sub(rf"\g<1>{max_time!r}\g<3>", text, count=1)
+
+    exchanges_seen = 0
+
+    def _add_initialize(match: re.Match[str]) -> str:
+        nonlocal exchanges_seen
+        exchanges_seen += 1
+        attrs = match.group(2)
+        if "initialize=" in attrs:
+            return match.group(0)  # already set: leave byte-for-byte
+        return f'{match.group(1)}{attrs} initialize="true"{match.group(3)}'
+
+    text = _EXCHANGE_RE.sub(_add_initialize, text)
+    if exchanges_seen != len(original.coupling_scheme.exchanges):
+        raise PreciceConfigError(
+            f"{source}: matched {exchanges_seen} <exchange/> by text but parsed "
+            f"{len(original.coupling_scheme.exchanges)} — the writer and parser disagree"
+        )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text, encoding="utf-8")
+
+    produced = read_precice_config(dest)
+    want = original.model_copy(
+        update={
+            "source_path": produced.source_path,
+            "source_sha256": produced.source_sha256,
+            "coupling_scheme": original.coupling_scheme.model_copy(
+                update={
+                    "max_time": max_time,
+                    "exchange_initialize": tuple(True for _ in original.coupling_scheme.exchanges),
+                }
+            ),
+        }
+    )
+    if produced != want:
+        raise PreciceConfigError(
+            f"{dest}: the restart rewrite changed something beyond max-time and exchange "
+            "initialize — refusing to run (ADR-045 A18).\n"
             f"  produced: {produced.model_dump_json()}\n"
             f"  expected: {want.model_dump_json()}"
         )

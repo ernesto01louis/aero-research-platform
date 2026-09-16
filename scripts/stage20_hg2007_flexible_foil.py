@@ -78,7 +78,7 @@ from aero.adapters.precice.case import (  # noqa: E402
     assert_provenance_describes,
     spec_config_digest,
 )
-from aero.adapters.precice.config import rewrite_max_time  # noqa: E402
+from aero.adapters.precice.config import rewrite_for_restart  # noqa: E402
 from aero.adapters.precice.launcher import (  # noqa: E402
     CheckpointOptions,
     CoupledLaunchError,
@@ -2069,13 +2069,17 @@ def _restart(args: argparse.Namespace) -> int:
     config = exchange / "precice-config.xml"
     before = config.read_bytes()
     remaining = float(f"{max_time - window * dt:.13e}")
-    rewrite_max_time(config, config, max_time=remaining)
+    rewrite_for_restart(config, config, max_time=remaining)
     mutations.append(
         {
-            "kind": "max-time",
+            "kind": "max-time+exchange-initialize",
             "path": str(config.relative_to(case_root)),
             "detail": f"<max-time> {remaining!r} s = the remaining coupled time after window "
-            f"{window}; preCICE has no restart and starts at zero (ADR-045 A7)",
+            f"{window} (preCICE has no restart and starts at zero, ADR-045 A7); and "
+            'initialize="true" on every <exchange> so the fresh preCICE instance seeds the '
+            "first-window coupling data from the restored state instead of zero (ADR-045 "
+            "A18) -- without it the fluid snaps its deformed interface to undeformed in one "
+            "window and diverges (session-15 finding)",
             "before_sha256": hashlib.sha256(before).hexdigest(),
             "after_sha256": hashlib.sha256(config.read_bytes()).hexdigest(),
         }

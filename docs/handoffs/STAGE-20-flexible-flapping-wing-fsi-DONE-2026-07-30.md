@@ -3484,6 +3484,139 @@ after which segment 1 is killed deliberately (A12) and segment 2 is launched wit
 `--restart /mnt/aero-nfs/runs/hg2007_flexible_foil-20260916-152606/r3-treatment-submission.json
 --restart-window 4000`. Nothing else touches aero-dev while it runs; never `wait`.
 
+### 6.85 SESSION 15 — the restart died in 31 s: the fluid snapped its interface to zero. The SOLID mechanism is vindicated
+
+Segment 2 (`fsi-hg2007_flexible_foil-20260916-152606-seg2`) died `participant-died` after 31 s.
+**The ADR-045 solid checkpoint/restart worked exactly as designed:** it wrote w2000 (16:11) and
+w4000 (18:33) without pausing the run, R5 validated the restore, and the state came back
+bit-identical -- `E_int+E_kin 5.024052e-08` on both write and restore, theta 0.5, the step
+re-entered. The failure was entirely in the COUPLED restart, and two numbers locate it, restart
+vs the from-rest control at their first coupling window:
+
+| first-window normalization | from-rest control | w4000 restart |
+|---|---|---|
+| Displacement (solid->fluid) | 2.19e-10 (mesh undeformed) | 3.46e-3 (the w4000 deformation) |
+| Force (fluid->solid) | 0.36 N (physical) | 2.32e8 N (spurious) |
+
+The precice-config had no `initialize="true"` on either exchange, so a fresh preCICE instance
+initialised read-data to ZERO. From rest that is correct (mesh undeformed). On a restart the
+fluid mesh is already at the w4000 deformation, but preCICE handed it a zero Displacement, so
+the fluid adapter snapped the interface back to undeformed in one 2e-5 s step -- a ~O(10^2 m/s)
+spurious mesh velocity, a 2.32e8 N force, IQN-ILS with an empty history and one column amplifying
+it, the solid's force escalating past 1e13 N, its displacement locking at 6.15 m on a 0.1 m
+foil, SPOOLES singular, segfault at node 2050. The killed run stays on NFS as the evidence.
+This is the coupling-state loss ADR-045 R4.3 named, but the acute cause was a missing config
+flag, not the quasi-Newton history.
+
+### 6.86 SESSION 15 — the fix (A18): initialize="true" on the restart's exchanges; treatment re-run
+
+The operator chose option 1 (handoff §6.85 memo). **Fix: `initialize="true"` on every
+`<exchange>` in the RESTART's precice-config**, so the solid writes its restored w4000
+Displacement and the fluid its restored Force before preCICE initialises. The CalculiX adapter
+already does this at `precicec_requiresInitialData()` (`PreciceInterface.c:54`), so no C change --
+and because the checkpoint restore runs before `Precice_Setup` (A14), the displacement it writes
+IS the w4000 state. It is inert for the from-rest control (implicit coupling reaches the same
+fixed point regardless of the initial guess), so it lives only on the restart path and the base
+template is untouched; segment 1 stays byte-identical to the control.
+
+- `aero/adapters/precice/config.py`: `exchange_initialize` added to the parsed model (the
+  "nothing else moved" check was previously BLIND to the flag); new `rewrite_for_restart`
+  (max-time A7 + initialize A18, structurally verified), idempotent on a re-restart.
+- `scripts/stage20_hg2007_flexible_foil.py`: `_restart` calls `rewrite_for_restart`; the
+  mutation record kind is now `max-time+exchange-initialize`.
+- Tests: `test_precice_config.py` (+4: the parser sees initialize; the rewrite sets it on every
+  exchange and moves exactly the three lines; idempotence; the structural check catches a
+  smuggled change), `test_adr045_restart_driver.py` (the relaunched config carries
+  `initialize="true"` twice; the mutation kind). Suite **1096 passed, 3 skipped**, mypy clean.
+
+**Re-run: a fresh full treatment (new run id), ~5.9 h, behind the B0 gate.** A clean single-run
+record is worth the ~1.8 h of the failed attempt: segment 1 from rest (config identical to the
+control), kill at the w4000 checkpoint + fluid 0.08 dump, segment 2 relaunched with A18. The
+failed run is immutable evidence; the R3 record points to the new run id. Watch, never wait; the
+first checkpoint at w2000 is the C code's first runtime test on this segment.
+
+### 6.87 SESSION 15 — the memo owed before any N3 attempt 3: B0 with restart rework, and the stop rule under restarts
+
+**Written for the operator, on the standing instruction of 2026-09-16. Nothing here is a
+submission; it is the arithmetic and the rule change, to be decided before attempt 3 exists.**
+
+**1. What B0 is, and what it has consumed.** ADR-040 B0: 96 h per submission, 7 d (168 h)
+total, covering L6, Q1 and N3 ("aero-dev only"). There was never a ledger; the prose carried
+"~79 h left" at session-13 open. Measured now from every `hg2007_*` run's `coupled-status.json`
+(killed runs from log mtimes), the spend to date:
+
+| item | flexible | rigid | box-time (pair once) | sum of submissions |
+|---|---|---|---|---|
+| I4 screens + pair (2026-08-10) | 2.6 h | 1.7 h | 2.6 h | 4.3 h |
+| Q1 pair + screen (08-12) | 0.8 h | 0.3 h | 0.8 h | 1.1 h |
+| N3 attempt 1 (08-12): flexible died w1702, rigid completed | 2.1 h | 30.9 h | 30.9 h | 33.0 h |
+| ADR-041 ladder D-A, D-B, D-C2, D-C1 + control (09-05 … 09-12) | 15.4 h | — | 15.4 h | 15.4 h |
+| Q1 re-run under ADR-041 (09-13) | 0.5 h | 0.2 h | 0.5 h | 0.7 h |
+| N3 attempt 2 (09-14): flexible died w21 896, rigid killed at w60 621 | 17.5 h | 21.3 h | 21.3 h | 38.8 h |
+| sanitizer hunt (09-15) | 2.9 h | — | 2.9 h | 2.9 h |
+| **before R3** | | | **≈ 74 h** | **≈ 96 h** |
+| R3 treatment (09-16, ≈ 5.9 h) | | | ≈ 80 h | ≈ 102 h |
+| **B0 remaining after R3** | | | **≈ 88 h** | **≈ 66 h** |
+
+The clause says "per submission … total", which reads as the sum over submissions; the
+prose's "~76 h" sat between the two readings. **Which reading B0 means is the operator's
+call, and it decides attempt 3 on its own** — see 3.
+
+**2. Attempt 3 with restarts, costed.** 76 090 windows per arm. Flexible (binding) at the
+contended 3.50 s/window: **74.0 h**; rigid ≈ 27 h contended (60 621 windows in 21.3 h in
+attempt 2). Deaths: 37 900 windows per death on the adopted stack ⇒ **2.0 expected in
+attempt 3** (Poisson: 13 % chance of none, 32 % of ≥ 3). Rework per death at cadence 2000:
+uniform 0–2000 windows ⇒ mean 1000 windows ≈ **1.0 h**, worst 1.9 h, plus ≈ 5 min relaunch
+(no decomposePar; the R5 read; preCICE re-initialisation). A restart is only bounded if the
+checkpoint is admissible: a death before w2000 has no checkpoint (resubmit, ADR-039 N3 verbatim),
+an R5 refusal (exit 202) steps back one generation (+ 2000 windows) and a second refusal is a
+death with no restart. Expected total: 74.0 + 2 × 1.0 + overhead ≈ **76–77 h**; a 4-death
+attempt ≈ 82 h; per-submission ceiling 96 h holds either way.
+
+| reading of B0 | remaining after R3 | attempt 3 (pair) | fits? |
+|---|---|---|---|
+| box-time | ≈ 88 h | ≈ 77 h (worst ≈ 82 h) | yes, 6–11 h headroom |
+| sum of submissions | ≈ 66 h | ≈ 77 h + 27 h rigid ≈ 104 h | **no, by ≈ 38 h** |
+
+Under the sum reading attempt 3 cannot start without amending B0 — an ADR-040 change, made
+before the probe, recorded, as the 72 → 96 h raise was. Under the box-time reading it fits
+with the headroom above. W3 still applies: reaching B0 inside the ramp = N3 FAILS.
+
+**3. The stop rule under restarts.** The rule (handoff §6.46 item 3, RESUME §6u): *one arm
+dies pre-ramp (before w50 726) ⇒ kill the partner, record both.* Its reason was never the
+death itself: the surviving arm runs UNCONTENDED once its partner is gone, and an uncontended
+rate may not size B2 (ADR-040 N3). A death followed by a restart changes the premise, not
+the reason. Proposed, for the operator's word (an ADR-040/045 amendment before attempt 3):
+
+- **(i) A restartable death does not fire the stop rule.** The dead arm is restarted from
+  its newest admissible checkpoint; the partner keeps running. The relaunch takes ≈ 5 min,
+  during which the partner is uncontended — those windows are marked in the record (the
+  partner's `coupled-status`/iterations timestamps against the restart time) and
+  EXCLUDED from the rate that sizes B2. The arms were never window-synchronous anyway
+  (rigid reached w60 621 while flexible was at w21 896), so restarting both to a common
+  window would discard the healthy arm's progress for nothing.
+- **(ii) The stop rule fires on a NON-restartable death**: no checkpoint yet (before
+  w2000), a second R5 refusal, a fluid-side death (the fluid has no solid checkpoint to pair
+  with), or a death of the partner while the other is mid-relaunch. Then: kill the partner,
+  record both, ADR-039 N3's one resubmission of BOTH arms applies, and a second such death
+  is the infrastructure NO-GO — verbatim.
+- **(iii) A restart cap, decided now:** more than **5 restarts** on one arm in attempt 3
+  (2.5× the expectation; Poisson P(> 5 | 2.0) ≈ 1.7 %) is a NO-GO on infrastructure —
+  the mean-time-to-crash has moved, and that is a result, not a nuisance. Every restart
+  goes in the record with its window, its rework and its R5 reading; `restart_generations`
+  stays top-level and the gate derivation keeps refusing `gated` without a passing R3.
+- **(iv) When the partner finishes first**, the remaining windows of the restarted arm are
+  uncontended; the B2 rate is taken over the contended windows only (the same exclusion as
+  (i)), and the record states the coverage, as W3 already does for phase.
+
+**What R3 does and does not license.** A pass says a restart at 1.3–3.3 % of plunge, inside
+the first sixth of the ramp, is indistinguishable from another draw. Attempt 3's deaths will
+mostly fall in the ramp's later five-sixths and in settled cycles, where no R3 evidence
+exists (A17's limit). The record of attempt 3 must therefore treat each restart as a marked
+discontinuity in the analysis window, and the settled-cycle statistics (S-rule, U95) must be
+computed with the restart windows excluded from any batch that straddles them — a rule to
+write into the collect BEFORE attempt 3, not after.
+
 ## 7. Open items for the next stage (and beyond)
 
 **SESSION-13 RESUMPTION PATH (2026-08-29 — supersedes the SESSION-12 path below; §6.49).**
