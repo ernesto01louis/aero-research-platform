@@ -48,7 +48,7 @@ the prose — every ❌ below was confirmed by `ls`.*
 | 3 | Pre-registered gate block (ADR-039) before any campaign run | ⚠️ | **ADR-039 EXISTS and is frozen** (session 7, `94c2b98`): 58 clauses across ten families, byte-duplicated in the campaign driver, binding tests in `tests/unit/`, B2 carrying `<<B2-PENDING-I4>>` + the committed pure sizing rule. **B2 cannot honestly be filled**: the pre-flight measured the pre-registered configuration infeasible by 1-2 orders of magnitude (§6.29) and the sizing rule refuses by design |
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ⚠️ | Every input exists and is measured per arm (`ArmReadout` carries the per-cycle series the paired estimator needs). `align_arms` was hardened in session 6 (§6.23). The composition itself is the campaign driver's and lands with ADR-039 |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038 `accepted` 2026-08-06.** Both residuals closed in session 6: the CLI derives the SIFs from the spec and calls `assert_provenance_describes` (`7f1d584`), and a per-CASE stage/solver-version override stops a Stage-20 bundle claiming a Nutils solid |
-| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-037/038 `accepted`; **ADR-039 `accepted` (session 7)**; this handoff; **no tag, no verdict**. The gated sentinels remain `None` — structurally correct, because the pre-flight found the pre-registered campaign does not fit its own ceilings (§6.29). The resumption path is an ADR-040 re-pre-registration (§7 item 1), honest because **no gated campaign ever ran** |
+| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-037…045 all `accepted`; this handoff; **no tag**. **The verdict IS recorded (2026-09-20): ADR-041 V7 FIRED — NO-GO on infrastructure (§6.89, `data/vv/stage20_nogo_infrastructure.json`). No ADR-039 clause-by-clause verdict is obtainable.** The gated sentinels remain `None` — structurally correct, because the pre-flight found the pre-registered campaign does not fit its own ceilings (§6.29). The resumption path is an ADR-040 re-pre-registration (§7 item 1), honest because **no gated campaign ever ran** |
 
 **Session 5 (2026-08-05) moves deliverables 1 and 4 substantially.** Every writer and reader
 the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
@@ -3530,12 +3530,21 @@ template is untouched; segment 1 stays byte-identical to the control.
   `initialize="true"` twice; the mutation kind). Suite **1096 passed, 3 skipped**, mypy clean.
 
 **Re-run: a fresh full treatment (new run id), ~5.9 h, behind the B0 gate.** A clean single-run
-record is worth the ~1.8 h of the failed attempt: segment 1 from rest (config identical to the
+record is worth the 3.13 h of the failed attempt (measured; the ~1.8 h written here at the time
+was derived from the stale ~3 h treatment estimate -- see 6.88): segment 1 from rest (config identical to the
 control), kill at the w4000 checkpoint + fluid 0.08 dump, segment 2 relaunched with A18. The
 failed run is immutable evidence; the R3 record points to the new run id. Watch, never wait; the
 first checkpoint at w2000 is the C code's first runtime test on this segment.
 
 ### 6.87 SESSION 15 — the memo owed before any N3 attempt 3: B0 with restart rework, and the stop rule under restarts
+
+> **SUPERSEDED IN PURPOSE, RETAINED AS EVIDENCE (2026-09-20).** This memo was written on the
+> operator's standing instruction to precede any N3 attempt 3. Under the NO-GO (6.89) there is no
+> attempt 3, so its stop-rule amendment and its restart cap bind nothing. It is retained unedited
+> below (except the one measured correction marked in the ledger) because two of its parts are
+> load-bearing evidence FOR the NO-GO: the B0 ledger, and the death arithmetic that sizes the
+> restart rework. Its unresolved question — which reading of ADR-040 B0 governs, box-time or
+> sum-of-submissions — outlives it and is recorded as open in 6.89.
 
 **Written for the operator, on the standing instruction of 2026-09-16. Nothing here is a
 submission; it is the arithmetic and the rule change, to be decided before attempt 3 exists.**
@@ -3555,8 +3564,14 @@ total, covering L6, Q1 and N3 ("aero-dev only"). There was never a ledger; the p
 | N3 attempt 2 (09-14): flexible died w21 896, rigid killed at w60 621 | 17.5 h | 21.3 h | 21.3 h | 38.8 h |
 | sanitizer hunt (09-15) | 2.9 h | — | 2.9 h | 2.9 h |
 | **before R3** | | | **≈ 74 h** | **≈ 96 h** |
-| R3 treatment (09-16, ≈ 5.9 h) | | | ≈ 80 h | ≈ 102 h |
+| R3 treatment — TWO aborted attempts (09-16/17), ≈ 5.86 h, ZERO scoreable windows | | | ≈ 80 h | ≈ 102 h |
 | **B0 remaining after R3** | | | **≈ 88 h** | **≈ 66 h** |
+
+**Correction (2026-09-20, measured).** The R3 row above bought TWO failed restarts, not one
+transparency measurement: `…-152606` seg1 2026-09-16T15:26:13Z→18:34:17Z (3.13 h, 11 282 s fluid
+ClockTime, 4023 windows) + seg2 31 s; `…-213116` seg1 21:31:22Z→2026-09-17T00:13:44Z (2.71 h,
+9 740 s, 4009 windows) + seg2 30 s. **≈ 5.86 h of B0 for zero scoreable treatment windows.** The
+budget did not kill R3 — the mechanism did (6.88).
 
 The clause says "per submission … total", which reads as the sum over submissions; the
 prose's "~76 h" sat between the two readings. **Which reading B0 means is the operator's
@@ -3616,6 +3631,213 @@ exists (A17's limit). The record of attempt 3 must therefore treat each restart 
 discontinuity in the analysis window, and the settled-cycle statistics (S-rule, U95) must be
 computed with the restart windows excluded from any batch that straddles them — a rule to
 write into the collect BEFORE attempt 3, not after.
+
+### 6.88 SESSION 15/16 — the A18 restart died too. A18 was necessary and not sufficient; the coupled restart is not survivable
+
+**Run `hg2007_flexible_foil-20260916-213116` (attempt 2, carrying A18).** Segment 1 submitted
+2026-09-16T21:31:22Z, checkpointed w2000 and w4000, completed **4009** windows and was killed
+during **w4010** under A12 (the deliberate kill; it lands past the checkpoint it restarts from).
+Segment 2 submitted 2026-09-17T00:15:30Z and **died 30 s later**: the **FLUID died first** —
+SIGFPE in the GAMG solve of `p`, both parallel ranks, rc **136** — and preCICE then aborted the
+solid (rc **134**). Attempt 1 (`…-20260916-152606`, pre-A18) is the mirror image: the **SOLID**
+died first (SIGSEGV after diverging to 6.154188e+00 m), the fluid failed on preCICE socket EOF
+(rc 1), and the driver SIGTERM'd the surviving solid mpirun (rc **143** — not the segfault, and
+not segment 1's A12 kill). Attempt 1's segment 1 completed **4023** windows, killed during w4024.
+
+**Neither restart completed a single coupling window.** `precice-Solid-iterations.log` carries
+ZERO DATA ROWS in both — 101 bytes (the bare header, no trailing newline) in `…-152606`, 0 bytes
+in `…-213116` — and neither segment-2 `Solid.log` ever prints a `time-window 2` header. Check it
+with `awk 'NR>1' <file> | wc -l`, **not** `wc -l` or `test -s`: these logs have no trailing
+newline, so `wc -l` reads one short and reports 0 for a header-only file. Their `.seg1.log`
+rotations carry 4023 and 4009 rows. **R3 therefore has no treatment series, in either attempt**,
+and `data/vv/stage20_adr045_r3.json` was never written.
+
+**What A18 fixed, measured at the same global window (w4001) and the same iteration slot:**
+
+| preCICE relative-convergence normalization, w4001 it 1 | segment 1 | restart |
+|---|---|---|
+| Displacement (solid -> fluid) | 4.30e-04 / norm 3.50e-03 / conv=true | **identical: 4.30e-04 / 3.50e-03 / conv=true** |
+| Force (fluid -> solid) | 3.34e-01 | **4.97e+01 — ~149x** |
+
+**The solid half of the restart is exact.** The restored solid's first CalculiX solve reproduced
+segment 1's at the same global window to seven digits: `largest increment of disp= 1.162543e-07`
+in BOTH, `average force= 0.001371` against 0.001372. A18 did precisely what it was designed to
+do. **The failure is one-sided and it is on the fluid.**
+
+**Read the 149x correctly.** That normalization is an **iteration-1 quantity, not a physical
+load** — within w4000 the same measure runs 3.34e-01 (it 1) -> 1.07e-03 -> 3.81e-04 -> 3.11e-04
+(converged). The comparison above is like-for-like: same global window, same iteration slot, same
+mesh, so the ~149x is real. It is **not** a claim that the interface load was 149x anything.
+
+**MEASURED: the restarted fluid's mesh-motion solve never regains continuity.**
+`cellDisplacementx` initial residual runs **1.2269e-02, 1.2258e-02, then 9.8005e-01** across the
+three fluid solves of the restarted window, against segment 1's **3.4982e-04** at the same
+instant; `pcorr` takes **85 / 99 / 76** iterations against segment 1's **14 / 2**. The second
+solve re-does essentially the same jump as the first — the discontinuity does not decay — and the
+third is the solve that SIGFPE'd.
+
+**INFERRED, NOT PROVEN: that the lost quantity is the mesh-motion history.** The mechanism is
+**not root-caused** and the record says so. Two things it is NOT:
+- It is **not** a time-derivative order loss. The case runs `ddtSchemes { default Euler; }`, and
+  ADR-045 **F2 pre-registered the fluid restart as state-exact precisely because Euler needs one
+  old time level**. F2 is **not refuted** — its scope is the flow-field ddt order, and by that
+  measure the restart is exact. F2 never covered the **mesh-motion** history of a moving-mesh
+  case, and that is where the measured discontinuity sits.
+- It is **not** established as the empty quasi-Newton history. **That contribution is UNMEASURED**:
+  the run died at coupling iteration 3 of the first restarted window, so no `QNColumns` datum
+  exists at all — and R3(d) was the clause that would have measured exactly that. ADR-045 R4.3's
+  literal words are *"IQN-ILS history — NOT recoverable, at any price"* and *"This is the loss the
+  checkpoint cannot fix"*. R4.3 names the quasi-Newton history specifically; it does **not** name
+  the fluid-side residual above, and the two must not be conflated.
+- **Untested candidate, recorded for honesty:** A18 set `initialize="true"` on **both** exchanges,
+  including **Force**, which changes what the fluid publishes at window 1. Whether initialising
+  Displacement alone behaves differently was never tested.
+
+**The A/B, and its one honest caveat.** The two attempts share the case, both containers
+(`calculix-precice-adr045.sif` `ca1937f7…`, `precice-fsi.sif` `ce795873…`), the checkpoint window
+and the restart mechanism, and differ in the restart config by **exactly one mutation**
+(`max-time` vs `max-time+exchange-initialize`). They are **not the same run twice**: each carries
+its own segment-1 draw (4023 and 4009 windows) restoring different w4000 states (E_int+E_kin
+5.024052e-08 vs 5.173354e-08, a 2.96 % spread — ordinary two-draw scatter).
+
+**The solid checkpoint mechanism is verified at the byte level.** Segment 2 re-wrote the w4000
+checkpoint ~2.7 s AFTER the submission record had already hashed it, and the bytes came back
+identical: `sha256sum <run>/tutorial/hg2007-flexible-foil/solid-calculix/aero-checkpoint-w4000.bin`
+equals `restart.checkpoint_sha256` in `<run>/restart-seg2-submission.json` — `0980a299e02b91c2…`
+for `…-152606`, `31fdb9b5b1a95c83…` for `…-213116`. E_int+E_kin matched on write and restore. A
+future reader who notices the file's mtime is after the restart should read this paragraph before
+concluding tampering.
+
+**Segment 1 provably ran the control's configuration, byte for byte.** The control's
+`precice-config.xml` hashes to `4fe8d0f1849139e2…`, which is exactly attempt 2's `before_sha256`
+for the `max-time+exchange-initialize` mutation. A18 lives only on the restart path.
+
+**Two evidence gaps, declared rather than glossed.** (i) The `core.*` files in `…-213116` are
+**zero length** (ulimit) — there is no post-mortem and none can be obtained; the logs are the whole
+record. (ii) Segment 1's terminal `coupled-status.json` (the A12 kill, rc=143) does **not** survive
+in either attempt: the supervisor writes it after the kill, so rotation found nothing and segment
+2's status overwrote the path. ADR-045 A8's text claims it is rotated; it is not.
+
+**B0 (UTC throughout).** `…-152606`: seg1 submitted 15:26:13Z, ended 18:34:17Z (3.13 h, 11 282 s
+fluid ClockTime, 4023 windows); seg2 submitted 18:35:38Z, died in 31 s. `…-213116`: seg1 submitted
+21:31:22Z, ended 2026-09-17T00:13:44Z (2.71 h, 9 740 s, 4009 windows); seg2 died in 30 s.
+**Total ≈ 5.86 h of B0 — one complete treatment's budget — for ZERO scoreable treatment windows.**
+The ≈5.9 h in A17 and §6.87 is the estimate for ONE complete treatment; the coincidence of the
+totals must not be read as "one treatment ran".
+
+### 6.89 SESSION 16 — THE VERDICT: NO-GO ON INFRASTRUCTURE (ADR-041 V7 fired, 2026-09-20)
+
+**The operator's decision, 2026-09-20: record the NO-GO.** This section is the stage's recorded
+outcome. ADR-041 V7's NO-GO on infrastructure **has fired** and is not rescued.
+
+**THE SCOPE, stated first so it cannot be misread.** This NO-GO is on **INFRASTRUCTURE**, for the
+**ADR-039/040 gated campaign at Stage 20's frozen pins**. It is **not** a finding about the
+Heathcote-Gursul physics, **not** a finding that any solver is incorrect, and **not** a finding
+about chordwise flexibility. Q1 equivalence PASSED on both stacks; the rigid arm completed
+76 090/76 090 windows; two independent flexible draws completed 8000/8000. What cannot be done is
+run the **gated flexible campaign to completion** on this stack.
+
+**THE TRIGGER.** On the adopted stack the flexible arm survives **≈37 900 windows per death**
+(D-C1 8000 + its re-probe 8000 + N3 attempt 2's 21 896 completed before it died in window 21 897 =
+37 896 windows for one death). A campaign wave is **1 166 675 windows** ⇒ **~31 expected deaths
+per wave**, and **~17** even at B4's 10-cycle floor (659 750). ADR-041 V7 pre-registered exactly
+this as the NO-GO-on-infrastructure conversation. Two levers could change that arithmetic, and
+both are now exhausted:
+
+- **LEVER (a) — REMOVE THE BUG: exhausted.** The AddressSanitizer hunt returned **`no-report-died`**
+  (`/mnt/aero-nfs/runs/hg2007_flexible_foil-20260915-113918/asan-hunt-verdict.json`): the
+  instrumented run died of CalculiX's own divergence stop (rc=201) at w2369 with **no ASan report
+  at all**, and the reading is recorded as **NOT exoneration** — SPOOLES, ARPACK, libprecice, MPI
+  and libgfortran are uninstrumented, so a store inside them lands in a redzone rather than
+  glibc's chunk header. No patchable line exists. ADR-045 R6 bullet 1 was never available.
+  Upstream v2.20.2 already carries the only related fix (#173) and nothing newer touches code.
+- **LEVER (b) — SURVIVE THE BUG: exhausted, in two distinct failure modes, under a controlled A/B.**
+  Attempts 1 and 2 (§6.88) differ by exactly one config mutation. A18 did what it was designed to
+  do — the restarted solid is **exact** (displacement measure identical to segment 1 at the same
+  global window; first CalculiX solve matching to seven digits) — and the coupled restart still
+  died in 30 s, on the fluid side. **Zero coupling windows advanced past the restart in either
+  attempt.**
+
+**R3 DID NOT "FAIL" — IT WAS NEVER EVALUABLE, and that is recorded as ADR-045 A19.** R6 bullet 3
+is worded "if R3 fails", and A17 closed R3's vocabulary to `pass` / `fail` / `inconclusive-episode`
+— all three of which require a scored 8000-window treatment. None was produced: the scorer never
+ran, because no treatment ever reached a scoreable state. The honest statement is **"the R3
+treatment could not be produced; R3 has no verdict"**, and R6's consequence applies *a fortiori* —
+a restart that cannot run is not a transparent restart. Do not read this record as "the scorer
+returned fail"; it claims a measurement that does not exist.
+
+**WHAT THIS COST AND WHAT IT BOUGHT.** ≈5.86 h of B0 across the two attempts, for zero scoreable
+treatment windows. B0 remaining is **≈88 h under the box-time reading / ≈66 h under the
+sum-of-submissions reading** — the two readings of ADR-040 B0's "per submission … total" were
+never reconciled (§6.87) and the NO-GO forecloses the question that would have needed it.
+
+**THE INFRASTRUCTURE GAP, stated bluntly.** What is actually wrong is a **CalculiX-side heap
+corruption that has never been root-caused**. It kills the flexible arm — and only the flexible
+arm — after a variable number of windows: glibc aborts with `corrupted double-linked list`
+(rc=134) at the point where it TRIPS OVER poisoned allocator metadata, which N3 attempt 2 proved
+can be tens of thousands of windows after the invalid write. The adopted HHT damping
+(α = -0.05, ADR-043/044) removed the period-2 divergence and raised mean-time-to-crash ~22x; it
+did **not** remove the crash. That separation — the mitigation worked and the run died anyway —
+is the stage's most important measured result, and it is why no further numerics lever is
+available.
+
+**THE SENTINELS STAY UNFILLED, PERMANENTLY.** `<<B2-PENDING-I4>>` (ADR-039, already permanent by
+ADR-040 U11), `<<B1-PENDING-N3>>`, `<<B2-PENDING-ADR040>>` and `<<B3-PENDING-CEILING>>` are all
+now permanently unfilled, for the same reason: each is machine-gated on a confirmation record that
+will never exist. `data/vv/stage20_n3_confirmation.json` and `data/vv/stage20_adr045_r3.json` must
+**never** be created — the R7 gate `_assert_restart_admissible` refuses a gated restarted solve
+precisely BY the absence of the latter, so the empty slot is load-bearing. Both absences are now
+pinned by `tests/unit/test_adr045_r3_record_stays_absent.py`. No band, marker or sentinel is
+touched: the NO-GO makes them correct.
+
+**RULED OUT — do not retry.** Re-running either failed restart; another `initialize`/config
+variant of A18 on this stack; a different restart window (w400 was refuted by its own calibration,
+§6.82); a wider ASan hunt without a new ADR; N3 attempt 3 on the adopted stack; any gated claim
+carrying `restart_generations > 0`.
+
+**NOT RULED OUT — each needs a NEW ADR and the operator's word; none is a retry of what failed.**
+(i) A preCICE version that checkpoints coupling state across a process restart, which would change
+lever (b)'s premise. (ii) A different solid solver (ADR-016 keeps two on purpose). (iii) Root-
+causing the heap corruption with instrumentation that reaches the uninstrumented libraries.
+(iv) Restart transparency for a *non-moving-mesh* coupled case, which the measured mesh-motion
+discontinuity does not speak to.
+
+**WHAT STAGE 20 DELIVERED ANYWAY** (the NO-GO is a result, not a void — ADR-041 V7's own words are
+"ship the harness, the driver and the loud gates, and record the miss and the model-form gap
+honestly"): the two-container preCICE/OpenFOAM/CalculiX FSI harness, which genuinely runs at
+multi-thousand-window scale and is **not what failed**; the 16-mode campaign driver; ADR-039's
+58-clause and ADR-040's 36-clause pre-registered gates, byte-duplicated and parity-tested; the
+ADR-041 divergence detector, which turned an opaque death into a named mechanism (the period-2
+Nyquist mode) across five real runs; the adopted α = -0.05 mitigation; the pre-registered ASan
+reader (38 tests, written before the report existed, which is why its reading is admissible);
+the ADR-045 **solid-side** checkpoint/restart, verified bit-identical; the R3 scorer, which
+refuted its own pre-registration before spending the hours it protected; the patched container of
+record; Q1 equivalence on both stacks; and the first quantified **two-draw reproducibility floor**
+for this coupled stack (D-C1 vs its re-probe), which is reusable by any future stage regardless of
+this NO-GO.
+
+**WHAT IT DID NOT DELIVER:** the gated campaign verdict; B1/B2/B3; the flexibility increment and
+its U95 envelope; any thesis-grade number; the v0.0.20 tag. Of ADR-039's 58 clauses only the
+pre-flight I-family and a handful of others ever produced a record — the whole measurement half of
+the pre-registration is unevaluated, and that is the honest shape of the miss.
+
+**ONE CAVEAT ON THE ADOPTED-STACK EVIDENCE.** Q1, the ELIMINATED verdict, both 8000-window draws
+and the ≈37 900-windows-per-death arithmetic were all measured on the now-superseded **unpatched**
+`calculix-precice.sif` (`ac0805d6…`). The container the fence now requires
+(`calculix-precice-adr045.sif`, `ca1937f7…`) has ~8 030 windows of record and **no completed
+draw**. Nothing in the NO-GO depends on the patched container, but a future reader should not
+assume the two are interchangeable in the record.
+
+**WHAT THIS DOES TO STAGE 21 AND v0.1.0 — open, for the operator.** `README-handoff.md` defines
+Stage 21 as optimization over flexible-flapping FSI plus the RESULTS-MUST-TRAVEL bundle, with
+v0.1.0 after it. Under this NO-GO the flexible-flapping capability has **no validated verdict**,
+so Stage 21 as written would optimize over an unvalidated capability — precisely what Hard Rules
+14 and 15 forbid. Three options, none decided here: proceed on the rigid arm and the verified
+coupling machinery only; defer flexible-flapping optimization past v0.1.0; or re-scope Stage 21.
+Hard Rule 16's constitutional promotion also has no Stage-20 bundle behind it. **This is the first
+question a reviewer will ask and it is the operator's to answer.**
+
+**Status stays `partial`. No tag. No verdict is claimed beyond this one.**
 
 ## 7. Open items for the next stage (and beyond)
 
@@ -4116,7 +4338,12 @@ Stage 20 rather than starting 21.
 
 ## 8. Pointers for next session
 
-- **Read first:** this file (especially §2's session-4 operator decisions and §6.14-§6.16), then
+- **READ FIRST (2026-09-20, the NO-GO supersedes the older ordering):** **§6.88 and §6.89 of this
+  file** — the two failed restart attempts and THE VERDICT — then
+  `data/vv/stage20_nogo_infrastructure.json`, then ADR-041's "V7 — FIRED" and ADR-045's
+  "R6 — EXECUTED" + A19, then `docs/handoff-bundle/STAGE-20-SESSION-16-PROMPT.md`. The
+  RESUME file's banner says the same in one paragraph. Only after those: this file's §2
+  session-4 operator decisions and §6.14-§6.16, then
   `docs/handoff-bundle/STAGE-20-RESUME.md`, then ADR-038, then
   `data/references/fsi/heathcote_gursul_2007/reference.md` (§6.2's traps are live). Session 4's
   roadmap, with the four operator decisions folded in, is
@@ -4125,7 +4352,11 @@ Stage 20 rather than starting 21.
 - **Do not re-derive:** the `ccx_preCICE` conventions (§6.1 — they came from upstream's bytes), the
   HG geometry and uncertainties (`reference.md`, text-sourced and exact), or the provenance
   decision (ADR-038 records the rejected alternative and why).
-- **Run first to verify:** `pytest -q tests/unit tests/stage_20` (**581** pass as of session 5),
+- **Run first to verify (2026-09-20):** `pytest -q tests/unit tests/stage_20` — the recorded state
+  is **1096 passed + 3 skipped at `f4279f2`**, plus the NO-GO commit's additions; that figure was
+  recorded, not re-run, by the audit. Then the read-only idle checks in the session-16 prompt's
+  FIRST COMMAND block. **Do not run any solver:** the campaign is a recorded NO-GO. The historical
+  note below is retained: `pytest -q tests/unit tests/stage_20` (**581** pass as of session 5),
   then `python scripts/stage20_calculix_smoke.py --host aero-dev --max-time 0.5` (~35 s end to
   end; re-verified PASS on 2026-08-05 after the host reboot, `stopped_by=all-exited`, both
   participants rc=0, 2790 cells). Note the smoke REFUSES a dirty tree — that is the provenance
@@ -4215,6 +4446,19 @@ six `data/vv/stage20_*.json` records. Modified: `hg2007_readout.py` (gated_means
 (+10 tamper tests). Branch history: e1b35b5 → `docs/atlas-pointer`; f704c38 → `8d59d27`.
 
 ## 10. Confidence / risk
+
+**Session-16 revision (2026-09-20) — what is now certain, and what is not.** CERTAIN: the
+heap-corruption rate (≈37 900 windows per death on the adopted stack, three completed runs of
+evidence); that the α = -0.05 mitigation removed the divergence and not the crash; that the
+ADR-045 **solid-side** checkpoint/restart works, verified by a byte-identical write→restore round
+trip; that the **coupled** restart does not, in two attempts with zero coupling windows past the
+restart; and that Q1 equivalence holds on both stacks. NOT CERTAIN, and recorded as such: **why**
+the restarted fluid's first solved Force is ~149x segment 1's at the same slot — the mesh-motion
+discontinuity is measured, the mechanism is **not root-caused**, and the empty quasi-Newton
+history's contribution is **unmeasured** because the run died at coupling iteration 3. BUS FACTOR:
+the two failed-restart run dirs on NFS are the only copy of the decisive evidence; they carry
+`README-NO-GO.md` markers and are on the untouchable list, but nothing in code enforces that.
+
 
 **Confident.** The two-container coupling is real and measured, not inferred: 50/50 windows
 converged, both participants exited 0, and the tip trace shows a deflection under a fluid force

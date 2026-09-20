@@ -1,6 +1,10 @@
 # ADR-045 — Checkpoint/restart for the coupled flexible arm: family R
 
-- **Status:** accepted — **as amended by A1–A10 below.** The sanitizer hunt landed on
+- **Status:** accepted — **as amended by A1–A19 below.** **OUTCOME (2026-09-20): R6's gate was
+  never passed — the R3 treatment was attempted twice and the coupled restart never produced a
+  single window, so R3 has NO verdict and ADR-041 V7's NO-GO stands unrescued. See "R6 —
+  EXECUTED" at the end of this file. The acceptance below was real and its work was done; this
+  ADR is not retroactively un-accepted.** The sanitizer hunt landed on
   2026-09-15 with no report (handoff §6.76: `no-report-died`, CalculiX's own divergence
   stop, NOT exoneration), so R6's second bullet is the operative clause and no patchable
   line exists. The operator chose option (1) of session 14's memo (handoff §6.77) on
@@ -9,6 +13,8 @@
   R1–R7 land as suite-green commits in clause order, the R3 scorer exists and passes the
   control against itself BEFORE the treatment is submitted, and the first B0 hour is that
   ~3 h treatment, behind the B0 stop gate. R3 fails ⇒ ADR-041 V7's NO-GO, unrescued.
+  *(The "~3 h" here is superseded by A17: the measured treatment cost is ≈5.9 h, and ≈5.86 h was
+  actually spent across the two failed attempts for zero scoreable windows.)*
 - **Date:** 2026-09-15
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 20)
 - **Stage:** 20
@@ -156,7 +162,9 @@ ADR-041 round-1 lesson was a pre-registered clause that could not be evaluated. 
 (d) `precice-Solid-iterations.log`, 8000 rows carrying `Iterations` and `QNColumns`. Nothing
 in R3 needs an artefact that does not exist.
 
-**Cost:** one 8000-window uncontended probe, ≈3 h of B0. **It sizes nothing** — the same
+**Cost:** one 8000-window uncontended probe, ≈3 h of B0 — **superseded by A17: ≈5.9 h measured;
+≈5.86 h was spent across the two failed attempts for zero scoreable windows (handoff §6.88).**
+**It sizes nothing** — the same
 fence every ladder probe carries.
 
 ## R4 — what a restart loses, so nobody has to rediscover it
@@ -223,7 +231,7 @@ A restarted solve is not one continuous integration and must never silently clai
 - Everything ADR-039 and ADR-040 forbid stays forbidden. This ADR buys completion, not
   latitude.
 
-## Amendments at acceptance (A1–A10) — measured in session 14, handoff §6.75; A11–A17 added as built (sessions 14–15)
+## Amendments at acceptance (A1–A10) — measured in session 14, handoff §6.75; A11–A19 added as built (sessions 14–16)
 
 Every item below was read off disk or source before acceptance, so the corrections are
 part of the text being accepted rather than discoveries made while implementing it. **None
@@ -249,7 +257,8 @@ above.
 | A15 | R5 | "validate on read: finite; bounded; energy band; window match" | as implemented (`adapter/AeroCheckpoint.c`): magic, format version, array sizes against THIS deck, an FNV-1a checksum over every byte, finiteness of every value, `|displacement| ≤ 3 ×` the largest prescribed plunge up to that window, `E_int + E_kin` within ×10 either way of the reference run's value at the same window, and the window the driver asked for; a refusal prints `*ERROR aero-checkpoint` and exits 202 — the driver steps back a generation or records a death; nothing produces numbers from a rejected file |
 | A16 | R3, R1 | "the identical submission" | the control ran the UNPATCHED image (`calculix-precice.sif`, `ac0805d6…`); R1 rebuilds the solid container, so the treatment runs the patched one of record (`calculix-precice-adr045.sif`, `ca1937f7…`, built and signed 2026-09-16). The R3 shape check compares every knob except the container, refuses a treatment on the unpatched image, and writes both names into the record |
 | A17 | R3(a), R3(b), R3 cost | "the frozen Q1 bands (2 % / 5 % / 5 %)", "(b) … strictly exceeds", "≈3 h of B0" | **Accepted by the operator 2026-09-16 ("Option 2 as stated in §6.82"), pre-registered BEFORE the treatment, after the calibration below showed the as-written (a)/(b) cannot be passed by any treatment.** A restart is transparent when the restarted run is indistinguishable from another fresh draw of the same submission. The **reference draw** is D-C1, `hg2007_flexible_foil-20260910-084806` (8000/8000, 2026-09-10); the control is its re-probe. **(a)** per quantity (thrust, lift, interface power) over windows 4001–8000: RMS(treatment − control) ≤ **2×** RMS(reference − control), and \|mean(treatment) − mean(control)\| ≤ max(Q1a's 2 % of \|mean(control)\|, 2× \|mean(reference) − mean(control)\|); the as-written Q1a/Q1b numbers are computed and recorded informationally, never gate. **(b)** over windows 7801–8000 RMS\|Δ_TE\|(treatment − control) ≤ 2× RMS\|Δ_TE\|(reference − control); the early-window (4001–4200) transient is recorded, not gated. (c) and (d) verbatim. The factor 2 is a judgment stated in advance — a restart that doubles the natural run-to-run scatter is a shift. **The yardstick, measured (`data/vv/stage20_adr045_r3_calibration.json`, control against itself with D-C1 as the reference):** thrust RMS 7.79e-6 N (span-mean limit 1.99e-6 N), lift 4.11e-4 N (limit 2.59e-5 N), power 1.97e-6 W (limit 1.03e-7 W), late trailing-edge RMS 1.09e-5 m (limit 2.18e-5 m). **(e) the episode rule, decided before the run (the operator's second addition):** the two reference draws differ by a ~1e-5 N floor everywhere plus two localised bursts of 1–2e-3 N (windows 201–400 and ~1376). If (a) fails ONLY through one isolated episode far from the restart — exactly one contiguous span (gaps under 50 windows merged) of windows where the treatment's deviation exceeds 10× the reference RMS for that quantity, at most 400 windows long, starting ≥ 1000 windows after the restart (≥ w5000), not touching windows 7801–8000, and (a) passing with that span excised from both deviations — and (b), (c), (d) pass, the verdict is **`inconclusive-episode`**: neither pass nor fail, because the episode is indistinguishable from the draw noise the reference pair shows and the test cannot attribute it. Exactly one re-probe (the identical treatment, same restart window, same container) is then permitted, at the same cost; its reading is final, and a second `inconclusive-episode` is UNRESOLVED and ADR-041 V7's NO-GO stands. Any other failure of (a) or (b), a second episode, an episode inside the clearance, or one touching the late window is a plain `fail`. **The limit of what a pass says (the operator's first addition):** windows 4001–8000 lie at **1.3–3.3 % of the full plunge amplitude** (0.0175 m), inside the **first sixth** of the 1.0145 s startup ramp (0.16 s = 15.8 %); a pass is evidence that a restart is transparent THERE and is not evidence about restarts in settled full-amplitude cycles. **Cost corrected:** the control ran at 2.60 s/window, so 8000 windows is ≈ 5.8 h, not ≈ 3 h; the treatment (segment 1 to the w4000 checkpoint, then 4000 restarted windows) is ≈ 5.9 h of B0, and a re-probe the same again. The restart window stays 4000 (option 3, w400, was refuted by its own calibration: 96 % / 153 % of peak-to-peak — handoff §6.82). Scorer `aero/vv/fsi/hg2007_r3.py`, driver `--score-r3 CONTROL TREATMENT --r3-reference D-C1`, verdict vocabulary `pass` / `fail` / `inconclusive-episode`; every number above is re-derived by the scorer and written into the record, never typed in |
-| A18 | R4.3, R5, R3 | "restarting from a checkpoint ... is the single most dangerous thing" and R4.3's coupling-state loss "unfixable at any effort" | **session 15, discovered by running the treatment (handoff §6.85).** The SOLID mechanism is sound: R5 validated the w4000 restore, the state came back bit-identical (E_int+E_kin 5.024052e-08 on both write and restore), the step re-entered at theta 0.5. But the coupled restart died in 31 s. A fresh preCICE instance initialises read-data to ZERO; from rest that is correct, but on a restart the fluid mesh is already at the w4000 deformation, so being handed a zero Displacement it snapped its interface back to undeformed in one 2e-5 s window -> a ~O(10^2 m/s) spurious mesh velocity -> a 2.32e8 N force (against the from-rest control's 0.36 N) -> the solid diverged to a 6.15 m displacement and segfaulted. **Fix: `initialize="true"` on every `<exchange>` in the restart's precice-config**, so the solid writes its restored Displacement and the fluid its restored Force before preCICE initialises (the CalculiX adapter already does this at `precicec_requiresInitialData()`, no C change). It is INERT for the from-rest control -- implicit coupling converges to the same fixed point regardless of the initial guess -- so it lives ONLY on the restart path (`rewrite_for_restart`, a second declared mutation beside A7's max-time) and the base template is untouched; segment 1 stays byte-identical to the control. This fixes R4.3's DATA continuity; the quasi-Newton HISTORY is still lost (as R4.3 said) and shows as a first-window transient, which is exactly what R3(b)/(d) measure. `exchange_initialize` was added to the parsed config model so the "nothing else moved" check can SEE the flag (it was previously blind to it) |
+| A18 | R4.3, R5, R3 | "restarting from a checkpoint ... is the single most dangerous thing" and R4.3's coupling-state loss "unfixable at any effort" | **session 15, discovered by running the treatment (handoff §6.85).** The SOLID mechanism is sound: R5 validated the w4000 restore, the state came back bit-identical (E_int+E_kin 5.024052e-08 on both write and restore), the step re-entered at theta 0.5. But the coupled restart died in 31 s. A fresh preCICE instance initialises read-data to ZERO; from rest that is correct, but on a restart the fluid mesh is already at the w4000 deformation, so being handed a zero Displacement it snapped its interface back to undeformed in one 2e-5 s window -> a ~O(10^2 m/s) spurious mesh velocity -> a 2.32e8 N force (against the from-rest control's 0.36 N) -> the solid diverged to a 6.15 m displacement and segfaulted. **Fix: `initialize="true"` on every `<exchange>` in the restart's precice-config**, so the solid writes its restored Displacement and the fluid its restored Force before preCICE initialises (the CalculiX adapter already does this at `precicec_requiresInitialData()`, no C change). It is INERT for the from-rest control -- implicit coupling converges to the same fixed point regardless of the initial guess -- so it lives ONLY on the restart path (`rewrite_for_restart`, a second declared mutation beside A7's max-time) and the base template is untouched; segment 1 stays byte-identical to the control. This fixes R4.3's DATA continuity; the quasi-Newton HISTORY is still lost (as R4.3 said) and shows as a first-window transient, which is exactly what R3(b)/(d) measure. `exchange_initialize` was added to the parsed config model so the "nothing else moved" check can SEE the flag (it was previously blind to it) **OUTCOME (2026-09-20): A18 was NECESSARY AND NOT SUFFICIENT.** It removed the catastrophe — the restarted solid became exact (at global window 4001 the Displacement measure is identical to segment 1's, 4.30e-04 / normalization 3.50e-03 / conv=true, and the first CalculiX solve reproduces `largest increment of disp= 1.162543e-07` to seven digits) — and the coupled restart still died in 30 s on the FLUID side: its first solved Force of the restarted window normalizes to 4.97e+01 against segment 1's 3.34e-01 at the same window and the same iteration slot, ~149x. MEASURED: the restarted fluid's mesh-motion solve never regains continuity (`cellDisplacementx` initial residual 1.2269e-02, 1.2258e-02, then 9.8005e-01 across the window's three fluid solves, against segment 1's 3.4982e-04; `pcorr` 85/99/76 iterations against 14/2). NOT ROOT-CAUSED. It is NOT a ddt-order loss — the case runs `ddtSchemes { default Euler; }` and F2 pre-registered the fluid restart as state-exact for exactly that reason; F2 is not refuted, its scope is the flow-field ddt order and the discontinuity sits in the mesh-motion history F2 never covered. Untested candidate: A18 sets `initialize="true"` on BOTH exchanges including Force, changing what the fluid publishes at window 1; Displacement-only was never tried |
+| A19 | R3, R6 | R6 bullet 3's "**If R3 fails**" | **R3 was never evaluable, and "fails" understates it.** A17 closed R3's vocabulary to `pass` / `fail` / `inconclusive-episode`, and all three require a scored 8000-window treatment. None was produced: both attempts advanced **zero** coupling windows past the restart (`precice-Solid-iterations.log` carries no data rows in either run — 101 bytes of bare header in `…-152606`, 0 bytes in `…-213116`; neither segment-2 `Solid.log` prints a `time-window 2`), the scorer never ran, and `data/vv/stage20_adr045_r3.json` was never written and must never be created. The honest statement is **"the R3 treatment could not be produced; R3 has no verdict"** — not that the scorer returned `fail`, which would claim a measurement that does not exist. R6 bullet 3's consequence applies *a fortiori*: a restart that cannot run is not a transparent restart. This amendment exists so the trigger cannot be re-litigated on the wording |
 
 The acceptance commit records A1–A11; A12–A15 are the implementation's own findings, recorded
 in `7b30bd9`; A16 is the rebuild's. Each lands in code in the clause-order commits (handoff §6.78 onward). R6 is spent: the hunt's reading is on the record and cannot
@@ -304,3 +313,33 @@ helps**, and the NO-GO stands exactly where ADR-041 V7 put it.
   (zero occurrences of `accold`), `amplitudes.f:72` (`TIME=TOTALTIME`).
 - ADR-036 (no-restart), ADR-039/040 (the frozen bands and FORBIDDEN lists), ADR-041 V7
   (the NO-GO this ADR is trying to avoid and may not).
+
+## R6 — EXECUTED 2026-09-20
+
+R6 bullet 2 was the operative reading from acceptance (the sanitizer hunt gave no patchable line,
+so bullet 1 was never available): build R1–R7, and let R3 decide whether the mechanism is adopted.
+
+**R1–R7 were built.** The adapter checkpoint patch, the R5 validation guard, the container of
+record, the relaunch driver, the R3 scorer and the R7 provenance all landed as suite-green
+commits. The **solid-side mechanism is verified at the byte level**: segment 2 re-wrote the w4000
+checkpoint ~2.7 s after the submission record had already hashed it and the bytes came back
+identical (`0980a299e02b91c2…`, `31fdb9b5b1a95c83…`), E_int+E_kin matched on write and restore,
+and the step re-entered at theta 0.5.
+
+**R3 returned no scorable run, twice** (handoff §6.88): attempts
+`hg2007_flexible_foil-20260916-152606` (pre-A18) and `…-20260916-213116` (with A18), ≈5.86 h of
+B0 in total, **zero coupling windows past the restart in either**. Per A19 that is neither `pass`
+nor `fail` nor `inconclusive-episode`, and it resolves under bullet 3 identically: **the
+mechanism is NOT adopted, and ADR-041 V7's NO-GO on infrastructure is the recorded outcome,
+unchanged and unrescued.**
+
+**What survives this ADR.** The solid checkpoint/restart mechanism works and is validated — that
+is the durable deliverable, reusable by any future stage or solver. What is not achievable on
+this stack is the **coupled** restart. The clauses (a)–(e) of R3 were never reached and no band
+was moved to reach them.
+
+**Do not retry** any `initialize`/config variant of A18, either failed restart, or a different
+restart window on this stack. What is *not* ruled out — each requiring a new ADR and the
+operator's word — is a preCICE version that checkpoints coupling state across a process restart,
+a different solid solver, root-causing the heap corruption with instrumentation that reaches the
+uninstrumented libraries, or restart transparency for a non-moving-mesh coupled case.

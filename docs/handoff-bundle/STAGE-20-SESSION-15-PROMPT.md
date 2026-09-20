@@ -1,3 +1,9 @@
+> **⛔ SUPERSEDED (2026-09-20) — DO NOT PASTE THIS PROMPT.** Stage 20 ended in a recorded
+> **NO-GO on infrastructure** (ADR-041 V7 FIRED; handoff §6.88-§6.89). The R3 treatment this
+> prompt sets up was attempted twice and both coupled restarts died with zero windows past the
+> restart. Its FIRST COMMAND block polls a run that is long dead. Retained unedited as the
+> record of what session 15 was told. Start from `STAGE-20-SESSION-16-PROMPT.md`.
+
 Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). Resuming a partial stage,
 session 15. Repo /root/projects/aero-research-platform, branch
 stage-20-flexible-flapping-wing-fsi (tip = latest on the branch — verify with git log),

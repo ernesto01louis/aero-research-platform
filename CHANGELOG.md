@@ -5,6 +5,44 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
+## [0.0.20] - 2026-09-20
+
+### Added — Stage 20 (Flexible Flapping Wing FSI, Heathcote-Gursul) — NO-GO on infrastructure; no gated campaign verdict
+
+> **Verdict:** the gated flexible-arm campaign **cannot be run on this stack**, and that is the
+> recorded outcome (ADR-041 **V7 FIRED**, 2026-09-20). On the adopted stack the flexible arm
+> survives **≈37 900 windows per death** against **1 166 675 windows per wave** ⇒ ~31 expected
+> deaths per wave (~17 at B4's floor). Both levers that could change that arithmetic are
+> exhausted: **removing** the bug — the AddressSanitizer hunt returned `no-report-died` with no
+> patchable line (NOT exoneration; SPOOLES/ARPACK/libprecice/MPI are uninstrumented) — and
+> **surviving** it — ADR-045 checkpoint/restart, whose R3 gate was attempted twice
+> (`hg2007_flexible_foil-20260916-152606`, `…-20260916-213116`) and whose coupled restart
+> produced **zero** coupling windows past the restart in either attempt. **Scope: infrastructure
+> only.** Not a finding about the Heathcote-Gursul physics, not that any solver is incorrect, not
+> about chordwise flexibility — Q1 equivalence passed on both stacks and the rigid arm completed
+> 76 090/76 090. Records: `data/vv/stage20_nogo_infrastructure.json`; handoff §6.88–§6.89.
+
+- **Shipped and verified regardless of the NO-GO:** the two-container preCICE/OpenFOAM/CalculiX
+  FSI harness (it is *not* what failed); a 16-mode campaign driver; ADR-039's 58-clause and
+  ADR-040's 36-clause pre-registered gates, byte-duplicated and parity-tested; the ADR-041
+  divergence detector (period-2 Nyquist mode, named across five real runs); the adopted
+  **HHT α = -0.05** mitigation, which eliminated the divergence and raised mean-time-to-crash
+  **~22x** without removing the crash; a pre-registered AddressSanitizer reader (38 tests, written
+  before the report existed); the **ADR-045 solid-side checkpoint/restart**, verified
+  byte-identical on a write→restore round trip; the R3 scorer, which refuted its own
+  pre-registration before spending the hours it protected; and the first quantified **two-draw
+  reproducibility floor** for this coupled stack.
+- **Not delivered:** the gated campaign verdict; B1/B2/B3 (`<<B1-PENDING-N3>>`,
+  `<<B2-PENDING-ADR040>>`, `<<B3-PENDING-CEILING>>` join `<<B2-PENDING-I4>>` as permanently
+  unfilled); the flexibility increment and its U95 envelope; any thesis-grade number; the
+  `v0.0.20` tag. Stage status stays **`partial`**.
+- **ADRs:** ADR-037…ADR-045 accepted. ADR-045 carries **A19** (R3 was never *evaluable* — the
+  treatment could not be produced, so R3 has no verdict; not `fail`) and an **R6 — EXECUTED**
+  outcome record; ADR-041 carries **V7 — FIRED**.
+- **Open for the operator:** Stage 21 is defined as optimization over flexible-flapping FSI plus
+  the RESULTS-MUST-TRAVEL bundle, with v0.1.0 after it. That capability now has no validated
+  verdict, so Stage 21 as written would optimize over an unvalidated capability (Hard Rules 14/15).
+
 ## [0.0.19] - 2026-07-28
 
 ### Added — Stage 19 (preCICE FSI Core — Turek-Hron FSI3) — GO, all pre-registered bands passed

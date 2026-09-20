@@ -107,7 +107,10 @@ unconditional 4.0 s discard. **P3** — four-fold provenance from a clean tree
 platform can drive a partitioned FSI problem through preCICE and reproduce a published
 benchmark's flag-tip motion. It does **not** establish application fidelity for a flexible
 flapping wing — that is a separate claim, with a CalculiX solid and its own experimental
-reference (Heathcote-Gursul), and it is Stage 20's to make. Keeping those two claims
+reference (Heathcote-Gursul), and it is Stage 20's to make. **OUTCOME (2026-09-20): that claim was
+NOT made and cannot be made inside Stage 20 — ADR-041 V7 FIRED, a NO-GO on infrastructure
+(handoff §6.88-§6.89). The Stage-19 coupling-correctness claim this ADR does establish is
+unaffected.** Keeping those two claims
 distinct is the whole substance of this ADR, and the split survives its own validation:
 `calculix-precice.sif` is built and digest-recorded here, but nothing about the FSI3 result
 transfers to it.

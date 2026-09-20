@@ -1,6 +1,9 @@
 # ADR-041 — A pre-registered mitigation ladder for the flexible arm's period-2 solid instability, and a parity-based divergence detector: family V
 
 - **Status:** accepted — the operator accepted this text on 2026-09-05, and that
+  acceptance is recorded by the commit that lands this file. **V7 FIRED 2026-09-20 —
+  see the outcome record at the end of this file.** The original acceptance sentence
+  follows unchanged: that
   acceptance is recorded by the commit that lands this file (the ADR-040 `d5bf381`
   pattern). No ladder probe was submitted before it.
 - **Date:** 2026-09-05
@@ -573,3 +576,44 @@ add-commit that ADDS `data/vv/stage20_n3_confirmation.json` with
   `scripts/stage20_hg2007_flexible_foil.py`,
   `tests/unit/test_n3_live_submission_digest_is_pinned.py`,
   `tests/unit/test_stage20_q1_equivalence_record.py`.
+
+## V7 — FIRED 2026-09-20
+
+**The pre-registered NO-GO on infrastructure is the recorded outcome of Stage 20's gated
+campaign.** V7 was written as the conversation that must happen if the flexible arm's
+mean-time-to-crash made a wave unaffordable. It did, and both levers that could have changed
+the arithmetic are exhausted.
+
+**The trigger, measured.** On the adopted stack (α = -0.05, ADR-043/044) the flexible arm ran
+**37 896 windows for one death** — D-C1 8000/8000, its Z4 re-probe 8000/8000, and N3 attempt 2
+(`hg2007_flexible_foil-20260914-122525`) which completed 21 896 windows and died in window
+21 897 of 76 090 with `corrupted double-linked list`, rc=134. A wave is **1 166 675 windows**
+⇒ **~31 expected deaths per wave**, ~17 at B4's 10-cycle floor. The mitigation this ADR adopted
+worked on its own terms — it eliminated the period-2 divergence and raised mean-time-to-crash
+~22x — and the crash remained. That separation is the finding.
+
+**Lever (a), remove the bug — exhausted.** The AddressSanitizer hunt
+(`hg2007_flexible_foil-20260915-113918`) returned **`no-report-died`**: no ASan report at all,
+death by CalculiX's own divergence stop (rc=201) at w2369. Recorded as **NOT exoneration** —
+SPOOLES, ARPACK, libprecice, MPI and libgfortran are uninstrumented. No patchable line exists.
+
+**Lever (b), survive the bug — exhausted.** ADR-045 was accepted, implemented and its R3 gate
+attempted twice (`hg2007_flexible_foil-20260916-152606` and `…-20260916-213116`). Both coupled
+restarts died within ~31 s with **zero coupling windows past the restart**. ADR-045's solid-side
+checkpoint is verified sound; the coupled restart is not achievable on this stack. R3 produced
+no verdict at all — see ADR-045's A19 and its R6 outcome record.
+
+**Consequence.** No gated wave runs. `<<B1-PENDING-N3>>`, `<<B2-PENDING-ADR040>>` and
+`<<B3-PENDING-CEILING>>` join ADR-039's `<<B2-PENDING-I4>>` as permanently unfilled;
+`data/vv/stage20_n3_confirmation.json` will never exist. **No band, floor, grid, span or ceiling
+is relaxed or moved by this outcome** — the FORBIDDEN lists stand, and the sentinels are correct
+precisely because they stay empty.
+
+**Scope.** This is a NO-GO on **infrastructure**, for the ADR-039/040 gated campaign at Stage
+20's frozen pins. It is not a finding about the Heathcote-Gursul physics, not a finding that any
+solver is incorrect, and not a finding about chordwise flexibility. Q1 equivalence passed on both
+stacks and the rigid arm completed 76 090/76 090 windows.
+
+Full record and evidence: handoff §6.88 (the two restart attempts, measured) and §6.89 (the
+verdict, its scope, what shipped and what did not);
+`data/vv/stage20_nogo_infrastructure.json`.

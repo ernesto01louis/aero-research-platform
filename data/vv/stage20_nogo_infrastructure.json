@@ -1,0 +1,115 @@
+{
+  "stage": 20,
+  "case": "hg2007_flexible_foil",
+  "verdict": "NO-GO-on-infrastructure",
+  "decided_utc": "2026-09-20",
+  "decided_by": "operator",
+  "clause": "ADR-041 V7",
+  "scope": "NO-GO on INFRASTRUCTURE for the ADR-039/040 gated campaign at Stage 20's frozen pins. NOT a finding about the Heathcote-Gursul physics, NOT a finding that any solver is incorrect, NOT a finding about chordwise flexibility.",
+  "trigger": {
+    "windows_per_death": 37896,
+    "windows_per_wave": 1166675,
+    "expected_deaths_per_wave": 31,
+    "expected_deaths_at_b4_floor": 17,
+    "b4_floor_windows": 659750,
+    "basis_runs": [
+      "hg2007_flexible_foil-20260910-084806",
+      "hg2007_flexible_foil-20260912-161321",
+      "hg2007_flexible_foil-20260914-122525"
+    ],
+    "note": "N3 attempt 2 completed 21896 windows and died IN window 21897 of 76090; 8000 + 8000 + 21896 = 37896 windows for one death on the adopted stack."
+  },
+  "levers_exhausted": {
+    "remove_the_bug": {
+      "status": "exhausted",
+      "evidence_run": "hg2007_flexible_foil-20260915-113918",
+      "reading": "no-report-died",
+      "not_exoneration": true,
+      "why": "No ASan report at all; death by CalculiX's own divergence stop rc=201 at w2369. SPOOLES, ARPACK, libprecice, MPI and libgfortran are uninstrumented, so a store inside them lands in a redzone rather than glibc's chunk header. No patchable line."
+    },
+    "survive_the_bug": {
+      "status": "exhausted",
+      "adr": "ADR-045",
+      "attempts": [
+        {
+          "run_id": "hg2007_flexible_foil-20260916-152606",
+          "arm": "pre-A18",
+          "seg1_windows_completed": 4023,
+          "killed_during_window": 4024,
+          "seg2_seconds": 31,
+          "windows_past_restart": 0,
+          "died_first": "Solid",
+          "returncodes": {
+            "Fluid": 1,
+            "Solid": 143
+          },
+          "note": "Solid SIGSEGV after diverging to 6.154188e+00 m; fluid then failed on preCICE socket EOF; driver SIGTERM'd the surviving solid mpirun (143 is not the segfault and not segment 1's A12 kill)."
+        },
+        {
+          "run_id": "hg2007_flexible_foil-20260916-213116",
+          "arm": "A18",
+          "seg1_windows_completed": 4009,
+          "killed_during_window": 4010,
+          "seg2_seconds": 30,
+          "windows_past_restart": 0,
+          "died_first": "Fluid",
+          "returncodes": {
+            "Fluid": 136,
+            "Solid": 134
+          },
+          "note": "Fluid SIGFPE in the GAMG solve of p, both ranks; preCICE then aborted the solid."
+        }
+      ],
+      "b0_hours_spent": 5.86,
+      "scoreable_treatment_windows": 0
+    }
+  },
+  "r3_outcome": {
+    "verdict": null,
+    "reason": "R3 was never evaluable. A17 closed the vocabulary to pass/fail/inconclusive-episode, all of which require a scored 8000-window treatment; none was produced. The scorer never ran. Recorded as ADR-045 A19.",
+    "record_that_must_never_exist": "data/vv/stage20_adr045_r3.json"
+  },
+  "what_is_verified_sound": [
+    "the two-container preCICE/OpenFOAM/CalculiX FSI harness (not what failed)",
+    "ADR-045 solid-side checkpoint/restart: byte-identical round trip (0980a299e02b91c2... / 31fdb9b5b1a95c83...), E_int+E_kin matched on write and restore",
+    "A18's displacement path: at global window 4001 the restarted solid's Displacement measure is identical to segment 1's (4.30e-04 / 3.50e-03 / conv=true) and its first CalculiX solve reproduces largest increment of disp = 1.162543e-07 to seven digits",
+    "Q1 equivalence on both stacks; the rigid arm completed 76090/76090",
+    "the two-draw reproducibility floor (D-C1 vs its re-probe)"
+  ],
+  "unexplained": {
+    "measurement": "the restarted fluid's first solved Force of the restarted window normalizes to 4.97e+01 against segment 1's 3.34e-01 at the same global window (4001) and the same iteration slot: ~149x. That normalization is an iteration-1 quantity, not a physical load.",
+    "measured_discontinuity": "cellDisplacementx initial residual 1.2269e-02, 1.2258e-02, then 9.8005e-01 across the restarted window's three fluid solves, against segment 1's 3.4982e-04; pcorr 85/99/76 iterations against 14/2.",
+    "root_caused": false,
+    "excluded": "NOT a ddt-order loss: the case runs ddtSchemes {default Euler;} and ADR-045 F2 pre-registered the fluid restart as state-exact for that reason. F2 is not refuted; its scope is the flow-field ddt order, and the discontinuity sits in the mesh-motion history F2 never covered.",
+    "not_measured": "the contribution of the empty quasi-Newton history. The run died at coupling iteration 3 of the first restarted window, so no QNColumns datum exists; R3(d) was the clause that would have measured it. ADR-045 R4.3 names the IQN-ILS history specifically and does not name this fluid-side residual.",
+    "untested_candidate": "A18 sets initialize=\"true\" on BOTH exchanges including Force, which changes what the fluid publishes at window 1; Displacement-only was never tried."
+  },
+  "sentinels_permanently_unfilled": [
+    "<<B2-PENDING-I4>>",
+    "<<B1-PENDING-N3>>",
+    "<<B2-PENDING-ADR040>>",
+    "<<B3-PENDING-CEILING>>"
+  ],
+  "records_that_must_never_exist": [
+    "data/vv/stage20_adr045_r3.json",
+    "data/vv/stage20_n3_confirmation.json"
+  ],
+  "not_delivered": [
+    "the gated campaign verdict",
+    "B1/B2/B3",
+    "the flexibility increment and its U95",
+    "any thesis-grade number",
+    "the v0.0.20 tag"
+  ],
+  "status_after": "partial",
+  "references": {
+    "handoff": [
+      "6.88",
+      "6.89"
+    ],
+    "adrs": [
+      "ADR-041 V7 FIRED",
+      "ADR-045 A19 / R6 EXECUTED"
+    ]
+  }
+}

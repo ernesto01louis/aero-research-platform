@@ -1,4 +1,12 @@
-"""N3 is in flight, and these two digests are what make it collectable.
+"""N3 WAS in flight, and these two digests are what made it collectable.
+
+RETAINED DELIBERATELY after the NO-GO (ADR-041 V7 FIRED 2026-09-20, handoff 6.89). This file
+once instructed its own deletion "when N3 has been collected and no live run depends on these";
+N3 was never collected -- attempt 2 died at w21 897 -- and no live run depends on them now. The
+pins are kept anyway because they are the only in-repo record of what the two N3 submissions
+actually hashed to, and that is evidence for the death arithmetic the NO-GO rests on. They also
+still guard the invariant they always guarded: an edit to the HG spec models silently moves
+`config_hash`. Deleting this file is a decision for a future ADR, not housekeeping.
 
 ``_reattach`` rebuilds the spec weeks after the submit by calling
 ``hg2007_case_spec(**submission["spec_knobs"])`` and refuses to collect unless the rebuilt

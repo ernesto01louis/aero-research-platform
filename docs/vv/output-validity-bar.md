@@ -77,6 +77,8 @@ Since the 2026-07 review (finding F1; ADR-023) the delta's U95 is **measured, no
 - **Results must travel** (Hard Rule 16): the result exports as a self-describing bundle
   (CaseSpec + four-tuple + U95 + validity context) so a third party can re-run and land
   within the stated bounds. Full bundle + round-trip CI land in Stage 20.
+  **(2026-09-20: NOT delivered in Stage 20 — ADR-041 V7 FIRED, NO-GO on infrastructure;
+  handoff §6.88-§6.89. Hard Rule 16's promotion has no Stage-20 bundle behind it.)**
 
 ## Enforcement map
 
