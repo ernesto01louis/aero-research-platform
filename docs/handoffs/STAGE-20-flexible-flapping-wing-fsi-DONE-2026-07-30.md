@@ -3,12 +3,12 @@ stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
 status: partial
 date_started: 2026-07-30
-date_completed: 2026-09-15
-session_duration_hours: 33
+date_completed: 2026-09-20
+session_duration_hours: 42
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5[1m]
 git_sha_start: 42ebb55e984f6762e982d358678c443c857b6dce
-git_sha_end: 811418f29d568bb0bf0e0d8334157a77f6b7e1f3
+git_sha_end: 0fef915cea5e162cda51fcb27ca9b808de1b5813
 stage_tag: v0.0.20
 next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
