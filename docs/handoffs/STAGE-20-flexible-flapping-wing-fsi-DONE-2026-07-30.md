@@ -14,14 +14,43 @@ next_stage: 21
 next_stage_name: "Stage 21 — Release (v0.1.0)"
 ---
 
-# Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul) — PARTIAL 2026-07-30
+# Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul) — PARTIAL; **NO-GO ON INFRASTRUCTURE** (2026-09-20)
 
-> **Read this first. Status: PARTIAL, and deliberately so — no tag.** The foundation phases are
-> done and verified; the authored case, the pre-registration and the campaign are not started.
-> **No gated claim has been made and none may be, because ADR-039 does not exist yet.** Nothing
-> here is a Stage-20 verdict.
+> **Read this first. Stage 20 ENDED IN A RECORDED NO-GO ON INFRASTRUCTURE — ADR-041 V7 FIRED,
+> 2026-09-20.** That IS the stage's verdict. The gated flexible-arm campaign **cannot be run on
+> this stack**: the flexible arm survives ≈37 900 windows per death against 1 166 675 windows per
+> wave (~31 expected deaths), and both levers that could change that arithmetic are exhausted —
+> the AddressSanitizer hunt found **no patchable line** (`no-report-died`, NOT exoneration), and
+> ADR-045's checkpoint/restart **could not produce a coupled restart** in two attempts, with
+> **zero** coupling windows past the restart in either. **No gated campaign verdict exists and
+> none can be produced on this stack.** Status stays **`partial`**; **no tag**.
+>
+> **Scope: infrastructure only.** NOT a finding about the Heathcote-Gursul physics, NOT that any
+> solver is incorrect, NOT about chordwise flexibility. Q1 equivalence passed on both stacks and
+> the rigid arm completed 76 090/76 090 windows.
+>
+> **Go to §6.88 (the two restart attempts, measured) and §6.89 (THE VERDICT) first** — they
+> supersede every forward-looking statement below, all of which predate the verdict and are
+> retained as history. Machine-readable: `data/vv/stage20_nogo_infrastructure.json`. Next steps:
+> `docs/handoff-bundle/STAGE-20-SESSION-16-PROMPT.md`; the Stage-21 re-scope is **proposed** in
+> ADR-046.
 
 ## 0. The one-paragraph version
+
+**AS OF 2026-09-20 (the verdict).** Stage 20 built the coupled machinery and could not run the
+campaign it was built for. **Shipped and verified:** a genuinely two-container
+preCICE/OpenFOAM/CalculiX FSI harness — which is *not* what failed — a 16-mode campaign driver,
+ADR-039's 58-clause and ADR-040's 36-clause pre-registered gates, an ADR-041 divergence detector
+that named the period-2 Nyquist mode across five real runs, an adopted HHT α = -0.05 mitigation
+that raised mean-time-to-crash ~22x **without removing the crash**, a pre-registered
+AddressSanitizer reader, ADR-045's **solid-side** checkpoint/restart verified byte-identical, an R3
+scorer that refuted its own pre-registration before spending the hours it protected, and the first
+quantified two-draw reproducibility floor for this stack. **Not delivered:** the gated campaign
+verdict, B1/B2/B3, the flexibility increment and its U95, any thesis-grade number, the tag. The
+blocker is a **CalculiX-side heap corruption that was never root-caused**; it kills only the
+flexible arm, at a rate that makes a wave unaffordable, and the sanitizer could not see it because
+SPOOLES/ARPACK/libprecice/MPI are uninstrumented. **ADR-041 V7 fired: NO-GO on infrastructure.**
+Everything in the paragraph below is the original 2026-07-30 framing, retained as history.
 
 The two hard structural problems are solved. **CalculiX is genuinely in the loop**: the
 perpendicular-flap smoke ran OpenFOAM in `precice-fsi.sif` and CalculiX in
