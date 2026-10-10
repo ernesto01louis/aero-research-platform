@@ -1,0 +1,28 @@
+# Heathcote & Gursul (2007) chordwise-flexible plunging airfoil -- REFERENCE OF
+# RECORD for the ADR-039 gate bands. Regenerate:
+#     python scripts/stage20_acquire_hg_reference.py
+#
+# Operating point (pre-registered in ADR-039, fixed from the reference alone):
+#   Re = 9000, St = 0.345, flexible b/c = 0.85e-3, rigid b/c = 4.23e-3
+#   c = 0.09 m, a = 0.0175 m (h = a/c = 0.1944), span = 0.3 m
+#   U = 0.1 m/s, f = 0.985714 Hz, T = 1.01449 s, rho = 1000.0 kg/m3, nu = 1e-06 m2/s
+#
+#   sources: digitization.csv sha256 e934e210dff56296abd7108bb6607a4285826d297bc7f16a85e4aff3edfee326
+#            text_sourced.csv sha256 4c226652dad46f553cae6a80f5c8c9439cca8a33baccf7261c55317be9ef995b
+#
+# u_reading_abs is UNCORRELATED per marker and survives the flexible-minus-rigid
+# difference; u_axis_abs is CORRELATED within a figure and CANCELS in it, which is
+# why every *_increment row carries u_axis_abs = 0. The instrument systematic
+# (5 % thrust / 10 % efficiency, thesis 2.2.2) is correlated within the instrument
+# and is applied by the consumer to the ABSOLUTE rows only, for the same reason.
+quantity,value,units,u_reading_abs,u_axis_abs,gated,provenance,note
+thrust_coefficient_flexible,1.00772,-,0,0.01231,yes,"figure-digitized (Fig 5.6a), interpolated to St=0.345",b/c=0.85e-3
+thrust_coefficient_rigid,0.398463,-,0.00325,0.01298,yes,"figure-digitized (Fig 5.6a), interpolated to St=0.345",b/c=4.23e-3
+thrust_coefficient_increment,0.609257,-,0.00325,0,yes,derived: flexible - rigid on ONE panel,axis-calibration term cancels (correlated within the figure); reading terms RSS (uncorrelated per marker)
+propulsive_efficiency_flexible,0.175279,-,0,0.00104,yes,"figure-digitized (Fig 5.9a), interpolated to St=0.345",b/c=0.85e-3
+propulsive_efficiency_rigid,0.0887515,-,0,0.00104,yes,"figure-digitized (Fig 5.9a), interpolated to St=0.345",b/c=4.23e-3
+propulsive_efficiency_increment,0.0865273,-,0,0,yes,derived: flexible - rigid on ONE panel,axis-calibration term cancels (correlated within the figure); reading terms RSS (uncorrelated per marker)
+pitch_amplitude_flexible,5.34637,deg,0,0.08651,yes,"figure-digitized (Fig 5.13a), interpolated to St=0.345",b/c=0.85e-3
+power_coefficient_flexible,5.74924,-,0,0,no,"DERIVED as C_T/eta -- HG publish C_T and eta, never C_P",reported for context; not an independent check of our eta definition
+power_coefficient_rigid,4.48965,-,0,0,no,"DERIVED as C_T/eta -- HG publish C_T and eta, never C_P",reported for context; not an independent check of our eta definition
+thrust_crossover_strouhal_rigid_re9000,0.191383,-,0,0,no,figure-digitized (Fig 5.6a),thesis prose states 0.17 'for all Reynolds numbers'; the figure gives 0.1914 here (+12.6%). Documented disagreement -- a blanket 'for all Re' claim in this thesis is not by itself evidence.

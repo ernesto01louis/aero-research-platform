@@ -54,6 +54,132 @@ class CoupledLaunchError(RuntimeError):
     """A coupled run could not be launched, or produced no usable status."""
 
 
+class ObservabilityOptions(BaseModel):
+    """Hash-exempt run-time observability (ADR-041 V5).
+
+    None of this reaches ``CoupledCaseSpec``, and that is the point: ``config_hash`` is a
+    digest of the serialized spec, so putting these in ``ParticipantSpec.env`` -- which IS
+    hashed -- would move every digest and break both ``_reattach`` and the live digest
+    pins. They live in the launcher's command bytes instead, where they change what is
+    observed and nothing about what is computed.
+
+    ``malloc_check`` is deliberately NOT a default. It selects glibc's checking allocator
+    for both participants and its cost is unmeasured, while N3's post-ramp ClockTime is
+    the only number ADR-040 permits to size B2, against a ceiling with ~23 % headroom.
+    ADR-041 V5 therefore scopes it to ladder rungs and keeps it off for Q1, N3, the fine
+    I7 probe and the campaign.
+    """
+
+    model_config = _STRICT
+
+    core_dumps: bool = Field(
+        default=False,
+        description="ulimit -c unlimited inside the uid drop, so an abort names its site.",
+    )
+    malloc_check: bool = Field(
+        default=False,
+        description="MALLOC_CHECK_=3: glibc aborts at detection, not at the next free.",
+    )
+    asan: bool = Field(
+        default=False,
+        description=(
+            "ASAN_OPTIONS for a sanitizer-built participant. Reports the invalid WRITE "
+            "where it happens rather than where glibc later trips over the poisoned "
+            "chunk -- N3 attempt 2 died with the solid quiet for its last 7 698 windows, "
+            "so the write and the abort are thousands of windows apart. Mutually "
+            "exclusive with malloc_check: ASan replaces the allocator glibc would check."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_allocator_checker(self) -> ObservabilityOptions:
+        if self.asan and self.malloc_check:
+            raise ValueError(
+                "asan and malloc_check both instrument the allocator and conflict; "
+                "ASan replaces malloc, so MALLOC_CHECK_ would be inspecting a heap it "
+                "does not own"
+            )
+        return self
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.core_dumps or self.malloc_check
+
+
+class CheckpointOptions(BaseModel):
+    """Hash-exempt checkpoint/restart controls for the SOLID participant (ADR-045 R1/R2/R5).
+
+    Like :class:`ObservabilityOptions`, these live in the launcher's command bytes and never
+    in ``config_hash``: a checkpoint cadence changes what is written to disk, and a restart
+    changes where the step is entered, but neither changes the deck, the numerics, the
+    container or the coupling -- ADR-045 R7 says a restart is not a configuration change.
+    The adapter reads them from the environment (``adapter/AeroCheckpoint.h`` in
+    ``containers/calculix-precice-adr045.patch``).
+    """
+
+    model_config = _STRICT
+
+    every_windows: int = Field(
+        default=0, ge=0, description="Write a checkpoint every N converged windows (0: never)."
+    )
+    at_windows: tuple[int, ...] = Field(
+        default=(), description="Extra window indices to checkpoint at (R3's restart point)."
+    )
+    keep: int = Field(default=2, ge=1, description="Generations kept on disk (R2: two).")
+    restart_file: str | None = Field(
+        default=None,
+        description="Path INSIDE the participant workdir (or /case/...) of the checkpoint to "
+        "re-enter the step from; None for a fresh start.",
+    )
+    restart_window: int | None = Field(default=None, ge=1)
+    max_displacement: float | None = Field(default=None, gt=0.0, description="R5 bound.")
+    energy_min: float | None = Field(default=None, ge=0.0, description="R5 bound, J.")
+    energy_max: float | None = Field(default=None, gt=0.0, description="R5 bound, J.")
+
+    @model_validator(mode="after")
+    def _restart_is_bounded(self) -> CheckpointOptions:
+        if self.restart_file is not None and (
+            self.restart_window is None
+            or self.max_displacement is None
+            or self.energy_min is None
+            or self.energy_max is None
+        ):
+            raise ValueError(
+                "a restart carries its R5 bounds: restart_window, max_displacement, "
+                "energy_min and energy_max are all required with restart_file (ADR-045 R5 -- "
+                "a checkpoint written before a heap-corruption death may be garbage, and the "
+                "guard is what refuses it)"
+            )
+        return self
+
+    @property
+    def any_enabled(self) -> bool:
+        return self.every_windows > 0 or bool(self.at_windows) or self.restart_file is not None
+
+    def exports(self) -> str:
+        """The ``export ...`` line for the Solid's compound command; empty when inert."""
+        pairs: list[tuple[str, str]] = []
+        if self.every_windows > 0:
+            pairs.append(("AERO_CKPT_EVERY", str(self.every_windows)))
+        if self.at_windows:
+            pairs.append(("AERO_CKPT_AT", ",".join(str(w) for w in self.at_windows)))
+        if self.every_windows > 0 or self.at_windows:
+            pairs.append(("AERO_CKPT_KEEP", str(self.keep)))
+        if self.restart_file is not None:
+            pairs.extend(
+                [
+                    ("AERO_RESTART_FILE", self.restart_file),
+                    ("AERO_RESTART_WINDOW", str(self.restart_window)),
+                    ("AERO_RESTART_MAX_DISP", repr(float(self.max_displacement or 0.0))),
+                    ("AERO_RESTART_ENERGY_MIN", repr(float(self.energy_min or 0.0))),
+                    ("AERO_RESTART_ENERGY_MAX", repr(float(self.energy_max or 0.0))),
+                ]
+            )
+        if not pairs:
+            return ""
+        return "export " + " ".join(f"{k}={shlex.quote(v)}" for k, v in pairs)
+
+
 class CoupledLaunchPlan(BaseModel):
     """Everything the supervisor script needs, resolved to remote paths."""
 
@@ -75,6 +201,14 @@ class CoupledLaunchPlan(BaseModel):
             "precice-run/ beside the config one level in -- these are not the same "
             "directory and the stale-socket cleanup has to target the latter."
         ),
+    )
+    observability: ObservabilityOptions = Field(
+        default_factory=ObservabilityOptions,
+        description="ADR-041 V5 run-time observability; never enters config_hash.",
+    )
+    checkpoint: CheckpointOptions = Field(
+        default_factory=CheckpointOptions,
+        description="ADR-045 checkpoint/restart controls for the Solid; never enters config_hash.",
     )
     poll_interval_s: int = Field(default=30, ge=1)
     peer_grace_s: int = Field(
@@ -146,7 +280,12 @@ class CoupledRunResult(BaseModel):
 
 
 def build_participant_command(
-    participant: ParticipantSpec, *, case_root_remote: str, sif_path: str
+    participant: ParticipantSpec,
+    *,
+    case_root_remote: str,
+    sif_path: str,
+    observability: ObservabilityOptions | None = None,
+    checkpoint: CheckpointOptions | None = None,
 ) -> str:
     """The full ``apptainer exec`` command for one participant. Pure; unit-test-pinned.
 
@@ -155,6 +294,14 @@ def build_participant_command(
     default, and a host ``~/OpenFOAM/...`` tree would shadow it via ``$FOAM_USER_LIBBIN``.
     The failure would appear only at run time, as ``controlDict``'s ``libs (...)`` line
     failing to load the adapter.
+
+    THIS is the MPI seam, not ``build_apptainer_exec(mpi_n=...)`` (ADR-040 L1/L4). That
+    helper prefixes ``mpirun -n N`` to the WHOLE command string, and the string it is
+    handed here is either the compound ``cd <workdir> && <solver>`` -- yielding
+    ``mpirun -n 4 cd fluid-openfoam``, which runs the solver serial and exits 0 -- or the
+    entire ``setpriv ... bash -lc '...'`` wrapper, which hoists ``mpirun`` OUTSIDE the uid
+    drop, where OpenMPI refuses to run as root. Appending it as the last element of
+    ``parts`` puts it after the ``cd`` and inside the drop, both of which it needs.
     """
     # The environment is `export`ed INSIDE the compound command, not passed to
     # build_apptainer_exec's `env=`. That helper emits `cd <target> && K=V <command>`,
@@ -163,10 +310,42 @@ def build_participant_command(
     # silently fail to reach the participant, and the only symptom would be at run time
     # (upstream's run.sh trying to build a venv from the network inside the SIF).
     parts = [f"cd {shlex.quote(participant.workdir)}"]
+    # ADR-041 V5, and it goes HERE for two reasons: after the `cd`, so a core lands in the
+    # participant's own workdir rather than wherever the supervisor started; and inside
+    # the compound that `setpriv ... bash -lc` wraps, so it applies after the uid drop.
+    # The brace group is not cosmetic -- `a && ulimit ... || true && b` parses as
+    # `(a && ulimit) || (true && b)`, which runs the solver only when the ulimit FAILS.
+    if observability is not None and observability.core_dumps:
+        parts.append("{ ulimit -c unlimited 2>/dev/null || true; }")
+    if observability is not None and observability.malloc_check:
+        parts.append("export MALLOC_CHECK_=3")
+    if observability is not None and observability.asan:
+        # halt_on_error so the FIRST bad write is the one reported; detect_leaks off
+        # because ccx frees nothing at exit and the report would bury the finding.
+        # intercept_memcmp=0: CalculiX's legacy Fortran compares fixed-length character
+        # variables against shorter literals, so gfortran's string compare reads past a
+        # 5-byte 'NODE' literal in readinput.c and ASan's memcmp interceptor flags a
+        # global-buffer-overflow READ during deck parsing on EVERY run -- including the two
+        # that completed 8000 windows. It is a real but benign length mismatch (the same
+        # one -fallow-argument-mismatch exists for) and it is not heap corruption.
+        # halt_on_error=0: a startup read must not end the hunt. Heap checking is
+        # untouched, which is the thing actually being looked for -- a WRITE.
+        parts.append(
+            "export ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:intercept_memcmp=0"
+            ":print_stacktrace=1:log_path=/case/asan-solid"
+        )
+    # ADR-045: the checkpoint cadence and a restart apply to the SOLID only, and go here
+    # for the same reasons as the ASAN_OPTIONS export above -- after the cd, inside the
+    # uid drop, in the command bytes and never in the hashed ParticipantSpec.env.
+    if checkpoint is not None and participant.name == "Solid" and checkpoint.any_enabled:
+        parts.append(checkpoint.exports())
     if participant.env:
         exports = " ".join(f"{k}={shlex.quote(v)}" for k, v in sorted(participant.env.items()))
         parts.append(f"export {exports}")
-    parts.append(participant.command)
+    if participant.mpi_ranks is None:
+        parts.append(participant.command)
+    else:
+        parts.append(f"mpirun -n {participant.mpi_ranks} {participant.command} -parallel")
     inner = " && ".join(parts)
     if participant.run_as_uid is not None:
         # setpriv rather than su: no PAM, no login shell, no surprise environment. HOME
@@ -219,6 +398,8 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
             participant,
             case_root_remote=plan.case_root_remote,
             sif_path=plan.sif_paths[participant.sif],
+            observability=plan.observability,
+            checkpoint=plan.checkpoint,
         )
         log = f"$CASE_ROOT/{participant.name}.log"
         lines += [
@@ -348,6 +529,10 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
     return "\n".join(lines)
 
 
+#: Linux signals are 1..64; a shell reports a signal death as 128 + signum.
+_MAX_SIGNAL = 64
+
+
 def _tail(path: Path, *, lines: int = 40) -> str:
     if not path.is_file():
         return ""
@@ -377,11 +562,16 @@ def read_coupled_status(
         # Keeping that distinct from a nonzero exit is what identifies which participant
         # actually died first: in a `participant-died` teardown the culprit carries its
         # own status (e.g. 1) while its peer carries 143.
+        # A signal death is 128 + signum and Linux has 64 signals, so 129..192 is the
+        # only range a shell reports for one. CalculiX's own error exit is 201
+        # (`stop.f: call exit(201)`, printed as `*ERROR: solution seems to diverge`), and
+        # reading that as "killed" named the wrong culprit on a real record: the peer's
+        # 143 looked like the death and the solver's own stop looked like the teardown.
         if rc is None:
             state: str = "running"
         elif rc == 0:
             state = "exited-ok"
-        elif rc >= 128:
+        elif 128 < rc <= 128 + _MAX_SIGNAL:
             state = "killed"
         else:
             state = "exited-fail"
@@ -407,6 +597,45 @@ def read_coupled_status(
     )
 
 
+class StagedCoupledLaunch(BaseModel):
+    """A written-but-not-launched coupled run: everything a detached submit needs.
+
+    The campaign seam (ADR-039 B3): the supervisor script is on disk, and the caller
+    submits ``command`` under ``session`` itself — via
+    ``LocalSSHExecutor.submit_detached`` — so no ``run_long.sh wait`` ever owns a
+    multi-day wave's lifetime. ``launch_coupled`` below is the original
+    write-run-and-wait path, byte-for-byte unchanged in behaviour, for callers whose
+    runs fit inside one process's lifetime (the smoke, the pre-flight probes).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    session: str
+    command: str
+    remote_script: str
+    executor_timeout_s: int
+
+
+def stage_coupled(
+    plan: CoupledLaunchPlan,
+    *,
+    run_id: str,
+    case_root_host: Path,
+) -> StagedCoupledLaunch:
+    """Write the supervisor into the case and return the submit handle — never runs it."""
+    script_host = case_root_host / "run-coupled.sh"
+    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
+    script_host.chmod(0o755)
+
+    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
+    return StagedCoupledLaunch(
+        session=f"fsi-{run_id}",
+        command=f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}",
+        remote_script=remote_script,
+        executor_timeout_s=plan.executor_timeout_s,
+    )
+
+
 def launch_coupled(
     plan: CoupledLaunchPlan,
     executor: Executor,
@@ -415,17 +644,12 @@ def launch_coupled(
     case_root_host: Path,
 ) -> CoupledRunResult:
     """Write the supervisor into the case, run it detached, and read back its verdict."""
-    script_host = case_root_host / "run-coupled.sh"
-    script_host.write_text(render_supervisor_script(plan), encoding="utf-8")
-    script_host.chmod(0o755)
-
-    remote_script = f"{plan.case_root_remote}/run-coupled.sh"
-    command = f"AERO_RUN_ID={shlex.quote(run_id)} bash {shlex.quote(remote_script)}"
+    staged = stage_coupled(plan, run_id=run_id, case_root_host=case_root_host)
     result = executor.run(
-        command,
+        staged.command,
         long_running=True,
-        session=f"fsi-{run_id}",
-        timeout_s=plan.executor_timeout_s,
+        session=staged.session,
+        timeout_s=staged.executor_timeout_s,
     )
     return read_coupled_status(
         case_root_host / "coupled-status.json",

@@ -24,11 +24,14 @@ distribution to return, and returning an empty one would be a silent fallback.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
+from typing import assert_never
 
 import numpy as np
 from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
 
 from aero.adapters._base import (
     DEFAULT_HOST_NFS_ROOT,
@@ -43,14 +46,41 @@ from aero.adapters._base import (
     WallDistribution,
     build_apptainer_exec,
 )
-from aero.adapters.precice.analysis import TIP_UX, TIP_UY, analyse_displacement_watchpoint
+from aero.adapters.openfoam.flexible_foil import write_flexible_foil_case
+from aero.adapters.precice.analysis import (
+    D0_PITCH,
+    DISPLACEMENT_X_COLUMN,
+    DISPLACEMENT_Y_COLUMN,
+    NOSE_UY,
+    TE_UX,
+    TIP_UX,
+    TIP_UY,
+    analyse_displacement_watchpoint,
+)
+from aero.adapters.precice.calculix import (
+    INTERFACE_PATCH,
+    CalculiXAdapterConfig,
+    CalculiXDeck,
+    assert_adapter_config,
+    write_adapter_config,
+    write_calculix_deck,
+)
 from aero.adapters.precice.case import (
+    CASE_ROOT_DIRNAME,
+    EXCHANGE_DIRECTORY,
+    AuthoredSource,
     CoupledCaseError,
     CoupledCaseSpec,
-    TutorialTree,
+    DeclaredMutation,
+    MaterializedFile,
+    MaterializedTree,
+    TutorialSource,
+    assert_authored_consistent,
+    assert_wetted_curve_matches,
     materialize_tutorial,
     record_max_time_mutation,
     select_fluid_mesh,
+    spec_config_digest,
 )
 from aero.adapters.precice.config import (
     PreciceConfig,
@@ -62,6 +92,7 @@ from aero.adapters.precice.config import (
 from aero.adapters.precice.launcher import (
     CoupledLaunchPlan,
     CoupledRunResult,
+    build_participant_command,
     launch_coupled,
     read_coupled_status,
 )
@@ -71,8 +102,19 @@ from aero.adapters.precice.logs import (
     find_iterations_logs,
     read_iterations_log,
 )
+from aero.adapters.precice.manifest import (
+    render_authored_manifest_json,
+    render_tutorial_manifest_json,
+)
+from aero.adapters.precice.template import (
+    NOSE_WATCH_POINT_NAME,
+    TE_WATCH_POINT_NAME,
+    PreciceConfigValues,
+    write_precice_config,
+)
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
-from aero.orchestration._base import Executor
+from aero.orchestration._base import Executor, describe_failure
+from aero.postprocess import analyse_limit_cycle
 
 DEFAULT_PRECICE_SIF_PATH = "/opt/aero/containers/precice-fsi.sif"
 DEFAULT_SIF_DIR = "/opt/aero/containers"
@@ -91,12 +133,113 @@ class PreciceSolverError(RuntimeError):
     """A coupled preCICE run could not be prepared, meshed, executed or read."""
 
 
+class Decomposition(BaseModel):
+    """What ``decomposePar`` actually produced, versus what was asked for.
+
+    ``n_processor_dirs`` is counted on the host after the fact rather than taken from
+    ``decomposePar``'s exit code, because that exit code is 0 when it falls back to fewer
+    subdomains (ADR-040 L4/W2).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ranks_requested: int = Field(..., ge=1)
+    n_processor_dirs: int = Field(..., ge=0)
+    ok: bool
+    failure: str = ""
+
+
 def _chown_tree(root: Path, *, uid: int) -> None:
     """Recursively chown `root` to `uid`:`uid`."""
     import os
 
     for path in (root, *root.rglob("*")):
         os.chown(path, uid, uid)
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _provided_mesh(config: PreciceConfig, participant: str) -> str:
+    """The one mesh `participant` provides, read out of the PARSED configuration.
+
+    Exists so ``assert_adapter_config`` is fed the configuration's own mesh name rather than
+    the spec's: comparing the adapter config's ``nodes-mesh`` against the spec it was built
+    from is a value compared with itself, and it passes for a deck the coupling can never
+    find.
+    """
+    provided = config.participant(participant).provide_mesh
+    if len(provided) != 1:
+        raise PreciceSolverError(
+            f"{config.source_path}: participant {participant!r} provides {len(provided)} "
+            f"meshes {provided}; the authored case expects exactly one"
+        )
+    return provided[0]
+
+
+def _authored_mutations(
+    source: AuthoredSource,
+    *,
+    case_dir: Path,
+    values: PreciceConfigValues,
+    produced: PreciceConfig,
+    deck: CalculiXDeck,
+) -> tuple[DeclaredMutation, ...]:
+    """The authorship acts, described from what was READ BACK rather than from the spec.
+
+    Three entries, not one per file. ``files`` is already the machine-checkable column
+    (every path with its digest); ``declared_mutations`` is the human "what did this
+    platform deliberately do" column, and forty-odd rows of "authored" would collapse the
+    two into one unreadable list. Each entry names an artefact whose provenance a digest
+    alone does not explain: the rendered configuration (from which template, by which
+    renderer, with which tokens), the solid deck (what the deck actually says), and the
+    fluid's ``controlDict`` (the time-stepping and function-object roster that decide
+    whether the run is coupled at all).
+
+    ``before_sha256`` is ``None`` throughout: authored bytes replaced nothing, and
+    ``sha256("")`` would read in a bundle like a real prior version.
+    """
+    case = source.case_dir_name
+    tokens = " ".join(
+        f"{name.lower().replace('_', '-')}={raw}" for name, raw in sorted(values.tokens().items())
+    )
+    control_dict = case_dir / source.fluid_participant_dir / "system" / "controlDict"
+    return (
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/precice-config.xml",
+            detail=(
+                f"rendered from template {source.template!r} "
+                f"(sha256 {source.template_sha256[:12]}...) by renderer "
+                f"v{source.renderer_version}; tokens {tokens}"
+            ),
+            after_sha256=produced.source_sha256,
+        ),
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/{source.solid_participant_dir}/{deck.path.name}",
+            detail=(
+                f"authored CalculiX deck, re-read: {deck.n_nodes} nodes / {deck.n_elements} "
+                f"{deck.element_type}, INC={deck.max_increments}, dt={deck.dt!r}, "
+                f"total_time={deck.total_time!r}, span={deck.span!r}, nlgeom={deck.nlgeom}, "
+                f"alpha={deck.dynamic_alpha!r}"
+            ),
+            after_sha256=_sha256_file(deck.path),
+        ),
+        DeclaredMutation(
+            kind="authored",
+            path=f"{case}/{source.fluid_participant_dir}/system/controlDict",
+            detail=(
+                f"authored dimensional fluid deck: endTime={source.fluid.max_time!r} "
+                f"deltaT={source.fluid.time_window_size!r} over {source.fluid.n_windows} "
+                f"coupling windows, adjustTimeStep no, ddtSchemes {source.fluid.ddt_scheme}; "
+                "the preCICE adapter function object is present (without it pimpleFoam runs "
+                "an uncoupled solve to endTime and exits 0)"
+            ),
+            after_sha256=_sha256_file(control_dict),
+        ),
+    )
 
 
 def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tuple[int, int]:
@@ -112,6 +255,56 @@ def _window_indices(t_start: float, t_end: float, *, window_size: float) -> tupl
     first = max(round(t_start / window_size) - 1, 0)
     last = max(round(t_end / window_size) - 1, first)
     return first, last
+
+
+def _assert_status_gate(status: CoupledRunResult, *, run_id: str, solver_log: str) -> None:
+    """Gate K2 — refuse every run ending except the two that are reportable.
+
+    Extracted so the solver's load path and the campaign drivers share ONE implementation.
+    Before this, ``load()`` checked both endings while the Stage-19 driver checked only
+    "a participant died" and never implemented the ceiling-desynchronisation half at all —
+    two gates with the same name and different behaviour.
+
+    The two admissible endings are: everyone exited cleanly, or the ceiling stopped a run in
+    which EVERY participant was still alive. A run where one participant had already exited
+    when the ceiling fired is a desynchronised coupling wearing a budget outcome's clothes.
+    """
+    if status.stopped_by == "participant-died":
+        died = [o.name for o in status.outcomes if o.state == "exited-fail"]
+        raise PreciceSolverError(
+            f"{run_id}: the coupled run ended because a participant died"
+            f"{' (' + ', '.join(died) + ')' if died else ''}. A partial coupled solve is "
+            f"not reportable.\n{solver_log[-2000:]}"
+        )
+    if status.stopped_by == "ceiling":
+        already_gone = [o.name for o in status.outcomes if o.state != "killed"]
+        if already_gone:
+            raise PreciceSolverError(
+                f"{run_id}: the ceiling stopped the run, but "
+                f"{', '.join(already_gone)} had already exited — the participants were "
+                "no longer coupled. Gate K2 admits a ceiling stop only with every "
+                "participant still running; this record is not reportable."
+            )
+
+
+def _assert_coupling_converged_over(
+    reports: tuple[CouplingIterationReport, ...], *, first_window: int, last_window: int
+) -> tuple[CouplingIterationReport, ...]:
+    """Gate K1 — every coupling window inside the analysis window converged.
+
+    Returns the WINDOW-SCOPED reports, because the caller also derives
+    ``coupling_mean_iterations`` / ``coupling_max_iterations`` from them; a ``-> None``
+    extraction would silently revert those two scalars to whole-run values.
+
+    K1 applies to the ANALYSIS WINDOW, not the whole run. Upstream documents that the first
+    time windows need many coupling iterations, so failing a run for a capped window at
+    t = 0.01 s would be a spurious NO-GO about the start-up transient — and asserting over
+    everything is how ``CouplingIterationReport.within()`` became dead code.
+    """
+    scoped = tuple(r.within(first_window=first_window, last_window=last_window) for r in reports)
+    for report in scoped:
+        assert_coupling_converged(report)
+    return scoped
 
 
 class PreciceCoupledSolver(Solver):
@@ -131,7 +324,7 @@ class PreciceCoupledSolver(Solver):
         )
         self.expectation = expectation
         self.sif_dir = sif_dir
-        self._trees: dict[str, TutorialTree] = {}
+        self._trees: dict[str, MaterializedTree] = {}
         self._configs: dict[str, PreciceConfig] = {}
 
     # --- helpers ---------------------------------------------------------------
@@ -146,10 +339,10 @@ class PreciceCoupledSolver(Solver):
 
     def _case_root(self, case_dir: CaseDir) -> Path:
         """The materialized tutorial root inside the run directory."""
-        return case_dir.host_path / "tutorial"
+        return case_dir.host_path / CASE_ROOT_DIRNAME
 
     def _remote_case_root(self, case_dir: CaseDir) -> str:
-        return f"{case_dir.remote_path}/tutorial"
+        return f"{case_dir.remote_path}/{CASE_ROOT_DIRNAME}"
 
     def config_for(self, case_dir: CaseDir) -> PreciceConfig:
         """The parsed configuration this run will use (populated by `prepare`)."""
@@ -158,23 +351,58 @@ class PreciceCoupledSolver(Solver):
         except KeyError:
             spec = self._coupled_spec(case_dir.spec)
             config = read_precice_config(
-                self._case_root(case_dir) / spec.tutorial_case / "precice-config.xml"
+                self._case_root(case_dir) / spec.case_subdir / "precice-config.xml"
             )
             self._configs[case_dir.run_id] = config
             return config
 
     # --- lifecycle seams -------------------------------------------------------
 
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
-        spec = self._coupled_spec(case)
-        root = host_path / "tutorial"
-        tree = materialize_tutorial(
-            spec.pin,
-            archive=spec.archive_path,
-            dest=root,
-            tutorial_case=spec.tutorial_case,
+    def _materialize(
+        self, spec: CoupledCaseSpec, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Lay the case's bytes down under `root` and return the tree plus its config.
+
+        A METHOD, not a free function in ``case.py``: an authored case's materializer drives
+        the OpenFOAM and CalculiX writers, and ``launcher.py`` imports ``case.py``, so
+        anything ``case.py`` imports at module level is transitively pulled into every
+        launcher consumer. (Since ADR-037 ``case.py`` carries the two writers' *specs*
+        anyway, for provenance; keeping the *writing* here still bounds what else follows.)
+
+        It does NOT write the manifest. ``_write_case`` owns that tail
+        (`assert_config` -> chown -> manifest) because the chown must not touch
+        ``aero-manifest.json``: the case belongs to the unprivileged participants, but the
+        manifest is the platform's own record and stays root-owned. That ordering is pinned
+        by absence in ``test_the_case_is_chowned_before_the_manifest_is_written``.
+
+        Dispatched exhaustively, so a third source kind in a future stage is a type error
+        rather than a silent fall-through into the wrong integrity contract.
+        """
+        source = spec.source
+        match source.kind:
+            case "tutorial":
+                return self._materialize_tutorial(spec, source, root)
+            case "authored":
+                return self._materialize_authored(spec, source, root)
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _materialize_tutorial(
+        self, spec: CoupledCaseSpec, source: TutorialSource, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Extract the pinned upstream tutorial and apply the two declared mutations.
+
+        The integrity contract is "these bytes ARE the pinned bytes". Unchanged since
+        Stage 19 and pinned byte-for-byte by
+        ``tests/stage_20/test_stage19_materialization_is_byte_identical.py``.
+        """
+        tree = materialize_tutorial(source, dest=root)
+        tree = select_fluid_mesh(
+            tree,
+            variant=source.fluid_mesh_dict,
+            case_dir=tree.case_dir,
+            fluid_participant_dir=source.fluid_participant_dir,
         )
-        tree = select_fluid_mesh(tree, variant=spec.fluid_mesh_dict, case_dir=tree.case_dir)
 
         config_path = tree.case_dir / "precice-config.xml"
         before = read_precice_config(config_path)
@@ -186,6 +414,117 @@ class PreciceCoupledSolver(Solver):
             after_sha256=produced.source_sha256,
             max_time=spec.max_time,
         )
+        return tree, produced
+
+    def _materialize_authored(
+        self, spec: CoupledCaseSpec, source: AuthoredSource, root: Path
+    ) -> tuple[MaterializedTree, PreciceConfig]:
+        """Render a case this platform authored, and re-read everything it wrote.
+
+        The integrity contract inverts: there is no pin, so the claim becomes "these bytes
+        are exactly what this spec renders, and re-reading them reproduces the spec"
+        (ADR-037). Every writer below returns what it wrote back from disk -- the rendered
+        configuration re-parsed, the deck re-read -- so the tree records what the files SAY
+        rather than what the writers meant.
+
+        Layout, one level of nesting so all four relative paths resolve to the same file::
+
+            <root>/<case_dir_name>/precice-config.xml
+            <root>/<case_dir_name>/<fluid_participant_dir>/{system,constant,0}/...
+            <root>/<case_dir_name>/<solid_participant_dir>/{<name>.inp,all.msh,...,config.yml}
+
+        ``config_for`` reads ``<root>/<case_subdir>/precice-config.xml``; the fluid's
+        ``preciceConfig`` and the adapter's ``precice-config-file`` are both
+        ``../precice-config.xml`` from one directory in; and ``EXCHANGE_DIRECTORY`` puts
+        ``precice-run/`` beside the configuration, which is where the supervisor's pre-run
+        cleanup looks.
+        """
+        # First statement, before a single byte: `model_copy(update=...)` bypasses the
+        # after-validator that also calls this, and this is the one door every byte
+        # goes through. Nothing below can produce a half-written tree for a spec pair
+        # that was never well-posed.
+        assert_authored_consistent(source)
+
+        case_dir = root / source.case_dir_name
+        case_dir.mkdir(parents=True, exist_ok=True)
+
+        # The coupling configuration. `write_precice_config` renders, re-reads and asserts
+        # the parsed model against `hg2007_expectation(values)` itself, so every rendered
+        # token is proved observable in the parsed configuration before anything else runs.
+        values = source.coupling_values()
+        produced = write_precice_config(
+            values, dest=case_dir / "precice-config.xml", template=source.template
+        )
+
+        write_flexible_foil_case(source.fluid, case_dir / source.fluid_participant_dir)
+
+        solid_dir = case_dir / source.solid_participant_dir
+        deck = write_calculix_deck(source.solid, dest_dir=solid_dir)
+        adapter = write_adapter_config(
+            CalculiXAdapterConfig(
+                participant=source.solid.participant,
+                nodes_mesh=source.solid.mesh_name,
+                patch=INTERFACE_PATCH,
+                read_data=("Force",),
+                write_data=("Displacement",),
+                precice_config_file=f"{EXCHANGE_DIRECTORY}/precice-config.xml",
+            ),
+            dest=solid_dir / "config.yml",
+        )
+        # The mesh name comes from the PARSED configuration, not from the spec the adapter
+        # config was built from: fed `source.solid.mesh_name` the check would compare a
+        # value against itself and pass on a deck the coupling could never find.
+        assert_adapter_config(
+            adapter,
+            spec=source.solid,
+            deck=deck,
+            mesh_name=_provided_mesh(produced, source.solid.participant),
+        )
+        assert_wetted_curve_matches(deck, source)
+
+        files = tuple(
+            MaterializedFile(path=str(path.relative_to(root)), sha256=_sha256_file(path))
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        )
+        tree = MaterializedTree(
+            root=root,
+            case_dir=case_dir,
+            source=source,
+            files=files,
+            mutations=_authored_mutations(
+                source, case_dir=case_dir, values=values, produced=produced, deck=deck
+            ),
+        )
+        return tree, produced
+
+    def _render_manifest(self, tree: MaterializedTree, spec: CoupledCaseSpec) -> str:
+        """Select the manifest schema by an exhaustive match on the source discriminator."""
+        source = tree.source
+        case_dir_rel = str(tree.case_dir.relative_to(tree.root))
+        match source.kind:
+            case "tutorial":
+                return render_tutorial_manifest_json(
+                    pin=source.pin,
+                    case_dir_rel=case_dir_rel,
+                    files=tree.files,
+                    mutations=tree.mutations,
+                )
+            case "authored":
+                return render_authored_manifest_json(
+                    source=source,
+                    case_dir_rel=case_dir_rel,
+                    files=tree.files,
+                    mutations=tree.mutations,
+                    spec_sha256=spec_config_digest(spec),
+                )
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+        spec = self._coupled_spec(case)
+        root = host_path / CASE_ROOT_DIRNAME
+        tree, produced = self._materialize(spec, root)
 
         if self.expectation is not None:
             assert_config(produced, self.expectation)
@@ -196,12 +535,15 @@ class PreciceCoupledSolver(Solver):
             # so digest verification still runs against the bytes as acquired.
             _chown_tree(root, uid=spec.run_as_uid)
 
-        tree.write_manifest(root / "aero-manifest.json")
+        (root / "aero-manifest.json").write_text(
+            self._render_manifest(tree, spec), encoding="utf-8"
+        )
         self._trees[Path(host_path).name] = tree
+        pin = spec.tutorial_pin
         logger.info(
             "materialized {} @ {} ({} files, {} declared mutation(s))",
-            spec.tutorial_case,
-            spec.pin.commit[:12],
+            spec.case_subdir,
+            pin.commit[:12] if pin is not None else "authored",
             len(tree.files),
             len(tree.mutations),
         )
@@ -218,13 +560,13 @@ class PreciceCoupledSolver(Solver):
         command = build_apptainer_exec(
             sif_path=self.sif_path,
             case_bind_source=remote_root,
-            command=f"cd {spec.tutorial_case}/{spec.fluid_participant_dir} && blockMesh",
+            command=f"cd {spec.case_subdir}/{spec.fluid_participant_dir} && blockMesh",
         ).replace("apptainer exec ", "apptainer exec --no-home ", 1)
 
         result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
         polymesh = (
             self._case_root(case_dir)
-            / spec.tutorial_case
+            / spec.case_subdir
             / spec.fluid_participant_dir
             / "constant"
             / "polyMesh"
@@ -239,28 +581,82 @@ class PreciceCoupledSolver(Solver):
                 "parsed — refusing to report a mesh whose size is unknown, since the "
                 "cell count is what identifies the rung in the provenance record"
             )
+        failure = ""
         if not ok:
-            logger.error("blockMesh failed for {}:\n{}", case_dir.run_id, result.stdout[-2000:])
-        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_cells, n_dof=None)
+            failure = describe_failure(result, what=f"fluid meshing for {case_dir.run_id}")
+            if result.returncode == 0 and not polymesh.is_file():
+                failure = (
+                    f"fluid meshing for {case_dir.run_id} exited 0 but wrote no "
+                    f"constant/polyMesh/points under {spec.fluid_participant_dir}"
+                )
+            logger.error("{}", failure)
+        return MeshHandle(case_dir=case_dir, ok=ok, n_elements=n_cells, n_dof=None, failure=failure)
+
+    def decompose(self, case_dir: CaseDir, executor: Executor, *, ranks: int) -> Decomposition:
+        """Run ``decomposePar`` for the fluid participant, UNDER THE PARTICIPANT UID.
+
+        Two things separate this from :meth:`mesh`, and both are failure modes rather
+        than preferences (ADR-040 L4).
+
+        ``mesh`` runs ``blockMesh`` as the container root, which is harmless because
+        ``constant/polyMesh`` is only ever read afterwards. ``decomposePar`` writes
+        ``processor*/``, and ``pimpleFoam`` then writes INTO those directories every time
+        step -- root-owned, the solve dies at t=0. So this routes through
+        :func:`build_participant_command` with the fluid participant's own
+        ``run_as_uid``, exactly as the solve will.
+
+        ``mpi_ranks`` is CLEARED on the copy: ``decomposePar`` is a serial utility, and
+        leaving the field set would wrap it in ``mpirun -n N ... -parallel``.
+
+        The returned report carries the ``processor*`` count MEASURED on the host, not the
+        count that was asked for. ``decomposePar`` exits 0 having produced fewer
+        subdomains than requested (a mesh it cannot split that finely, a stale
+        ``decomposeParDict``), and a wave running on a decomposition nobody checked is a
+        different configuration wearing the pre-registered one's clothes.
+        """
+        if ranks < 1:
+            raise ValueError(f"ranks must be >= 1, got {ranks}")
+        spec = self._coupled_spec(case_dir.spec)
+        fluid = spec.participant("Fluid")
+        command = build_participant_command(
+            fluid.model_copy(
+                update={
+                    "workdir": f"{spec.case_subdir}/{fluid.workdir}",
+                    "command": "decomposePar -force",
+                    "mpi_ranks": None,
+                }
+            ),
+            case_root_remote=self._remote_case_root(case_dir),
+            sif_path=f"{self.sif_dir}/{fluid.sif}",
+        )
+        result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
+        fluid_dir = self._case_root(case_dir) / spec.case_subdir / fluid.workdir
+        processor_dirs = sorted(p for p in fluid_dir.glob("processor*") if p.is_dir())
+        n_found = len(processor_dirs)
+
+        failure = ""
+        if result.returncode != 0:
+            failure = describe_failure(result, what=f"fluid decomposition for {case_dir.run_id}")
+        elif n_found != ranks:
+            failure = (
+                f"decomposePar for {case_dir.run_id} exited 0 but wrote {n_found} "
+                f"processor* director{'y' if n_found == 1 else 'ies'} under "
+                f"{fluid.workdir}, not the {ranks} the configuration pre-registers. A "
+                "decomposition that silently fell back to fewer subdomains is a different "
+                "configuration, and its rate would not be the rate that was measured"
+            )
+        if failure:
+            logger.error("{}", failure)
+        return Decomposition(
+            ranks_requested=ranks,
+            n_processor_dirs=n_found,
+            ok=not failure,
+            failure=failure,
+        )
 
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Launch every participant concurrently under the supervisor script."""
-        spec = self._coupled_spec(case_dir.spec)
-        # Bind the tutorial ROOT, not the case directory: upstream's run.sh scripts source
-        # ../../tools/log.sh and call ../../tools/run-openfoam.sh, which resolve OUTSIDE
-        # the case directory. Binding only the case would leave those paths pointing at a
-        # /tools that does not exist inside the container.
-        plan = CoupledLaunchPlan(
-            case_root_remote=self._remote_case_root(case_dir),
-            participants=tuple(
-                p.model_copy(update={"workdir": f"{spec.tutorial_case}/{p.workdir}"})
-                for p in spec.participants
-            ),
-            sif_paths={p.sif: f"{self.sif_dir}/{p.sif}" for p in spec.participants},
-            wall_clock_ceiling_s=spec.wall_clock_ceiling_s,
-            # preCICE writes precice-run/ beside the config, one level in from the root.
-            exchange_dir=spec.tutorial_case,
-        )
+        plan = self.launch_plan(case_dir)
         case_root_host = self._case_root(case_dir)
         outcome = launch_coupled(
             plan, executor, run_id=case_dir.run_id, case_root_host=case_root_host
@@ -270,6 +666,58 @@ class PreciceCoupledSolver(Solver):
             case_dir.run_id,
             outcome.stopped_by,
             outcome.wall_clock_s,
+        )
+        return ResultHandle(
+            case_dir=case_dir,
+            returncode=outcome.executor_returncode,
+            output_host_path=case_root_host,
+            solver_log="\n\n".join(
+                f"===== {o.name} ({o.state}, rc={o.returncode}) =====\n{o.log_tail}"
+                for o in outcome.outcomes
+            ),
+        )
+
+    def launch_plan(self, case_dir: CaseDir) -> CoupledLaunchPlan:
+        """The launch plan ``run()`` executes — exposed so a driver can stage it detached.
+
+        The campaign seam (ADR-039 B3): ``run()`` holds an owning ``run_long.sh wait``
+        for the whole solve, which a 14-day wave must not do. A driver calls this, then
+        ``stage_coupled`` (writes the supervisor), then
+        ``LocalSSHExecutor.submit_detached``, and a LATER session re-enters through
+        ``reattach``. The plan construction lives here and nowhere else — the subtlest
+        field, ``exchange_dir``, targets the stale-socket cleanup, and a driver-side
+        copy drifting from this one is a hang that gate K2 admits as a budget outcome.
+        """
+        spec = self._coupled_spec(case_dir.spec)
+        # Bind the tutorial ROOT, not the case directory: upstream's run.sh scripts source
+        # ../../tools/log.sh and call ../../tools/run-openfoam.sh, which resolve OUTSIDE
+        # the case directory. Binding only the case would leave those paths pointing at a
+        # /tools that does not exist inside the container.
+        return CoupledLaunchPlan(
+            case_root_remote=self._remote_case_root(case_dir),
+            participants=tuple(
+                p.model_copy(update={"workdir": f"{spec.case_subdir}/{p.workdir}"})
+                for p in spec.participants
+            ),
+            sif_paths={p.sif: f"{self.sif_dir}/{p.sif}" for p in spec.participants},
+            wall_clock_ceiling_s=spec.wall_clock_ceiling_s,
+            # preCICE writes precice-run/ beside the config, one level in from the root.
+            exchange_dir=spec.case_subdir,
+        )
+
+    def reattach(self, case_dir: CaseDir, *, executor_returncode: int) -> ResultHandle:
+        """Rebuild the ``ResultHandle`` ``run()`` would have returned, from disk alone.
+
+        For ``--collect`` after a detached submit: everything ``load()`` needs is on the
+        NFS case tree plus the run's exit code (``~/.aero-jobs/<session>/rc``). The
+        handle is constructed exactly as ``run()`` constructs it, so the downstream path
+        is byte-identical either way.
+        """
+        case_root_host = self._case_root(case_dir)
+        outcome = read_coupled_status(
+            case_root_host / "coupled-status.json",
+            case_root_host=case_root_host,
+            executor_returncode=executor_returncode,
         )
         return ResultHandle(
             case_dir=case_dir,
@@ -295,7 +743,7 @@ class PreciceCoupledSolver(Solver):
         """Read a watch-point, verifying its header against the configuration (gate C4)."""
         spec = self._coupled_spec(result.case_dir.spec)
         config = self.config_for(result.case_dir)
-        workdir = f"{spec.tutorial_case}/{spec.participant(participant).workdir}"
+        workdir = f"{spec.case_subdir}/{spec.participant(participant).workdir}"
         path = watchpoint_path(result.output_host_path, workdir, participant, name)
         return read_watchpoint(
             path,
@@ -320,34 +768,156 @@ class PreciceCoupledSolver(Solver):
         )
 
     def load(self, result: ResultHandle) -> SolveResult:
-        """Parse the coupled run into a `SolveResult` carrying the flag-tip history.
+        """Parse the coupled run into a `SolveResult`, gates first.
 
-        The coupling-convergence gate (ADR-036 K1) is enforced HERE, not in the V&V case,
-        so that no path to a number can bypass it — the same placement the moving-mesh
-        adapter uses for its periodic-steady-state check.
+        The coupling-convergence gate (ADR-036 K1) and the status gate (K2) are enforced
+        HERE, not in the V&V case, so that no path to a number can bypass them — the same
+        placement the moving-mesh adapter uses for its periodic-steady-state check.
+
+        Dispatched on the source, because what a coupled run MEASURES depends on which case
+        it is while what makes it reportable does not. The tutorial branch is Stage 19's
+        body, moved with no edits and pinned by
+        ``tests/stage_20/test_stage19_load_path_unchanged.py``. The authored branch reads
+        only what preCICE and the solid wrote; the fluid's force history belongs to the V&V
+        layer, which can reach it only by calling this method first (ADR-037).
         """
         spec = self._coupled_spec(result.case_dir.spec)
+        source = spec.source
+        match source.kind:
+            case "tutorial":
+                return self._load_tutorial(spec, result)
+            case "authored":
+                return self._load_authored(spec, source, result)
+            case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
+                assert_never(unreachable)
+
+    def _load_authored(
+        self, spec: CoupledCaseSpec, source: AuthoredSource, result: ResultHandle
+    ) -> SolveResult:
+        """The authored case's coupling-and-structure measurement.
+
+        Emits the quantities that come from files preCICE and the solid wrote: the pitch
+        the plate developed (D0), the plunge it was actually driven through, and the
+        analysis window every downstream statistic must be confined to. It does NOT read
+        the fluid's forces -- ``C_T``, ``C_P`` and ``eta`` need ``postProcessing/`` and the
+        solver log, which is :mod:`aero.vv.fsi.hg2007_readout`'s job. Keeping the split
+        there is what lets the readout live where it may import both adapters while the
+        gates stay in the one method every path to a number goes through.
+
+        **The pitch is measured, not prescribed.** ``theta`` is the angle of the line from
+        the nose watch-point to the trailing-edge watch-point, which is the chord line: the
+        teardrop is kinematically rigid and plunges without rotating, so this angle IS the
+        plate's deformation. That is the D0 quantity, and it exists only because the
+        experiment's flexibility produced it.
+        """
         status = self.coupled_status(result)
-        if status.stopped_by == "participant-died":
-            died = [o.name for o in status.outcomes if o.state == "exited-fail"]
+        _assert_status_gate(status, run_id=result.case_dir.run_id, solver_log=result.solver_log)
+
+        nose = self.watchpoint(
+            result, participant=source.solid.participant, name=NOSE_WATCH_POINT_NAME
+        )
+        tip = self.watchpoint(
+            result, participant=source.solid.participant, name=TE_WATCH_POINT_NAME
+        )
+        if nose.t != tip.t:
             raise PreciceSolverError(
-                f"{result.case_dir.run_id}: the coupled run ended because a participant died"
-                f"{' (' + ', '.join(died) + ')' if died else ''}. A partial coupled solve is "
-                f"not reportable.\n{result.solver_log[-2000:]}"
+                f"{result.case_dir.run_id}: the two Solid watch-points cover different "
+                f"instants ({nose.n_rows} vs {tip.n_rows} rows). They are written by one "
+                "participant in one loop, so this means one file is truncated."
             )
-        # Gate K2 permits exactly two endings: everyone exited cleanly, or the ceiling
-        # stopped a run in which BOTH participants were still alive. A run where one
-        # participant had already exited when the ceiling fired is a desynchronised
-        # coupling wearing a budget outcome's clothes.
-        if status.stopped_by == "ceiling":
-            already_gone = [o.name for o in status.outcomes if o.state != "killed"]
-            if already_gone:
-                raise PreciceSolverError(
-                    f"{result.case_dir.run_id}: the ceiling stopped the run, but "
-                    f"{', '.join(already_gone)} had already exited — the participants were "
-                    "no longer coupled. Gate K2 admits a ceiling stop only with every "
-                    "participant still running; this record is not reportable."
-                )
+
+        t = np.asarray(nose.t, dtype=np.float64)
+        nose_uy = np.asarray(nose.values[DISPLACEMENT_Y_COLUMN], dtype=np.float64)
+        nose_ux = np.asarray(nose.values[DISPLACEMENT_X_COLUMN], dtype=np.float64)
+        tip_uy = np.asarray(tip.values[DISPLACEMENT_Y_COLUMN], dtype=np.float64)
+        tip_ux = np.asarray(tip.values[DISPLACEMENT_X_COLUMN], dtype=np.float64)
+        chordwise = (source.solid.chord - source.solid.surface_x[0]) + (tip_ux - nose_ux)
+        theta_deg = np.degrees(np.arctan2(tip_uy - nose_uy, chordwise))
+
+        # analyse_limit_cycle directly, NOT analyse_displacement_watchpoint: the latter has
+        # no `period=` and therefore always DETECTS one, and two independently detected
+        # periods can never agree to the 1e-9 the paired estimator demands -- so the
+        # flexible-vs-rigid comparison would be refused, correctly, at the last step.
+        analysis = analyse_limit_cycle(
+            t,
+            {
+                D0_PITCH: theta_deg,
+                NOSE_UY: nose_uy,
+                TE_UX: tip_ux,
+            },
+            fundamental=D0_PITCH,
+            discard_s=spec.analysis_discard_s,
+            min_cycles=spec.analysis_min_cycles,
+            period=source.solid.kinematics.period,
+        )
+
+        window_size = self.config_for(result.case_dir).coupling_scheme.time_window_size
+        first_window, last_window = _window_indices(
+            analysis.t_start, analysis.t_end, window_size=window_size
+        )
+        reports = _assert_coupling_converged_over(
+            self.coupling_report(result), first_window=first_window, last_window=last_window
+        )
+        pitch = analysis.statistics[D0_PITCH]
+        plunge = analysis.statistics[NOSE_UY]
+
+        scalars: dict[str, float] = {
+            # D0 -- the gated quantity this method can see.
+            "d0_pitch_amplitude_deg": pitch.amplitude,
+            # The prescribed plunge, measured. The solid was DRIVEN through it, so a
+            # disagreement with the kinematics spec means the amplitude table is wrong --
+            # which is otherwise a perfectly convergent run of a different experiment.
+            "nose_uy_amplitude": plunge.amplitude,
+            "nose_uy_mean": plunge.mean,
+            "nose_ux_max_abs": float(np.max(np.abs(nose_ux))),
+            "te_ux_mean": analysis.statistics[TE_UX].mean,
+            "pitch_frequency": analysis.fundamental_frequency,
+            "detected_frequency": analysis.detected_frequency,
+            "prescribed_period": analysis.period,
+            # The analysis window every downstream statistic is confined to.
+            "analysis_t_start": analysis.t_start,
+            "analysis_t_end": analysis.t_end,
+            "analysis_n_settled_cycles": float(analysis.n_settled_cycles),
+            "analysis_n_cycles_after_discard": float(analysis.n_cycles_after_discard),
+            "analysis_mean_drift": analysis.mean_drift,
+            "analysis_amplitude_drift": analysis.amplitude_drift,
+            "analysis_cumulative_mean_drift": analysis.cumulative_mean_drift,
+            "analysis_cumulative_amplitude_drift": analysis.cumulative_amplitude_drift,
+            "coupling_first_window": float(first_window),
+            "coupling_last_window": float(last_window),
+            "coupling_mean_iterations": float(np.mean([r.mean_iterations for r in reports])),
+            "coupling_max_iterations": float(max(r.max_observed_iterations for r in reports)),
+            "coupling_total_iterations": float(sum(r.total_iterations for r in reports[:1])),
+            "max_iterations_configured": float(reports[0].max_iterations_configured),
+            "t_end": float(t[-1]),
+            "n_windows": float(nose.n_rows),
+            "wall_clock_s": status.wall_clock_s,
+            "stopped_by_ceiling": 1.0 if status.hit_ceiling else 0.0,
+            "max_time_configured": spec.max_time,
+        }
+        return SolveResult(
+            run_id=result.case_dir.run_id,
+            case_name=spec.name,
+            cd=None,
+            cl=None,
+            cd_pressure=None,
+            cd_viscous=None,
+            iterations_to_convergence=nose.n_rows,
+            final_residual=0.0,
+            history=TimeHistory(
+                kind="time",
+                t=tuple(float(v) for v in t),
+                monitor=tuple(float(v) for v in theta_deg),
+                monitor_name=D0_PITCH,
+            ),
+            scalars=scalars,
+            source=str(tip.path),
+        )
+
+    def _load_tutorial(self, spec: CoupledCaseSpec, result: ResultHandle) -> SolveResult:
+        """Stage 19's measurement, unchanged: the flag-tip displacement bands."""
+        status = self.coupled_status(result)
+        _assert_status_gate(status, run_id=result.case_dir.run_id, solver_log=result.solver_log)
 
         trace = self.watchpoint(result)
         uy = trace.signal("Displacement1")
@@ -358,20 +928,13 @@ class PreciceCoupledSolver(Solver):
             min_cycles=spec.analysis_min_cycles,
         )
 
-        # Gate K1 applies to the ANALYSIS WINDOW, not the whole run. Upstream documents
-        # that the first time windows need many coupling iterations; failing the run for
-        # a capped window at t = 0.01 s would be a spurious NO-GO about the start-up
-        # transient, and asserting over everything is how `within()` became dead code.
         window_size = self.config_for(result.case_dir).coupling_scheme.time_window_size
         first_window, last_window = _window_indices(
             analysis.t_start, analysis.t_end, window_size=window_size
         )
-        reports = tuple(
-            r.within(first_window=first_window, last_window=last_window)
-            for r in self.coupling_report(result)
+        reports = _assert_coupling_converged_over(
+            self.coupling_report(result), first_window=first_window, last_window=last_window
         )
-        for report in reports:
-            assert_coupling_converged(report)
         tip_uy = analysis.of(TIP_UY)
         tip_ux = analysis.of(TIP_UX)
 

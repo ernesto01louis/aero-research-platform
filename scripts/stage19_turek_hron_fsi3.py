@@ -38,6 +38,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from aero.adapters.precice import (  # noqa: E402
+    CASE_ROOT_DIRNAME,
     CoupledCaseSpec,
     CoupledLaunchPlan,
     ParticipantSpec,
@@ -353,15 +354,15 @@ def _preflight(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any
     # P/C: materialize, verify every file, assert the configuration.
     case_dir = solver.prepare(spec)
     config = read_precice_config(
-        case_dir.host_path / "tutorial" / spec.tutorial_case / "precice-config.xml"
+        case_dir.host_path / CASE_ROOT_DIRNAME / spec.case_subdir / "precice-config.xml"
     )
     record["gates"]["P1_C1_C2_C5"] = {
         "passed": True,
         "run_id": case_dir.run_id,
-        "commit": spec.pin.commit,
+        "commit": spec.source.pin.commit,
         "config": list(describe(config)),
     }
-    print(f"[P/C] materialized and asserted {spec.tutorial_case} @ {spec.pin.commit[:12]}")
+    print(f"[P/C] materialized and asserted {spec.case_subdir} @ {spec.source.pin.commit[:12]}")
     for line in describe(config):
         print(f"       {line}")
 
@@ -370,9 +371,9 @@ def _preflight(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any
     record["gates"]["I3"] = {
         "passed": bool(mesh.ok),
         "n_cells": mesh.n_elements,
-        "mesh_dict": spec.fluid_mesh_dict,
+        "mesh_dict": spec.source.fluid_mesh_dict,
     }
-    print(f"[I3] blockMesh ok={mesh.ok} cells={mesh.n_elements} ({spec.fluid_mesh_dict})")
+    print(f"[I3] blockMesh ok={mesh.ok} cells={mesh.n_elements} ({spec.source.fluid_mesh_dict})")
     if not mesh.ok:
         record["verdict"] = "NO-GO (I3: blockMesh failed)"
         return record

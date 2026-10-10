@@ -1,0 +1,228 @@
+{
+  "adr": "ADR-039",
+  "arms": {
+    "flexible": {
+      "attribution": {
+        "intercept_s": 0.182255860323262,
+        "intercept_share": 0.059932998410153523,
+        "mean_iterations_by_group": {
+          "gamg_pressure": 960.5816520746098,
+          "momentum": 3.8115721355157977
+        },
+        "mean_seconds_per_step": 3.040993528740007,
+        "n_steps": 2627,
+        "r_squared": 0.8492659852385763,
+        "seconds_per_iteration_by_group": {
+          "gamg_pressure": 0.0028748441476316314,
+          "momentum": 0.02550525719345305
+        },
+        "share_by_group": {
+          "gamg_pressure": 0.9080987889945343,
+          "momentum": 0.0319682125953123
+        }
+      },
+      "cost": {
+        "cpu_fraction_of_wall": 0.9942364654635967,
+        "fields_solved": [
+          "Ux",
+          "Uy",
+          "cellDisplacementx",
+          "cellDisplacementy",
+          "p",
+          "pcorr"
+        ],
+        "mean_seconds_per_step": 3.040993528740007,
+        "n_fluid_step_solves": 2627,
+        "pressure_solves_per_step": [
+          8
+        ],
+        "solver_by_field": {
+          "Ux": "smoothSolver",
+          "Uy": "smoothSolver",
+          "cellDisplacementx": "DICPCG",
+          "cellDisplacementy": "DICPCG",
+          "p": "GAMG",
+          "pcorr": "GAMG"
+        },
+        "total_clock_s": 8035.0,
+        "total_execution_s": 7988.69
+      },
+      "disk": {
+        "bytes_by_term": {
+          "fluid_mesh_static": 17317199,
+          "fluid_post_processing": 1688968,
+          "fluid_time_directories": 25963495,
+          "participant_logs": 20684929,
+          "solid_other": 2221091,
+          "solid_results_frd": 268689148
+        },
+        "growing_bytes": 325432370,
+        "n_fluid_time_directories": 497,
+        "share_by_term": {
+          "fluid_mesh_static": 0.05052434945585592,
+          "fluid_post_processing": 0.004927702768314787,
+          "fluid_time_directories": 0.07575062771267847,
+          "participant_logs": 0.06034997814979017,
+          "solid_other": 0.006480215296784224,
+          "solid_results_frd": 0.7839226429486772
+        },
+        "total_bytes": 342749569
+      },
+      "iterations_per_window_mean": 5.254,
+      "provenance": {
+        "config_hash": "c0eae20a8136c47014944f4168a86cfa65f27e8094da006d369a0d9f4da1567b",
+        "container_sif_sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8",
+        "containers": [
+          {
+            "name": "calculix-precice.sif",
+            "sha256": "4ca47da2961d8d6a6033fb216a542165b04419e2527d5d5b8c94cd2771d28668"
+          },
+          {
+            "name": "precice-fsi.sif",
+            "sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8"
+          }
+        ],
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "git_sha": "d2b58efd2f720cd790de14d09556e9e135bdc841"
+      },
+      "run_id": "hg2007_flexible_foil-20260810-144742",
+      "seconds_per_window": 16.082,
+      "wall_clock_s": 8041.0,
+      "windows_completed": 500
+    },
+    "rigid": {
+      "attribution": {
+        "intercept_s": 0.3288783406954731,
+        "intercept_share": 0.15307874955815848,
+        "mean_iterations_by_group": {
+          "gamg_pressure": 636.2124401913876,
+          "momentum": 3.5014354066985645
+        },
+        "mean_seconds_per_step": 2.1484258373205742,
+        "n_steps": 2090,
+        "r_squared": 0.9224893162069507,
+        "seconds_per_iteration_by_group": {
+          "gamg_pressure": 0.002773737092659899,
+          "momentum": 0.015668274887958647
+        },
+        "share_by_group": {
+          "gamg_pressure": 0.8213855994076859,
+          "momentum": 0.025535651034156837
+        }
+      },
+      "cost": {
+        "cpu_fraction_of_wall": 0.9905603353187734,
+        "fields_solved": [
+          "Ux",
+          "Uy",
+          "cellDisplacementx",
+          "cellDisplacementy",
+          "p",
+          "pcorr"
+        ],
+        "mean_seconds_per_step": 2.1484258373205742,
+        "n_fluid_step_solves": 2090,
+        "pressure_solves_per_step": [
+          8
+        ],
+        "solver_by_field": {
+          "Ux": "smoothSolver",
+          "Uy": "smoothSolver",
+          "cellDisplacementx": "DICPCG",
+          "cellDisplacementy": "DICPCG",
+          "p": "GAMG",
+          "pcorr": "GAMG"
+        },
+        "total_clock_s": 4533.0,
+        "total_execution_s": 4490.21
+      },
+      "disk": {
+        "bytes_by_term": {
+          "fluid_mesh_static": 17316727,
+          "fluid_post_processing": 1347201,
+          "fluid_time_directories": 25993954,
+          "participant_logs": 14022761,
+          "solid_other": 1454599,
+          "solid_results_frd": 268689148
+        },
+        "growing_bytes": 317560337,
+        "n_fluid_time_directories": 497,
+        "share_by_term": {
+          "fluid_mesh_static": 0.05171069882528593,
+          "fluid_post_processing": 0.004022971844975325,
+          "fluid_time_directories": 0.07762237786461243,
+          "participant_logs": 0.041874354822938845,
+          "solid_other": 0.004343680581241598,
+          "solid_results_frd": 0.802351599690327
+        },
+        "total_bytes": 334877064
+      },
+      "iterations_per_window_mean": 4.18,
+      "provenance": {
+        "config_hash": "86121b8250d33d4c25aace4020411e9926ae01f42ef649e5b3d0358ba41cbb3b",
+        "container_sif_sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8",
+        "containers": [
+          {
+            "name": "calculix-precice.sif",
+            "sha256": "4ca47da2961d8d6a6033fb216a542165b04419e2527d5d5b8c94cd2771d28668"
+          },
+          {
+            "name": "precice-fsi.sif",
+            "sha256": "ce7958737247ae5226d523818e32025b602007c92122a7540205b5dfaf44f7c8"
+          }
+        ],
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "git_sha": "d2b58efd2f720cd790de14d09556e9e135bdc841"
+      },
+      "run_id": "hg2007_rigid_foil-20260810-144747",
+      "seconds_per_window": 9.12,
+      "wall_clock_s": 4560.0,
+      "windows_completed": 500
+    }
+  },
+  "bounds": {
+    "non_compute_wall_fraction": {
+      "flexible": 0.005763534536403325,
+      "rigid": 0.00943966468122659
+    },
+    "note": "Both are bounds AT THE MEASURED RATE. Halving the compute leaves the same absolute overhead seconds against half the wall, so every share here must be re-read at each rung of a speed-up ladder rather than carried forward.",
+    "per_step_overhead_share": {
+      "flexible": 0.059932998410153523,
+      "rigid": 0.15307874955815848
+    }
+  },
+  "clause": "I10",
+  "cost_groups": {
+    "gamg_pressure": [
+      "p",
+      "pcorr"
+    ],
+    "momentum": [
+      "Ux",
+      "Uy"
+    ]
+  },
+  "derived_from": {
+    "logs": {
+      "flexible": {
+        "bytes": 11702905,
+        "path": "/mnt/aero-nfs/runs/hg2007_flexible_foil-20260810-144742/tutorial/Fluid.log",
+        "sha256": "6b43ffc6741a9362f811601c827517efb066898768eb2cca8ed442fb2fa22bf1"
+      },
+      "rigid": {
+        "bytes": 9350683,
+        "path": "/mnt/aero-nfs/runs/hg2007_rigid_foil-20260810-144747/tutorial/Fluid.log",
+        "sha256": "01b9f61ddfb08ca2e1810a34c5e4996d9f35886f7cc35559bf9dd8547d87825d"
+      }
+    },
+    "record": {
+      "path": "data/vv/stage20_i4_calibration.json",
+      "sha256": "203f3e1b1d5349dc8f9e6fe70456136c26ece6d7728d3224a82f93016cf4739b"
+    }
+  },
+  "finished_at": "2026-08-11T15:53:34+00:00",
+  "gated": false,
+  "kind": "cost-split",
+  "preregistered_gate_block": "THE PRE-REGISTERED GATE BLOCK (ADR-039 is the source of record; the campaign driver's\nPREREGISTERED_GATE_BLOCK is the operational copy, embedded in every bundle; required\nunit tests assert byte-identity and ordered band parity against CLAUSE_BANDS)\n\nP - pins and provenance (Hard Rule 8; ADR-038 replaces ADR-036's single-SIF refusal)\n  P1 OpenFOAM ESI v2412 fluid participant in precice-fsi.sif; CalculiX 2.20 (verified\n     live in the SIF) + calculix-adapter v2.20.1 solid participant in\n     calculix-precice.sif; preCICE v3.4.1; openfoam-adapter\n     2c3062ce941915616ac763371805c57e15e02466. Both SIFs are in containers/SHA256SUMS,\n     signed and apptainer-verify clean.\n  P2 every gated run logs the four-fold tuple from a clean tree, computed BEFORE the\n     solve. A dirty tree yields a \"-dirty\" SHA and the gated verdict is refused even\n     under --allow-dirty, because the SHA would not describe what ran.\n  P3 the provenance roster names EVERY participating SIF: compute_provenance receives\n     extra_container_sifs derived from the spec, and assert_provenance_describes(spec,\n     provenance) runs before anything else does. ADR-036's P3 (a gated run spanning more\n     than one SIF is structurally refused) is FALSE since ADR-038; the property that\n     mattered - provenance describes everything that ran - is now enforced directly.\n  P4 gated is DERIVED by is_gated_configuration from (rung, time-window-size, max-time),\n     never passed in. While B2 below is pending its I4 record the sentinels are None and\n     NO configuration can claim the gated verdict; the pre-flight-before-campaign\n     ordering is structural, not a rule to remember.\n  P5 the driver refuses a gated run unless git merge-base --is-ancestor proves this\n     ADR's first commit precedes the I4 record commit that fills B2.\n\nC - configuration integrity (authored case: these bytes are what the spec renders,\n  every writer re-read - ADR-037 inverts ADR-036's pinned-bytes contract)\n  C1 the rendered precice-config.xml re-reads to the expectation DERIVED from the spec:\n     parallel-implicit; max-iterations 50; relative convergence 5e-3 on BOTH\n     Displacement and Force (the calculix-adapter reads Force, not FSI3's Stress);\n     IQN-ILS with QR2 filter limit 1e-2, initial-relaxation 0.5, max-used-iterations\n     100, time-windows-reused 15; the RBF support-radius is SCALED to the surface\n     spacing (upstream's bare 1. is one metre on a 0.09 m chord).\n  C2 the CalculiX deck re-reads to its spec: C3D8I, never C3D8; NLGEOM on\n     unconditionally; *DYNAMIC DIRECT with the solid dt exactly the coupling window;\n     ALPHA present and 0.0; *CLOAD declared all-zero on the interface nset, dofs 1,2,3\n     (the adapter overwrites it - absent, the run is silently force-free); INC computed\n     >= 50 x n_windows, never copied - 50 is the coupling's own max-iterations and ccx\n     counts every attempt, so a smaller margin certifies a budget the coupling may\n     legally exceed; n_through_thickness even (odd has no mid-surface node and preCICE\n     snaps the watch-point silently).\n  C3 ONE span feeds both writers: the emitted slab z-extent equals the emitted\n     blockMeshDict span exactly (upstream's 1 m default under-loads this plate 400x\n     while checkMesh passes and the coupling converges).\n  C4 the solid's wetted curve IS the fluid's: surface_x equals the fluid curve\n     generator's output bitwise, and the two arms differ in plate half-thickness ONLY -\n     asserted at construction and again as the first statement of materialization.\n  C5 watch-point headers read from the run equal the headers PREDICTED from the\n     configuration; watch-points are interface vertices. No positional column indexing.\n  C6 every materialized file's sha256 rides in the schema-v2 aero-manifest.json, whose\n     spec_sha256 is computed by CALLING config_hash - the on-disk record and the MLflow\n     tag provably describe one spec.\n\nI - infrastructure pre-flight (ALL before any campaign run; each probe records its own\n  four-fold tuple into data/vv/; a probe that fails is recorded, never adjusted in-run;\n  no rate is ever extrapolated from a transient)\n  I1 two solverdummy participants complete a coupling across the TWO SIFs via the real\n     supervisor launcher.\n  I3 blockMesh succeeds on all three rungs, both arms; cell counts equal 45682 / 77240 /\n     130032 (uniform 2-D refinement ratio 1.30) and the static mesh-quality metrics are\n     recorded as the baseline M3 gates against.\n  I4 calibrations COMPLETE at least the requested 200 windows and end all-exited, both\n     arms, every rung; seconds-per-window, iterations-per-window, the NLGEOM cost\n     multiplier, the time-directory count and du are recorded BEFORE any budget or rung\n     decision (forces1 writes its registered fields every step and purgeWrite does not\n     track them; a full NFS mid-wave is the failure mode). A run that died early yields\n     NO seconds-per-window figure.\n  I5 mesh quality at the motion probe's retained output instants degrades the recorded\n     static baseline within M3's margin, with M1 and M2 holding at every instant.\n  I6 the coded interface-power function object compiles under the participant uid and\n     its force sum reproduces force.dat.\n  I7 max-Courant is MEASURED, never estimated: per arm at the gated rung plus the\n     flexible arm at the fine rung, at the candidate dt 3.5e-4 s, over max-time 1.5225 s\n     (4350 windows, past post-ramp peak plunge velocity - the (1-cos) ramp spans one\n     full cycle, so a few-step probe would measure the wrong regime). Co <= 1 or the\n     probe FAILS and is recorded; the campaign dt IS a passing probe's dt verbatim.\n  I8 checkpoint fidelity: 5 windows implicit vs the same 5 at max-iterations 1,\n     comparing window-start field state. backward if and only if the probe proves the\n     adapter checkpoints U.oldTime().oldTime() across coupling iterations; otherwise\n     Euler, declared first-order, temporal error common-mode across rungs (fixed dt).\n  I9 the ccx print convention is measured before D10 is read: an uncoupled deck with a\n     known applied load records whether *NODE PRINT's RF at a prescribed dof includes\n     the applied *CLOAD, and the *AMPLITUDE row bound is re-measured at the campaign\n     row count (70005 rows are measured fine; the campaign needs more only if a smaller\n     fallback dt is forced).\n\nR - reference integrity\n  R1 the reference is identified by content digest and per-page raster digests - no raw\n     PDF digest is reproducible, Bath's Pure repository re-wraps every download;\n     digitization.csv carries 208 markers, three independent binarizations each, and\n     hg2007_recomputed.csv carries its sha256 sidecar.\n  R2 recomputed anchors agree with the text-sourced values within 15 percent: the pitch\n     amplitudes (17 and 6 degrees), the Re 18000 and 27000 crossovers, both increments\n     positive. PASSED 2026-07-31. The one documented disagreement - the Re 9000\n     crossover misses the thesis's blanket prose by +12.6 percent while its\n     condition-specific prose reproduces to 0.1 percent - is carried as a measured row,\n     not smoothed over.\n  R3 the reference OF RECORD is hg2007_recomputed.csv, produced by the platform's own\n     estimators; the tabulated and text-sourced values are reported beside every gated\n     number. A gate compared against a reference we do not understand is worse than no\n     gate.\n\nK - coupling convergence (fail-loud, enforced inside load())\n  K1 ZERO time windows in the analysis window may hit max-iterations = 50, and every\n     window must report convergence. The window range is DERIVED from the S-rule's\n     analysis window (window-scoped, ADR-037 - the start-up transient legitimately\n     iterates more and the analysis never looks at it). One non-converged window makes\n     the run non-reportable - investigate, never relax.\n  K2 the supervisor's coupled-status.json exists, and either both participants exited\n     cleanly or the run stopped at the ceiling with EVERY participant still running at\n     SIGTERM. A ceiling stop with one participant already exited is a desynchronised\n     coupling wearing a budget outcome's clothes, and is refused. participant-died is a\n     loud failure.\n  K3 diagnostics, never gated: mean/max iterations per window, per-iteration residuals,\n     IQN-ILS filter drops, and the repeat-cadence classification (every repeated time in\n     force.dat and the ccx .dat is accounted for by the iterations log, or the readout\n     RAISES - an unexplained repeat is silent data loss).\n\nS - periodic steady state (the analysis window is DERIVED, never chosen)\n  S1 every signal is segmented at the PRESCRIBED period T = 1.0145 s, bit-identical\n     across arms; never an FFT-detected period.\n  S2 the first 3/f seconds of physical time are discarded unconditionally: the (1-cos)\n     ramp spans one cycle, plus two further cycles.\n  S3 detect_cycle_convergence (window 3, mean-drift 1 percent, amplitude-drift 2\n     percent) reports converged on the FUNDAMENTAL - the D0 pitch trace, segmented at\n     the prescribed plunge period; thrust is the second harmonic and segmenting on it\n     alternates half-strokes - with a settled tail of at least 20 full cycles on the\n     paired rung and at least 10 on the GCI rungs. The analysis window IS that settled\n     tail; n_settled_cycles reports the cycles actually averaged into the gated\n     statistics and must itself meet the minimum.\n  S4 the driver checkpoints as further cycles complete, and the verdict is taken from\n     the LAST checkpoint at the stopping time - never the best. Every checkpoint ships\n     in the bundle.\n  S5 CUMULATIVE bound, PER GATED SIGNAL: across the settled tail, the first-to-last\n     relative change of the per-cycle mean and of the per-cycle amplitude each stay\n     inside 2 percent for the pitch trace AND for the thrust and interface-power\n     series. S3 compares adjacent cycles only, and it certifies the fundamental alone -\n     a thrust series still drifting under a settled pitch trace would otherwise ride\n     into D1 unexamined (session-7 review, candidate 14). The driver evaluates the\n     non-fundamental signals from their per-cycle series over the same tail.\n\nA - paired-arm alignment (the increment is real only if the arms are comparable;\n  enforced by align_arms, which raises rather than degrades)\n  A1 both arms segment on the prescribed period, bit-identical, period_source\n     \"prescribed\" on both.\n  A2 the raw force-sample time bases are compared BITWISE across arms, both arrays\n     supplied; an AlignedPair with time_base_checked False is refused for the gated\n     verdict - honest absence is not evidence.\n  A3 the segmentation anchors recover the same post-discard origin to 1e-9 of a period;\n     equal discard does NOT imply equal origins (one dropped row moves the origin a full\n     time step and every index-k pair then compares different physical intervals).\n  A4 matched numerics by construction: both arms share the rung, the time-window-size,\n     the max-time, the ddt scheme and the wall spacing; both are gated by the same\n     derived predicate; plate half-thickness is the ONLY difference (C4).\n  A5 D3 and D4 are evaluated on the SAME AlignedPair window (shared pair_start and\n     n_pairs); the efficiency series is sliced to that window explicitly, because the\n     two estimators would otherwise window independently and silently pair different\n     physical cycles.\n\nD - fidelity bands (the physics gate, relative to R3; sized by the pre-registered rule\n  4 x u95_ref/|value|, floored 0.25, capped 0.50 - the cap never binds, the floor binds\n  four of five, so where the floor binds the band is a POLICY number, stated as such;\n  every reference value is a row of hg2007_recomputed.csv)\n  D0 flexible-arm pitch amplitude, reference 5.34637 degrees (Fig 5.13a), within 25 %\n     (raw rule 6.5 percent; the floor binds).\n  D1 flexible-arm thrust coefficient, reference 1.00772, within 25 % (raw rule 20.6\n     percent; the floor binds).\n  D2 flexible-arm efficiency, reference 0.175279, within 40 % (raw rule 40.1 percent -\n     the one band the rule actually set).\n  D3 the thrust increment dC_T, flexible minus rigid, reference 0.609257, within 25 %\n     (raw rule 2.1 percent; the floor binds and 0.25 is policy. ADR-022 measured the\n     platform's 2-D solve missing HG's absolute rigid thrust by -28/+58 percent; if\n     that error is multiplicative and common-mode the increment inherits it, so a D3\n     NO-GO is at least as likely as a D1 NO-GO).\n  D4 the efficiency increment d_eta, reference 0.0865273, within 25 % (raw rule 0.0 -\n     the increment's axis and gauge terms cancel by construction; the floor binds and\n     0.25 is policy).\n  D5 the SIGN of the thrust increment: dC_T positive (no band). HG's headline claim; a\n     negative increment is a real physical NO-GO, resolved clause by clause, never an\n     exception.\n  D6 the SIGN of the efficiency increment: d_eta positive (no band). Same standing as\n     D5, from Fig 5.9a.\n  D7 admissibility (no band): both arms report positive thrust and efficiency strictly\n     between 0 and 1. An inadmissible arm RAISES - a broken record, not a NO-GO.\n  D8 rigid-arm pitch amplitude within 2 deg absolute (text-sourced: the 4.23e-3 plate\n     measured below two degrees at the rig's highest frequency; at the gated point the\n     thesis reports below one degree).\n  D9 the naive-power bias (P1-P2)/P2 on BOTH arms (no band), REPORTED-ONLY: D8 admits\n     enough rigid-arm pitch to move the trailing edge 12 percent of the plunge velocity\n     amplitude, and P1 assumes a single rigid-body velocity, so D8 and a gated D9 could\n     not both be satisfiable in the worst admissible case (session-4 operator decision).\n  D10 the interface-power closure |P3-P2|/P2 within 2 % - a genuine identity: with\n     ALPHA 0 and no damping the cycle-mean reaction power over the prescribed region\n     equals the interface power exactly, and holding also proves ALPHA=0 held. The I9\n     record states whether the printed RF includes the applied *CLOAD, i.e. whether the\n     identity closes exactly or with a nose-cap-sized residual.\n\nM - mesh integrity (absolute gates chosen from measured failure modes; the platform's\n  own checkMesh verdicts are unusable as absolutes - they fail the stock NACA 0012)\n  M1 zero negative volumes, at rest and at every retained motion instant.\n  M2 max skewness at most 4, at rest and at every retained motion instant (ADR-024's\n     real failure was skewness 5503 with 18145 inverted cells - catastrophic, not\n     marginal).\n  M3 motion degradation: max non-orthogonality at the motion probe's retained instants\n     exceeds the recorded static baseline by at most 2.0 degrees (the whole rung\n     family's static spread is about 1.1 degrees; twice that is the margin), and stays\n     below 89 degrees outright.\n  M4 the cell count equals the pre-registered rung count exactly - the count is what\n     identifies the rung, and the solver refuses a count it cannot parse.\n  checkMesh's \"Mesh OK\" and the non-ortho-65 gate are REPORTED, never gated: both fail\n  the platform's own production airfoil mesh at the pre-registered spacing (aspect\n  ratio 1884.4471, byte-identical between the HG section and the stock NACA 0012).\n\nX - diagnostics, never gated: D9's naive-power bias on both arms; iterations per\n  window; the checkMesh report; the Re 9000 crossover disagreement (carried as\n  measured); C_P as C_T/eta (derived, not an independent check of the efficiency\n  definition); the time-directory footprint against the I4 projection.\n\nVERDICT: resolved CLAUSE BY CLAUSE in the bundle, so that \"NO-GO on absolute fidelity,\nGO on the flexibility increment\" is expressible - each clause carries its own pass. GO\nif and only if P and C and I1 and I3 and I4 and I5 and I6 and I7 and I8 and I9 and R\nand K1 and K2 and S1 and S2 and S3 and S4 and S5 and A1 and A2 and A3 and A4 and A5 and\nM1 and M2 and M3 and M4 and D0 and D1 and D2 and D3 and D4 and D5 and D6 and D7 and D8\nand D10 all pass. D9 and X are reported, never gated. The increment clauses D3 D4 D5 D6\nand the predicate D7 have NO V&V dashboard row - they need both arms, the registry\nreport folds over one arm's metrics() alone, and only the campaign driver's bundle\ncarries them; a green dashboard is NOT a verdict. NO-GO means: ship the harness, the\ndriver and the loud gates, and record the miss and the model-form gap honestly. No band\nis relaxed under any circumstance.\n\nBUDGET (pre-declared): aero-dev only, serial per participant, no cloud spend, two waves.\n  B1 pre-flight ceiling 172800 s total, 43200 s per submission (ADR-036's 3600 s floor\n     is far too small here: the I7 probes are cycle-scale by design and six I4\n     calibrations of at least 200 windows ride with them).\n  B2 gated campaign: <<B2-PENDING-I4>>\n     The sizing RULE is pre-registered now; the numbers are an OUTPUT of the I4/I7\n     record via aero/vv/fsi/hg2007_sizing.py:size_gated_campaign, re-derived by a\n     required test. The gated rung is mid, both arms; the time-window-size is the\n     Co-passing probe's dt verbatim (never scaled from a measurement at another dt);\n     max-time is the smallest exact multiple of dt covering the S2 discard plus 20\n     settled cycles; the wall-clock projection uses the CONTENTION-MEASURED\n     seconds-per-window (the mid-rung probes run both arms concurrently - the wave-1\n     shape); dt is FIXED across all three rungs so temporal error is common-mode (I8),\n     which is why I7 must also pass on the fine rung.\n  B3 wave 1 is the mid rung, both arms concurrently - the paired increment, the\n     headline. Wave 2 is the coarse and fine rungs - the GCI term feeding\n     u95_delta_numerical. Per-wave ceiling 1209600 s (14 days). An overrun costs the\n     GCI term, never the headline increment.\n  B4 reaching a ceiling is a RECORDED OUTCOME, not a failure; the analysis runs on\n     whatever the S-rule yields. The declared last resorts, in order: cut settled\n     cycles (never below 10), then a budget NO-GO. If S3 cannot be satisfied within the\n     ceiling the verdict is NO-GO on periodic steady state - not a re-run with a\n     hand-picked window.\n\nCONTINGENCIES - MECHANISM (allowed, declared in advance) vs GATE (forbidden); items are\n  N-prefixed because M is a gate family here, unlike ADR-036:\n  N1 a stale precice-run/ exchange directory is removed before each run; participants\n     run with --no-home and a writable tmpfs; every participant runs as the case uid.\n  N2 if the coded interface-power FO will not compile in the SIF at campaign scale, set\n     FOAM_ALLOW_SYSTEM_OPERATIONS and a writable WM_PROJECT_USER_DIR; failing that the\n     run STOPS - P2 has no fallback formula, because D9 exists precisely to show the\n     naive one is biased.\n  N3 if a wave-1 solve ends participant-died (an infrastructure death, which K2 already\n     refuses as evidence), the wave may be resubmitted ONCE, both arms together under\n     new run ids, and BOTH bundles ship. A second death is a NO-GO on infrastructure.\n     This is a declared deviation from ADR-036's no-restart rule: a 14-day exposure is\n     not a 48-hour one, and a died run carries no gated numbers to retry.\n  N4 SCOPE DEGRADATION, WEAKER CLAIM: there is no single-container fallback for this\n     claim - the CalculiX solid is the point (ADR-016). If the two-container coupling\n     cannot be launched at campaign scale, the stage verdict is\n     NO-GO-with-partial-delivery.\n  FORBIDDEN: changing any D band, any convergence limit, max-iterations, the S2\n  discard, the settled-cycle minima, the analysis window, the reference row, the motion\n  margin of M3, or the sizing rule after the I4 record. Any of these requires a new ADR\n  AFTER the campaign, and the original verdict stands on the record.\n",
+  "verdict": "MEASURED. The fluid participant's own CPU is 99.42 percent of the flexible arm's wall clock, so EVERY lever that attacks I/O, preCICE exchange or waiting on the solid is bounded by 0.58 percent - forces1 write scheduling is refuted as a cost lever by that bound. Fluid subcycling is bounded by the same figure plus the per-step overhead share (6.0 percent, of which only 1 in K recurs), because the total fluid step-solve count is invariant in the subcycling factor. What remains is the pressure solve: 90.8 percent of fluid CPU at 2.87 ms per GAMG iteration and 961 iterations per fluid step. Disk growth is dominated by the CalculiX .frd (78 percent), which nothing in this repo reads, not by the fluid field writes (8 percent)."
+}

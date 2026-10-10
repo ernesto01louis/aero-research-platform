@@ -1,0 +1,5 @@
+outs:
+- md5: 4b4e6b16331b627ea2318d3b0f46ced6
+  size: 200868
+  hash: md5
+  path: precice-tutorials-perpendicular-flap.tar.gz

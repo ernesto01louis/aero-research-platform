@@ -1,0 +1,455 @@
+diff -ruN a/adapter/AeroCheckpoint.c b/adapter/AeroCheckpoint.c
+--- a/adapter/AeroCheckpoint.c	1970-01-01 01:00:00.000000000 +0100
++++ b/adapter/AeroCheckpoint.c	2026-09-15 21:46:53.953603445 +0200
+@@ -0,0 +1,275 @@
++/* AeroCheckpoint.c -- see AeroCheckpoint.h. aero-research-platform Stage 20, ADR-045. */
++
++#include "AeroCheckpoint.h"
++
++#include <errno.h>
++#include <math.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++/* ---- helpers ------------------------------------------------------------------------- */
++
++static const char *env_or(const char *name, const char *fallback)
++{
++  const char *v = getenv(name);
++  return (v != NULL && v[0] != '\0') ? v : fallback;
++}
++
++static uint64_t fnv1a64(uint64_t h, const void *data, size_t n)
++{
++  const unsigned char *p = (const unsigned char *) data;
++  size_t               i;
++  for (i = 0; i < n; i++) {
++    h ^= (uint64_t) p[i];
++    h *= 1099511628211ULL;
++  }
++  return h;
++}
++
++static int put(FILE *fp, const void *data, size_t size, size_t count, uint64_t *h)
++{
++  if (fwrite(data, size, count, fp) != count)
++    return -1;
++  *h = fnv1a64(*h, data, size * count);
++  return 0;
++}
++
++static int get(FILE *fp, void *data, size_t size, size_t count, uint64_t *h)
++{
++  if (fread(data, size, count, fp) != count)
++    return -1;
++  *h = fnv1a64(*h, data, size * count);
++  return 0;
++}
++
++static void refuse(const char *what)
++{
++  printf("\n *ERROR aero-checkpoint: %s -- restart REFUSED (ADR-045 R5)\n\n", what);
++  fflush(stdout);
++  exit(AERO_RESTART_REFUSED);
++}
++
++/* The five array blocks in file order. n_* are element counts (doubles). */
++#define AERO_CKPT_N_BLOCKS 11
++
++static void blocks(const AeroCheckpointArrays *a, double *ptrs[AERO_CKPT_N_BLOCKS], ITG lens[AERO_CKPT_N_BLOCKS])
++{
++  double *p[AERO_CKPT_N_BLOCKS] = {a->vold,  a->veold, a->accold, a->f,   a->fext, a->cv,
++                                   a->fnext, a->sti,   a->eme,    a->ener, a->xstate};
++  ITG     l[AERO_CKPT_N_BLOCKS] = {a->n_mtnk, a->n_mtnk, a->n_mtnk,   a->n_neq1, a->n_neq1, a->n_neq1,
++                                   a->n_mtnk, a->n_stress, a->n_stress, a->n_ener, a->n_xstate};
++  memcpy(ptrs, p, sizeof(p));
++  memcpy(lens, l, sizeof(l));
++}
++
++/* ---- cadence ------------------------------------------------------------------------- */
++
++int AeroCheckpoint_ShouldWrite(ITG window)
++{
++  const char *every = getenv("AERO_CKPT_EVERY");
++  const char *at    = getenv("AERO_CKPT_AT");
++  long        n;
++  if (window <= 0)
++    return 0;
++  if (every != NULL && every[0] != '\0') {
++    n = strtol(every, NULL, 10);
++    if (n > 0 && window % n == 0)
++      return 1;
++  }
++  if (at != NULL && at[0] != '\0') {
++    const char *p = at;
++    while (*p != '\0') {
++      char *end;
++      n = strtol(p, &end, 10);
++      if (end == p)
++        break;
++      if (n == (long) window)
++        return 1;
++      p = (*end == ',') ? end + 1 : end;
++    }
++  }
++  return 0;
++}
++
++/* ---- write ------------------------------------------------------------------------- */
++
++static void prune(const char *dir, ITG newest_window, long keep)
++{
++  /* Generations are named by window; the cadence is regular, so walk back from the
++     newest over the windows that could have been written and unlink past `keep`. */
++  const char *every_s = getenv("AERO_CKPT_EVERY");
++  long        every   = every_s ? strtol(every_s, NULL, 10) : 0;
++  long        kept    = 1, w;
++  char        path[4096];
++  if (every <= 0 || keep <= 0)
++    return;
++  for (w = (long) newest_window - every; w > 0; w -= every) {
++    snprintf(path, sizeof(path), "%s/aero-checkpoint-w%ld.bin", dir, w);
++    if (access(path, F_OK) != 0)
++      continue;
++    if (kept < keep) {
++      kept++;
++      continue;
++    }
++    if (unlink(path) == 0)
++      printf(" aero-checkpoint: pruned generation %s\n", path);
++  }
++}
++
++int AeroCheckpoint_Write(const AeroCheckpointScalars *s, const AeroCheckpointArrays *a)
++{
++  const char *dir  = env_or("AERO_CKPT_DIR", ".");
++  long        keep = strtol(env_or("AERO_CKPT_KEEP", "2"), NULL, 10);
++  char        final[4096], tmp[4096];
++  FILE *      fp;
++  uint64_t    h = 1469598103934665603ULL;
++  uint32_t    version = AERO_CKPT_VERSION;
++  ITG         sizes[5] = {a->n_mtnk, a->n_neq1, a->n_stress, a->n_ener, a->n_xstate};
++  double *    ptrs[AERO_CKPT_N_BLOCKS];
++  ITG         lens[AERO_CKPT_N_BLOCKS];
++  int         i;
++
++  snprintf(final, sizeof(final), "%s/aero-checkpoint-w%ld.bin", dir, (long) s->window);
++  snprintf(tmp, sizeof(tmp), "%s.tmp", final);
++  if ((fp = fopen(tmp, "wb")) == NULL) {
++    printf(" *WARNING aero-checkpoint: cannot open %s for writing (%s); no checkpoint\n", tmp, strerror(errno));
++    return -1;
++  }
++  blocks(a, ptrs, lens);
++  if (put(fp, AERO_CKPT_MAGIC, 1, 8, &h) || put(fp, &version, sizeof(version), 1, &h) ||
++      put(fp, s, sizeof(*s), 1, &h) || put(fp, sizes, sizeof(ITG), 5, &h))
++    goto fail;
++  for (i = 0; i < AERO_CKPT_N_BLOCKS; i++) {
++    if (lens[i] > 0 && put(fp, ptrs[i], sizeof(double), (size_t) lens[i], &h))
++      goto fail;
++  }
++  if (fwrite(&h, sizeof(h), 1, fp) != 1)
++    goto fail;
++  if (fclose(fp) != 0) {
++    fp = NULL;
++    goto fail;
++  }
++  if (rename(tmp, final) != 0) {
++    printf(" *WARNING aero-checkpoint: cannot rename %s (%s)\n", tmp, strerror(errno));
++    unlink(tmp);
++    return -1;
++  }
++  printf(" aero-checkpoint: wrote window %ld state to %s (theta %e, E_int+E_kin %e)\n",
++         (long) s->window, final, s->theta, s->energy[0] + s->energy[1]);
++  fflush(stdout);
++  prune(dir, s->window, keep);
++  return 0;
++fail:
++  printf(" *WARNING aero-checkpoint: short write to %s; discarded\n", tmp);
++  if (fp != NULL)
++    fclose(fp);
++  unlink(tmp);
++  return -1;
++}
++
++/* ---- read + validate ------------------------------------------------------------------- */
++
++const char *AeroCheckpoint_RestartFile(void)
++{
++  const char *v = getenv("AERO_RESTART_FILE");
++  return (v != NULL && v[0] != '\0') ? v : NULL;
++}
++
++void AeroCheckpoint_Restore(const char *path, AeroCheckpointScalars *s, const AeroCheckpointArrays *a)
++{
++  FILE *   fp;
++  uint64_t h = 1469598103934665603ULL, stored;
++  char     magic[8];
++  uint32_t version;
++  ITG      sizes[5], expect[5] = {a->n_mtnk, a->n_neq1, a->n_stress, a->n_ener, a->n_xstate};
++  double * ptrs[AERO_CKPT_N_BLOCKS];
++  ITG      lens[AERO_CKPT_N_BLOCKS];
++  int      i;
++  long     want_window;
++  const char *env;
++  char     msg[512];
++
++  if ((fp = fopen(path, "rb")) == NULL) {
++    snprintf(msg, sizeof(msg), "cannot open %s (%s)", path, strerror(errno));
++    refuse(msg);
++  }
++  if (get(fp, magic, 1, 8, &h) || memcmp(magic, AERO_CKPT_MAGIC, 8) != 0)
++    refuse("not an aero checkpoint (bad magic)");
++  if (get(fp, &version, sizeof(version), 1, &h) || version != AERO_CKPT_VERSION)
++    refuse("checkpoint format version is not the one this binary writes");
++  if (get(fp, s, sizeof(*s), 1, &h) || get(fp, sizes, sizeof(ITG), 5, &h))
++    refuse("truncated header");
++  for (i = 0; i < 5; i++) {
++    if (sizes[i] != expect[i]) {
++      snprintf(msg, sizeof(msg), "array block %d has %ld entries, this deck needs %ld -- not the same model",
++               i, (long) sizes[i], (long) expect[i]);
++      refuse(msg);
++    }
++  }
++  blocks(a, ptrs, lens);
++  for (i = 0; i < AERO_CKPT_N_BLOCKS; i++) {
++    if (lens[i] > 0 && get(fp, ptrs[i], sizeof(double), (size_t) lens[i], &h))
++      refuse("truncated array block");
++  }
++  if (fread(&stored, sizeof(stored), 1, fp) != 1 || stored != h)
++    refuse("checksum mismatch -- the file is not what was written");
++  fclose(fp);
++
++  /* R5: validate on read. Finite everywhere. */
++  for (i = 0; i < AERO_CKPT_N_BLOCKS; i++) {
++    ITG k;
++    for (k = 0; k < lens[i]; k++) {
++      if (!isfinite(ptrs[i][k])) {
++        snprintf(msg, sizeof(msg), "non-finite value in array block %d at index %ld", i, (long) k);
++        refuse(msg);
++      }
++    }
++  }
++  for (i = 0; i < 4; i++) {
++    if (!isfinite(s->energy[i]))
++      refuse("non-finite energy in the header");
++  }
++  /* The window the driver asked for. */
++  env = getenv("AERO_RESTART_WINDOW");
++  if (env != NULL && env[0] != '\0') {
++    want_window = strtol(env, NULL, 10);
++    if (want_window != (long) s->window) {
++      snprintf(msg, sizeof(msg), "file carries window %ld, the driver asked for %ld", (long) s->window, want_window);
++      refuse(msg);
++    }
++  }
++  /* |displacement| bound: vold holds mt entries per node, index 0 is the scalar dof. */
++  env = getenv("AERO_RESTART_MAX_DISP");
++  if (env != NULL && env[0] != '\0') {
++    double bound = strtod(env, NULL), worst = 0.0;
++    ITG    k;
++    for (k = 0; k < a->n_mtnk; k++) {
++      if (fabs(a->vold[k]) > worst)
++        worst = fabs(a->vold[k]);
++    }
++    if (worst > bound) {
++      snprintf(msg, sizeof(msg), "max |displacement| %e exceeds the bound %e", worst, bound);
++      refuse(msg);
++    }
++  }
++  /* Energy band at this window. */
++  {
++    double e = s->energy[0] + s->energy[1];
++    env      = getenv("AERO_RESTART_ENERGY_MIN");
++    if (env != NULL && env[0] != '\0' && e < strtod(env, NULL)) {
++      snprintf(msg, sizeof(msg), "E_int+E_kin %e below the band's floor %s", e, env);
++      refuse(msg);
++    }
++    env = getenv("AERO_RESTART_ENERGY_MAX");
++    if (env != NULL && env[0] != '\0' && e > strtod(env, NULL)) {
++      snprintf(msg, sizeof(msg), "E_int+E_kin %e above the band's ceiling %s", e, env);
++      refuse(msg);
++    }
++  }
++  printf(" aero-checkpoint: restored window %ld state from %s (theta %e, E_int+E_kin %e)\n",
++         (long) s->window, path, s->theta, s->energy[0] + s->energy[1]);
++  fflush(stdout);
++}
+diff -ruN a/adapter/AeroCheckpoint.h b/adapter/AeroCheckpoint.h
+--- a/adapter/AeroCheckpoint.h	1970-01-01 01:00:00.000000000 +0100
++++ b/adapter/AeroCheckpoint.h	2026-09-16 15:08:08.573079617 +0200
+@@ -0,0 +1,68 @@
++/* AeroCheckpoint -- a purpose-built state dump for the coupled nonlinear-dynamic step.
++ *
++ * aero-research-platform, Stage 20, ADR-045 R1/R2/R5 (as accepted, amendments A1-A15).
++ * The adapter's in-memory coupling checkpoint (Precice_WriteIterationCheckpoint) saves
++ * (theta, dtheta, v) for ONE window; CalculiX's own restart fires only at step end and
++ * carries neither accold nor the HHT force history. This dump writes, at the converged
++ * boundary between two coupling windows, every array the next window's equations read,
++ * so that a relaunched participant re-enters the SAME step at that boundary.
++ *
++ * Control comes from the environment the launcher exports beside the participant
++ * command (hash-exempt, like ASAN_OPTIONS and ulimit -c):
++ *   AERO_CKPT_EVERY      write every N converged windows (0 or unset: never)
++ *   AERO_CKPT_AT         extra comma-separated window indices to write at
++ *   AERO_CKPT_KEEP       generations to keep (default 2)
++ *   AERO_CKPT_DIR        directory for aero-checkpoint-w<window>.bin (default ".")
++ *   AERO_RESTART_FILE    read this checkpoint at step start and re-enter the step there
++ *   AERO_RESTART_WINDOW  the window the file must carry (refused otherwise)
++ *   AERO_RESTART_MAX_DISP  |displacement| bound, any node, any direction   (R5)
++ *   AERO_RESTART_ENERGY_MIN / _MAX   bounds on E_int + E_kin                (R5)
++ * A refused restart exits with AERO_RESTART_REFUSED (202) so the driver can step back a
++ * generation or record a death; it never produces numbers from a rejected file.
++ */
++#ifndef AERO_CHECKPOINT_H
++#define AERO_CHECKPOINT_H
++
++/* CalculiX.h uses FILE and the libc prototypes without including them; every CalculiX
++   translation unit includes these three first, and so must this one. */
++#include <math.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++#include "CalculiX.h"
++
++#define AERO_CKPT_MAGIC "AEROCKPT"
++#define AERO_CKPT_VERSION 1
++#define AERO_RESTART_REFUSED 202
++
++typedef struct AeroCheckpointScalars {
++  ITG    window;    /* the converged window whose END state this is (1-based) */
++  ITG    iinc;      /* CalculiX's increment counter at the write point (== window + 1) */
++  double theta;     /* step time / tper at the boundary */
++  double dtheta;    /* the window size / tper preCICE handed out */
++  double ttime;     /* total time of previous steps (0 in a single-step run) */
++  double tper;      /* the step period */
++  double qam0, qam1; /* CalculiX's running average force / flux norms */
++  double energy[4]; /* internal, kinetic, contact, friction */
++} AeroCheckpointScalars;
++
++typedef struct AeroCheckpointArrays {
++  double *vold, *veold, *accold, *f, *fext, *cv, *fnext, *sti, *eme, *ener, *xstate;
++  ITG     n_mtnk, n_neq1, n_stress, n_ener, n_xstate;
++} AeroCheckpointArrays;
++
++/* Should the state at the END of `window` be written? (env-driven cadence) */
++int AeroCheckpoint_ShouldWrite(ITG window);
++
++/* Write one generation atomically (temp file + rename) and prune older generations. */
++int AeroCheckpoint_Write(const AeroCheckpointScalars *s, const AeroCheckpointArrays *a);
++
++/* AERO_RESTART_FILE, or NULL when this is not a restart. */
++const char *AeroCheckpoint_RestartFile(void);
++
++/* Read and validate (R5) a checkpoint into the arrays. The array sizes in `a` must be the
++ * running deck's; a size mismatch, a bad checksum, a non-finite value, a bound violation
++ * or a window mismatch prints `*ERROR aero-checkpoint` and exits AERO_RESTART_REFUSED. */
++void AeroCheckpoint_Restore(const char *path, AeroCheckpointScalars *s, const AeroCheckpointArrays *a);
++
++#endif
+diff -ruN a/Makefile b/Makefile
+--- a/Makefile	2026-09-15 21:45:32.757538955 +0200
++++ b/Makefile	2026-09-15 21:46:53.966744029 +0200
+@@ -77,7 +77,7 @@
+ SCCXMAIN = ccx_$(CCX_VERSION).c
+ 
+ # Append additional sources
+-SCCXC += nonlingeo_precice.c dyna_precice.c CCXHelpers.c PreciceInterface.c
++SCCXC += nonlingeo_precice.c dyna_precice.c CCXHelpers.c PreciceInterface.c AeroCheckpoint.c
+ SCCXF += getflux.f getkdeltatemp.f getelementgausspointcoords.f
+ 
+ 
+diff -ruN a/nonlingeo_precice.c b/nonlingeo_precice.c
+--- a/nonlingeo_precice.c	2026-09-15 21:45:32.757134922 +0200
++++ b/nonlingeo_precice.c	2026-09-15 21:46:53.966664329 +0200
+@@ -38,6 +38,7 @@
+ 
+ /* Adapter: Add header */
+ #include "adapter/PreciceInterface.h"
++#include "adapter/AeroCheckpoint.h"
+ 
+ #define max(a, b) ((a) >= (b) ? (a) : (b))
+ 
+@@ -1610,6 +1611,49 @@
+   /* Adapter: Give preCICE the control of the time stepping */
+   // while((1.-theta>1.e-6)||(negpres==1)){
+ 
++  /* Adapter (aero-research-platform, ADR-045 R1): re-enter THIS step at a checkpointed
++     window boundary. The initial-acceleration procedure above ran at rest exactly as in
++     an unrestarted run, so the mass matrix, energyref and emax are the control run's;
++     everything the next window reads is now replaced by the checkpointed state, BEFORE
++     Precice_Setup registers the coupling mesh at co + vold. theta positions the step
++     time at the boundary, so the amplitude lookup (ttime + theta*tper) lands where the
++     run is, and iinc resumes the increment count. */
++  AeroCheckpointScalars aero_ckpt = {0};
++  AeroCheckpointArrays  aero_arrays;
++  aero_arrays.vold     = vold;
++  aero_arrays.veold    = veold;
++  aero_arrays.accold   = accold;
++  aero_arrays.f        = f;
++  aero_arrays.fext     = fext;
++  aero_arrays.cv       = cv;
++  aero_arrays.fnext    = fnext;
++  aero_arrays.sti      = sti;
++  aero_arrays.eme      = eme;
++  aero_arrays.ener     = ener;
++  aero_arrays.xstate   = xstate;
++  aero_arrays.n_mtnk   = mt * *nk;
++  aero_arrays.n_neq1   = neq[1];
++  aero_arrays.n_stress = (*ithermal != 2) ? 6 * mi[0] * ne0 : 0;
++  aero_arrays.n_ener   = (*nener == 1) ? mi[0] * ne0 : 0;
++  aero_arrays.n_xstate = ((*mortar != 1) && (*nstate_ != 0)) ? *nstate_ * mi[0] * (ne0 + *nslavs) : 0;
++  if (AeroCheckpoint_RestartFile() != NULL) {
++    if (*nmethod != 4 || *iexpl > 1) {
++      printf("\n *ERROR aero-checkpoint: restart is defined for implicit *DYNAMIC steps only\n\n");
++      exit(AERO_RESTART_REFUSED);
++    }
++    AeroCheckpoint_Restore(AeroCheckpoint_RestartFile(), &aero_ckpt, &aero_arrays);
++    theta  = aero_ckpt.theta;
++    iinc   = aero_ckpt.window; /* the loop's iinc++ makes the next window window + 1 */
++    qam[0] = aero_ckpt.qam0;
++    qam[1] = aero_ckpt.qam1;
++    for (k = 0; k < 4; k++) {
++      energy[k] = aero_ckpt.energy[k];
++    }
++    printf(" aero-checkpoint: re-entering the step at theta %e (after window %ld)\n", theta,
++           (long) aero_ckpt.window);
++    fflush(stdout);
++  }
++
+   /* Adapter: Put all the CalculiX data that is needed for the coupling into an array */
+   struct SimulationData simulationData = {
+       .ialset               = ialset,
+@@ -1750,6 +1794,30 @@
+           }
+         }
+       }
++
++      /* Adapter (aero-research-platform, ADR-045 R1/R2): dump the converged end-of-window
++         state on the checkpoint cadence. iinc was incremented above, so the state is the
++         end of window iinc-1; veold/accold are still the converged values here (the
++         prediction below rewrites them), energy[] is the value the log printed for that
++         window, and the *ini copies above hold the same state. */
++      if (AeroCheckpoint_ShouldWrite(iinc - 1)) {
++        aero_ckpt.window = iinc - 1;
++        aero_ckpt.iinc   = iinc;
++        aero_ckpt.theta  = theta;
++        aero_ckpt.dtheta = dtheta;
++        aero_ckpt.ttime  = *ttime;
++        aero_ckpt.tper   = *tper;
++        aero_ckpt.qam0   = qam[0];
++        aero_ckpt.qam1   = qam[1];
++        for (k = 0; k < 4; k++) {
++          aero_ckpt.energy[k] = energy[k];
++        }
++        /* RENEW-able locals: re-read the pointers at the write. */
++        aero_arrays.vold   = vold;
++        aero_arrays.ener   = ener;
++        aero_arrays.xstate = xstate;
++        AeroCheckpoint_Write(&aero_ckpt, &aero_arrays);
++      }
+     }
+ 
+     /* check for max. # of increments */

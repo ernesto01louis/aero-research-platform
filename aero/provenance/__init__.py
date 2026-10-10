@@ -9,13 +9,17 @@ machinery is lazy-imported inside `mlflow.py` and `db.py` (PLATFORM-NOT-HUB).
 from __future__ import annotations
 
 from aero.provenance.four_fold import (
+    ContainerRef,
     ProvenanceError,
     ProvenanceTuple,
     compute_provenance,
+    container_roster,
 )
 
 __all__ = [
+    "ContainerRef",
     "ProvenanceError",
     "ProvenanceTuple",
     "compute_provenance",
+    "container_roster",
 ]
