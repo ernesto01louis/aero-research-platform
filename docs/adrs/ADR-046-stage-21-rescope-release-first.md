@@ -1,9 +1,10 @@
 # ADR-046 — Stage 21 re-scoped: release-first (bundles, hardening, licence scan, JOSS/Zenodo, v0.1.0), flexible-flapping optimization deferred past v0.1.0
 
-- **Status:** **proposed** — drafted 2026-09-21 on the operator's instruction after Stage 20's
-  NO-GO. **Nothing in this ADR is implemented.** In particular `docs/handoff-bundle/README-handoff.md`
-  row 21 and `docs/handoff-bundle/00-MISSION-AND-SCOPE.md` are deliberately **untouched** and change
-  only in the acceptance commit.
+- **Status:** **accepted** — drafted 2026-09-21 and **accepted by the operator on 2026-10-10**, and
+  that acceptance is recorded by the commit that lands this change (the ADR-041 `d5bf381` pattern).
+  The operator also settled the open question below by choosing **option (i)**: v0.1.0 ships with
+  the flagship limitation documented. `README-handoff.md` row 21 and `00-MISSION-AND-SCOPE.md` are
+  updated in that same commit, per S6.
 - **Date:** 2026-09-21
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 20 close-out)
 - **Stage:** 21 (scoped from Stage 20's close-out)
@@ -136,14 +137,22 @@ promotion rests on a bundle whose only flagship content is forward-physics. Defe
 becoming abandonment: R-a/R-b are deliberately strict, and if neither is ever met the honest future
 record is that flexible-flapping optimization was **not achieved**, not that it is pending forever.
 
-## Open question for the operator, to settle at acceptance
+## Open question — SETTLED 2026-10-10: option (i)
 
-**Does v0.1.0 ship with the flagship represented by forward physics only?** Three answers, none
-assumed here: **(i)** accept S3 and document the limitation in the release notes and JOSS paper;
-**(ii)** add a **rigid**-flapping *optimization* demonstration to Stage 21 — the optimizer over
-Stage 14's validated-trend capability — which would cost a campaign and inherits Stage 14's
-mean-lift NO-GO as a stated bound on any claim; **(iii)** re-word the flagship claim for v0.1.0 so
-the brief and the release agree. This ADR proposes **(i)** and does not decide it.
+**Does v0.1.0 ship with the flagship represented by forward physics only? — YES.** The operator
+chose **option (i)**: accept S3 and carry the limitation openly in the release notes and the JOSS
+paper. The reasoning recorded with the choice: v0.1.0's purpose is portability, citability and
+hardening, none of which depends on flapping; adding a rigid-flapping optimization would cost a
+fresh campaign on an overset moving mesh, and holding the release for new compute is the pattern
+that consumed Stage 20. The rigid-flapping optimization is therefore scheduled as the **first
+post-v0.1.0 stage**, beside the deferred flexible-flapping work, where its claim can be scoped
+properly against Stage 14's mean-lift bound.
+
+The three options as they stood, for the record: **(i)** accept S3 and document the limitation in
+the release notes and JOSS paper; **(ii)** add a **rigid**-flapping *optimization* demonstration to
+Stage 21 — the optimizer over Stage 14's validated-trend capability — which would cost a campaign
+and inherits Stage 14's mean-lift NO-GO as a stated bound on any claim; **(iii)** re-word the
+flagship claim for v0.1.0 so the brief and the release agree. **(i) was chosen.**
 
 ## Links
 

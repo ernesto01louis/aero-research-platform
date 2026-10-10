@@ -214,9 +214,23 @@ Not: "the agent layer works" or "a surrogate trained." Those are not the bar.
 8. Surrogate-accelerated optimization (own-data factory; verify optima with CFD).
 9. Arbitrary-geometry ingestion + robust meshing (§3.2).
 10. preCICE/CalculiX FSI + flexible flapping (flagship capstone).
-11. Flexible-flapping optimization; portable result bundles; v0.1.0.
+11. **Portable result bundles; hardening; licence scan; JOSS/Zenodo; v0.1.0.**
+    **Re-scoped by ADR-046 (2026-10-10):** flexible-flapping optimization is **deferred past
+    v0.1.0**. Stage 20 ended in a **NO-GO on infrastructure** (ADR-041 V7 FIRED) — the gated
+    flexible-arm campaign cannot be run on that stack — so the capability has no validated verdict
+    and optimizing over it would violate Hard Rules 14/15. **At v0.1.0 the optimizer is
+    demonstrated on the airfoil case** (Stages 15/16/17; `validated`-tier and gate-honest,
+    including Stage 16's one-gate NO-GO and Stage 17's degenerate speed-up NO-GO), and **the
+    flagship flapping domain ships as a forward capability only** — Stage 14's rigid flapping,
+    whose rotation-timing trend is validated and whose stroke-averaged mean lift is a documented
+    NO-GO. **No flapping optimization claim is made at v0.1.0.** That is a real limitation against
+    this brief's "flapping is the single flagship demonstration domain"; it is stated in the
+    release notes and the JOSS paper rather than smoothed over, and the rigid-flapping
+    optimization is the first post-v0.1.0 stage.
 
-**Post-v0.1.0 (committed, named, further out):** adjoint shape/topology optimization
+**Post-v0.1.0 (committed, named, further out):** rigid-flapping optimization (the flagship's
+optimization result, scoped by Stage 14's mean-lift bound); flexible-flapping optimization, gated
+on ADR-046 S5's re-entry condition; adjoint shape/topology optimization
 (DAFoam v5 + SU2 adjoint) → generative / true-topology proposers.
 
 **Deferred indefinitely:** NeMo agent layer, literature miner, MoE, DPW/HLPW, riblet DNS.
