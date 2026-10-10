@@ -101,7 +101,7 @@
     "any thesis-grade number",
     "the v0.0.20 tag"
   ],
-  "status_after": "partial",
+  "status_after": "complete",
   "references": {
     "handoff": [
       "6.88",
@@ -111,5 +111,6 @@
       "ADR-041 V7 FIRED",
       "ADR-045 A19 / R6 EXECUTED"
     ]
-  }
+  },
+  "status_after_note": "Set `complete` by the operator 2026-10-10: a NO-GO is a result and this stage has one. Repo precedent: stages 14, 16 and 17 all ended in documented NO-GOs and are all `complete` and tagged. `complete` does NOT mean the deliverables were met -- see not_delivered."
 }

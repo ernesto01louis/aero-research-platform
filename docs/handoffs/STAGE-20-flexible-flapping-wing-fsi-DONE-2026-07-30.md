@@ -1,7 +1,7 @@
 ---
 stage: 20
 stage_name: "Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)"
-status: partial
+status: complete
 date_started: 2026-07-30
 date_completed: 2026-09-20
 session_duration_hours: 42
@@ -23,7 +23,10 @@ next_stage_name: "Stage 21 — Release (v0.1.0)"
 > the AddressSanitizer hunt found **no patchable line** (`no-report-died`, NOT exoneration), and
 > ADR-045's checkpoint/restart **could not produce a coupled restart** in two attempts, with
 > **zero** coupling windows past the restart in either. **No gated campaign verdict exists and
-> none can be produced on this stack.** Status stays **`partial`**; **no tag**.
+> none can be produced on this stack.** **Status: `complete`** — a NO-GO is a *result*, and this
+> stage has one; the repo's own precedent governs (Stages 14, 16 and 17 all ended in documented
+> NO-GOs and are all `complete` and tagged). The `v0.0.20` tag follows at the squash-merge commit
+> on main. `complete` does NOT mean the deliverables were met — §6.89 names every miss.
 >
 > **Scope: infrastructure only.** NOT a finding about the Heathcote-Gursul physics, NOT that any
 > solver is incorrect, NOT about chordwise flexibility. Q1 equivalence passed on both stacks and
@@ -77,7 +80,7 @@ the prose — every ❌ below was confirmed by `ls`.*
 | 3 | Pre-registered gate block (ADR-039) before any campaign run | ⚠️ | **ADR-039 EXISTS and is frozen** (session 7, `94c2b98`): 58 clauses across ten families, byte-duplicated in the campaign driver, binding tests in `tests/unit/`, B2 carrying `<<B2-PENDING-I4>>` + the committed pure sizing rule. **B2 cannot honestly be filled**: the pre-flight measured the pre-registered configuration infeasible by 1-2 orders of magnitude (§6.29) and the sizing rule refuses by design |
 | 4 | Flexible-vs-rigid delta with `compose_improvement()` | ⚠️ | Every input exists and is measured per arm (`ArmReadout` carries the per-cycle series the paired estimator needs). `align_arms` was hardened in session 6 (§6.23). The composition itself is the campaign driver's and lands with ADR-039 |
 | 5 | Provenance for a genuinely two-container run | ✅ | **ADR-038 `accepted` 2026-08-06.** Both residuals closed in session 6: the CLI derives the SIFs from the spec and calls `assert_provenance_describes` (`7f1d584`), and a per-CASE stage/solver-version override stops a Stage-20 bundle claiming a Nutils solid |
-| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-037…045 all `accepted`; this handoff; **no tag**. **The verdict IS recorded (2026-09-20): ADR-041 V7 FIRED — NO-GO on infrastructure (§6.89, `data/vv/stage20_nogo_infrastructure.json`). No ADR-039 clause-by-clause verdict is obtainable.** The gated sentinels remain `None` — structurally correct, because the pre-flight found the pre-registered campaign does not fit its own ceilings (§6.29). The resumption path is an ADR-040 re-pre-registration (§7 item 1), honest because **no gated campaign ever ran** |
+| 6 | ADRs; GO/NO-GO; handoff; tag `v0.0.20` | ⚠️ | ADR-037…045 all `accepted`; this handoff; **`v0.0.20` tagged at the merge commit** (status `complete`, 2026-10-10). **The verdict IS recorded (2026-09-20): ADR-041 V7 FIRED — NO-GO on infrastructure (§6.89, `data/vv/stage20_nogo_infrastructure.json`). No ADR-039 clause-by-clause verdict is obtainable.** The gated sentinels remain `None` — structurally correct, because the pre-flight found the pre-registered campaign does not fit its own ceilings (§6.29). The resumption path is an ADR-040 re-pre-registration (§7 item 1), honest because **no gated campaign ever ran** |
 
 **Session 5 (2026-08-05) moves deliverables 1 and 4 substantially.** Every writer and reader
 the authored case needs now exists and is tested; what is left of deliverable 1 is *wiring*
@@ -3866,7 +3869,11 @@ coupling machinery only; defer flexible-flapping optimization past v0.1.0; or re
 Hard Rule 16's constitutional promotion also has no Stage-20 bundle behind it. **This is the first
 question a reviewer will ask and it is the operator's to answer.**
 
-**Status stays `partial`. No tag. No verdict is claimed beyond this one.**
+**Status: `complete`** (operator's decision, 2026-10-10) — the NO-GO above IS this stage's
+verdict, and no further Stage-20 work is possible on this stack. The `v0.0.20` tag follows at the
+squash-merge commit on main; Hard Rule 10's tag gate validates this handoff's frontmatter and
+passes. **No verdict is claimed beyond this one**, and nothing about the unmet deliverables is
+softened by the status: deliverable 4 is **undeliverable** on this stack, not deferred.
 
 ## 7. Open items for the next stage (and beyond)
 

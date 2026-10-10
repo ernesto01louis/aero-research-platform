@@ -49,7 +49,10 @@ def test_the_nogo_record_exists_and_names_both_absences() -> None:
     record = json.loads(_NOGO.read_text(encoding="utf-8"))
     assert record["verdict"] == "NO-GO-on-infrastructure"
     assert record["clause"] == "ADR-041 V7"
-    assert record["status_after"] == "partial"
+    # `complete` because a NO-GO is a result (operator, 2026-10-10) -- NOT because the
+    # deliverables were met; the record's own not_delivered list is what says that.
+    assert record["status_after"] == "complete"
+    assert record["not_delivered"], "a complete-with-NO-GO record must still name the misses"
     # R3 has NO verdict — not "fail" (ADR-045 A19)
     assert record["r3_outcome"]["verdict"] is None
     named = set(record["records_that_must_never_exist"])

@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.0.20 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-09-20
+**Latest tag:** v0.0.20 (not yet tagged)  ·  **Status:** complete  ·  **Completed:** 2026-09-20
 
 **Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul)** — most recent stage.
 
-**Next:** resume Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul) — partial, not finished.
+**Next:** Stage 21 — Release (v0.1.0).
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

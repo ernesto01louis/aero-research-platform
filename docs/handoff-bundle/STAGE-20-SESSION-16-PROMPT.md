@@ -1,7 +1,8 @@
 Stage 20 — Flexible Flapping Wing FSI (Heathcote-Gursul). Resuming a partial stage, session 16.
 Repo /root/projects/aero-research-platform, branch stage-20-flexible-flapping-wing-fsi (verify
 the tip with `git log`), PR #44 (draft). `.aero-stage` is still **20** — do not bump it. Status
-stays **`partial`**. **No tag.**
+is **`complete`** — the NO-GO is the verdict (operator, 2026-10-10) — and **`v0.0.20` is tagged
+at the merge commit**. Neither reopens the campaign.
 
 **⛔ STAGE 20 ENDED IN A RECORDED NO-GO ON INFRASTRUCTURE (ADR-041 V7 FIRED, 2026-09-20).** The
 gated flexible-arm campaign cannot be run on this stack, both levers are exhausted, and the
@@ -116,4 +117,4 @@ HARD DON'TS — these have all bitten, or would undo the verdict:
   they are.
 
 Final state each session: clean tree, pushed, `pytest -q tests/unit tests/stage_20` green, nothing
-running on aero-dev, status `partial`, no tag.
+running on aero-dev, status `complete`, `v0.0.20` tagged.
