@@ -15,6 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # regenerate_status.sh deliberately asks git whether the stage tag EXISTS
+          # rather than trusting the handoff frontmatter (it renders "(not yet tagged)"
+          # when it does not), so this check is only correct if the checkout HAS the
+          # tags. actions/checkout fetches none by default, so CI rendered
+          # "(not yet tagged)" while any tagged clone rendered the bare tag — the two
+          # disagreed and the committed block could never satisfy both.
+          #
+          # Latent until 2026-10-10: every earlier stage refreshed the README before
+          # its tag was pushed, so both sides read "(not yet tagged)" and matched by
+          # luck. v0.0.20 had to be tagged FIRST (the generator cannot emit the final
+          # line until the tag exists), which exposed it.
+          fetch-tags: true
       - name: Check README STATUS block matches latest handoff
         run: |
           chmod +x scripts/regenerate_status.sh
