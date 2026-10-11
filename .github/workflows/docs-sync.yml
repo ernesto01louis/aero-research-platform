@@ -27,7 +27,14 @@ jobs:
           # its tag was pushed, so both sides read "(not yet tagged)" and matched by
           # luck. v0.0.20 had to be tagged FIRST (the generator cannot emit the final
           # line until the tag exists), which exposed it.
-          fetch-tags: true
+          #
+          # `fetch-tags: true` alone is NOT enough, and that is worth stating because it
+          # looks sufficient: dropping `--no-tags` only makes git FOLLOW tags that point
+          # at commits it actually fetched. At the default depth of 1 a run on main's tip
+          # fetches that commit alone, while a stage tag points at the commit it was cut
+          # from (v0.0.20 -> bc1384a, the parent of 205d542), so the tag is unreachable
+          # and never arrives. Full history is what guarantees every tag is present.
+          fetch-depth: 0
       - name: Check README STATUS block matches latest handoff
         run: |
           chmod +x scripts/regenerate_status.sh
