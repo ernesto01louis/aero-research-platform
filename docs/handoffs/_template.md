@@ -1,15 +1,24 @@
 ---
 # Required frontmatter — scripts/check_handoff_exists.sh parses these.
-stage: NN                                  # e.g. 01
-stage_name: "Stage NN — <name>"            # e.g. "Stage 01 — Scaffolding & Conventions"
-status: complete                           # complete | partial | blocked
+# Keep comments on their OWN lines: both awk parsers (check_handoff_exists.sh and
+# regenerate_status.sh) read the whole rest of a "field: value" line, so an inline
+# "# ..." comment becomes part of the value and fails the Stop hook.
+# stage: two digits, e.g. 01
+stage: NN
+# stage_name: e.g. "Stage 01 — Scaffolding & Conventions"
+stage_name: "Stage NN — <name>"
+# status: one of complete | partial | blocked
+status: complete
 date_started: YYYY-MM-DD
 date_completed: YYYY-MM-DD
-session_duration_hours: 0                  # rounded to nearest 0.5
-claude_code_version: ""                    # output of `claude --version`
+# session_duration_hours: rounded to the nearest 0.5
+session_duration_hours: 0
+# claude_code_version: output of `claude --version`
+claude_code_version: ""
 model: <claude model id, e.g. claude-opus-4-8>
-git_sha_start: ""                          # 40-char SHA at session start
-git_sha_end: ""                            # 40-char SHA at session end (post-handoff commit)
+# git_sha_start / git_sha_end: 40-char SHAs (end = the post-handoff commit)
+git_sha_start: ""
+git_sha_end: ""
 stage_tag: v0.0.NN
 next_stage: NN+1
 next_stage_name: "Stage NN+1 — <name>"
