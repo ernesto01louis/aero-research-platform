@@ -91,6 +91,14 @@ jobs:
               # from. Pure numpy least squares -- named so that reaching for scipy.stats
               # here (the obvious next step for confidence intervals) fails loudly.
               "aero.vv.fsi.cost_model",
+              # Stage 21 (ADR-049 H-12): the reportable surface the result crate is built on.
+              # It was never imported here, so nothing fenced it. Named explicitly. The
+              # STRICTER proof -- these load with ONLY stdlib + numpy + pydantic, no loguru,
+              # typer or dvc -- is tests/unit/test_core_import_isolation.py, because this job
+              # installs the base deps and so cannot see a base-dependency leak.
+              "aero.vv.reportable", "aero.vv.reportable_compose",
+              "aero.vv.paired_difference", "aero.vv.statistical_uncertainty",
+              "aero.surrogates._common.certificate",
           ):
               importlib.import_module(mod)
 

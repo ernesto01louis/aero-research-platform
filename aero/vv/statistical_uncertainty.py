@@ -52,6 +52,14 @@ _STRICT = ConfigDict(
     frozen=True,
     str_strip_whitespace=True,
     validate_default=True,
+    # FAIL-LOUD on non-finite floats (Stage 21, ADR-049 H-02): NaN/inf were accepted wherever no
+    # bound blocked them, a NaN delta slipped past the Invariant-10 small-signal gate, and the
+    # default JSON serialization then wrote `null` -- a record that cannot be read back.
+    allow_inf_nan=False,
+    # The one legitimate infinity (crosscheck_ratio when u95_tau == 0) opts back in per field
+    # and serializes as the JSON string "Infinity" -- never `null`, and never the non-standard
+    # bare token -- so a record carrying it round-trips.
+    ser_json_inf_nan="strings",
 )
 
 _EPS = 1.0e-30
@@ -187,7 +195,11 @@ class StatisticalUncertainty(BaseModel):
     )
     n_eff: float = Field(..., gt=0.0, description="Effective sample size N / (2*tau_int).")
     crosscheck_ratio: float = Field(
-        ..., gt=0.0, description="u95_nobm / u95_tau (NOBM vs autocorrelation cross-check)."
+        ...,
+        gt=0.0,
+        allow_inf_nan=True,
+        description="u95_nobm / u95_tau (NOBM vs autocorrelation cross-check); +inf when "
+        "u95_tau == 0 (serialized as the string 'Infinity').",
     )
     reliable: bool = Field(
         ...,
