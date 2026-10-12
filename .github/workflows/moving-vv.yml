@@ -74,9 +74,9 @@ jobs:
     runs-on: [self-hosted, vv]
     timeout-minutes: 600
     env:
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # Secrets are STEP-scoped (Stage 21, ADR-049 H-08): only the steps that talk to
+      # the cluster receive them -- never the install step, which runs third-party
+      # build code, and never a third-party action.
       # This job OWNS the lifetime of every solve it submits: on cancellation or
       # timeout, run_long.sh reaps the detached tmux session instead of leaving
       # it running on the solve host. Without this, a cancelled multi-hour job strands
@@ -89,23 +89,39 @@ jobs:
       # Same drift that let vv-smoke lose its `and not moving` clause for 23 days.
       AERO_SOLVE_HOST: aero-dev
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install aero with the openfoam + provenance + vv extras
         run: |
           uv venv --python 3.12 --clear
           uv pip install -e ".[openfoam,provenance,vv,dev]"
 
       - name: Fetch DVC-tracked V&V assets
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
 
       - name: Run the moving-mesh cases through the Stage-11 driver
         # Sequential and fail-slow: a failure in the first case must not hide the
         # second case's result, because "never ran" and "ran and failed" are
         # different facts in a V&V record. The step still fails if either does.
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+          # The dispatch input is untrusted text: it reaches the shell only through env
+          # and is validated before use (Stage 21, ADR-049 H-09).
+          CASE_INPUT: ${{ github.event.inputs.case }}
         run: |
           set -u
-          CASES="${{ github.event.inputs.case }}"
+          if ! printf '%s' "$CASE_INPUT" | grep -Eq '^[a-z0-9_ ]*$'; then
+            echo "::error::workflow_dispatch input 'case' must match ^[a-z0-9_ ]*\$"
+            exit 2
+          fi
+          CASES="$CASE_INPUT"
           if [ -z "$CASES" ]; then
             CASES="oscillating_cylinder_lockin plunging_airfoil_hg2007"
           fi

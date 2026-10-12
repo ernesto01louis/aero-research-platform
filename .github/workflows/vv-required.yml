@@ -45,9 +45,9 @@ jobs:
     runs-on: [self-hosted, vv]
     timeout-minutes: 60
     env:
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # Secrets are STEP-scoped (Stage 21, ADR-049 H-08): only the steps that talk to
+      # the cluster receive them -- never the install step, which runs third-party
+      # build code, and never a third-party action.
       # This job owns the lifetime of every solve it submits: run_long.sh reaps
       # the detached tmux session on cancellation or timeout instead of leaving
       # it running. Without this, the `cancel-in-progress` group above would strand a
@@ -55,11 +55,12 @@ jobs:
       # in flight, and the next run competes with the last one's corpses.
       AERO_RUN_LONG_REAP: "1"
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Decide whether V&V is relevant to this PR
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         with:
           filters: |
             relevant:
@@ -77,6 +78,10 @@ jobs:
 
       - name: Run the stage-gated V&V suite (single-grid)
         if: steps.filter.outputs.relevant == 'true'
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/pytest -m "vv and slow and not mesh_sweep and not moving" --run-slow -v tests/vv
 
       - name: V&V not relevant — passing trivially
