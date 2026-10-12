@@ -548,8 +548,10 @@ def is_gated_configuration_040(
 
 
 def _repo_root() -> Path:
-    # aero/vv/fsi/hg2007_flexible_foil.py -> repo root.
-    return Path(__file__).resolve().parents[3]
+    # The source checkout's root; fails loudly under a wheel install (ADR-049 H-16).
+    from aero._repo import source_checkout_root
+
+    return source_checkout_root()
 
 
 def _reference_scalar(repo_root: Path, quantity: str) -> float:
