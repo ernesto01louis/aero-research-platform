@@ -121,6 +121,29 @@ The release PR:
 - completes the Stage-21 handoff;
 - authors the Stage-22 prompt.
 
+**Version-string policy.** This is one rule, recorded after an external review flagged
+`pyproject.toml` `0.0.1` and CITATION `0.0.4` as stale against tag `v0.0.20`:
+- **The version is a static string that names the release being prepared.** It changes only in a
+  release PR, and every carrier changes in that one commit:
+  - `pyproject.toml`;
+  - the `uv.lock` root;
+  - `CITATION.cff` (`version` and `date-released`);
+  - the CHANGELOG heading.
+
+  `aero.__version__` reads the installed metadata.
+- **Stage tags (`v0.0.NN`) never bump it.** That is why pyproject read `0.0.1` through Stage 20, and
+  CITATION read `0.0.4`, the last GitHub Release Zenodo archived. At v0.1.0 every carrier becomes
+  `0.1.0`.
+- **Enforcement, with no generator:**
+  - `tests/unit/test_version_single_source.py` checks pyproject == `aero.__version__` == the
+    `uv.lock` root, and CITATION from the bump on;
+  - `scripts/check_release_tag.sh` refuses a `vX.Y.Z` tag unless pyproject, CITATION and the
+    CHANGELOG agree with it;
+  - `release_readiness.py` checks the same, plus `date-released` == the CHANGELOG date.
+- **Rejected: a version generator, or a dynamic VCS version.** It would become a required-check
+  surface coupled to git history, which is the `docs-sync` `fetch-depth: 0` lesson.
+- **The classifier moves too.** `Development Status :: 3 - Alpha` replaces `1 - Planning` (#50).
+
 Then:
 1. The operator tags v0.1.0 at the commit the readiness check names.
 2. `tag-handoff-gate` must go green.
