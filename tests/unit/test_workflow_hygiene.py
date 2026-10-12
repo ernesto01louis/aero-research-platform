@@ -6,7 +6,8 @@ reopening the hole:
 
 * every ``uses:`` is pinned to a full commit SHA with a ``# vX.Y.Z`` comment (mutable tags let an
   upstream re-point what runs, including inside secret-bearing self-hosted jobs);
-* hosted jobs run on ``ubuntu-24.04``, never the moving ``ubuntu-latest`` label;
+* hosted jobs run on a pinned image (``ubuntu-24.04``; ``macos-15`` / ``windows-2025`` for
+  cross-OS legs), never a moving ``*-latest`` label;
 * every workflow declares top-level ``permissions``; every checkout sets
   ``persist-credentials: false``;
 * untrusted event text never reaches a ``run:`` script through ``${{ }}`` interpolation;
@@ -104,14 +105,30 @@ def test_every_action_is_sha_pinned_with_a_version_comment(path: Path) -> None:
         assert re.match(r"#\s*v\d", comment), f"{path.name}:{n} lacks a '# vX.Y.Z' comment"
 
 
+# Pinned images only, never the moving `*-latest` labels (ubuntu-latest moves to Ubuntu 26 from
+# 2026-10-19). macOS and Windows appear only where a cross-OS leg needs them (crate round-trip).
+_HOSTED_IMAGES = {"ubuntu-24.04", "macos-15", "windows-2025"}
+
+
+def _hosted_images(job: dict[str, Any]) -> list[str]:
+    runs_on = job.get("runs-on")
+    if isinstance(runs_on, str) and runs_on.startswith("${{ matrix."):
+        key = runs_on.removeprefix("${{ matrix.").removesuffix("}}").strip()
+        matrix = (job.get("strategy") or {}).get("matrix") or {}
+        values = list(matrix.get(key) or [])
+        values += [i[key] for i in matrix.get("include", []) if key in i]
+        assert values, f"runs-on {runs_on!r} resolves to nothing"
+        return [str(v) for v in values]
+    return [str(runs_on)]
+
+
 @pytest.mark.parametrize("path", WORKFLOW_FILES, ids=lambda p: p.name)
-def test_hosted_jobs_use_a_pinned_ubuntu_image(path: Path, workflows: dict[str, Any]) -> None:
+def test_hosted_jobs_use_a_pinned_image(path: Path, workflows: dict[str, Any]) -> None:
     for job_id, job in workflows[path.name]["jobs"].items():
         if _self_hosted(job):
             continue
-        assert job.get("runs-on") == "ubuntu-24.04", (
-            f"{path.name}:{job_id} runs-on {job.get('runs-on')!r}"
-        )
+        for image in _hosted_images(job):
+            assert image in _HOSTED_IMAGES, f"{path.name}:{job_id} runs-on {image!r}"
 
 
 @pytest.mark.parametrize("path", WORKFLOW_FILES, ids=lambda p: p.name)
