@@ -61,6 +61,14 @@ _STRICT = ConfigDict(
     frozen=True,
     str_strip_whitespace=True,
     validate_default=True,
+    # FAIL-LOUD on non-finite floats (Stage 21, ADR-049 H-02): NaN/inf were accepted wherever no
+    # bound blocked them, a NaN delta slipped past the Invariant-10 small-signal gate, and the
+    # default JSON serialization then wrote `null` -- a record that cannot be read back.
+    allow_inf_nan=False,
+    # A nested model is serialized under the OUTERMOST model's config, so the legitimate
+    # StatisticalUncertainty.crosscheck_ratio = inf inside a ReportableResult would still be
+    # written as `null` unless every enclosing model writes non-finite values as strings.
+    ser_json_inf_nan="strings",
 )
 
 # Consistency tolerance for mean(candidate) - mean(baseline) vs mean(candidate - baseline):
@@ -145,7 +153,10 @@ class PairedDeltaUncertainty(BaseModel):
     @property
     def rss_independent(self) -> float:
         """The no-cancellation reference bar: RSS of the two per-side absolute U95s."""
-        return math.hypot(self.baseline_stat.u95_statistical, self.candidate_stat.u95_statistical)
+        # sqrt(a*a + b*b), not math.hypot: IEEE-exact on every platform (ADR-049 H-03).
+        a = self.baseline_stat.u95_statistical
+        b = self.candidate_stat.u95_statistical
+        return math.sqrt(a * a + b * b)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
