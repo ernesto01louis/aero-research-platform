@@ -92,6 +92,13 @@ jobs:
               "aero.vv.reportable", "aero.vv.reportable_compose",
               "aero.vv.paired_difference", "aero.vv.statistical_uncertainty",
               "aero.surrogates._common.certificate",
+              # Stage 21 (ADR-047): the result-crate package. Every module EXCEPT
+              # aero.crate.__main__ (importing it runs the CLI).
+              "aero.crate", "aero.crate.errors", "aero.crate._canonical",
+              "aero.crate.model_base", "aero.crate.model", "aero.crate.validity",
+              "aero.crate.payload", "aero.crate.members", "aero.crate.projections",
+              "aero.crate.conformance", "aero.crate.rules", "aero.crate.reader",
+              "aero.crate.writer", "aero.crate.sandbox",
           ):
               importlib.import_module(mod)
 
@@ -106,6 +113,9 @@ jobs:
               # solid participant's stack and lives in the SIF's own venv -- it must
               # never be reachable from the platform core.
               "precice", "pyprecice", "nutils",
+              # Stage 21: the RO-Crate / PROV validators are CI-side tools only (ADR-047 D5);
+              # the crate core writes and reads JSON-LD and PROV-JSON with the stdlib.
+              "rocrate", "rocrate_validator", "prov", "rdflib", "pyshacl",
           )
           loaded = sorted(m for m in banned if m in sys.modules)
           if loaded:
