@@ -1,15 +1,15 @@
 """aero — open-source peer-review-grade computational aerodynamics platform.
 
 Per Constitution Invariant 1 (PLATFORM-NOT-HUB), this top-level package
-imports only stdlib + numpy + pydantic. Solver-, ML-, and cloud-specific
-imports are gated behind optional extras (`aero[openfoam]`, `aero[su2]`,
-`aero[pyfr]`, `aero[nekrs]`, `aero[jax-fluids]`, `aero[physicsnemo-cu12]`,
-`aero[precice]`, `aero[gpu-rental]`, `aero[uq]`, `aero[agentic]`,
-`aero[literature]`, `aero[orchestration]`).
+imports only stdlib + numpy + pydantic. Solver-, ML- and cloud-specific
+imports are gated behind optional extras: `cad`, `dev`, `gpu-rental`,
+`jax-fluids`, `nekrs`, `openfoam`, `physicsnemo-cu12`, `precice`,
+`provenance`, `pyfr`, `su2`, `surrogate-smoke`, `vv` (pyproject.toml).
 
-CI job `import-platform-only` (live by Stage 06) verifies that a fresh
-`pip install aero` (no extras) succeeds and that this module imports
-cleanly without any heavy dependency present.
+CI job `import-platform-only` (Stage 06) verifies that an install with no
+extras imports cleanly without any heavy dependency present. Install from a
+clone with `uv sync`, or the wheel attached to a GitHub Release. The PyPI
+name `aero` belongs to an unrelated project.
 """
 
 from __future__ import annotations

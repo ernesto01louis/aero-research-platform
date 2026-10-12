@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a capability. It must pass the SCOPE-GATE.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The platform is an aerodynamic shape optimizer with CFD as ground truth, and flapping-wing
+        aerodynamics is its flagship domain. New solvers, ML or features stay deferred unless they
+        serve one of those two (SCOPE-GATE; CLAUDE.md Hard Rule 17). That rule gates effort, not
+        interface generality: proposals for the general `Solver` / `Surrogate` protocols are welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can you not do today, and what does it block?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: SCOPE-GATE
+      description: How does this serve the optimizer mission or the flapping-wing flagship? If it does not, say so; it may still fit a general protocol.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The change you have in mind, plus its validation. Every physics capability needs at least one experiment- or DNS-anchored check (Hard Rule 15).
+    validations:
+      required: false

@@ -19,8 +19,9 @@ repository. Loaded lazily when a Bash command involves `git commit` /
 **type** ∈ {`feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `ci`, `perf`,
 `style`, `build`}
 
-**scope** is always `stage-NN` (two-digit zero-padded, 01-16). Use the
-current stage from `.aero-stage` at repo root.
+**scope** is always `stage-NN` (two-digit zero-padded). Use the current stage
+from `.aero-stage` at repo root (21 at the v0.1.0 release). Headers are at most
+100 characters (`commit-lint`).
 
 **subject** is imperative, no trailing period, ≤ 72 chars.
 

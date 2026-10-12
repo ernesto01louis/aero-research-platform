@@ -25,8 +25,8 @@ e.g. "feat(stage-03): add OpenFOAM walking-skeleton adapter"
 
 - [ ] `pre-commit run --all-files` green
 - [ ] `pytest -q tests/unit` green
-- [ ] CI workflows green (lint, type, test, docs-sync, commit-lint, plus any
-      stage-specific checks)
+- [ ] Every required check green (`.github/required-checks.json`; a skipped
+      required job is not a pass)
 
 ## Provenance (for runs producing CFD or ML results)
 
@@ -41,9 +41,10 @@ e.g. "feat(stage-03): add OpenFOAM walking-skeleton adapter"
 
 ## Cost projection (for PRs that change CI workflows or cloud-GPU usage)
 
-<!-- For PRs that introduce or modify any tag=production workflow, document
-     the projected $-cost; the `production-budget` CI check (live by Stage 13)
-     greps the PR body for this. Otherwise: "n/a". -->
+<!-- For PRs that introduce or modify any tag=production workflow or cloud-GPU use,
+     document the projected $-cost against the cost cap (Invariant 8; ADR-014). A
+     compute campaign needs its own ADR and the operator's approval before any run.
+     There is no automated budget check; the reviewer reads this. Otherwise: "n/a". -->
 
 ## Checklist
 

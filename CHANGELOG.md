@@ -5,7 +5,31 @@ All notable changes to this project are documented here. Format follows
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 `v0.0.NN` are pre-alpha; v0.1.0 ships after the release stage (21 since the Stage-16 insertion).
 
+## [Unreleased]
+
+Stage 21 (Release: Portable Bundles + Hardening + v0.1.0; ADR-046, release-first) is in progress.
+Its entries are collected under `[0.1.0]` at the release commit.
+
 ## [0.0.20] - 2026-09-20
+
+> **Correction (2026-10-12, Stage 21).** The entry below is kept as written. Two of its
+> statements were overtaken after it was published:
+> - The Stage-20 handoff went `status: complete`, with the NO-GO on infrastructure as its
+>   verdict, and `v0.0.20` was tagged on 2026-10-10 at `bc1384a` (#44). So "the `v0.0.20` tag"
+>   under *Not delivered* and "Stage status stays `partial`" no longer hold.
+> - The *Open for the operator* question was settled by ADR-046 (accepted 2026-10-10): Stage 21
+>   is **release-first** (result crates, hardening, licence scan, JOSS/Zenodo, v0.1.0), and
+>   flexible-flapping optimization is deferred past v0.1.0 (S4/S5).
+>
+> `data/vv/stage20_nogo_infrastructure.json` is unchanged.
+
+### CONSTITUTION (backfilled at Stage 21)
+
+- **Invariant 3's container roster** (ADR-038, accepted 2026-08-06). A run that spans more than
+  one container (a partitioned FSI coupling) records the container of record in
+  `container_sif_sha256` and the full roster in `ProvenanceTuple.containers`, logged as the extra
+  `container_sif_set` tag. The four tags stay always present and in the same shape. The amendment
+  landed in this stage, but its CHANGELOG line was missing.
 
 ### Added — Stage 20 (Flexible Flapping Wing FSI, Heathcote-Gursul) — NO-GO on infrastructure; no gated campaign verdict
 
@@ -233,6 +257,12 @@ reproduced identically.
 - MLflow campaign logging turned ON (Stage-15 ledger item closed).
 
 ## [0.0.16] - 2026-07-15
+
+### CONSTITUTION (backfilled at Stage 21)
+
+- **Invariant 12 — CFD-VERIFIED-OPTIMUM-ONLY ratified** (ADR-027: proposed 2026-07-10, ≥72 h
+  window elapsed 2026-07-13, ratified 2026-07-15, operator-delegated). It promotes CLAUDE.md Hard
+  Rule 14. Its proposal is under `[0.0.15]`; the ratification line was missing here.
 
 ### Added — Stage 16 (Grid-Converged Certification) — HONEST NO-GO by one gate; certification machinery hardened
 
@@ -1031,7 +1061,24 @@ Optimizer-mission refocus continued + the Stage-10 output-validity bar.
   CODEOWNERS 1-approval; `enforce_admins: false` for solo-admin self-merge
 - Post-stage handoff: `docs/handoffs/STAGE-01-scaffolding-and-conventions-DONE-2026-05-17.md`
 
-[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.20...HEAD
+[0.0.20]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.19...v0.0.20
+[0.0.19]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.18...v0.0.19
+[0.0.18]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.17...v0.0.18
+[0.0.17]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.16...v0.0.17
+[0.0.16]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.15...v0.0.16
+[0.0.15]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.14...v0.0.15
+[0.0.14]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.13...v0.0.14
+[0.0.13]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.12...v0.0.13
+[0.0.12]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.11...v0.0.12
+[0.0.11]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.10...v0.0.11
+[0.0.10]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.9...v0.0.10
+[0.0.9]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.8...v0.0.9
+[0.0.8]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.7...v0.0.8
+[0.0.7]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.6...v0.0.7
+[0.0.6]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.4...v0.0.6
+[0.0.5]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.4...v0.0.6 (no v0.0.5 tag was cut; this range covers it)
+[0.0.4]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.3
 [0.0.2]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.2
 [0.0.1]: https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.0.1

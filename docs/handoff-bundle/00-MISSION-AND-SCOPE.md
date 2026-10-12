@@ -158,7 +158,8 @@ The platform's outputs must be citable away from the cluster. Every exported res
 **self-describing bundle**: `CaseSpec` + four-tuple + U95 envelope + validity context (+
 RO-Crate / W3C-PROV alignment). The `aero/` core is already topology-agnostic (no IPs /
 LXC IDs — those live only in `conf/` + docs), so this is about the *artifact format*,
-not de-hardwiring code. *(Stage 20; the **RESULTS-MUST-TRAVEL** rule.)*
+not de-hardwiring code. *(Stage 21, moved from Stage 20 by ADR-046 S1; the
+**RESULTS-MUST-TRAVEL** rule. Delivered as the `aero-result-crate` format, ADR-047.)*
 
 ---
 
@@ -257,12 +258,12 @@ provenance backbone, the conventions, the walking-skeleton discipline, the `Solv
 2. **NO-SURROGATE-ON-FOREIGN-DATA** (Constitution Invariant 11). Surrogates train only on
    the platform's own validated CFD; foreign datasets (automotive/aircraft) cannot
    produce a `validated`/`production` certificate.
-3. **CFD-VERIFIED-OPTIMUM-ONLY** (CLAUDE.md; promotes to Constitution at Stage 15). Every
+3. **CFD-VERIFIED-OPTIMUM-ONLY** (CLAUDE.md; CONSTITUTION Invariant 12, ADR-027, ratified 2026-07-15). Every
    reported optimum is verified by ground-truth CFD; no surrogate-only claims;
    selection-bias-aware best-of-N reporting.
 4. **VALIDATE-AGAINST-EXPERIMENT** (CLAUDE.md). Forward capabilities validate against
    experimental/DNS reference data (§4), not CFD-vs-CFD alone.
-5. **RESULTS-MUST-TRAVEL** (CLAUDE.md; promotes at Stage 20). Every exported result is a
+5. **RESULTS-MUST-TRAVEL** (CLAUDE.md; promotes at Stage 21 per ADR-046 S1, as Invariant 13 via ADR-047). Every exported result is a
    self-describing bundle usable in a thesis without the cluster.
 6. **SCOPE-GATE** (CLAUDE.md). New solvers/ML/agents/features stay deferred unless they
    serve the optimizer mission or the flapping flagship. Gates **effort allocation, not
