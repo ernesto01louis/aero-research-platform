@@ -65,6 +65,10 @@ _STRICT = ConfigDict(
     # bound blocked them, a NaN delta slipped past the Invariant-10 small-signal gate, and the
     # default JSON serialization then wrote `null` -- a record that cannot be read back.
     allow_inf_nan=False,
+    # A nested model is serialized under the OUTERMOST model's config, so the legitimate
+    # StatisticalUncertainty.crosscheck_ratio = inf inside a ReportableResult would still be
+    # written as `null` unless every enclosing model writes non-finite values as strings.
+    ser_json_inf_nan="strings",
 )
 
 # Consistency tolerance for mean(candidate) - mean(baseline) vs mean(candidate - baseline):

@@ -125,6 +125,52 @@ def test_crosscheck_ratio_infinity_round_trips_as_a_string() -> None:
         StatisticalUncertainty(**{**_STAT_KW, "crosscheck_ratio": math.nan})
 
 
+def test_a_nested_crosscheck_infinity_round_trips_inside_a_reportable_result() -> None:
+    # ser_json_inf_nan applies from the OUTERMOST model being serialized: the standalone
+    # StatisticalUncertainty round trip above is not enough on its own.
+    from aero.vv.reportable import ReportableResult
+    from aero.vv.reportable_compose import compose_independent_improvement
+
+    base = StatisticalUncertainty(**{**_STAT_KW, "mean": 28.0})
+    cand = StatisticalUncertainty(
+        **{**_STAT_KW, "mean": 50.0, "crosscheck_ratio": math.inf, "reliable": False}
+    )
+    claim = compose_independent_improvement(
+        quantity="L/D",
+        kind="time_averaged",
+        higher_is_better=True,
+        u95_delta_numerical=1.0,
+        baseline_stat=base,
+        candidate_stat=cand,
+        baseline=28.0,
+        improved=50.0,
+    )
+    result = ReportableResult(
+        case_name="nested_inf",
+        quantities=(
+            ReportableQuantity(
+                name="L/D",
+                value=50.0,
+                kind="time_averaged",
+                u95_numerical=1.0,
+                u95_statistical=0.03,
+            ),
+        ),
+        provenance=ProvenanceTuple(
+            git_sha="a" * 40,
+            dvc_input_hash="b" * 64,
+            container_sif_sha256="c" * 64,
+            config_hash="d" * 64,
+        ),
+        improvement=claim,
+        validation_tag="validated",
+    )
+    text = result.model_dump_json(round_trip=True)
+    assert '"crosscheck_ratio":"Infinity"' in text
+    assert '"crosscheck_ratio":null' not in text
+    assert ReportableResult.model_validate_json(text) == result
+
+
 def test_rss_is_ieee_exact_and_left_to_right() -> None:
     rng = random.Random(20261012)
     for _ in range(20_000):
