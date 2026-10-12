@@ -1,0 +1,361 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.3/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.3"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "author": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "citation": {
+        "@id": "https://doi.org/10.5281/zenodo.20292712"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/process/0.6"
+        },
+        {
+          "@id": "#aero-result-crate-format-1"
+        }
+      ],
+      "datePublished": "2026-10-12",
+      "description": "The flagship flapping-wing forward capability. The rotation-timing ordering is reproduced as a pre-registered, NON-gated diagnostic; the gated mean lift is a documented NO-GO. Evidence only: provenance was never recorded, so no claim.",
+      "hasPart": [
+        {
+          "@id": "SHA256SUMS"
+        },
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "evidence/stage14-preregistration.md"
+        },
+        {
+          "@id": "evidence/stage14_flapping_nogo.json"
+        },
+        {
+          "@id": "prov.json"
+        }
+      ],
+      "identifier": "stage14-rigid-flapping-wbd2004",
+      "license": {
+        "@id": "https://spdx.org/licenses/CC-BY-4.0"
+      },
+      "mentions": [
+        {
+          "@id": "#218d2760-2417-4b04-847f-0138a06142ab"
+        },
+        {
+          "@id": "#3dfbd103-c94b-43ab-9efd-420de48b3e5b"
+        },
+        {
+          "@id": "#c284e0ea-fc47-4ed3-af49-563d44ba5eb8"
+        },
+        {
+          "@id": "#export"
+        },
+        {
+          "@id": "#gate-forward-validation-advanced-mean-lift-rel-err"
+        },
+        {
+          "@id": "#gate-forward-validation-delayed-mean-lift-rel-err"
+        },
+        {
+          "@id": "#gate-forward-validation-rotation-timing-ordering"
+        },
+        {
+          "@id": "#gate-forward-validation-symmetrical-mean-lift-within-band"
+        },
+        {
+          "@id": "#limitation-attribution-leading-hypothesis"
+        },
+        {
+          "@id": "#limitation-diagnostic-not-gate"
+        },
+        {
+          "@id": "#limitation-no-claim"
+        },
+        {
+          "@id": "#limitation-nogo"
+        },
+        {
+          "@id": "#limitation-provenance-unavailable"
+        }
+      ],
+      "name": "Stage 14: rigid flapping wing vs Wang-Birch-Dickinson 2004 (evidence only)"
+    },
+    {
+      "@id": "#218d2760-2417-4b04-847f-0138a06142ab",
+      "@type": [
+        "Action",
+        "prov:Activity"
+      ],
+      "actionStatus": "http://schema.org/CompletedActionStatus",
+      "description": "advanced rotation timing, 23 stroke cycles (roles: forward-validation)",
+      "disambiguatingDescription": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+      "name": "flapping_wing_wbd2004_advanced"
+    },
+    {
+      "@id": "#3dfbd103-c94b-43ab-9efd-420de48b3e5b",
+      "@type": [
+        "Action",
+        "prov:Activity"
+      ],
+      "actionStatus": "http://schema.org/CompletedActionStatus",
+      "description": "symmetrical rotation timing, 22 stroke cycles (roles: forward-validation)",
+      "disambiguatingDescription": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+      "name": "flapping_wing_wbd2004_symmetrical"
+    },
+    {
+      "@id": "#aero-crate-writer",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "name": "aero.crate writer",
+      "softwareVersion": "format-1",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md"
+    },
+    {
+      "@id": "#aero-result-crate-format-1",
+      "@type": "CreativeWork",
+      "name": "aero-result-crate format 1 (ADR-047)",
+      "version": "1"
+    },
+    {
+      "@id": "#c284e0ea-fc47-4ed3-af49-563d44ba5eb8",
+      "@type": [
+        "Action",
+        "prov:Activity"
+      ],
+      "actionStatus": "http://schema.org/CompletedActionStatus",
+      "description": "delayed rotation timing, 19 stroke cycles (roles: forward-validation)",
+      "disambiguatingDescription": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+      "name": "flapping_wing_wbd2004_delayed"
+    },
+    {
+      "@id": "#creator-1",
+      "@type": [
+        "Person",
+        "prov:Person"
+      ],
+      "name": "Louis Ernesto Schulte Moredo"
+    },
+    {
+      "@id": "#export",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "agent": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "description": "Export of this result crate from the committed records it cites",
+      "endTime": "2026-10-12",
+      "instrument": {
+        "@id": "#aero-crate-writer"
+      },
+      "name": "aero result crate export",
+      "object": [
+        {
+          "@id": "evidence/stage14-preregistration.md"
+        },
+        {
+          "@id": "evidence/stage14_flapping_nogo.json"
+        }
+      ],
+      "prov:generated": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "evidence/stage14-preregistration.md"
+        },
+        {
+          "@id": "evidence/stage14_flapping_nogo.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#aero-crate-writer"
+        },
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "result": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        }
+      ]
+    },
+    {
+      "@id": "#gate-forward-validation-advanced-mean-lift-rel-err",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); forward-validation NO-GO; passed=false; advanced mean C_L vs experiment 0.93 within 25 % (reported, never gated)",
+      "maxValue": 0.25,
+      "name": "advanced-mean-lift-rel-err",
+      "value": 0.38
+    },
+    {
+      "@id": "#gate-forward-validation-delayed-mean-lift-rel-err",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); forward-validation NO-GO; passed=false; delayed mean C_L vs experiment 0.38 within 25 % (reported, never gated; a documented 2-D limitation)",
+      "maxValue": 0.25,
+      "name": "delayed-mean-lift-rel-err",
+      "value": 0.639
+    },
+    {
+      "@id": "#gate-forward-validation-rotation-timing-ordering",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); forward-validation NO-GO; passed=true; advanced > symmetrical > delayed mean lift (reported, NEVER gated)",
+      "name": "rotation-timing-ordering",
+      "value": true
+    },
+    {
+      "@id": "#gate-forward-validation-symmetrical-mean-lift-within-band",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); forward-validation NO-GO; passed=false; symmetrical stroke-averaged mean C_L within +-25 % of the WBD (2004) experiment (0.86); band pre-registered, NOT relaxed",
+      "maxValue": 0.25,
+      "name": "symmetrical-mean-lift-within-band",
+      "value": 0.457
+    },
+    {
+      "@id": "#limitation-attribution-leading-hypothesis",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/handoffs/STAGE-14-rigid-flapping-wing-DONE-2026-07-10.md",
+      "name": "attribution-leading-hypothesis",
+      "text": "The record's root_cause names overset wake-capture dissipation. The Stage-14 handoff states that attribution as the leading hypothesis: it could not be isolated against a body-fitted run at this amplitude."
+    },
+    {
+      "@id": "#limitation-diagnostic-not-gate",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/vv/stage14-preregistration.md",
+      "name": "diagnostic-not-gate",
+      "text": "## Diagnostics (reported, NEVER gated)\n\n- **Advanced** (`+45\u00b0`) mean C_L vs experiment 0.93, and **delayed** (`\u221245\u00b0`) vs 0.38 \u2014 reported;\n  delayed is a documented 2-D limitation, not a pass/fail.\n- The **advanced > symmetrical > delayed** mean-lift ordering (the Dickinson 1999 rotation-timing\n  signature) \u2014 strong corroborating evidence at zero extra machinery."
+    },
+    {
+      "@id": "#limitation-no-claim",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage14_flapping_nogo.json",
+      "name": "no-claim",
+      "text": "Evidence only, no claim: no four-tuple, U95 or config hash was recorded for these runs, so they cannot carry a validation tier. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+    },
+    {
+      "@id": "#limitation-nogo",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/handoffs/STAGE-14-rigid-flapping-wing-DONE-2026-07-10.md",
+      "name": "nogo",
+      "text": "NO-GO on the gated quantity: the symmetrical stroke-averaged mean lift misses the WBD (2004) experiment by 45.7 % against a pre-registered +-25 % band; the band was not relaxed."
+    },
+    {
+      "@id": "#limitation-provenance-unavailable",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage14_flapping_nogo.json",
+      "name": "provenance-unavailable",
+      "text": "No run of this crate has a recorded four-tuple (git SHA, DVC input hash, container digest, config hash). The code is identified only as the v0.0.14 tag."
+    },
+    {
+      "@id": "SHA256SUMS",
+      "@type": "File",
+      "description": "coreutils `sha256sum -c` manifest of every other member; the crate digest is the sha256 of this file",
+      "encodingFormat": "text/plain"
+    },
+    {
+      "@id": "aero-crate.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "10870",
+      "description": "The typed crate envelope (aero-result-crate format 1, ADR-047)",
+      "encodingFormat": "application/json",
+      "sha256": "136d2e4d07a2fdb65dcde6a447a3e78cb5a2af9e0d47f61f07034150168e7af7"
+    },
+    {
+      "@id": "evidence/stage14-preregistration.md",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "4846",
+      "description": "the gate pre-registration",
+      "encodingFormat": "text/markdown",
+      "sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a"
+    },
+    {
+      "@id": "evidence/stage14_flapping_nogo.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "964",
+      "description": "the committed NO-GO verdict record",
+      "encodingFormat": "application/json",
+      "sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025"
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20292712",
+      "@type": "SoftwareSourceCode",
+      "codeRepository": "https://github.com/ernesto01louis/aero-research-platform",
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform"
+    },
+    {
+      "@id": "https://spdx.org/licenses/CC-BY-4.0",
+      "@type": "CreativeWork",
+      "identifier": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International"
+    },
+    {
+      "@id": "https://spdx.org/licenses/GPL-3.0-or-later",
+      "@type": "CreativeWork",
+      "identifier": "GPL-3.0-or-later",
+      "name": "GNU General Public License v3.0 or later"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/process/0.6",
+      "@type": "CreativeWork",
+      "name": "Process Run Crate",
+      "version": "0.6"
+    },
+    {
+      "@id": "prov.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "3216",
+      "description": "W3C PROV-JSON projection of this crate's provenance graph",
+      "encodingFormat": "application/json",
+      "sha256": "da43ebcca9a081fc7f36e20c2356c09db6102e318e8b230ec0cccb870ff91555"
+    }
+  ]
+}

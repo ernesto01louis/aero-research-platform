@@ -1,0 +1,738 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.3/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.3"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "author": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "citation": {
+        "@id": "https://doi.org/10.5281/zenodo.20292712"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/process/0.6"
+        },
+        {
+          "@id": "#aero-result-crate-format-1"
+        }
+      ],
+      "datePublished": "2026-10-12",
+      "description": "A surrogate-proposed, CFD-verified airfoil optimum: L/D 46.372 vs baseline 21.674, delta 24.70 > 2 x U95_delta = 4.15 (2-grid GCI), capped at validated. Certificate promoted to validated; the speed-up is a degenerate NO-GO. Airfoil only.",
+      "hasPart": [
+        {
+          "@id": "SHA256SUMS"
+        },
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json"
+        },
+        {
+          "@id": "evidence/corpus.json"
+        },
+        {
+          "@id": "evidence/stage17_arm_surrogate_explore.json"
+        },
+        {
+          "@id": "evidence/stage17_optimization.json"
+        },
+        {
+          "@id": "evidence/stage17_speedup.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert_v2_refused.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "identifier": "stage17-surrogate-accelerated-optimization",
+      "license": {
+        "@id": "https://spdx.org/licenses/CC-BY-4.0"
+      },
+      "mainEntity": {
+        "@id": "result.json"
+      },
+      "mentions": [
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc"
+        },
+        {
+          "@id": "#export"
+        },
+        {
+          "@id": "#gate-optimization-claim-delta-exceeds-k-u95"
+        },
+        {
+          "@id": "#gate-optimization-claim-held-out-is-same-grid-re-solve"
+        },
+        {
+          "@id": "#gate-optimization-claim-margin-over-corpus-best-exceeds-u95"
+        },
+        {
+          "@id": "#gate-optimization-claim-proposer-certificate-coverage-in-band"
+        },
+        {
+          "@id": "#gate-optimization-claim-proposer-certificate-p95-within-bar"
+        },
+        {
+          "@id": "#gate-speed-up-genuine-wins-in-2-of-3-seeds"
+        },
+        {
+          "@id": "#gate-speed-up-literal-marginal-wins"
+        },
+        {
+          "@id": "#gate-surrogate-certificate-c1-coverage-in-band"
+        },
+        {
+          "@id": "#gate-surrogate-certificate-c2-p95-within-bar"
+        },
+        {
+          "@id": "#limitation-certificate-data-gate-content-blind"
+        },
+        {
+          "@id": "#limitation-certificate-expiry"
+        },
+        {
+          "@id": "#limitation-container-digest-by-lookup"
+        },
+        {
+          "@id": "#limitation-diagnostic-not-gate"
+        },
+        {
+          "@id": "#limitation-dvc-input-hash-sync-state"
+        },
+        {
+          "@id": "#limitation-held-out-is-same-grid-re-solve"
+        },
+        {
+          "@id": "#limitation-input-uq-skipped"
+        },
+        {
+          "@id": "#limitation-margin-inside-u95"
+        },
+        {
+          "@id": "#limitation-no-experiment-anchor"
+        },
+        {
+          "@id": "#limitation-nogo"
+        },
+        {
+          "@id": "#limitation-not-flagship-domain"
+        },
+        {
+          "@id": "#limitation-recorded-not-re-derivable"
+        },
+        {
+          "@id": "#limitation-speedup-nogo"
+        },
+        {
+          "@id": "#limitation-surrogate-proposals-smoke-tier"
+        },
+        {
+          "@id": "#limitation-tier-capped"
+        }
+      ],
+      "name": "Stage 17: surrogate-accelerated airfoil optimization (validated, airfoil only)"
+    },
+    {
+      "@id": "#aero-crate-writer",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "name": "aero.crate writer",
+      "softwareVersion": "format-1",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md"
+    },
+    {
+      "@id": "#aero-result-crate-format-1",
+      "@type": "CreativeWork",
+      "name": "aero-result-crate format 1 (ADR-047)",
+      "version": "1"
+    },
+    {
+      "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "@type": "ContainerImage",
+      "additionalType": {
+        "@id": "https://w3id.org/ro/terms/workflow-run#SIFImage"
+      },
+      "name": "openfoam-esi.sif",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#creator-1",
+      "@type": [
+        "Person",
+        "prov:Person"
+      ],
+      "name": "Louis Ernesto Schulte Moredo"
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "CFD verification of the surrogate-proposed optimum (fine grid) (roles: record-of-provenance, cfd-verification)",
+      "instrument": {
+        "@id": "#software-30595a39371dc6a29bf89e09b3f166714a34d134"
+      },
+      "name": "s17v_opt_fine",
+      "object": [
+        {
+          "@id": "configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-git_sha"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-dvc_input_hash"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-container_sif_sha256"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-30595a39371dc6a29bf89e09b3f166714a34d134"
+        }
+      ],
+      "result": [
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-value"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_numerical"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_statistical"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_input"
+        },
+        {
+          "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_total"
+        }
+      ]
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "30595a39371dc6a29bf89e09b3f166714a34d134"
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_input",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag.u95_numerical",
+      "value": 7.033600211508836
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag.u95_statistical",
+      "value": 0.0
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-u95_total",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag.u95_total",
+      "value": 7.033600211508836
+    },
+    {
+      "@id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc-q0-value",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag.value",
+      "value": 46.37208685252852
+    },
+    {
+      "@id": "#export",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "agent": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "description": "Export of this result crate from the committed records it cites",
+      "endTime": "2026-10-12",
+      "instrument": {
+        "@id": "#aero-crate-writer"
+      },
+      "name": "aero result crate export",
+      "object": [
+        {
+          "@id": "evidence/corpus.json"
+        },
+        {
+          "@id": "evidence/stage17_arm_surrogate_explore.json"
+        },
+        {
+          "@id": "evidence/stage17_optimization.json"
+        },
+        {
+          "@id": "evidence/stage17_speedup.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert_v2_refused.json"
+        }
+      ],
+      "prov:generated": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "evidence/corpus.json"
+        },
+        {
+          "@id": "evidence/stage17_arm_surrogate_explore.json"
+        },
+        {
+          "@id": "evidence/stage17_optimization.json"
+        },
+        {
+          "@id": "evidence/stage17_speedup.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert.json"
+        },
+        {
+          "@id": "evidence/stage17_surrogate_cert_v2_refused.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#aero-crate-writer"
+        },
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "result": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ]
+    },
+    {
+      "@id": "#gate-optimization-claim-delta-exceeds-k-u95",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); optimization-claim GO; passed=true; CFD-verified delta vs the baseline > k * U95_delta, k = 2 (2-grid GCI)",
+      "minValue": 4.15005727858274,
+      "name": "delta-exceeds-k-u95",
+      "value": 24.6980545297548
+    },
+    {
+      "@id": "#gate-optimization-claim-held-out-is-same-grid-re-solve",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim GO; passed=true; the held-out verification is a deterministic same-grid re-solve that reproduces the loop's value bit for bit (reported)",
+      "name": "held-out-is-same-grid-re-solve",
+      "value": true
+    },
+    {
+      "@id": "#gate-optimization-claim-margin-over-corpus-best-exceeds-u95",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim GO; passed=false; reported L/D minus the corpus best (46.336921044931366, the best of the 42 corpus solves) > the quantity's U95 (reported)",
+      "minValue": 7.033600211508836,
+      "name": "margin-over-corpus-best-exceeds-u95",
+      "value": 0.03516580759715282
+    },
+    {
+      "@id": "#gate-optimization-claim-proposer-certificate-coverage-in-band",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim GO; passed=false; the in-loop ensemble that proposed the optimum, judged by C1: empirical +-2 std coverage in [0.85, 1.0] (reported; smoke tier by design)",
+      "maxValue": 1.0,
+      "minValue": 0.85,
+      "name": "proposer-certificate-coverage-in-band",
+      "value": 0.75
+    },
+    {
+      "@id": "#gate-optimization-claim-proposer-certificate-p95-within-bar",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim GO; passed=false; the in-loop ensemble that proposed the optimum, judged by C2: held-out |L/D error| p95 <= 2.5 (reported; it was smoke tier by design)",
+      "maxValue": 2.5,
+      "name": "proposer-certificate-p95-within-bar",
+      "value": 8.212365396297887
+    },
+    {
+      "@id": "#gate-speed-up-genuine-wins-in-2-of-3-seeds",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); speed-up NO-GO; passed=false; S6 as the record applies it: the surrogate arm wins a seed only if it searched (>= 1 marginal eval) AND used fewer marginal evals than direct-CFD BO; GO needs >= 2 of 3 seeds",
+      "minValue": 2.0,
+      "name": "genuine-wins-in-2-of-3-seeds",
+      "value": 0.0
+    },
+    {
+      "@id": "#gate-speed-up-literal-marginal-wins",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); speed-up NO-GO; passed=true; literal S6 count, fewer marginal evals in >= 2 of 3 seeds (reported: the surrogate arm spent 0 marginal evals in every seed because the corpus already held the bar, so this count is degenerate)",
+      "minValue": 2.0,
+      "name": "literal-marginal-wins",
+      "value": 3.0
+    },
+    {
+      "@id": "#gate-surrogate-certificate-c1-coverage-in-band",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); surrogate-certificate GO; passed=true; C1 empirical +-2 std coverage in [0.85, 1.0] (seeded 25 % held-out split)",
+      "maxValue": 1.0,
+      "minValue": 0.85,
+      "name": "c1-coverage-in-band",
+      "value": 0.9
+    },
+    {
+      "@id": "#gate-surrogate-certificate-c2-p95-within-bar",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); surrogate-certificate GO; passed=true; C2 held-out |L/D error| p95 <= 2.5",
+      "maxValue": 2.5,
+      "name": "c2-p95-within-bar",
+      "value": 1.3119185403823792
+    },
+    {
+      "@id": "#limitation-certificate-data-gate-content-blind",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_surrogate_cert.json",
+      "name": "certificate-data-gate-content-blind",
+      "text": "The certificate's training_dataset_dvc_hash is sha256('{}'), the in-sync DVC status digest, not a content hash. This crate carries corpus.json itself and its md5."
+    },
+    {
+      "@id": "#limitation-certificate-expiry",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_surrogate_cert.json",
+      "name": "certificate-expiry",
+      "text": "The validated surrogate certificate expires 2027-01-20T12:31:12.529036Z."
+    },
+    {
+      "@id": "#limitation-container-digest-by-lookup",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "container-digest-by-lookup",
+      "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+    },
+    {
+      "@id": "#limitation-diagnostic-not-gate",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_optimization.json",
+      "name": "diagnostic-not-gate",
+      "text": "Gates marked gated decided the verdicts. The rest are reported diagnostics, including the margin over the corpus best and the proposer's certificate."
+    },
+    {
+      "@id": "#limitation-dvc-input-hash-sync-state",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "dvc-input-hash-sync-state",
+      "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+    },
+    {
+      "@id": "#limitation-held-out-is-same-grid-re-solve",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_speedup.json",
+      "name": "held-out-is-same-grid-re-solve",
+      "text": "'Held out' means a deterministic same-grid re-solve that reproduces the loop's value bit for bit. It re-confirms the value; it adds no resolution."
+    },
+    {
+      "@id": "#limitation-input-uq-skipped",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/vv/reportable.py",
+      "name": "input-uq-skipped",
+      "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+    },
+    {
+      "@id": "#limitation-margin-inside-u95",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_optimization.json",
+      "name": "margin-inside-u95",
+      "text": "46.372 exceeds the corpus best 46.337 by 0.035, far inside the quantity's U95 of 7.03, and is not claimed. The claim that clears 2 x U95 is against the BASELINE."
+    },
+    {
+      "@id": "#limitation-no-experiment-anchor",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_optimization.json",
+      "name": "no-experiment-anchor",
+      "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+    },
+    {
+      "@id": "#limitation-nogo",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_speedup.json",
+      "name": "nogo",
+      "text": "The pre-registered speed-up is a DEGENERATE NO-GO: the 42-solve corpus already held 5 designs past the bar, so the surrogate arm performed no marginal search."
+    },
+    {
+      "@id": "#limitation-not-flagship-domain",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+      "name": "not-flagship-domain",
+      "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+    },
+    {
+      "@id": "#limitation-recorded-not-re-derivable",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_optimization.json",
+      "name": "recorded-not-re-derivable",
+      "text": "u95_delta = 2.075 comes from 2-grid solves (s17v_base_coarse, s17v_opt_coarse) whose values and the baseline's four-tuple were not committed: recorded, not re-derivable."
+    },
+    {
+      "@id": "#limitation-speedup-nogo",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_speedup.json",
+      "name": "speedup-nogo",
+      "text": "No genuine single-run acceleration is demonstrated; fall back to direct-CFD BO (S7)."
+    },
+    {
+      "@id": "#limitation-surrogate-proposals-smoke-tier",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_arm_surrogate_explore.json",
+      "name": "surrogate-proposals-smoke-tier",
+      "text": "The loop's proposals came from smoke-tier, in-loop retrained ensembles, by design (ADR-032): the proposing iteration's certificate had held-out p95 8.21 and coverage 0.75. Every proposal was CFD-verified. The validated certificate is a separate fit."
+    },
+    {
+      "@id": "#limitation-tier-capped",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage17_speedup.json",
+      "name": "tier-capped",
+      "text": "2-grid fallback GCI reached thesis-grade, but Stage-16 3-grid analysis found sub-first-order convergence (order 0.465 < 0.5); capped at validated (ADR-031/032). Thesis-grade rests on the ledgered 393^2 rung."
+    },
+    {
+      "@id": "#software-30595a39371dc6a29bf89e09b3f166714a34d134",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "softwareVersion": "30595a39371dc6a29bf89e09b3f166714a34d134",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/30595a39371dc6a29bf89e09b3f166714a34d134"
+    },
+    {
+      "@id": "SHA256SUMS",
+      "@type": "File",
+      "description": "coreutils `sha256sum -c` manifest of every other member; the crate digest is the sha256 of this file",
+      "encodingFormat": "text/plain"
+    },
+    {
+      "@id": "aero-crate.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "21737",
+      "description": "The typed crate envelope (aero-result-crate format 1, ADR-047)",
+      "encodingFormat": "application/json",
+      "sha256": "38a233cc9598fde3db9755c221635df73cb7d2d6c8407e94e44dfb354aa9eafc"
+    },
+    {
+      "@id": "configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "515",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
+    },
+    {
+      "@id": "evidence/corpus.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "34019",
+      "description": "the 42-solve training corpus (DVC md5 8f8d2648945180ed3f0700cb557a9149)",
+      "encodingFormat": "application/json",
+      "sha256": "c8a1a762ced683ca06dcb56b315238fbda459c052f720a664651f25991712734"
+    },
+    {
+      "@id": "evidence/stage17_arm_surrogate_explore.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "27971",
+      "description": "the exploratory loop (16 CFD evals)",
+      "encodingFormat": "application/json",
+      "sha256": "e2e4d0fe500c4dc14c00edb85b34031b3f451102da46d2d4e55fd50bbf340610"
+    },
+    {
+      "@id": "evidence/stage17_optimization.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "2086",
+      "description": "the committed record",
+      "encodingFormat": "application/json",
+      "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+    },
+    {
+      "@id": "evidence/stage17_speedup.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "2536",
+      "description": "the speed-up verdict and the V1/V2 verification",
+      "encodingFormat": "application/json",
+      "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+    },
+    {
+      "@id": "evidence/stage17_surrogate_cert.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "2053",
+      "description": "the validated certificate and its C1/C2 gates",
+      "encodingFormat": "application/json",
+      "sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f"
+    },
+    {
+      "@id": "evidence/stage17_surrogate_cert_v2_refused.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "2284",
+      "description": "the refused v2 re-certification",
+      "encodingFormat": "application/json",
+      "sha256": "5f7ec3a5ceda624044557c663a529955a52c930153e0782658a6578024a3abdd"
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20292712",
+      "@type": "SoftwareSourceCode",
+      "codeRepository": "https://github.com/ernesto01louis/aero-research-platform",
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform"
+    },
+    {
+      "@id": "https://spdx.org/licenses/CC-BY-4.0",
+      "@type": "CreativeWork",
+      "identifier": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International"
+    },
+    {
+      "@id": "https://spdx.org/licenses/GPL-3.0-or-later",
+      "@type": "CreativeWork",
+      "identifier": "GPL-3.0-or-later",
+      "name": "GNU General Public License v3.0 or later"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/process/0.6",
+      "@type": "CreativeWork",
+      "name": "Process Run Crate",
+      "version": "0.6"
+    },
+    {
+      "@id": "prov.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "5305",
+      "description": "W3C PROV-JSON projection of this crate's provenance graph",
+      "encodingFormat": "application/json",
+      "sha256": "c6f4587b6a5e8fc36e87201602d591ff92b8e0b1d0c2549ab904c738b90dd6e0"
+    },
+    {
+      "@id": "result.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "2132",
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "encodingFormat": "application/json",
+      "sha256": "249eda405deff73de5365bf5d8982c1dbaaf8f517eea74175d6935d60b973b09"
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "activity": {
+    "crate:ec4b5cc6-49fa-4a45-86d9-906498d28f33": {
+      "prov:label": "oscillating_cylinder_lockin"
+    },
+    "crate:export": {
+      "prov:endTime": "2026-10-12T00:00:00Z",
+      "prov:label": "aero result crate export"
+    }
+  },
+  "agent": {
+    "crate:aero-crate-writer": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "format-1"
+    },
+    "crate:creator-1": {
+      "prov:type": {
+        "$": "prov:Person",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:name": "Louis Ernesto Schulte Moredo"
+    },
+    "crate:software-a5c759a252cf654a884a9f539348d04b8b59d655": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "a5c759a252cf654a884a9f539348d04b8b59d655"
+    }
+  },
+  "entity": {
+    "crate:aero-crate.json": {
+      "schema:contentSize": 7574,
+      "schema:sha256": "b0377f5d6e220bb1a95656cb75f131cb0518d49228aaa4b99d3d5fd4bc551465"
+    },
+    "crate:configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json": {
+      "schema:contentSize": 437,
+      "schema:sha256": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92"
+    },
+    "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c": {
+      "schema:sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "crate:evidence/stage12_cylinder_gci.json": {
+      "schema:contentSize": 668,
+      "schema:sha256": "7e6191f47bdd4a21c9cf0a1cbe926be95b44a4bdbfef835ec70310d6f8413c04"
+    },
+    "crate:evidence/stage12_reportable_oscillating_cylinder_lockin.json": {
+      "schema:contentSize": 1114,
+      "schema:sha256": "d6bfdd7d297d331faff10ad04a7c7002404037d1582547ed93c2fbc5034a6a3e"
+    },
+    "crate:prov.json": {
+      "prov:label": "this PROV-JSON document"
+    },
+    "crate:result.json": {
+      "schema:contentSize": 1172,
+      "schema:sha256": "81b9e6f6cc7ade772f7b9530415440decb3b7b8b3dcaeb552c77abec8ece213d"
+    }
+  },
+  "prefix": {
+    "crate": "arcp://name,stage12-oscillating-cylinder-lockin/",
+    "schema": "http://schema.org/"
+  },
+  "used": {
+    "_:u1": {
+      "prov:activity": "crate:ec4b5cc6-49fa-4a45-86d9-906498d28f33",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u2": {
+      "prov:activity": "crate:ec4b5cc6-49fa-4a45-86d9-906498d28f33",
+      "prov:entity": "crate:configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json"
+    },
+    "_:u3": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage12_cylinder_gci.json"
+    },
+    "_:u4": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage12_reportable_oscillating_cylinder_lockin.json"
+    }
+  },
+  "wasAssociatedWith": {
+    "_:w1": {
+      "prov:activity": "crate:ec4b5cc6-49fa-4a45-86d9-906498d28f33",
+      "prov:agent": "crate:software-a5c759a252cf654a884a9f539348d04b8b59d655"
+    },
+    "_:w2": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:aero-crate-writer"
+    },
+    "_:w3": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:creator-1"
+    }
+  },
+  "wasAttributedTo": {
+    "_:t1": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:t2": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:t3": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:result.json"
+    }
+  },
+  "wasDerivedFrom": {
+    "_:d1": {
+      "prov:generatedEntity": "crate:result.json",
+      "prov:usedEntity": "crate:evidence/stage12_reportable_oscillating_cylinder_lockin.json"
+    }
+  },
+  "wasGeneratedBy": {
+    "_:g1": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:g2": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:g3": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:result.json"
+    }
+  }
+}

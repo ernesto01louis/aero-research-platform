@@ -100,6 +100,8 @@ def build_crate(spec: CrateSpec) -> dict[str, bytes]:
         data = canonical_config_bytes(cfg)
         digest = sha256_hex(data)
         path = f"configs/{digest}.json"
+        if path in payload:  # two runs with the same resolved config share one preimage
+            continue
         payload[path] = data
         desc = spec.config_descriptions.get(
             digest, "Exact as-hashed config preimage: sha256(this file) == the run's config_hash"

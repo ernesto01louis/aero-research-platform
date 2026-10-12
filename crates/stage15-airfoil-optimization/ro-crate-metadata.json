@@ -1,0 +1,1103 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.3/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.3"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "author": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "citation": {
+        "@id": "https://doi.org/10.5281/zenodo.20292712"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/process/0.6"
+        },
+        {
+          "@id": "#aero-result-crate-format-1"
+        }
+      ],
+      "datePublished": "2026-10-12",
+      "description": "Direct-CFD Bayesian optimization of a NACA-4 camber line for L/D at Re 5e5, AoA 4 deg, re-verified on a 3-grid family. NO-GO: the matched delta is not significant. validated tier, airfoil only.",
+      "hasPart": [
+        {
+          "@id": "SHA256SUMS"
+        },
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json"
+        },
+        {
+          "@id": "configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json"
+        },
+        {
+          "@id": "configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json"
+        },
+        {
+          "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+        },
+        {
+          "@id": "configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json"
+        },
+        {
+          "@id": "configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json"
+        },
+        {
+          "@id": "evidence/stage15_grid_convergence.json"
+        },
+        {
+          "@id": "evidence/stage15_optimization.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "identifier": "stage15-airfoil-optimization",
+      "license": {
+        "@id": "https://spdx.org/licenses/CC-BY-4.0"
+      },
+      "mainEntity": {
+        "@id": "result.json"
+      },
+      "mentions": [
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d"
+        },
+        {
+          "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06"
+        },
+        {
+          "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626"
+        },
+        {
+          "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416"
+        },
+        {
+          "@id": "#61422044-817d-4276-a9a5-1063e60fefea"
+        },
+        {
+          "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556"
+        },
+        {
+          "@id": "#da062081-1073-4459-8102-c352dd344cda"
+        },
+        {
+          "@id": "#export"
+        },
+        {
+          "@id": "#gate-optimization-claim-all-solves-converged"
+        },
+        {
+          "@id": "#gate-optimization-claim-delta-exceeds-k-u95"
+        },
+        {
+          "@id": "#gate-optimization-claim-delta-exceeds-own-u95"
+        },
+        {
+          "@id": "#gate-optimization-claim-observed-order-in-asymptotic-range"
+        },
+        {
+          "@id": "#limitation-container-digest-by-lookup"
+        },
+        {
+          "@id": "#limitation-diagnostic-not-gate"
+        },
+        {
+          "@id": "#limitation-dvc-input-hash-sync-state"
+        },
+        {
+          "@id": "#limitation-input-uq-skipped"
+        },
+        {
+          "@id": "#limitation-no-experiment-anchor"
+        },
+        {
+          "@id": "#limitation-nogo"
+        },
+        {
+          "@id": "#limitation-not-flagship-domain"
+        },
+        {
+          "@id": "#limitation-retracted-claim"
+        }
+      ],
+      "name": "Stage 15: CFD-in-the-loop airfoil optimization (NO-GO, delta inside its U95)"
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "held-out re-verification of the optimum on the finest grid (roles: record-of-provenance)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_optimum_fine-heldout",
+      "object": [
+        {
+          "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-git_sha"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-dvc_input_hash"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-container_sif_sha256"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ],
+      "result": [
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-value"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_numerical"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_statistical"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_input"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_total"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-value"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_numerical"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_statistical"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_input"
+        },
+        {
+          "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_total"
+        }
+      ]
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514"
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_input",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_numerical",
+      "value": 0.6878259062492639
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_statistical",
+      "value": 0.0
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-u95_total",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_total",
+      "value": 0.6878259062492639
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q0-value",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.value",
+      "value": 21.67403232277372
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_input",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_numerical",
+      "value": 19.232500593014443
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_statistical",
+      "value": 0.0
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-u95_total",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_total",
+      "value": 19.232500593014443
+    },
+    {
+      "@id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d-q1-value",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.value",
+      "value": 46.336921044931366
+    },
+    {
+      "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, coarse grid (x2.89) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_baseline_coarse",
+      "object": [
+        {
+          "@id": "configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json"
+        },
+        {
+          "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-git_sha"
+        },
+        {
+          "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-dvc_input_hash"
+        },
+        {
+          "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-container_sif_sha256"
+        },
+        {
+          "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c"
+    },
+    {
+      "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, fine grid (x1) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_optimum_fine",
+      "object": [
+        {
+          "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+        },
+        {
+          "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-git_sha"
+        },
+        {
+          "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-dvc_input_hash"
+        },
+        {
+          "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-container_sif_sha256"
+        },
+        {
+          "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514"
+    },
+    {
+      "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#4cffbd87-64ad-4497-bb04-1743673f7626-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, fine grid (x1) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_baseline_fine",
+      "object": [
+        {
+          "@id": "configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json"
+        },
+        {
+          "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-git_sha"
+        },
+        {
+          "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-dvc_input_hash"
+        },
+        {
+          "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-container_sif_sha256"
+        },
+        {
+          "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961"
+    },
+    {
+      "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#61422044-817d-4276-a9a5-1063e60fefea",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, medium grid (x1.7) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_baseline_medium",
+      "object": [
+        {
+          "@id": "configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json"
+        },
+        {
+          "@id": "#61422044-817d-4276-a9a5-1063e60fefea-git_sha"
+        },
+        {
+          "@id": "#61422044-817d-4276-a9a5-1063e60fefea-dvc_input_hash"
+        },
+        {
+          "@id": "#61422044-817d-4276-a9a5-1063e60fefea-container_sif_sha256"
+        },
+        {
+          "@id": "#61422044-817d-4276-a9a5-1063e60fefea-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#61422044-817d-4276-a9a5-1063e60fefea-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb"
+    },
+    {
+      "@id": "#61422044-817d-4276-a9a5-1063e60fefea-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#61422044-817d-4276-a9a5-1063e60fefea-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#61422044-817d-4276-a9a5-1063e60fefea-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, medium grid (x1.7) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_optimum_medium",
+      "object": [
+        {
+          "@id": "configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json"
+        },
+        {
+          "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-git_sha"
+        },
+        {
+          "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-dvc_input_hash"
+        },
+        {
+          "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-container_sif_sha256"
+        },
+        {
+          "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40"
+    },
+    {
+      "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#aero-crate-writer",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "name": "aero.crate writer",
+      "softwareVersion": "format-1",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md"
+    },
+    {
+      "@id": "#aero-result-crate-format-1",
+      "@type": "CreativeWork",
+      "name": "aero-result-crate format 1 (ADR-047)",
+      "version": "1"
+    },
+    {
+      "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "@type": "ContainerImage",
+      "additionalType": {
+        "@id": "https://w3id.org/ro/terms/workflow-run#SIFImage"
+      },
+      "name": "openfoam-esi.sif",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#creator-1",
+      "@type": [
+        "Person",
+        "prov:Person"
+      ],
+      "name": "Louis Ernesto Schulte Moredo"
+    },
+    {
+      "@id": "#da062081-1073-4459-8102-c352dd344cda",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, coarse grid (x2.89) (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+      },
+      "name": "gm_optimum_coarse",
+      "object": [
+        {
+          "@id": "configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json"
+        },
+        {
+          "@id": "#da062081-1073-4459-8102-c352dd344cda-git_sha"
+        },
+        {
+          "@id": "#da062081-1073-4459-8102-c352dd344cda-dvc_input_hash"
+        },
+        {
+          "@id": "#da062081-1073-4459-8102-c352dd344cda-container_sif_sha256"
+        },
+        {
+          "@id": "#da062081-1073-4459-8102-c352dd344cda-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774"
+        }
+      ]
+    },
+    {
+      "@id": "#da062081-1073-4459-8102-c352dd344cda-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2"
+    },
+    {
+      "@id": "#da062081-1073-4459-8102-c352dd344cda-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#da062081-1073-4459-8102-c352dd344cda-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#da062081-1073-4459-8102-c352dd344cda-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "#export",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "agent": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "description": "Export of this result crate from the committed records it cites",
+      "endTime": "2026-10-12",
+      "instrument": {
+        "@id": "#aero-crate-writer"
+      },
+      "name": "aero result crate export",
+      "object": [
+        {
+          "@id": "evidence/stage15_grid_convergence.json"
+        },
+        {
+          "@id": "evidence/stage15_optimization.json"
+        }
+      ],
+      "prov:generated": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "evidence/stage15_grid_convergence.json"
+        },
+        {
+          "@id": "evidence/stage15_optimization.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#aero-crate-writer"
+        },
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "result": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ]
+    },
+    {
+      "@id": "#gate-optimization-claim-all-solves-converged",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim NO-GO; passed=false; every solve of the family converged (reported)",
+      "name": "all-solves-converged",
+      "value": false
+    },
+    {
+      "@id": "#gate-optimization-claim-delta-exceeds-k-u95",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); optimization-claim NO-GO; passed=false; matched delta > k * U95_delta with k = 2 (Invariant 10)",
+      "minValue": 50.7457481304144,
+      "name": "delta-exceeds-k-u95",
+      "value": 24.662888722157646
+    },
+    {
+      "@id": "#gate-optimization-claim-delta-exceeds-own-u95",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim NO-GO; passed=false; matched delta > 1 * U95_delta (reported)",
+      "minValue": 25.3728740652072,
+      "name": "delta-exceeds-own-u95",
+      "value": 24.662888722157646
+    },
+    {
+      "@id": "#gate-optimization-claim-observed-order-in-asymptotic-range",
+      "@type": "PropertyValue",
+      "description": "DIAGNOSTIC (reported, never gated); optimization-claim NO-GO; passed=false; observed order of the delta within [0.5, 2.0] (reported; not gated at Stage 15)",
+      "maxValue": 2.0,
+      "minValue": 0.5,
+      "name": "observed-order-in-asymptotic-range",
+      "value": -1.1039441944064048
+    },
+    {
+      "@id": "#limitation-container-digest-by-lookup",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "container-digest-by-lookup",
+      "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+    },
+    {
+      "@id": "#limitation-diagnostic-not-gate",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage15_optimization.json",
+      "name": "diagnostic-not-gate",
+      "text": "Only 'delta-exceeds-k-u95' decided the Stage-15 verdict. The other gates are reported diagnostics."
+    },
+    {
+      "@id": "#limitation-dvc-input-hash-sync-state",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "dvc-input-hash-sync-state",
+      "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+    },
+    {
+      "@id": "#limitation-input-uq-skipped",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/vv/reportable.py",
+      "name": "input-uq-skipped",
+      "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+    },
+    {
+      "@id": "#limitation-no-experiment-anchor",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage15_optimization.json",
+      "name": "no-experiment-anchor",
+      "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+    },
+    {
+      "@id": "#limitation-nogo",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage15_optimization.json",
+      "name": "nogo",
+      "text": "NO-GO: the optimum's matched delta 24.66 did NOT exceed even its own U95 of 25.37 (the gated bar is 2 x U95 = 50.75). The family is not grid-converged (observed order -1.10). The +113.8 % baseline-to-optimum change is NOT an improvement claim."
+    },
+    {
+      "@id": "#limitation-not-flagship-domain",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+      "name": "not-flagship-domain",
+      "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+    },
+    {
+      "@id": "#limitation-retracted-claim",
+      "@type": "CreativeWork",
+      "isBasedOn": "CHANGELOG.md",
+      "name": "retracted-claim",
+      "text": "An earlier draft claimed a '+47 % thesis-grade CFD-verified improvement'. It was withdrawn after an adversarial audit and a 3-grid observed-order V&V refuted it."
+    },
+    {
+      "@id": "#software-3dc4d308e1053c1384f8a67f46201839440ac774",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "softwareVersion": "3dc4d308e1053c1384f8a67f46201839440ac774",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    {
+      "@id": "SHA256SUMS",
+      "@type": "File",
+      "description": "coreutils `sha256sum -c` manifest of every other member; the crate digest is the sha256 of this file",
+      "encodingFormat": "text/plain"
+    },
+    {
+      "@id": "aero-crate.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "20318",
+      "description": "The typed crate envelope (aero-result-crate format 1, ADR-047)",
+      "encodingFormat": "application/json",
+      "sha256": "97187bc5364abb72a14b67b0bc97886615e03603aacc657ade2574dcd095f462"
+    },
+    {
+      "@id": "configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "472",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40"
+    },
+    {
+      "@id": "configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "457",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb"
+    },
+    {
+      "@id": "configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "472",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2"
+    },
+    {
+      "@id": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "470",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514"
+    },
+    {
+      "@id": "configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "457",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c"
+    },
+    {
+      "@id": "configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "455",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961"
+    },
+    {
+      "@id": "evidence/stage15_grid_convergence.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "5370",
+      "description": "the 3-grid family and its GCI",
+      "encodingFormat": "application/json",
+      "sha256": "a527161a705ab3d46ea852d2f5ba1d16134002d8d6fe94b7e1191038485f1e01"
+    },
+    {
+      "@id": "evidence/stage15_optimization.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1112",
+      "description": "the committed record",
+      "encodingFormat": "application/json",
+      "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20292712",
+      "@type": "SoftwareSourceCode",
+      "codeRepository": "https://github.com/ernesto01louis/aero-research-platform",
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform"
+    },
+    {
+      "@id": "https://spdx.org/licenses/CC-BY-4.0",
+      "@type": "CreativeWork",
+      "identifier": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International"
+    },
+    {
+      "@id": "https://spdx.org/licenses/GPL-3.0-or-later",
+      "@type": "CreativeWork",
+      "identifier": "GPL-3.0-or-later",
+      "name": "GNU General Public License v3.0 or later"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/process/0.6",
+      "@type": "CreativeWork",
+      "name": "Process Run Crate",
+      "version": "0.6"
+    },
+    {
+      "@id": "prov.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "9146",
+      "description": "W3C PROV-JSON projection of this crate's provenance graph",
+      "encodingFormat": "application/json",
+      "sha256": "ef2c2cdf512909800cfd079a2d7a93126d32ee81026ee010652f07a109874bd8"
+    },
+    {
+      "@id": "result.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1134",
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "encodingFormat": "application/json",
+      "sha256": "b94a4b89011b3ea668236fa818db77cb46221081313b29e2e8f9b647d9b9bdf8"
+    }
+  ]
+}

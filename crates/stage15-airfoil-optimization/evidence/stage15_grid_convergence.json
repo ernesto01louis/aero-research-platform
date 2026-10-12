@@ -1,0 +1,150 @@
+{
+  "case": "airfoil_opt_naca4",
+  "regime": "turbulent k-omega SST Re=5e+05 (wall-function, tail-averaged)",
+  "method": "ASME V&V 20 3-grid observed-order GCI on the matched-condition L/D delta; tail-averaged forces + batch-means iterative U95",
+  "refinement_ratio": 1.7,
+  "aoa_deg": 4.0,
+  "reynolds": 500000.0,
+  "u95_delta_grid": 25.372872039794274,
+  "u95_delta_iterative": 0.01013810091195235,
+  "u95_delta_numerical_total": 25.3728740652072,
+  "design_optimum": {
+    "max_camber": 0.07273510933006024,
+    "camber_position": 0.20448957451063046
+  },
+  "resid_tol": 0.0001,
+  "all_converged": false,
+  "solves": [
+    {
+      "design": "baseline",
+      "grid": "fine",
+      "refine_mult": 1.0,
+      "ld": 21.67403232277372,
+      "cd": 0.0170090483019,
+      "cl": 0.368654662675,
+      "ld_sem": 0.00208589099749901,
+      "final_residual": 0.00086433584,
+      "converged": true,
+      "n_elements": 41600,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "fine",
+      "refine_mult": 1.0,
+      "ld": 46.336921044931366,
+      "cd": 0.0215252017216,
+      "cl": 0.9974115726499999,
+      "ld_sem": 0.009921196946310542,
+      "final_residual": 0.0022652852,
+      "converged": true,
+      "n_elements": 41600,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514"
+      }
+    },
+    {
+      "design": "baseline",
+      "grid": "medium",
+      "refine_mult": 1.7,
+      "ld": 20.634039552524833,
+      "cd": 0.0177449901969,
+      "cl": 0.366150829582,
+      "ld_sem": 5.5699541363992395e-05,
+      "final_residual": 0.00054751527,
+      "converged": true,
+      "n_elements": 14382,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "medium",
+      "refine_mult": 1.7,
+      "ld": 39.37659146539715,
+      "cd": 0.0248950832569,
+      "cl": 0.9802835229039999,
+      "ld_sem": 0.002417683808057672,
+      "final_residual": 0.001152713,
+      "converged": true,
+      "n_elements": 14382,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40"
+      }
+    },
+    {
+      "design": "baseline",
+      "grid": "coarse",
+      "refine_mult": 2.8899999999999997,
+      "ld": 13.820660841795185,
+      "cd": 0.024237930793052632,
+      "cl": 0.3349842209976842,
+      "ld_sem": 1.1342077670935027,
+      "final_residual": 1.1012881e-06,
+      "converged": false,
+      "n_elements": 5096,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c"
+      }
+    },
+    {
+      "design": "optimum",
+      "grid": "coarse",
+      "refine_mult": 2.8899999999999997,
+      "ld": 29.26754315702175,
+      "cd": 0.0324065895862,
+      "cl": 0.948461259286,
+      "ld_sem": 1.1460745921899347e-05,
+      "final_residual": 1.4735023e-05,
+      "converged": true,
+      "n_elements": 5096,
+      "provenance": {
+        "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2"
+      }
+    }
+  ],
+  "delta_per_grid": {
+    "fine": 24.662888722157646,
+    "medium": 18.742551912872315,
+    "coarse": 15.446882315226564
+  },
+  "observed_order_delta": -1.1039441944064048,
+  "delta_monotone": true,
+  "observed_order_optimum": [
+    0.7033249126032775,
+    true
+  ],
+  "observed_order_baseline": [
+    3.542356388912192,
+    true
+  ],
+  "gci_delta_fraction": 1.0287875165652742,
+  "u95_delta_numerical": 25.3728740652072,
+  "delta_fine": 24.662888722157646,
+  "k": 2.0,
+  "required_margin": 50.7457481304144,
+  "is_go": false,
+  "all_converged_gate": false,
+  "validation_tag": "validated"
+}

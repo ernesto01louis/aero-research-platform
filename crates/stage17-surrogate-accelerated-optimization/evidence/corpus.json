@@ -1,0 +1,949 @@
+{
+  "dataset_id": "stage17-naca4-ld",
+  "space": {
+    "variables": [
+      {
+        "name": "max_camber",
+        "low": 0.0,
+        "high": 0.08
+      },
+      {
+        "name": "camber_position",
+        "low": 0.2,
+        "high": 0.6
+      }
+    ]
+  },
+  "reynolds": 500000.0,
+  "aoa_deg": 4.0,
+  "end_time": 3000.0,
+  "seed": 170,
+  "n_lhs": 40,
+  "created_at": "2026-07-24T12:26:08.869811+00:00",
+  "rows": [
+    {
+      "case_name": "s17c_base",
+      "design_named": {
+        "max_camber": 0.0,
+        "camber_position": 0.20448957451063046
+      },
+      "design_unit": [
+        0.0,
+        0.011223936276576129
+      ],
+      "ld": 21.67403232277372,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "372701ad70ce4c6b9372d221d8a36d82",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "961e8872f95778d56f65c3dbc3c1ca496e689ac388f15bd3be02d9ab2d5e0137"
+      },
+      "wall_s": 238.40157754393294
+    },
+    {
+      "case_name": "s17c_opt15",
+      "design_named": {
+        "max_camber": 0.07273510933006024,
+        "camber_position": 0.20448957451063046
+      },
+      "design_unit": [
+        0.9091888666257529,
+        0.011223936276576129
+      ],
+      "ld": 46.336921044931366,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "46a307f36cae4eb0aa61b152c21b7ecd",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "076ef97be970e3521b82f796c010a35fa36296817cba9de38c55a99937b11dfd"
+      },
+      "wall_s": 239.4258382129483
+    },
+    {
+      "case_name": "s17c_00",
+      "design_named": {
+        "max_camber": 0.011946727458275066,
+        "camber_position": 0.3525401404574403
+      },
+      "design_unit": [
+        0.14933409322843832,
+        0.3813503511436008
+      ],
+      "ld": 28.221884502784746,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "2591fbb7b5c84df28b3c7fc323c1ce3b",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "212623f1256a2827e823f2136dfebc16c1036634a2131ae83c5eaaa739387132"
+      },
+      "wall_s": 241.11667030211538
+    },
+    {
+      "case_name": "s17c_01",
+      "design_named": {
+        "max_camber": 0.03285651546978982,
+        "camber_position": 0.41153006848259127
+      },
+      "design_unit": [
+        0.4107064433723728,
+        0.5288251712064782
+      ],
+      "ld": 37.04245323832927,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "55d6cf6c07bf4331a8d5f4a69a3d6eb1",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "be81a88e8deeb96b25e4c8babf86f3ba7aeb74d4ade802eddb0c8d323dacaf40"
+      },
+      "wall_s": 242.50860895309597
+    },
+    {
+      "case_name": "s17c_02",
+      "design_named": {
+        "max_camber": 0.046542969277979775,
+        "camber_position": 0.43362837844955127
+      },
+      "design_unit": [
+        0.5817871159747472,
+        0.5840709461238782
+      ],
+      "ld": 40.28935115323192,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "e7678bd8a31d464ab0105a3ff30f0144",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "1c14d5d73c4cdda2d9a42cd1f51977532580d02399e4ff4c66045ef7e6a1952d"
+      },
+      "wall_s": 238.1556892269291
+    },
+    {
+      "case_name": "s17c_03",
+      "design_named": {
+        "max_camber": 0.05279142403907122,
+        "camber_position": 0.500869054430609
+      },
+      "design_unit": [
+        0.6598928004883903,
+        0.7521726360765226
+      ],
+      "ld": 40.10271859072739,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "6473bda79a694897acadfc641fb46377",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "7fd53035cfc948260b191d6955f5a7adfcc4a3f0dade00766df958e4d88f6a4e"
+      },
+      "wall_s": 238.7550863130018
+    },
+    {
+      "case_name": "s17c_04",
+      "design_named": {
+        "max_camber": 0.02172336775371987,
+        "camber_position": 0.5267590204562171
+      },
+      "design_unit": [
+        0.2715420969214984,
+        0.8168975511405429
+      ],
+      "ld": 32.69117248741819,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "abff946ae9b849f684284cab995ec5fd",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "a75a8454e9bd0ab3cd36a13988f744737b811509b8c7edfa418a9b6bb9f0dbbe"
+      },
+      "wall_s": 238.35812650667503
+    },
+    {
+      "case_name": "s17c_05",
+      "design_named": {
+        "max_camber": 0.054859604947750905,
+        "camber_position": 0.29842558431041205
+      },
+      "design_unit": [
+        0.6857450618468863,
+        0.24606396077603013
+      ],
+      "ld": 43.809858703009034,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "fca3a2434e8344e693f84437d2de9bc4",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "0dc9a9c2798bd4d314cbe86d3ce8cc733758a5934930ee49ef058872062dae0b"
+      },
+      "wall_s": 233.49414818407968
+    },
+    {
+      "case_name": "s17c_06",
+      "design_named": {
+        "max_camber": 0.019348315669746863,
+        "camber_position": 0.2030777258475744
+      },
+      "design_unit": [
+        0.24185394587183578,
+        0.007694314618935939
+      ],
+      "ld": 32.24125123883193,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "275aec9764a74fa78815e524188d08b4",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "49f47f66b216bd4353de528844675d9ebb95f96c77bcbba2636e3f5c0b881e5d"
+      },
+      "wall_s": 238.35743801714852
+    },
+    {
+      "case_name": "s17c_07",
+      "design_named": {
+        "max_camber": 0.014110570344174008,
+        "camber_position": 0.5396232613427576
+      },
+      "design_unit": [
+        0.1763821293021751,
+        0.849058153356894
+      ],
+      "ld": 29.353259278209958,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "4184847a101b4f13a4f963db494c8e93",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "600c406ae1a86287a469d82508afc21cdf536c94b83c0ee9716b8a63572053fe"
+      },
+      "wall_s": 254.78027852857485
+    },
+    {
+      "case_name": "s17c_08",
+      "design_named": {
+        "max_camber": 0.06666749366422754,
+        "camber_position": 0.5572394342841669
+      },
+      "design_unit": [
+        0.8333436708028442,
+        0.8930985857104172
+      ],
+      "ld": 39.340195732879685,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "bc48262f344b48ccbe3ff5d2bea6f947",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "207c11e5554351429d34ce30d91e7d1fd2ed459a004b89951e7287ac699d6b9a"
+      },
+      "wall_s": 239.1977144079283
+    },
+    {
+      "case_name": "s17c_09",
+      "design_named": {
+        "max_camber": 0.036275260941325355,
+        "camber_position": 0.3815115149649767
+      },
+      "design_unit": [
+        0.45344076176656695,
+        0.45377878741244176
+      ],
+      "ld": 38.223737459676045,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "53f2c9b2fab9463e92ce311dc8b10e95",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "9a93166a293f5c77cc65302b01839300cfc5e2b8b669b87a46be9f2f01206246"
+      },
+      "wall_s": 255.2169422809966
+    },
+    {
+      "case_name": "s17c_10",
+      "design_named": {
+        "max_camber": 0.07171249052083295,
+        "camber_position": 0.5467184005506618
+      },
+      "design_unit": [
+        0.8964061315104118,
+        0.8667960013766545
+      ],
+      "ld": 39.00293180674368,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "46a60141c2344f2b93df911f5f48c4e5",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "09f7843b7bede30edcafdcfc14cebc0d95124ca6204e90d82b7277950378cec6"
+      },
+      "wall_s": 254.3916783989407
+    },
+    {
+      "case_name": "s17c_11",
+      "design_named": {
+        "max_camber": 0.028904954453562875,
+        "camber_position": 0.45653753730605007
+      },
+      "design_unit": [
+        0.36131193066953593,
+        0.6413438432651252
+      ],
+      "ld": 35.52203114238127,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "c195f31b5578457992b7e2746b0be5a2",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "152ddb1c76406aab685dec7061eac458561d9f64c581865bfd0528b1dca86632"
+      },
+      "wall_s": 249.36198767414317
+    },
+    {
+      "case_name": "s17c_12",
+      "design_named": {
+        "max_camber": 0.008372381695227681,
+        "camber_position": 0.32283517837427433
+      },
+      "design_unit": [
+        0.10465477119034601,
+        0.30708794593568584
+      ],
+      "ld": 26.39981742398896,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "c4954c17ef7b42dca9efd8791b589fef",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "4f8c80d8628982146296a3321407d25e6c37dff62fa51b4d9662ed38f5c70c56"
+      },
+      "wall_s": 259.30056666908786
+    },
+    {
+      "case_name": "s17c_13",
+      "design_named": {
+        "max_camber": 0.07911708395087899,
+        "camber_position": 0.51261545121808
+      },
+      "design_unit": [
+        0.9889635493859874,
+        0.7815386280452001
+      ],
+      "ld": 39.05391021997511,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "6a43dde38dae43148586e804aea6efca",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "c81070e3cc057b28c6b68ce0376303bd2d4c5d8ebce492c80c7654fb79fb2f35"
+      },
+      "wall_s": 254.51186823192984
+    },
+    {
+      "case_name": "s17c_14",
+      "design_named": {
+        "max_camber": 0.07575238744037846,
+        "camber_position": 0.22946118754858041
+      },
+      "design_unit": [
+        0.9469048430047308,
+        0.07365296887145101
+      ],
+      "ld": 46.310465380862965,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "7cf4c2630b0340a6807ed34ddd2c571d",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "3f4e4b434d1717573413a9f0cfd7f2dc3e8d470401487d55822f45c55a6bb153"
+      },
+      "wall_s": 243.90307803312317
+    },
+    {
+      "case_name": "s17c_15",
+      "design_named": {
+        "max_camber": 0.056575555652801965,
+        "camber_position": 0.37694924732797697
+      },
+      "design_unit": [
+        0.7071944456600245,
+        0.4423731183199424
+      ],
+      "ld": 42.70253210083766,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "af84c2a16a72438883f097048b29cb1a",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "7fd85384a5b9f68d754bdf8cbaef45f206799ff93dff20b70240a1a1a977a0a1"
+      },
+      "wall_s": 233.7238213242963
+    },
+    {
+      "case_name": "s17c_16",
+      "design_named": {
+        "max_camber": 0.01731815773539745,
+        "camber_position": 0.2523320708758121
+      },
+      "design_unit": [
+        0.2164769716924681,
+        0.13083017718953024
+      ],
+      "ld": 31.14596189626114,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "f3140abc455d4cc3828e858a35e0823b",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "f6e69c44888b3e3836f2ee4be9dc42d5ced0606234079bb1d4e51f913fa2599b"
+      },
+      "wall_s": 243.79950457904488
+    },
+    {
+      "case_name": "s17c_17",
+      "design_named": {
+        "max_camber": 0.023787963194662858,
+        "camber_position": 0.5638183922982396
+      },
+      "design_unit": [
+        0.2973495399332857,
+        0.909545980745599
+      ],
+      "ld": 33.484140107601085,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "7b9f64f394f745349fc9c7a86b5dda15",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "79fa9b013266796151ac680eb06894ad3220957778e4eae93909b181b4c7503d"
+      },
+      "wall_s": 244.3126590140164
+    },
+    {
+      "case_name": "s17c_18",
+      "design_named": {
+        "max_camber": 0.012056141357684123,
+        "camber_position": 0.49914846121053524
+      },
+      "design_unit": [
+        0.15070176697105153,
+        0.7478711530263381
+      ],
+      "ld": 28.26084231927306,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "6d324381c491491fb669dc2e05038c12",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "01fbdb3133670c48a4c6a22bb35933073cf80325d5f9a7233a38f17b825638d1"
+      },
+      "wall_s": 249.01014639390633
+    },
+    {
+      "case_name": "s17c_19",
+      "design_named": {
+        "max_camber": 0.0649052902959455,
+        "camber_position": 0.3685308669295779
+      },
+      "design_unit": [
+        0.8113161286993187,
+        0.4213271673239448
+      ],
+      "ld": 43.56206683530582,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "aea1b2606dde453180b5bb4bf363ef6a",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "51c80e95669c7770fef95f6e21082a49f26998e2e2a9be14330245c2414329da"
+      },
+      "wall_s": 238.42561207571998
+    },
+    {
+      "case_name": "s17c_20",
+      "design_named": {
+        "max_camber": 0.007929116774496807,
+        "camber_position": 0.4227280613711625
+      },
+      "design_unit": [
+        0.09911395968121009,
+        0.5568201534279063
+      ],
+      "ld": 26.07896863086132,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "23d0a5ed817943e6917c648b9802f107",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "aeddb6ca23250fa82f63aa1cbf2ee953ad12d7eede212ade31f541ee4e883249"
+      },
+      "wall_s": 243.91047349572182
+    },
+    {
+      "case_name": "s17c_21",
+      "design_named": {
+        "max_camber": 0.03425036859617846,
+        "camber_position": 0.27697253196786753
+      },
+      "design_unit": [
+        0.4281296074522307,
+        0.19243132991966883
+      ],
+      "ld": 38.21243885338188,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "c011e42afd5d4cb4854b35602978f414",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "ef16c8658a1cc4f72196639effb1bd1fccab79d134aa370d8e35586e663d74a1"
+      },
+      "wall_s": 248.77095412602648
+    },
+    {
+      "case_name": "s17c_22",
+      "design_named": {
+        "max_camber": 0.02415940820142286,
+        "camber_position": 0.4067653734205682
+      },
+      "design_unit": [
+        0.30199260251778576,
+        0.5169134335514205
+      ],
+      "ld": 33.81540287689101,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "5b6579bb9ad94eac9be6939179b0654b",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "bd6cefb6887d9ad5bb3e7d8cb637165aae71812fc9bc7027f113441934cb0f3a"
+      },
+      "wall_s": 248.87404005602002
+    },
+    {
+      "case_name": "s17c_23",
+      "design_named": {
+        "max_camber": 0.06990819939565374,
+        "camber_position": 0.2845400468628296
+      },
+      "design_unit": [
+        0.8738524924456716,
+        0.21135011715707394
+      ],
+      "ld": 45.64725648536157,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "4c8f64a74fde4f42812314ae7b777ced",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "89e975708ec7370d62d4cb58f3a347e7be1ee370a98bd578e72e0c91f487ab21"
+      },
+      "wall_s": 248.8556567807682
+    },
+    {
+      "case_name": "s17c_24",
+      "design_named": {
+        "max_camber": 0.0015748370042056113,
+        "camber_position": 0.4430426366621373
+      },
+      "design_unit": [
+        0.01968546255257014,
+        0.6076065916553433
+      ],
+      "ld": 22.544182335053147,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "534ae1f16e484c9a929b1683a4a1aabc",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "8b18f729d5f1eae173828a1c6bac2fe706eac60689e962fe6a466a403a1bf6da"
+      },
+      "wall_s": 249.27655920106918
+    },
+    {
+      "case_name": "s17c_25",
+      "design_named": {
+        "max_camber": 0.050394054352175525,
+        "camber_position": 0.24877318173580665
+      },
+      "design_unit": [
+        0.629925679402194,
+        0.1219329543395166
+      ],
+      "ld": 43.47238198758587,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "a9e4d8f036964584b2f488179b8ba5fa",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "f75a8a827a3d48b6b809c724019465dd1e95bed5773976a9f9bba118d0e80299"
+      },
+      "wall_s": 238.83191253384575
+    },
+    {
+      "case_name": "s17c_26",
+      "design_named": {
+        "max_camber": 0.030084319235994163,
+        "camber_position": 0.47436074008608303
+      },
+      "design_unit": [
+        0.37605399044992704,
+        0.6859018502152077
+      ],
+      "ld": 35.874822743058566,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "760f97b16cce4c45a342e2817faa42ee",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "0f9be5526e7680abbfd16e97f7dbe433699fa0087ba2c32070ba15b87784bedd"
+      },
+      "wall_s": 238.32977849710733
+    },
+    {
+      "case_name": "s17c_27",
+      "design_named": {
+        "max_camber": 0.06144606970949654,
+        "camber_position": 0.342822548863869
+      },
+      "design_unit": [
+        0.7680758713687067,
+        0.35705637215967245
+      ],
+      "ld": 43.896400082137056,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "d1ad42fe0eef4c3f951659bdb4a3b33b",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "abd0afd013195340528bb9bb3cd77827bd24faacc0046314e2ab9688064eb15a"
+      },
+      "wall_s": 228.1484367121011
+    },
+    {
+      "case_name": "s17c_28",
+      "design_named": {
+        "max_camber": 0.005718301452371055,
+        "camber_position": 0.5925971665386944
+      },
+      "design_unit": [
+        0.07147876815463819,
+        0.9814929163467361
+      ],
+      "ld": 24.903699856325606,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "7690fd39be134d5cb49ebaedbd5c13b2",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "51554379572428c6a4afc0357c1c56b2e6e9cdd09ee0cf55229c97519f05bdb7"
+      },
+      "wall_s": 228.0364091466181
+    },
+    {
+      "case_name": "s17c_29",
+      "design_named": {
+        "max_camber": 0.045630486950545314,
+        "camber_position": 0.2172133698513435
+      },
+      "design_unit": [
+        0.5703810868818164,
+        0.04303342462835876
+      ],
+      "ld": 42.53486065726256,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "45f944f39cb44960809e4ae33fbd5c8d",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "84856803067a7aafcc457abaf02fd965c05d9f96850fa4bf1308c4d5b96c717e"
+      },
+      "wall_s": 228.6365062217228
+    },
+    {
+      "case_name": "s17c_30",
+      "design_named": {
+        "max_camber": 0.05970842441687409,
+        "camber_position": 0.3162864990593113
+      },
+      "design_unit": [
+        0.7463553052109261,
+        0.2907162476482782
+      ],
+      "ld": 44.24366064555303,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "9d0b36aa783544e8bf7c06b4ed569a60",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "de02db7c225075d5c06963b02425f9ce4ecc67d8916bf11c192baafae0a229e7"
+      },
+      "wall_s": 222.81685862597078
+    },
+    {
+      "case_name": "s17c_31",
+      "design_named": {
+        "max_camber": 0.040183067174527576,
+        "camber_position": 0.5726092149856663
+      },
+      "design_unit": [
+        0.5022883396815947,
+        0.9315230374641658
+      ],
+      "ld": 37.63935688665819,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "45ec511481124521a8603e0a162b9feb",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "a9d05c17b9ffc791e938b43829347a64e2ca9ed707af29f7a764c643eefd8f65"
+      },
+      "wall_s": 217.94699505809695
+    },
+    {
+      "case_name": "s17c_32",
+      "design_named": {
+        "max_camber": 0.07627039323915721,
+        "camber_position": 0.48815293124410447
+      },
+      "design_unit": [
+        0.9533799154894651,
+        0.7203823281102613
+      ],
+      "ld": 40.464137484218966,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "1d766eeda9ea46b691e9352b61280bd0",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "eae89a8807fd4d6403ba344ac01dd93a993854dea746d14be71d62747e96d82c"
+      },
+      "wall_s": 233.17724638897926
+    },
+    {
+      "case_name": "s17c_33",
+      "design_named": {
+        "max_camber": 0.026691283097210087,
+        "camber_position": 0.3021316893381953
+      },
+      "design_unit": [
+        0.33364103871512607,
+        0.2553292233454882
+      ],
+      "ld": 35.11751871697598,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "5a6cc669a7ba468197be20a726d44769",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "eef2f050c3c648d8db82a9859ddab920c9da3f7f1c1941c72d7a1ce40550c786"
+      },
+      "wall_s": 212.5609017247334
+    },
+    {
+      "case_name": "s17c_34",
+      "design_named": {
+        "max_camber": 0.04916299199383541,
+        "camber_position": 0.46941298820292304
+      },
+      "design_unit": [
+        0.6145373999229427,
+        0.6735324705073077
+      ],
+      "ld": 40.16535739622073,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "782c23ad8e114fe88e1fc12dceb77a9f",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "49b5d71fd9c5b8281a0864b70361f9ca616166c842d4eddc0e47c6350cb29231"
+      },
+      "wall_s": 217.60057656094432
+    },
+    {
+      "case_name": "s17c_35",
+      "design_named": {
+        "max_camber": 0.039631176813925605,
+        "camber_position": 0.23607798596459595
+      },
+      "design_unit": [
+        0.4953897101740701,
+        0.09019496491148986
+      ],
+      "ld": 40.523805994079254,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "bda1c1f8c0cb448a9d1507cf0d7cb37f",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "880242986989b52ca94ec750f1411edb9329c6bfbf62bb714301c0d85971f756"
+      },
+      "wall_s": 222.80341682909057
+    },
+    {
+      "case_name": "s17c_36",
+      "design_named": {
+        "max_camber": 0.06296079689586626,
+        "camber_position": 0.39388399029640897
+      },
+      "design_unit": [
+        0.7870099611983282,
+        0.4847099757410224
+      ],
+      "ld": 42.8853289170877,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "d15ed77b44ac4a37b3a0f49a05c98ffe",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "3f812756b18042e8e607df80ce87c67b632b70023cedced568c5f27793501651"
+      },
+      "wall_s": 222.88203554274514
+    },
+    {
+      "case_name": "s17c_37",
+      "design_named": {
+        "max_camber": 0.04318037734399854,
+        "camber_position": 0.26745461204830645
+      },
+      "design_unit": [
+        0.5397547167999817,
+        0.16863653012076613
+      ],
+      "ld": 41.333953314972305,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "80a4c4257d7c497e827cf72432a6a682",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "28ac2f3cd3543ed4b76214cc29eb008002e5a1809a61070c1770444a1dc18cdb"
+      },
+      "wall_s": 222.79201824497432
+    },
+    {
+      "case_name": "s17c_38",
+      "design_named": {
+        "max_camber": 0.00391691253642764,
+        "camber_position": 0.33666332728755227
+      },
+      "design_unit": [
+        0.048961406705345496,
+        0.3416583182188807
+      ],
+      "ld": 23.95556529902045,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "bf53a45bd95c4543aa6a8c013d285dab",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "347122ac68d78e889e5409732e35be93a3e35984b0ea0309db41d2e9591d1467"
+      },
+      "wall_s": 212.07093228725716
+    },
+    {
+      "case_name": "s17c_39",
+      "design_named": {
+        "max_camber": 0.07289538456736483,
+        "camber_position": 0.5880572528517086
+      },
+      "design_unit": [
+        0.9111923070920603,
+        0.9701431321292716
+      ],
+      "ld": 37.35958945824752,
+      "failed": false,
+      "error": null,
+      "mlflow_run_id": "bc73d7de7f1540b6903ca9fc8f2e0b11",
+      "provenance": {
+        "git_sha": "41f1f4689848386d47a082e3459da0481f88a550",
+        "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+        "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+        "config_hash": "fe1adb04ba6a5943d5a7d2d690c1467b89fdeaa36e3d0d8906e4acf0e1667a01"
+      },
+      "wall_s": 201.85969530092552
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "anchors": [],
+  "case_name": "airfoil_opt_naca4",
+  "improvement": null,
+  "optimization": null,
+  "provenance": {
+    "config_hash": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "containers": [],
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+  },
+  "quantities": [
+    {
+      "kind": "steady",
+      "name": "lift_to_drag_baseline",
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_numerical": 0.6878259062492639,
+      "u95_statistical": 0.0,
+      "u95_total": 0.6878259062492639,
+      "units": "",
+      "value": 21.67403232277372
+    },
+    {
+      "kind": "steady",
+      "name": "lift_to_drag_optimum",
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_numerical": 19.232500593014443,
+      "u95_statistical": 0.0,
+      "u95_total": 19.232500593014443,
+      "units": "",
+      "value": 46.336921044931366
+    }
+  ],
+  "validation_tag": "validated"
+}
