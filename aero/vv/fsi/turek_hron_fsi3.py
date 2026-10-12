@@ -110,8 +110,10 @@ def is_gated_configuration(*, fluid_mesh_dict: str, max_time: float) -> bool:
 
 
 def _repo_root() -> Path:
-    # aero/vv/fsi/turek_hron_fsi3.py -> repo root.
-    return Path(__file__).resolve().parents[3]
+    # The source checkout's root; fails loudly under a wheel install (ADR-049 H-16).
+    from aero._repo import source_checkout_root
+
+    return source_checkout_root()
 
 
 def _verified(path: Path, *, what: str) -> str:

@@ -21,24 +21,18 @@ keywords = [
     "pyfr",
     "nekrs",
     "jax-fluids",
-    "physicsnemo",
-    "domino",
-    "transolver",
     "precice",
     "fluid-structure-interaction",
     "verification-validation",
     "uncertainty-quantification",
-    "neural-operators",
-    "agentic-cae",
     "provenance",
     "reproducibility",
 ]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Mathematics",
@@ -47,7 +41,9 @@ classifiers = [
 # Base deps — stdlib + these only. PLATFORM-NOT-HUB invariant.
 dependencies = [
     "numpy>=2.0",
-    "pydantic>=2.7",
+    # >=2.12 (Stage 21): the per-field allow_inf_nan + ser_json_inf_nan="strings" combination the
+    # reportable schema relies on, tested at exactly 2.12.0 by the crate round-trip floor leg.
+    "pydantic>=2.12",
     "typer>=0.12",
     "loguru>=0.7",
     "dvc>=3.55",
@@ -153,7 +149,9 @@ surrogate-smoke = [
 # physicsnemo 1.2.0 / torch-geometric 2.6.1 / warp 1.8.1, locked in ADR-010
 # (Hard Rule 8). See the ADR-010 amendment.
 physicsnemo-cu12 = [
-    "nvidia-physicsnemo[cu12]==1.2.0",
+    # No `[cu12]` extra (Stage 21, ADR-049 H-36): physicsnemo 1.2.0 declares no such extra, so
+    # the resolver dropped it silently (uv warns) -- the lock never carried it. FAIL-LOUD hygiene.
+    "nvidia-physicsnemo==1.2.0",
     "torch-geometric>=2.6",
     "warp-lang>=1.4",
 ]
@@ -260,10 +258,11 @@ docs = [
 
 [tool.hatch.metadata]
 # Stage 08: `aero[jax-fluids]` carries `jaxfluids @ git+https://github.com/
-# tumaer/JAXFLUIDS.git@JAX-Fluids-v0.2.1` — a "direct reference" because
-# JAX-Fluids is NOT on PyPI (ADR-008 §D1). Hatchling rejects direct refs by
-# default; this flag opts in. Documented + pinned exactly via the tag, so
-# the security posture stays auditable.
+# tumaer/JAXFLUIDS.git@ac7c090f…` — a "direct reference" because JAX-Fluids is
+# NOT on PyPI (ADR-008 §D1). Hatchling rejects direct refs by default; this flag
+# opts in. Pinned exactly to a COMMIT SHA (the post-v0.2.1 fix commit — not the
+# JAX-Fluids-v0.2.1 tag), so the security posture stays auditable. A direct
+# reference also blocks any PyPI upload (ADR-049: no PyPI at v0.1.0).
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
@@ -362,6 +361,7 @@ markers = [
     "stage_18: tests gated to stage 18 deliverables",
     "stage_19: tests gated to stage 19 deliverables",
     "stage_20: tests gated to stage 20 deliverables",
+    "stage_21: tests gated to stage 21 deliverables",
 ]
 
 [tool.uv]
