@@ -143,8 +143,8 @@ Then begin work.
     ≥1 experiment-anchored gate.
 16. **RESULTS-MUST-TRAVEL.** Every exported result is a self-describing bundle
     (`CaseSpec` + four-tuple + U95 envelope + validity context) usable in a thesis
-    without the cluster. Constitutional promotion at Stage 20 with the bundle +
-    round-trip CI.
+    without the cluster. Constitutional promotion at Stage 21 with the bundle +
+    round-trip CI (moved from Stage 20 by ADR-046 S1).
 17. **SCOPE-GATE.** New solvers/ML/agents/features stay deferred unless they directly
     serve the optimizer mission or the flapping-wing flagship. This gates **effort
     allocation, NOT interface generality** — the `Solver`/`Surrogate` protocols stay
