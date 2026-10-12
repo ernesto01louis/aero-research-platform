@@ -1,8 +1,9 @@
 # ADR-049 — Release governance and the Stage-21 hardening scope: the release-tag gate, verifiable "all required CI green", CI supply chain, and the closed hardening list
 
-- **Status:** proposed. The Hard Rule 10 extension and the stale-text corrections ratify in the
-  Stage-21 constitution micro-PR (≥72 h window plus the operator's sign-off). The code lands
-  without waiting.
+- **Status:** accepted. Proposed 2026-10-12, and ratified by the merge of the Stage-21 constitution
+  PR. That merge followed the ≥72 h window and the operator's sign-off recorded in the PR
+  (CONSTITUTION "Amendment process"; the ADR-027 two-track precedent).
+  CLAUDE.md Hard Rule 10 is extended to `vX.Y.Z` release tags, and the stale constitutional text is corrected.
 - **Date:** 2026-10-12
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 21)
 - **Stage:** 21

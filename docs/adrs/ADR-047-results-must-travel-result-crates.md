@@ -1,8 +1,9 @@
 # ADR-047 — RESULTS-MUST-TRAVEL: the `aero-result-crate` format v1, and Hard Rule 16 → CONSTITUTION Invariant 13
 
-- **Status:** proposed. Ratification is a separate constitution micro-PR. It needs a ≥72 h window
-  counted from this ADR's date and the operator's sign-off (CONSTITUTION "Amendment process"). The
-  code lands without waiting; the ADR-027 two-track precedent applies.
+- **Status:** accepted. Proposed 2026-10-12, and ratified by the merge of the Stage-21 constitution
+  PR. That merge followed the ≥72 h window and the operator's sign-off recorded in the PR
+  (CONSTITUTION "Amendment process"; the ADR-027 two-track precedent).
+  CLAUDE.md Hard Rule 16 is promoted to CONSTITUTION Invariant 13.
 - **Date:** 2026-10-12
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 21)
 - **Stage:** 21 (ADR-046 S1 moved the promotion here from Stage 20)

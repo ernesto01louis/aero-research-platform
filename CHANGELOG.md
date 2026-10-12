@@ -10,6 +10,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 Stage 21 (Release: Portable Bundles + Hardening + v0.1.0; ADR-046, release-first) is in progress.
 Its entries are collected under `[0.1.0]` at the release commit.
 
+### CONSTITUTION
+
+- **Invariant 13 — RESULTS-MUST-TRAVEL** added. It promotes CLAUDE.md Hard Rule 16 per ADR-047:
+  every externally reported result is an `aero-result-crate` that verifies off-cluster. It is
+  enforced by `aero/crate/` and the required `crate round-trip — Invariant 13`.
+- **Invariant 5** reworded per ADR-048: GPL-3.0-compatible allowlist, scoped; base and supported
+  extras proprietary-free; NVIDIA CUDA only in the frozen GPU extras. It is enforced by the
+  required `dependency licence scan — Invariant 5`, which delivers the scan promised since Stage 16.
+- **Text corrections** (ADR-049):
+  - Invariant 1: the real extras, and no `pip install aero`; the crate read legs are named.
+  - Invariant 3: the four-tuple is structurally required; `provenance-completeness` is a
+    non-required self-hosted check.
+  - Invariant 4: the licence scan's base closure.
+  - Invariant 6: 21 stages.
+  - Invariant 9: a note that the deferred agent layer is no longer the caller.
+- **CLAUDE.md:**
+  - Principle 5 matches Invariant 5;
+  - Hard Rule 10 covers `vX.Y.Z` release tags;
+  - Hard Rule 16 is recorded as promoted.
+- **ADR-047, ADR-048 and ADR-049 accepted**, ratified by this change's merge after the ≥72 h
+  window (proposed 2026-10-12) and the operator's sign-off.
+
 ## [0.0.20] - 2026-09-20
 
 > **Correction (2026-10-12, Stage 21).** The entry below is kept as written. Two of its

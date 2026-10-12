@@ -9,15 +9,19 @@ rationale, signed off by the operator, and a CHANGELOG entry.
 
 The `aero/` core imports only stdlib + `numpy` + `pydantic`. Every solver,
 ML framework, cloud SDK, and physics library is gated behind an optional
-extra (`aero[openfoam]`, `aero[su2]`, `aero[pyfr]`, `aero[nekrs]`,
-`aero[jax-fluids]`, `aero[physicsnemo-cu12]`, `aero[precice]`,
-`aero[gpu-rental]`, `aero[uq]`, `aero[agentic]`, `aero[literature]`,
-`aero[orchestration]`).
+extra (`cad`, `dev`, `gpu-rental`, `jax-fluids`, `nekrs`, `openfoam`,
+`physicsnemo-cu12`, `precice`, `provenance`, `pyfr`, `su2`, `surrogate-smoke`,
+`vv`; see `pyproject.toml`).
 
-**Enforcement:** CI job `import-platform-only` (live by Stage 06) runs
-`pip install aero` (no extras) in a fresh venv and asserts `import aero`
-succeeds without `Torch`/`JAX`/`PhysicsNeMo`/`OpenFOAM`/etc. The job is a
-required status check on `main`.
+**Enforcement:**
+- **`import aero with no extras`** (required; `import-platform-only.yml`, live since Stage 06)
+  installs the package with no extras in a fresh environment. It asserts that `import aero`, and
+  the listed core modules, succeed without Torch, JAX, PhysicsNeMo, OpenFOAM or any other banned
+  module. It installs from the checkout, never `pip install aero`: that PyPI name belongs to an
+  unrelated project.
+- **The crate round-trip read legs (Invariant 13)** go further. On fresh Linux, macOS and Windows
+  runners they install only the built wheel, numpy and pydantic, and verify every result crate
+  with the stdlib CLI.
 
 **Why:** A platform that bleeds adapter dependencies into core is no
 longer a platform — it is a hub for one specific stack. The orchestrator
@@ -60,10 +64,14 @@ Every CFD solve and every ML training run logs four tags to MLflow:
 Postgres mirror table `aero_provenance.mlflow_artifact_provenance` (Stage
 04+) indexes these for fast cross-run queries.
 
-**Enforcement:** CI job `provenance-completeness` (live by Stage 04) runs
-the walking-skeleton case and asserts all four tags are populated on the
-resulting MLflow run, plus the Postgres mirror row exists. Required status
-check on `main`.
+**Enforcement:**
+- **Structural.** `aero.provenance.four_fold.ProvenanceTuple` validates all four fields, and the
+  CLI fails loud before logging a run with fewer. Every `ReportableResult` and every result crate
+  (Invariant 13) carries a `ProvenanceTuple`.
+- **CI job `provenance-completeness`** (live since Stage 04) runs the walking-skeleton case on the
+  self-hosted `vv` runner. It asserts that all four tags are populated on the resulting MLflow
+  run and that the Postgres mirror row exists. It is **not** a required check: a required check
+  on a self-hosted runner blocks every PR while that runner is offline. Promoting it is ledgered.
 
 **Why:** A peer-review-grade platform must produce citable results; the
 four-tuple is the citation. Without it, a published number is a guess.
@@ -75,26 +83,40 @@ CUDA wheel, a JAX-fluids-style domain library, a cloud-provider SDK, or
 proprietary connectivity must live in an optional extra. Base `aero`
 installs with only `numpy`, `pydantic`, `typer`, `loguru`, `dvc`.
 
-**Enforcement:** Same `import-platform-only` CI job as Invariant 1.
+**Enforcement:** The same `import aero with no extras` job as Invariant 1. The dependency licence
+scan (Invariant 5) also computes the base-install closure from `uv.lock` on every PR, and checks
+it against `uv export`.
 
 **Why:** Researchers reading our code should be able to inspect the core
 abstractions without provisioning a 30 GB CUDA environment.
 
-## Invariant 5 — LICENSE-POSTURE — GPL-3 / LGPL-3 / Apache-2 / BSD-3 only
+## Invariant 5 — LICENSE-POSTURE — GPL-3.0-compatible
 
-No proprietary blob enters this repository or its container images. No
-Intel MKL closed-source builds. No commercial CFD or CAE dependency. The
-platform itself is **GPL-3.0**; any compatible permissive license among
-the four listed is acceptable for dependencies.
+The platform is **GPL-3.0-or-later**.
+- **Dependencies.** Every package `uv.lock` can install carries a licence on the ADR-048
+  allowlist, or holds a reviewed exact-version exception. The allowlist is GPL-3.0-compatible
+  per the FSF licence list: MIT, MIT-0, MIT-CMU, X11, HPND, BSD-1/2/3-Clause and the OSI BSD
+  family, 0BSD, Apache-2.0 (including `WITH LLVM-exception`), ISC, PSF-2.0, Python-2.0,
+  CNRI-Python, MPL-2.0, LGPL-2.1/3.0, GPL-2.0-or-later, GPL-3.0, ZPL-2.1, Zlib, CC0-1.0,
+  Unlicense, BSL-1.0.
+- **Proprietary components.** The base install and the supported extras are proprietary-free.
+  NVIDIA's proprietary CUDA components are admitted only in the frozen-optional GPU extras
+  (`jax-fluids`, `surrogate-smoke`, `physicsnemo-cu12`) and their container images (ADR-010).
+- **Excluded outright.** No commercial CFD or CAE dependency; no closed-source Intel MKL build.
 
-**Enforcement:** ADR required for every new heavy dependency, naming the
-license and demonstrating compatibility. CI license-scan tooling lands in
-Stage 16.
+**Enforcement:**
+- **`dependency licence scan — Invariant 5`** (required; `dependency-licences.yml`).
+  `scripts/licence_scan.py` reads `uv.lock` and a hash-bound metadata snapshot. It normalises each
+  package's licence along a fixed ladder, and refuses anything unknown, ambiguous or
+  contradictory. It evaluates the SPDX expression in every scope that can install the package.
+  An exception fails when it is stale (the lock moved), unneeded, or used outside its scopes.
+- **An ADR** is required for every new heavy dependency, naming its licence (ADR-048).
 
-**Why:** Reproducibility for peer review requires an open stack. A
-researcher reading our paper must be able to install everything we used
-without a commercial license. The orchestrator project's lesson on this
-was clear.
+**Why:** Reproducibility for peer review requires an open stack. A researcher reading our paper
+must be able to install everything we used without a commercial licence. A literal four-licence
+whitelist was never what the platform shipped (its base install is MIT/MPL/ISC/PSF from day one),
+so the rule now states the real constraint: GPL-3.0 compatibility, scoped, and machine-checked.
+Amended at Stage 21 by ADR-048, which delivers the licence scan promised here since Stage 16.
 
 ## Invariant 6 — CONVENTIONAL-COMMITS + CONVENTIONAL-COMMENTS
 
@@ -106,7 +128,7 @@ Conventional Comments labels (`praise:`, `nitpick:`, `suggestion:`,
 commit and the PR title. Conventional Comments are a humans-and-agents
 convention enforced by review discipline, not CI.
 
-**Why:** A 16-stage build with frequent context handoffs to fresh Claude
+**Why:** A staged build (21 stages to v0.1.0) with frequent context handoffs to fresh Claude
 Code sessions needs uniform commit semantics so changelogs, release notes,
 and post-stage handoffs assemble cleanly.
 
@@ -169,6 +191,10 @@ attested in the field: a runaway `for` loop that launches 30 H100 pods at
 in Stage 07 with the first paid cloud GPU run (ADR-007).
 
 ## Invariant 9 — CERTIFICATE-OF-VALIDITY-REQUIRED-FOR-SURROGATE-INVOCATION
+
+*(Text note, Stage 21: the agentic CAE layer was deferred indefinitely by ADR-013. Today the
+caller this invariant guards is the surrogate-accelerated optimizer loop (Stage 17, ADR-031/032).
+The gate is unchanged.)*
 
 Every call from the agentic CAE layer (Stage 14) to
 `aero.surrogates._common.base:Surrogate.predict(...)` is gated on a current
@@ -305,6 +331,51 @@ result the platform exists to refuse. Pairs with Invariant 10 (the improvement
 must also exceed its uncertainty). Promoted from CLAUDE.md Hard Rule 14 per
 ADR-027 (proposed 2026-07-10; ≥72 h window elapsed 2026-07-13; ratified
 2026-07-15, operator-delegated).
+
+## Invariant 13 — RESULTS-MUST-TRAVEL
+
+Every result the platform reports outside the repository is a self-describing **result crate**
+(`aero-result-crate` format v1, ADR-047).
+
+**What a crate carries:**
+- the exact as-hashed CaseSpec bytes of every run it cites, whose sha256 *is* the recorded
+  `config_hash`;
+- the four-fold provenance tuple (Invariant 3);
+- the U95 envelope (Invariant 10);
+- its **validity context**: claim tier, pre-registered gate verdicts kept apart from reported
+  diagnostics, applicability bounds, and the limitations its own content makes mandatory.
+
+**Portability.** A crate verifies, and reads back to the same numbers, without the cluster, the DVC
+remotes, MLflow or the repository.
+
+**Partial results.** A result that cannot carry its four-tuple, U95 or CaseSpec travels only as an
+**evidence-only** crate. Such a crate declares each missing component and carries no claim.
+
+**Enforcement:**
+- **One writer and reader.** `aero/crate/` (stdlib + numpy + pydantic only) is the one writer and
+  reader. `verify_crate`:
+  - hashes every member before parsing it;
+  - refuses unknown or unsafe members, duplicate keys and non-finite numbers;
+  - recomputes every computed field bit for bit, and refuses content the schema would drop;
+  - checks every config preimage against its hash;
+  - enforces the required limitations;
+  - regenerates the RO-Crate 1.3 / Process Run Crate 0.6 and PROV-JSON projections byte for byte.
+- **Required checks:**
+  - `pytest unit (py3.12)`: the round-trip, tamper, archive-safety, import-isolation and
+    committed-crate tests;
+  - `crate round-trip — Invariant 13`: crates are written on one runner, moved, and verified on
+    fresh Linux, macOS and Windows runners that hold only the built wheel, numpy and pydantic. The
+    numbers are compared bit for bit against an independent stdlib oracle built from the
+    committed records.
+- **Immutability.** Published crates are immutable; format changes need format v2 and an ADR.
+- **Citation.** A result is cited by its crate digest (the sha256 of its `SHA256SUMS`) together with
+  its four-tuple.
+
+**Why:** a number that cannot leave the cluster cannot be checked by anyone else. The result crate
+is what makes a thesis- or paper-grade claim reproducible from the artifact alone. It also makes the
+limits of a claim travel with the number. Promoted from CLAUDE.md Hard Rule 16 per ADR-047
+(proposed 2026-10-12; ratified by the merge of the Stage-21 constitution PR, after the ≥72 h
+window and the operator's recorded sign-off).
 
 ## Amendment process
 
