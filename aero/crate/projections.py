@@ -197,6 +197,7 @@ def build_rocrate(
                     "license": {"@id": SOFTWARE_LICENSE},
                     "name": "aero-research-platform",
                     "softwareVersion": t.git_sha,
+                    "version": t.git_sha,
                     "url": f"{REPO_URL}/commit/{t.git_sha}",
                 }
             )
@@ -252,6 +253,7 @@ def build_rocrate(
             "@type": ["SoftwareApplication", "prov:SoftwareAgent"],
             "name": "aero.crate writer",
             "softwareVersion": "format-1",
+            "version": "format-1",
             "url": f"{REPO_URL}/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md",
         }
     )
@@ -325,22 +327,26 @@ def build_rocrate(
             },
             {
                 "@id": PRC_PROFILE,
-                "@type": "CreativeWork",
+                "@type": ["CreativeWork", "Profile"],
                 "name": "Process Run Crate",
                 "version": "0.6",
             },
             {
                 "@id": FORMAT_ENTITY,
-                "@type": "CreativeWork",
+                "@type": ["CreativeWork", "Profile"],
                 "name": "aero-result-crate format 1 (ADR-047)",
                 "version": "1",
             },
             {
+                # The platform, cited by its Zenodo concept DOI. A CreativeWork, not a
+                # SoftwareSourceCode: RO-Crate 1.3 reads the latter as a Script, which must be a File
+                # in the crate.
                 "@id": f"https://doi.org/{manifest.software.concept_doi}",
-                "@type": "SoftwareSourceCode",
-                "codeRepository": manifest.software.repository,
+                "@type": "CreativeWork",
+                "identifier": manifest.software.concept_doi,
                 "license": {"@id": SOFTWARE_LICENSE},
                 "name": manifest.software.name,
+                "url": manifest.software.repository,
             },
         ]
     )

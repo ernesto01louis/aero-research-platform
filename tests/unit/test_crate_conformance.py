@@ -51,6 +51,14 @@ def test_every_cited_run_with_a_four_tuple_is_a_create_action_with_its_container
         lambda d: d["@graph"][1].update({"datePublished": "yesterday"}),
         lambda d: d["@graph"][1]["hasPart"].pop(),
         lambda d: d["@graph"][1].update({"conformsTo": []}),
+        # RO-Crate 1.3: conformsTo names Profile entities; software has a version; no bare Script.
+        lambda d: next(e for e in d["@graph"] if e["@id"] == PRC_PROFILE).update(
+            {"@type": "CreativeWork"}
+        ),
+        lambda d: next(e for e in d["@graph"] if "SoftwareApplication" in e["@type"]).pop(
+            "version"
+        ),
+        lambda d: d["@graph"].append({"@id": "#script", "@type": "SoftwareSourceCode"}),
     ],
 )
 def test_conformance_refuses_broken_crates(mutate) -> None:  # type: ignore[no-untyped-def]
