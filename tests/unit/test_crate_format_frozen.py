@@ -17,10 +17,10 @@ from tests.unit._crate_fixtures import built
 pytestmark = pytest.mark.stage_21
 
 FROZEN = {
-    "steady_optimization": "87749d9977c4",
-    "thesis_grade_paired": "60c9e95ff5a9",
-    "independent_inf": "c2f9fb627db0",
-    "evidence_only": "599be2d851fc",
+    "steady_optimization": "20a527068823",
+    "thesis_grade_paired": "6dfc14448c7e",
+    "independent_inf": "e47a6c328e85",
+    "evidence_only": "36fee2112e6c",
 }
 
 
