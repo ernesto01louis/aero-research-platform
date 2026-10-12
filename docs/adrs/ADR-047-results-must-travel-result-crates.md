@@ -114,9 +114,11 @@ reader refuses:
      floats compared through `float.hex`;
    - every computed field is present and recomputes bit for bit;
    - keys present only in the re-dump must be listed, with their exact defaults, in an ADR-governed
-     `ADDED_FIELDS` allowlist (initially `provenance.containers = []`,
-     `optimization.cfd_verified.containers = []`, and `u95_input_basis = "skipped"` where
-     `u95_input == 0`).
+     allowlist. For a format-v1 crate that allowlist is **empty**: `result.json` must equal its
+     re-dump exactly. The **legacy** import of committed `data/vv` records uses a separate
+     allowlist for the three fields added to the schema after those records were written:
+     `provenance.containers = []`, `optimization.cfd_verified.containers = []`, and
+     `u95_input_basis = "skipped"` where `u95_input == 0`.
 4. **Configs.** Each stem equals `sha256(bytes)` and equals `four_fold.config_hash(parsed)`. A
    config is **never** validated into a HEAD CaseSpec.
 5. **Legacy replay.** Where the source record is embedded as evidence, a legacy import of it must
