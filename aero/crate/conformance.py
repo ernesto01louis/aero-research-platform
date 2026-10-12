@@ -6,6 +6,9 @@
     date string, ``license``).
   - Every data entity linked from the root by ``hasPart``, and every ``hasPart`` target present.
   - ``@context`` referencing the 1.3 context by URL.
+  - Every root ``conformsTo`` value is a ``Profile`` entity; every ``SoftwareApplication`` has a
+    ``version``; nothing is a ``SoftwareSourceCode`` (a Script) without being a ``File``. These are
+    the three the external validator found missing before format 1 was frozen.
 * **Process Run Crate 0.6 MUSTs.**
   - The root ``conformsTo`` the profile.
   - At least one ``CreateAction``, each with an ``@id`` and an ``instrument`` that resolves to a
@@ -84,6 +87,19 @@ def check_rocrate(doc: dict[str, Any], member_paths: set[str]) -> None:
     for part in parts:
         if part not in by_id or "File" not in _types(by_id[part]):
             raise CrateSemanticError(f"RO-Crate: hasPart target {part!r} is not a File entity")
+    for profile in _ids(root.get("conformsTo")):
+        if "Profile" not in _types(by_id.get(profile, {})):
+            raise CrateSemanticError(
+                f"RO-Crate: the root conformsTo {profile!r}, which is not a Profile entity"
+            )
+    for entity in graph:
+        types = _types(entity)
+        if types & {"SoftwareApplication", "ComputerLanguage"} and not entity.get("version"):
+            raise CrateSemanticError(f"RO-Crate: {entity['@id']!r} needs a 'version'")
+        if "SoftwareSourceCode" in types and "File" not in types:
+            raise CrateSemanticError(
+                f"RO-Crate: {entity['@id']!r} is a Script (SoftwareSourceCode) but not a File"
+            )
     if PRC_PROFILE not in _ids(root.get("conformsTo")):
         raise CrateSemanticError("Process Run Crate: the root must conform to the 0.6 profile")
     actions = [e for e in graph if "CreateAction" in _types(e)]
