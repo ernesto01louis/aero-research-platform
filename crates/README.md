@@ -13,11 +13,11 @@ its gated mean lift is a NO-GO.
 
 | crate | claim tier | verdicts | crate digest (sha256 of SHA256SUMS) |
 |---|---|---|---|
-| `stage12-oscillating-cylinder-lockin` | thesis-grade | thesis-grade-gate GO | `ae63703b96f9d4a4fce118c592441cc1645ecd43dbfe249f7ceb9a2e9d8b21a0` |
-| `stage14-rigid-flapping-wbd2004` | NO CLAIM (evidence only) | forward-validation NO-GO | `c8f0a9434ca4e76badcc9d8f70003757dbb8e5919c29c7dc0df826a79ae4e192` |
-| `stage15-airfoil-optimization` | validated | optimization-claim NO-GO | `b5a52bed24fd43790f5fd0ed36921170db85f95ff378cbb2fcda5ca501c31223` |
-| `stage16-airfoil-grid-certification` | validated | grid-certification NO-GO | `77f813d81140c4cc93e526b58c61dd769f9e7bb0555ccf527e912f9f082b7e69` |
-| `stage17-surrogate-accelerated-optimization` | validated | optimization-claim GO, surrogate-certificate GO, speed-up NO-GO (degenerate) | `ba1d2cf4b08e1a62d7ce1378e95256d8042b101a125c35f678910514a2bb782b` |
+| `stage12-oscillating-cylinder-lockin` | thesis-grade | thesis-grade-gate GO | `a0ca217d655a243a777574dd3f68b1f6f82542e6e9126bd9e4edfdd43d497773` |
+| `stage14-rigid-flapping-wbd2004` | NO CLAIM (evidence only) | forward-validation NO-GO | `438517c449c6d9aa743a2c45d770ccd384b6ab59b817356cf6458a21d27dc989` |
+| `stage15-airfoil-optimization` | validated | optimization-claim NO-GO | `bc42503f99e28f3dcbdcd0af4c05e10928f7902db7cb36b3053ce3fa30c8675f` |
+| `stage16-airfoil-grid-certification` | validated | grid-certification NO-GO | `0bf8ecae5943929317dd6567efac5e4a94c4555dc9f195e9ef8be3aba70e86b0` |
+| `stage17-surrogate-accelerated-optimization` | validated | optimization-claim GO, surrogate-certificate GO, speed-up NO-GO (degenerate) | `b41399231a7e298802aaf9c2a0d8bb1e2b3e36988c321d0f93cc55dccd187383` |
 
 ## Verify
 

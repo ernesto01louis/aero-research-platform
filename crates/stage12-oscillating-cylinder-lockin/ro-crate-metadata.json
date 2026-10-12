@@ -98,11 +98,15 @@
       ],
       "name": "aero.crate writer",
       "softwareVersion": "format-1",
-      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md"
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md",
+      "version": "format-1"
     },
     {
       "@id": "#aero-result-crate-format-1",
-      "@type": "CreativeWork",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
       "name": "aero-result-crate format 1 (ADR-047)",
       "version": "1"
     },
@@ -354,7 +358,8 @@
       },
       "name": "aero-research-platform",
       "softwareVersion": "a5c759a252cf654a884a9f539348d04b8b59d655",
-      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/a5c759a252cf654a884a9f539348d04b8b59d655"
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/a5c759a252cf654a884a9f539348d04b8b59d655",
+      "version": "a5c759a252cf654a884a9f539348d04b8b59d655"
     },
     {
       "@id": "SHA256SUMS",
@@ -408,12 +413,13 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20292712",
-      "@type": "SoftwareSourceCode",
-      "codeRepository": "https://github.com/ernesto01louis/aero-research-platform",
+      "@type": "CreativeWork",
+      "identifier": "10.5281/zenodo.20292712",
       "license": {
         "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
       },
-      "name": "aero-research-platform"
+      "name": "aero-research-platform",
+      "url": "https://github.com/ernesto01louis/aero-research-platform"
     },
     {
       "@id": "https://spdx.org/licenses/CC-BY-4.0",
@@ -429,7 +435,10 @@
     },
     {
       "@id": "https://w3id.org/ro/wfrun/process/0.6",
-      "@type": "CreativeWork",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
       "name": "Process Run Crate",
       "version": "0.6"
     },
