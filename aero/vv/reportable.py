@@ -54,6 +54,10 @@ _STRICT = ConfigDict(
     frozen=True,
     str_strip_whitespace=True,
     validate_default=True,
+    # FAIL-LOUD on non-finite floats (Stage 21, ADR-049 H-02): NaN/inf were accepted wherever no
+    # bound blocked them, a NaN delta slipped past the Invariant-10 small-signal gate, and the
+    # default JSON serialization then wrote `null` -- a record that cannot be read back.
+    allow_inf_nan=False,
 )
 
 # Default safety margin for IMPROVEMENT-EXCEEDS-UNCERTAINTY (CONSTITUTION Invariant 10).
@@ -66,6 +70,26 @@ ValidationTag = Literal["smoke", "validated", "thesis-grade"]
 # quantities REQUIRE a positive statistical U95 to be thesis-grade (GCI alone is
 # insufficient for unsteady flows) — see ReportableResult._thesis_grade_gate.
 QuantityKind = Literal["steady", "time_averaged", "phase_averaged"]
+
+
+def _rss(*terms: float) -> float:
+    """Root-sum-square with IEEE-exact squares (Stage 21, ADR-049 H-03).
+
+    ``x * x`` is one correctly rounded multiply on every platform; ``x**2`` goes through the C
+    library's ``pow`` and ``math.hypot`` through its own scaled algorithm, both of which can
+    differ from ``x * x`` in the last bit and between libms (measured on glibc 2.41:
+    ``x**2 != x*x`` in 145 of 200 000 draws). The result crate (ADR-047) recomputes every
+    computed U95 bit for bit on Linux, macOS and Windows, so the arithmetic must be exact.
+    Every committed U95 in data/vv reproduces bit-identically under this form.
+
+    The squares are added strictly left to right (``a*a + b*b + c*c``), as the old expression
+    was: the builtin ``sum`` uses Neumaier compensation for floats since Python 3.12, which can
+    round differently.
+    """
+    total = 0.0
+    for t in terms:
+        total += t * t
+    return math.sqrt(total)
 
 
 class SmallSignalError(ValueError):
@@ -159,7 +183,7 @@ class ReportableQuantity(BaseModel):
     @property
     def u95_total(self) -> float:
         """Combined 95% uncertainty: root-sum-square of the independent contributions."""
-        return math.sqrt(self.u95_numerical**2 + self.u95_statistical**2 + self.u95_input**2)
+        return _rss(self.u95_numerical, self.u95_statistical, self.u95_input)
 
     @model_validator(mode="after")
     def _input_basis_consistent(self) -> ReportableQuantity:
@@ -232,7 +256,7 @@ class ComposedDeltaU95(BaseModel):
     def u95_delta(self) -> float:
         """Combined delta U95: RSS of the paired numerical, paired statistical, input terms."""
         stat = self.paired.u95_delta_statistical if self.paired is not None else 0.0
-        return math.sqrt(self.u95_numerical**2 + stat**2 + self.u95_input**2)
+        return _rss(self.u95_numerical, stat, self.u95_input)
 
     @model_validator(mode="after")
     def _some_contribution(self) -> ComposedDeltaU95:
@@ -280,15 +304,13 @@ class IndependentDeltaU95(BaseModel):
     @property
     def u95_delta_statistical(self) -> float:
         """Independent RSS of the two measured sampling terms (no cancellation claimed)."""
-        return math.sqrt(
-            self.baseline_stat.u95_statistical**2 + self.candidate_stat.u95_statistical**2
-        )
+        return _rss(self.baseline_stat.u95_statistical, self.candidate_stat.u95_statistical)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def u95_delta(self) -> float:
         """Combined delta U95: RSS of the numerical, independent-statistical, input terms."""
-        return math.sqrt(self.u95_numerical**2 + self.u95_delta_statistical**2 + self.u95_input**2)
+        return _rss(self.u95_numerical, self.u95_delta_statistical, self.u95_input)
 
     @model_validator(mode="after")
     def _some_contribution(self) -> IndependentDeltaU95:
@@ -410,7 +432,9 @@ class ImprovementClaim(BaseModel):
                 "baseline and candidate at matched numerics/mesh so correlated errors cancel "
                 "(.claude/rules/optimization-integrity.md)."
             )
-        if self.delta <= self.required_margin:
+        # `not (delta > margin)` rather than `delta <= margin`: a NaN compares False both ways,
+        # so the old form let a NaN delta through the gate (Stage 21, ADR-049 H-02).
+        if not (self.delta > self.required_margin):
             raise SmallSignalError(
                 f"improvement on '{self.quantity}' is not thesis-grade: delta={self.delta:.6g} "
                 f"<= k*U95={self.required_margin:.6g} (k={self.k}, u95_delta={self.u95_delta:.6g}). "

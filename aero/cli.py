@@ -313,8 +313,10 @@ def _cli() -> None:
 
 
 def _repo_root() -> Path:
-    """Repo root — the editable-installed package lives at ``<repo>/aero/``."""
-    return Path(__file__).resolve().parents[1]
+    """Repo root of the source checkout; fails loudly under a wheel install (ADR-049 H-16)."""
+    from aero._repo import source_checkout_root
+
+    return source_checkout_root()
 
 
 def _detect_nfs_roots() -> tuple[Path, Path]:
