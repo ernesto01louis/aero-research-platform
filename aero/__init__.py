@@ -20,8 +20,10 @@ from importlib.metadata import version as _pkg_version
 try:
     __version__: str = _pkg_version("aero")
 except PackageNotFoundError:
-    # In-tree development / editable install where metadata isn't yet wired:
-    # fall back to a sentinel so callers can detect dev state.
-    __version__ = "0.0.1+local"
+    # Imported from a source tree with no installed distribution metadata. The sentinel is
+    # deliberately NOT a plausible release number (Stage 21, ADR-049 H-04): the old fallback
+    # "0.0.1+local" looked like a real version and would silently mislabel anything stamped
+    # with it. tests/unit/test_version_single_source.py pins the installed value to pyproject.
+    __version__ = "0+unknown"
 
 __all__ = ["__version__"]

@@ -49,8 +49,10 @@ _STL_NAME = "cylinder_flag.stl"
 
 
 def _repo_root() -> Path:
-    # aero/vv/external_geometry/turek_hron_cfd.py -> repo root.
-    return Path(__file__).resolve().parents[3]
+    # The source checkout's root; fails loudly under a wheel install (ADR-049 H-16).
+    from aero._repo import source_checkout_root
+
+    return source_checkout_root()
 
 
 def _gated_stl(repo_root: Path) -> tuple[str, str]:
