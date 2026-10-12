@@ -15,7 +15,6 @@ import subprocess
 import time
 from pathlib import Path
 
-from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from aero.orchestration._base import ExecResult
@@ -112,6 +111,8 @@ class LocalSSHExecutor(BaseModel):
     def _run_sync(self, command: str, timeout_s: int) -> ExecResult:
         """Run a short command synchronously over a single SSH connection."""
         argv = ["ssh", *_SSH_OPTS, self.ssh_target, command]
+        from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
+
         logger.debug("ssh-exec on {}: {}", self.ssh_target, command)
         started = time.monotonic()
         try:
@@ -192,6 +193,8 @@ class LocalSSHExecutor(BaseModel):
                     else ""
                 ),
             )
+        from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
+
         logger.info("submitted long job '{}' on {}", session, self.ssh_target)
         return submit, None
 
@@ -229,6 +232,8 @@ class LocalSSHExecutor(BaseModel):
             # thing standing between a timeout and a stranded solve.
             wait_rc = 2
             if _reap_enabled():
+                from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
+
                 logger.warning(
                     "run_long.sh wait exceeded the executor's own guard for '{}' — "
                     "reaping the remote job directly",

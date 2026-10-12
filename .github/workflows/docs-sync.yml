@@ -12,10 +12,11 @@ permissions:
 jobs:
   status-block:
     name: README STATUS block consistency
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # regenerate_status.sh deliberately asks git whether the stage tag EXISTS
           # rather than trusting the handoff frontmatter (it renders "(not yet tagged)"
           # when it does not), so this check is only correct if the checkout HAS the
