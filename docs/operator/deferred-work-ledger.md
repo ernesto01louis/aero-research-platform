@@ -301,5 +301,5 @@ New findings during Stage 21 (not release-blocking):
   roc-validator ships PRC 0.6.
 - [ ] **`scripts/regenerate_status.sh` has no unit test** for complete-untagged, complete-tagged or
   an empty `next_stage`. It is exercised only by the required docs-sync job.
-- [ ] **The CONSTITUTION Invariant 8 parenthetical still reads `default 50.0`.** It is a
-  constitution text fix and rides the Stage-21 constitution PR.
+- [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was
+  already fixed: Invariant 8 reads `default 150.0`, raised from 50.0 by ADR-014. Nothing to carry.
