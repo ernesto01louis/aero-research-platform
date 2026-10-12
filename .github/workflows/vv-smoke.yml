@@ -41,12 +41,16 @@ permissions:
 jobs:
   vv-smoke:
     name: V&V smoke — NASA TMR suite
+    # Fork guard (Stage 21, ADR-049 H-11): this PUBLIC repo's self-hosted runners reach
+    # the cluster, so a pull request from a fork never runs here. The primary control is
+    # the repo setting "require approval for all external contributors" (operator).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, vv]
     timeout-minutes: 90
     env:
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # Secrets are STEP-scoped (Stage 21, ADR-049 H-08): only the steps that talk to
+      # the cluster receive them -- never the install step, which runs third-party
+      # build code, and never a third-party action.
       # This job owns the lifetime of every solve it submits: run_long.sh reaps
       # the detached tmux session on cancellation or timeout instead of leaving
       # it running. Without this, the `cancel-in-progress` group above would strand a
@@ -54,8 +58,9 @@ jobs:
       # in flight, and the next run competes with the last one's corpses.
       AERO_RUN_LONG_REAP: "1"
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install aero with the openfoam + su2 + provenance + vv extras
         # Stage 06 adds the SU2 path; the V&V suite runs the TMR cases through
         # both solvers in one job. Tests skip cleanly if a SIF or the DSN is
@@ -70,6 +75,10 @@ jobs:
         # DVC-tracked mesh asset; without `dvc pull`, the test would fail with
         # FileNotFoundError instead of skipping cleanly. `|| echo` keeps the
         # job alive on a remote that's down — individual tests then skip.
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
 
       - name: Run the V&V suite (single-grid on push/PR, + GCI sweep nightly)
@@ -88,6 +97,10 @@ jobs:
         # The two moving cases alone consume more than half the budget, and
         # test_unsteady_plunging_airfoil has never once completed in CI.
         # They are gated by moving-vv.yml instead, which gives them hours.
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             .venv/bin/pytest -m "vv and slow and not moving" --run-slow -v tests/vv
@@ -97,22 +110,30 @@ jobs:
 
       - name: Regenerate the V&V dashboard
         if: always()
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
 
       - name: Upload the V&V dashboard
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vv-dashboard
           path: docs/vv-dashboard.html
 
       - name: Capture the V&V status as JSON
         if: always() && github.event_name == 'pull_request'
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/aero vv report --latest --json > vv-status.json || echo "[]" > vv-status.json
 
       - name: Post the V&V status as a PR comment
         if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');

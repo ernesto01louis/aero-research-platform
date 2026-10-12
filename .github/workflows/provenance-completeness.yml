@@ -37,18 +37,16 @@ permissions:
 jobs:
   provenance-completeness:
     name: Provenance completeness — four-fold contract
+    # Fork guard (Stage 21, ADR-049 H-11): this PUBLIC repo's self-hosted runners reach
+    # the cluster, so a pull request from a fork never runs here. The primary control is
+    # the repo setting "require approval for all external contributors" (operator).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, vv]
     timeout-minutes: 40
     env:
-      # libpq DSN for the aero_provenance DB on Postgres LXC 202. Stored as a
-      # repo secret (masked in logs) — never committed (Hard Rule 7).
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      # MinIO dvc-sa credentials — `aero run` does `dvc status -c` against the
-      # aero-minio remote; the DVC creds live in the gitignored
-      # .dvc/config.local, absent on a fresh checkout, so supply them via the
-      # boto3 env-var credential chain.
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      # Secrets are STEP-scoped (Stage 21, ADR-049 H-08): only the steps that talk to
+      # the cluster receive them -- never the install step, which runs third-party
+      # build code, and never a third-party action.
       # This job owns the lifetime of every solve it submits: run_long.sh reaps
       # the detached tmux session on cancellation or timeout instead of leaving
       # it running. Without this, the `cancel-in-progress` group above would strand a
@@ -56,13 +54,22 @@ jobs:
       # in flight, and the next run competes with the last one's corpses.
       AERO_RUN_LONG_REAP: "1"
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install aero with the openfoam + provenance extras
         run: |
           uv venv --python 3.12 --clear
           uv pip install -e ".[openfoam,provenance,dev]"
 
       - name: Run the provenance-completeness end-to-end check
+        # The DSN reaches the aero_provenance DB on Postgres LXC 202 (masked; never
+        # committed, Hard Rule 7). The MinIO dvc-sa credentials serve `aero run`'s
+        # `dvc status -c`: the DVC creds live in the gitignored .dvc/config.local,
+        # absent on a fresh checkout, so they come in via the boto3 env-var chain.
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: |
           .venv/bin/pytest -m "stage_04 and slow" --run-slow -v tests/stage_04
