@@ -28,8 +28,9 @@ A concept DOI can be **reserved** before the first release and written into
 
 ## Per-release flow
 
-1. Tag and push a release (`v0.0.NN` during the staged build; `v0.x` / `v1.0`
-   after Stage 16). Create a **GitHub Release** from the tag.
+1. The operator tags the release (`vX.Y.Z`; `tag-handoff-gate` must go green), then creates and
+   **publishes** a GitHub Release from the tag, with the artifacts from `release-readiness.yml`
+   attached. A draft or a pre-release mints nothing.
 2. The Zenodo webhook archives the tarball automatically and mints a **version
    DOI**; the concept DOI updates to point at it.
 3. No manual upload step — the GitHub Release is the trigger.
@@ -37,7 +38,19 @@ A concept DOI can be **reserved** before the first release and written into
 ## Notes
 
 - Zenodo only archives **GitHub Releases**, not bare tags — create the Release.
-- `.zenodo.json` (optional, repo root) overrides Zenodo's metadata extraction;
-  until it exists, Zenodo reads `CITATION.cff` and the repo description.
+- `.zenodo.json` (repo root, since Stage 21) is **authoritative**: when it exists, Zenodo ignores
+  `CITATION.cff`. It deliberately has no `version` or `publication_date`, because those come from
+  the tag and the Release. `tests/unit/test_release_metadata_consistency.py` keeps it consistent
+  with `CITATION.cff`, `pyproject.toml` and the paper.
+- Never print the Zenodo webhook configuration (`gh api .../hooks`): it contains a token.
 - The concept DOI reservation is **permanent** — it is requested once, with
   operator `approved`.
+
+## Version DOIs
+
+Each published release gets a version DOI. It is recorded here in the first PR after publication,
+and `scripts/release_readiness.py --gate joss` requires it. Concept DOI: `10.5281/zenodo.20292712`.
+
+| Release | Version DOI | Published |
+|---|---|---|
+| v0.1.0 | *(recorded after the Release is published)* | — |
