@@ -1,0 +1,21 @@
+# Dependabot — GitHub Actions only (Stage 21, ADR-049 H-21).
+#
+# Every action in .github/workflows is pinned to a full commit SHA with a `# vX.Y.Z`
+# comment (H-08); Dependabot keeps those pins current. Python dependencies are NOT
+# managed here: they are locked in uv.lock and gated by the dependency licence scan.
+#
+# commit-lint is a required check and accepts only `<type>(stage-NN): ...`, so the
+# commit prefix carries the CURRENT stage. tests/unit/test_workflow_hygiene.py fails if
+# this prefix drifts from .aero-stage — bump it at every stage open.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(stage-21)"
