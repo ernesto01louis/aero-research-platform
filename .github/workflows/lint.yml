@@ -30,7 +30,12 @@ jobs:
         with:
           version: "0.11.14"
       - name: Install dev extras
-        run: uv pip install --system -e ".[dev]"
+        # Locked install (Stage 21, ADR-049 H-15): CI tests exactly the versions in uv.lock
+        # (the licence scan and the release are built from the same lock) instead of
+        # re-resolving fresh on every run. .venv/bin goes first on PATH for later steps.
+        run: |
+          uv sync --locked --extra dev --python 3.12
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
       - name: Ruff lint
         run: ruff check .
       - name: Ruff format check
