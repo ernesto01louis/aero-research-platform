@@ -12,20 +12,21 @@ permissions:
 jobs:
   conventional-commits:
     name: enforce Conventional Commits on PR title and every commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20"
+          node-version: "24"
       - name: Install commitlint
         run: |
           npm install --no-save \
-            @commitlint/cli@19 \
-            @commitlint/config-conventional@19
+            @commitlint/cli@19.8.1 \
+            @commitlint/config-conventional@19.8.1
       - name: Write commitlint config
         run: |
           cat > commitlint.config.js <<'EOF'
@@ -47,25 +48,6 @@ jobs:
               'body-max-line-length': [0],   // long URLs and pasted output are common in body
               'footer-max-line-length': [0], // same for footers (Co-Authored-By + long emails, etc.)
             },
-            // EXACTLY ONE exemption, by full-header equality — never a prefix or a wildcard.
-            //
-            // Stage 20, commit 0b6d774: its header is 101 chars against the 100 limit. It cannot
-            // be reworded. 0b6d774 is the PARENT of f4279f2, and f4279f2 is the
-            // `provenance.git_sha` recorded inside BOTH failed R3 restart runs on NFS
-            // (hg2007_flexible_foil-20260916-152606 and -20260916-213116) — the decisive evidence
-            // for Stage 20's recorded NO-GO on infrastructure (ADR-041 "V7 — FIRED"; handoff
-            // §6.88-§6.89). Rewriting that commit changes f4279f2's SHA and orphans the pointer
-            // the evidence cites, so the header is left as-is and exempted here instead.
-            //
-            // The match is on the WHOLE header string, so no other long header is ever excused:
-            // the limit stays [2, 'always', 100] for every commit but this one. Remove this entry
-            // if that commit ever leaves the history (e.g. after the branch is squash-merged and
-            // an annotated evidence tag keeps the SHAs resolvable).
-            ignores: [
-              (message) =>
-                message.split('\n')[0] ===
-                'docs(stage-20): ADR-045 C8 -- R3 treatment segment 1 submitted (hg2007_flexible_foil-20260916-152606)',
-            ],
             plugins: [
               {
                 rules: {
@@ -82,10 +64,14 @@ jobs:
           };
           EOF
       - name: Validate PR title
-        run: echo "${{ github.event.pull_request.title }}" | npx commitlint
+        # The title is untrusted input: it reaches the shell only through env, never by
+        # ${{ }} interpolation into the script text (GitHub script-injection guidance).
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx commitlint
       - name: Validate every commit in the PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          npx commitlint \
-            --from "${{ github.event.pull_request.base.sha }}" \
-            --to   "${{ github.event.pull_request.head.sha }}" \
-            --verbose
+          npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose

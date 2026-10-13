@@ -34,7 +34,7 @@ from aero.crate.validity import (
     Verdict,
 )
 from aero.provenance.four_fold import ProvenanceTuple, config_hash
-from aero.vv.paired_difference import paired_delta_uncertainty_from_samples
+from aero.vv.paired_difference import PairedDeltaUncertainty, paired_delta_uncertainty_from_samples
 from aero.vv.reportable import (
     ComposedDeltaU95,
     ImprovementClaim,
@@ -204,7 +204,10 @@ def steady_optimization() -> CrateSpec:
     )
 
 
-def _paired() -> Any:
+PAIRED_SNAPSHOT = Path(__file__).with_name("fixtures") / "crate_paired_snapshot.json"
+
+
+def _paired_from_samples() -> Any:
     data = json.loads(PAIRED_FIXTURE.read_text())
     start = data["converged_from_cycle"]
     return paired_delta_uncertainty_from_samples(
@@ -213,6 +216,17 @@ def _paired() -> Any:
         period=data["period"],
         pair_start=start,
     )
+
+
+def _paired() -> Any:
+    """The paired estimate, loaded from a committed snapshot rather than recomputed.
+
+    numpy's reductions (NOBM, autocorrelation) can differ in the last bit between CPUs (SIMD
+    paths), so recomputing at test time made the frozen format-v1 digest machine-dependent.
+    The format test pins *bytes*, not numpy. test_crate_selftest_snapshot.py keeps the
+    snapshot equal to a fresh computation to within 1e-12, relative.
+    """
+    return PairedDeltaUncertainty.model_validate(json.loads(PAIRED_SNAPSHOT.read_text()))
 
 
 def thesis_grade_paired() -> CrateSpec:
