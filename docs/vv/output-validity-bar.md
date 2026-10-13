@@ -79,6 +79,14 @@ Since the 2026-07 review (finding F1; ADR-023) the delta's U95 is **measured, no
   within the stated bounds. Full bundle + round-trip CI land in Stage 20.
   **(2026-09-20: NOT delivered in Stage 20 — ADR-041 V7 FIRED, NO-GO on infrastructure;
   handoff §6.88-§6.89. Hard Rule 16's promotion has no Stage-20 bundle behind it.)**
+  **(2026-10-12: moved to Stage 21 by ADR-046 S1 and delivered there as the `aero-result-crate`
+  format v1 (ADR-047):**
+  - `aero/crate/` is the one writer and reader;
+  - five committed crates live under `crates/`;
+  - the required `crate round-trip — Invariant 13` CI verifies them on clean Linux, macOS and
+    Windows runners. The CI goes green once its PRs merge.
+
+  **The promotion to Invariant 13 ratifies in the Stage-21 constitution PR.)**
 
 ## Enforcement map
 

@@ -12,6 +12,14 @@
   It moves **no** pre-registered band, gate or budget clause. ADR-039/040's FORBIDDEN lists and all
   four B-sentinels are untouched and stay permanently unfilled (ADR-041 V7 FIRED).
 
+> **Errata (2026-10-12, Stage 21; ADR-049 H-29).** Two typos are noted here; the decision text
+> is unchanged.
+> 1. The Status line cites "the ADR-041 `d5bf381` pattern". `d5bf381` is **ADR-040's** acceptance
+>    commit; ADR-041's is `2bbfdd4`. The pattern (acceptance recorded by the commit that lands
+>    the change) is the same.
+> 2. The `## Decision (proposed)` heading below predates acceptance. The decision is accepted, as
+>    the Status line says.
+
 ## Context and problem statement
 
 Stage 21 is currently defined (`README-handoff.md:46`) as **"Flexible-Flapping Optimization +

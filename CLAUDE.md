@@ -123,14 +123,14 @@ Then begin work.
     *only* `u95_numerical`; unsteady quantities also need `u95_statistical` (batch-means
     / autocorrelation effective-sample-size after a periodic-steady-state check).
     Optimization **deltas** run baseline + candidate at matched numerics/mesh so
-    correlated errors cancel. *(Promoting to CONSTITUTION Invariant 10 via ADR-015 —
-    72 h window; schema `aero/vv/reportable.py` lands Stage 10, full U95 + CI gate
-    Stage 12.)*
+    correlated errors cancel. **Promoted to CONSTITUTION Invariant 10** (ADR-015, ratified
+    2026-07-05 at Stage 12; required check `small-signal-gate — Invariant 10`; schema
+    `aero/vv/reportable.py`).
 13. **NO-SURROGATE-ON-FOREIGN-DATA.** Surrogates train only on the platform's own
     validated CFD; foreign datasets (automotive/aircraft) cannot produce a
-    `validated`/`production` certificate (`smoke` exempt). *(Promoting to CONSTITUTION
-    Invariant 11 via ADR-015 — 72 h window; `data_origin` field + CI fence land Stage 12;
-    reuses the Stage-08 taint machinery.)*
+    `validated`/`production` certificate (`smoke` exempt). **Promoted to CONSTITUTION
+    Invariant 11** (ADR-015, ratified 2026-07-05 at Stage 12; required check
+    `data-origin-fence — Invariant 11`; reuses the Stage-08 taint machinery).
 14. **CFD-VERIFIED-OPTIMUM-ONLY.** Every reported optimum is verified by ground-truth CFD
     before it is reported; no optimum is claimed on a surrogate prediction alone;
     best-of-N reporting is selection-bias-aware (held-out CFD verification). Guards the
@@ -487,4 +487,4 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 ---
 
-*Stage 01 (2026-05-17); updated through Stage 18 (2026-07-26) by each stage's post-stage handoff write.*
+*Stage 01 (2026-05-17); updated through Stage 21 (2026-10-12) by each stage's post-stage handoff write.*

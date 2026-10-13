@@ -1,4 +1,4 @@
-# Deferred-work ledger (as of Stage 09, 2026-06-01; refocused 2026-06-10)
+# Deferred-work ledger (as of Stage 09, 2026-06-01; refocused 2026-06-10; refreshed Stage 21, 2026-10-12)
 
 > Single source of truth for everything not-yet-done across Stages 01–09,
 > grouped by **what unblocks it**. Born from the Stage-09 cleanup audit: the
@@ -235,13 +235,84 @@ explicitly-deferred remainders, each with its unblocking condition:
   tail selection and hence historical verdicts. Do it per-owning-stage (11/13/14) with
   re-runs of the affected cases; the surviving force histories are under
   `/mnt/aero-nfs/runs/{plunging_airfoil_hg2007,oscillating_cylinder_lockin}-*`.
-- **CalculiX SIF not built.** `containers/calculix-precice.{Dockerfile,def}` and
-  `scripts/build_calculix_sif.sh` are committed and ready; run from the Proxmox host, then
-  record the digest in `containers/SHA256SUMS` and run the perpendicular-flap smoke.
+- ~~**CalculiX SIF not built.**~~ **CLOSED in Stage 20 (`bc1384a`).** `calculix-precice.sif`
+  was built, then rebuilt on calculix-adapter v2.20.2; `calculix-precice-adr045.sif` is the
+  solid container of record. Both digests are in `containers/SHA256SUMS`.
 - **The `aero[precice]` extra is exercised only inside the SIF** (by `solverdummy`). If a
   host-side in-process participant ever lands, revisit what the extra is for.
 - **`_txt_table` treats any short final row as a partial write.** Correct for a live
   preCICE file; a file truncated by something else would read as one silently dropped row.
-- **The README STATUS generator cannot express "stage complete, not yet tagged"** — it
-  reports the handoff's `stage_tag` as "Latest tag" regardless. Stage 19 is partial and
-  untagged, so the block currently overstates. Small fix to `scripts/regenerate_status.sh`.
+- ~~**The README STATUS generator cannot express "stage complete, not yet tagged"**~~
+  **CLOSED in Stage 20 (`40503e6`).** The generator now writes "(not yet tagged)" when the
+  handoff's `stage_tag` does not exist.
+
+## Stage 20 (flexible flapping FSI) — NO-GO on infrastructure; carried by ADR-046
+
+- **Flexible-flapping optimization is DEFERRED past v0.1.0** (ADR-046 S4). It re-enters only
+  under S5: a NEW ADR that names the infrastructure fix, plus the operator's word. No Stage-20
+  lever is retried, and the four B-sentinels stay permanently unfilled.
+- **`moving-vv` is known-failing** (ADR-049 H-20). Its last five scheduled runs (2026-09-13 to
+  2026-10-11) failed. The latest is `plunging_airfoil_hg2007` timing out at the 14 400 s
+  `run_long.sh` ceiling (`pimpleFoam` rc=124). Raising the ceiling, or a compute fix, is the
+  operator's decision (O-16). Only read-only triage of the run logs is in scope.
+- **Stage 18–20 records are not crated at v0.1.0** (O-22). A later ADR can crate them additively.
+
+## Stage 21 (release) — OUT list and findings
+
+The closed hardening list is in ADR-049 R4. These are OUT, with their destinations:
+
+| ID | Item | Why out / destination |
+|---|---|---|
+| O-01 | Stage-11 PSS S3/S5 backfill | needs re-runs |
+| O-02 | Mesh fallback ladder / checkMesh gate in the V&V runner | behaviour change; needs cluster verification (Stage 18 item above) |
+| O-03 | Bowtie vertex check | new quality gate (Stage 18 item above) |
+| O-04 | 3-D external geometry | feature (Stage 18 item above) |
+| O-05 | Fair-test speed-up | new campaign (Stage 17 item above) |
+| O-06 | The 393² rung (Stage-17 thesis-grade) | 10–14 days of compute |
+| O-07 | Content-addressed `dvc_input_hash` | changes four-tuple semantics; post-v0.1.0 ADR |
+| O-08 | Re-hash the SIF at launch | cluster code path; documented in SECURITY.md and every crate |
+| O-09 | RunPod `StrictHostKeyChecking=no` | frozen GPU path; documented in SECURITY.md |
+| O-10 | Claude hook changes (Stop-hook path via `$CLAUDE_PROJECT_DIR`; fail-closed Bash hook) | operator-only |
+| O-11 | PyPI (`aero` is taken; the jaxfluids git reference blocks upload) | distribution-name ADR |
+| O-12 | A docs site | operator choice; SCOPE-GATE |
+| O-13 | Backfilled Releases v0.0.8–v0.0.20, or a v0.0.5 tag | would mint stale-metadata DOIs |
+| O-14 | Container-image licence scan / SBOM | outside the Python lock |
+| O-15 | A full Python 3.13 test leg | only the crate reader runs on 3.13 |
+| O-16 | A `moving-vv` compute fix | no compute this stage |
+| O-17 | `enforce_admins` | deadlocks with a sole code owner; `release_readiness.py --online` substitutes |
+| O-18 | Platform markers on the jax-fluids NVIDIA wheels | frozen GPU extra |
+| O-19 | actionlint / zizmor | the workflow-hygiene test covers the key rules |
+| O-20 | A coverage threshold | — |
+| O-21 | Stage-13 crates | schema drift; refused by the legacy import, never "fixed" |
+| O-22 | Crates for Stages 18–20 | additive ADR later |
+| O-23 | Re-certifying the Stage-17 surrogate | compute. The certificate expires 2027-01-20 and every crate states it. |
+| O-24 | Ephemeral runners, CodeQL, tag rulesets | operator settings |
+
+New findings during Stage 21 (not release-blocking):
+
+- [ ] **pip-audit reports known advisories in the locked versions.** On 2026-10-12: 161
+  advisories across 20 packages, mostly transitive (aiohttp, anyio, asyncssh, cryptography,
+  diskcache, dulwich, fsspec, gitpython, hydra-core, mlflow, multidict, pillow, pyasn1,
+  pydantic-settings, setuptools, sqlparse, starlette, urllib3, virtualenv, werkzeug). A lock
+  refresh is its own change: re-run the licence `refresh`, re-verify, and run a FULL vv-required.
+  The job is informational (`dependency-licences.yml`).
+- [ ] **The external RO-Crate validator's Process Run Crate profile is still 0.5** (RO-Crate 1.1),
+  so the PRC 0.6 MUSTs are checked in-repo (`aero/crate/conformance.py`). Re-check when
+  roc-validator ships PRC 0.6.
+- [ ] **H-34: path-safe preCICE directory fields** (ADR-049 P2, not done at Stage 21).
+  - Add a simple-name pattern (no `.`/`..`, only `[A-Za-z0-9._-]`) to the workdir / tutorial /
+    participant-dir fields in `aero/adapters/precice/case.py`, and `shlex.quote` at the
+    solver's shell line.
+  - Every committed value is a simple name, so `config_hash` is unchanged.
+  - It touches `aero/adapters/**`, so it needs a FULL vv-required run.
+- [ ] **H-35: 3MF zip caps** (ADR-049 P2, not done at Stage 21). In `aero/geometry/threemf.py`:
+  - at most 10 000 entries;
+  - at most 512 MiB per part;
+  - a compression ratio of at most 200;
+  - refuse `..` and absolute member names.
+
+  It touches `aero/geometry/**`, so it needs a FULL vv-required run.
+- [ ] **`scripts/regenerate_status.sh` has no unit test** for complete-untagged, complete-tagged or
+  an empty `next_stage`. It is exercised only by the required docs-sync job.
+- [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was
+  already fixed: Invariant 8 reads `default 150.0`, raised from 50.0 by ADR-014. Nothing to carry.
