@@ -122,17 +122,19 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 - **#51 was replaced by #60.** One commit header was 104 characters, over commit-lint's 100.
   Rewriting it would need a force-push, which the hooks forbid. #60 is the same tree with that
   commit re-made.
-- **Dependabot opened #59** (`dorny/paths-filter` 3.0.4 → 4.0.3). It is left for the operator: the
-  plan deliberately kept v3.0.4, because that action runs in the secret-bearing vv-required job.
+- **Dependabot opened #59** (`dorny/paths-filter` 3.0.4 → 4.0.3). The operator closed it on
+  2026-10-13: v3.0.4 is kept deliberately, because that action runs in the secret-bearing
+  vv-required job. A Dependabot ignore rule for its majors keeps it from reopening.
 - **The external-review addendum (2026-10-11):**
   - A (version policy) is recorded in ADR-049 R3, and Development Status is 3 - Alpha (#50). The
     bump itself is PR-15.
-  - B (a hosted-runner CPU-only end-to-end number) needs an ADR first: on a hosted runner, the
-    four-tuple's container and DVC terms mean something different.
-  - C (per-evaluation retry in the optimizer loop) is also pending. The loop already skips and
-    counts a failed solve (S8); it lacks a bounded retry and a recorded failure reason.
+  - B (a hosted-runner CPU-only end-to-end number) is now **ADR-050, proposed** (operator
+    decision 2026-10-13: ADR now, build after v0.1.0). It is ledgered.
+  - C (per-evaluation retry in the optimizer loop) is a **Stage-22 pre-registration item**
+    (operator decision 2026-10-13), ledgered. The loop already skips and counts a failed solve
+    (S8); it lacks a bounded retry and a recorded failure reason.
 
-  B and C await the operator's decision. Neither reopens Stage 20 or coupled-FSI restart.
+  Neither reopens Stage 20 or coupled-FSI restart.
 - **Not done (optional or ledgered):**
   - PR-04, the vv-required restructure (optional, propose-first);
   - PR-12, a hosted run of `tests/stage_*` (optional);
@@ -276,9 +278,12 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
    5. Agent: PR-17 records the version DOI.
 6. **JOSS:** submission on or after **2026-11-18**. Only the operator replies to editors and
    reviewers.
-7. **Decisions pending:**
-   - #59 (Dependabot);
-   - addendum B (needs an ADR) and C (a small optimizer change, or a Stage-22 pre-registration item).
+7. **Decided 2026-10-13:**
+   - #59 closed, with an ignore rule;
+   - addendum B → ADR-050 (proposed, build after v0.1.0);
+   - addendum C → the Stage-22 pre-registration.
+
+   **PR-15's Stage-22 prompt must carry C.**
 
 The Stage-22 prompt is authored in PR-15 at close. It does not exist yet.
 
