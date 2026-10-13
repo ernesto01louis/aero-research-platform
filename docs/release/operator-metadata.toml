@@ -1,0 +1,21 @@
+# The JOSS / Zenodo metadata only the operator can supply (Stage 21; ADR-049 R5).
+# Each value starts as an <<OPERATOR-...>> sentinel. While a value is a sentinel:
+#   - its key stays ABSENT from CITATION.cff and .zenodo.json, so no placeholder is ever published;
+#   - the matching sentinel stays in paper/paper.md;
+#   - `scripts/release_readiness.py --gate joss` refuses to report "ready to submit".
+# Fill a value and propagate it in the same commit:
+#   - orcid: CITATION.cff authors[0].orcid, .zenodo.json creators[0].orcid, paper front matter;
+#   - affiliation and ror: CITATION.cff authors[0].affiliation, .zenodo.json creators[0].affiliation,
+#     paper affiliations;
+#   - funding: the paper's Acknowledgements;
+#   - research_use: the paper's "Research impact statement";
+#   - ai_human_review_statement: the paper's "AI usage disclosure", in the operator's own words;
+#   - submission_date: the paper front matter `date`, as "%e %B %Y".
+
+orcid = "<<OPERATOR-ORCID>>"
+affiliation = "<<OPERATOR-AFFILIATION>>"
+ror = "<<OPERATOR-ROR>>"
+funding = "<<OPERATOR-FUNDING>>"
+research_use = "<<OPERATOR-RESEARCH-USE>>"
+ai_human_review_statement = "<<OPERATOR-AI-HUMAN-REVIEW>>"
+submission_date = "<<OPERATOR-SUBMISSION-DATE>>"

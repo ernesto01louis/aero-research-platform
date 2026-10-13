@@ -1,0 +1,193 @@
+# Every number the v0.1.0 paper and release notes state about a result, tied to the verified crate
+# that carries it (Stage 21; operator decision D2, record-faithful wording).
+# tests/unit/test_release_claims_ledger.py does three things for each claim:
+#   1. re-reads the value from the crate, after `verify_crate`;
+#   2. renders it with `format` (after `scale`) and requires exactly `text`;
+#   3. requires `text` in every document listed in `in`.
+# A value comes from one of:
+#   - `result`: a JSON pointer into the crate's result.json;
+#   - `gate` + `attr`: a gate's observed value or threshold, by "scope/name";
+#   - `member` + `pointer`: a pointer into a crate member, such as embedded evidence.
+
+paper = "paper/paper.md"
+notes = "docs/release/RELEASE-NOTES-v0.1.0.md"
+
+[[claim]]
+id = "s12-cd"
+crate = "stage12-oscillating-cylinder-lockin"
+result = "/quantities/0/value"
+format = "{:.3f}"
+text = "1.993"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s12-u95"
+crate = "stage12-oscillating-cylinder-lockin"
+result = "/quantities/0/u95_total"
+format = "{:.3f}"
+text = "0.079"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s14-gated-miss"
+crate = "stage14-rigid-flapping-wbd2004"
+gate = "forward-validation/symmetrical-mean-lift-within-band"
+attr = "observed"
+scale = 100.0
+format = "{:.1f} %"
+text = "45.7 %"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s14-band"
+crate = "stage14-rigid-flapping-wbd2004"
+gate = "forward-validation/symmetrical-mean-lift-within-band"
+attr = "threshold"
+scale = 100.0
+format = "±{:.0f} %"
+text = "±25 %"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s14-advanced-miss"
+crate = "stage14-rigid-flapping-wbd2004"
+gate = "forward-validation/advanced-mean-lift-rel-err"
+attr = "observed"
+scale = 100.0
+format = "{:.0f} %"
+text = "38 %"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s14-delayed-miss"
+crate = "stage14-rigid-flapping-wbd2004"
+gate = "forward-validation/delayed-mean-lift-rel-err"
+attr = "observed"
+scale = 100.0
+format = "{:.0f} %"
+text = "64 %"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s14-advanced-cl"
+crate = "stage14-rigid-flapping-wbd2004"
+member = "evidence/stage14_flapping_nogo.json"
+pointer = "/per_timing/1/mean_cl_cfd"
+format = "advanced {:.3f}"
+text = "advanced 0.577"
+in = ["notes"]
+
+[[claim]]
+id = "s14-symmetrical-cl"
+crate = "stage14-rigid-flapping-wbd2004"
+member = "evidence/stage14_flapping_nogo.json"
+pointer = "/per_timing/0/mean_cl_cfd"
+format = "symmetrical {:.3f}"
+text = "symmetrical 0.467"
+in = ["notes"]
+
+[[claim]]
+id = "s14-delayed-cl"
+crate = "stage14-rigid-flapping-wbd2004"
+member = "evidence/stage14_flapping_nogo.json"
+pointer = "/per_timing/2/mean_cl_cfd"
+format = "delayed {:.3f}"
+text = "delayed 0.137"
+in = ["notes"]
+
+[[claim]]
+id = "s15-delta"
+crate = "stage15-airfoil-optimization"
+gate = "optimization-claim/delta-exceeds-own-u95"
+attr = "observed"
+format = "{:.2f}"
+text = "24.66"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s15-own-u95"
+crate = "stage15-airfoil-optimization"
+gate = "optimization-claim/delta-exceeds-own-u95"
+attr = "threshold"
+format = "{:.2f}"
+text = "25.37"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s16-order"
+crate = "stage16-airfoil-grid-certification"
+gate = "grid-certification/order-in-asymptotic-range"
+attr = "observed"
+format = "{:.3f}"
+text = "0.465"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s16-floor"
+crate = "stage16-airfoil-grid-certification"
+gate = "grid-certification/order-in-asymptotic-range"
+attr = "threshold-low"
+format = "the {:.1f} floor"
+text = "the 0.5 floor"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s17-delta"
+crate = "stage17-surrogate-accelerated-optimization"
+result = "/optimization/improvement/delta"
+format = "{:.2f}"
+text = "24.70"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s17-2u95"
+crate = "stage17-surrogate-accelerated-optimization"
+result = "/optimization/improvement/required_margin"
+format = "{:.2f}"
+text = "4.15"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s17-corpus-margin"
+crate = "stage17-surrogate-accelerated-optimization"
+gate = "optimization-claim/margin-over-corpus-best-exceeds-u95"
+attr = "observed"
+format = "{:.3f}"
+text = "0.035"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s17-corpus-u95"
+crate = "stage17-surrogate-accelerated-optimization"
+gate = "optimization-claim/margin-over-corpus-best-exceeds-u95"
+attr = "threshold"
+format = "{:.2f}"
+text = "7.03"
+in = ["paper", "notes"]
+
+[[claim]]
+id = "s17-cert-coverage"
+crate = "stage17-surrogate-accelerated-optimization"
+gate = "surrogate-certificate/c1-coverage-in-band"
+attr = "observed"
+format = "coverage {:.2f}"
+text = "coverage 0.90"
+in = ["notes"]
+
+[[claim]]
+id = "s17-cert-p95"
+crate = "stage17-surrogate-accelerated-optimization"
+gate = "surrogate-certificate/c2-p95-within-bar"
+attr = "observed"
+format = "p95 {:.2f}"
+text = "p95 1.31"
+in = ["notes"]
+
+[[claim]]
+id = "s17-cert-expiry"
+crate = "stage17-surrogate-accelerated-optimization"
+member = "aero-crate.json"
+pointer = "/validity/certificate_expiry"
+format = "{:.10}"
+text = "2027-01-20"
+in = ["notes"]

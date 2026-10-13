@@ -4,10 +4,11 @@ cff-version: 1.2.0
 title: aero-research-platform
 message: |
   If you use this software in academic work, please cite the Zenodo deposit
-  (concept DOI below) AND the four-tuple provenance fields of
-  the specific run you reference: (git_sha, dvc_input_hash,
-  container_sif_sha256, config_hash). The four-tuple is what makes the
-  citation point to a *specific result*, not just to the platform.
+  (concept DOI below). To cite a specific result, give its result-crate
+  digest (the sha256 of the crate's SHA256SUMS; see crates/README.md) and its
+  four-tuple (git_sha, dvc_input_hash, container_sif_sha256, config_hash).
+  The digest and the four-tuple are what make a citation point to a specific
+  result, not just to the platform.
 type: software
 authors:
   - given-names: Louis Ernesto
@@ -18,23 +19,24 @@ authors:
 repository-code: https://github.com/ernesto01louis/aero-research-platform
 url: https://github.com/ernesto01louis/aero-research-platform
 abstract: |
-  A fully open-source, peer-review-grade, hardware-agnostic aerodynamic
-  shape/topology optimizer: a researcher plugs in geometry (parametric, then
-  CAD/STL/3MF), defines an aerodynamic objective, and the platform returns an
-  improved, CFD-verified design, with CFD as the ground truth. The forward
-  stack — OpenFOAM-ESI (core), preCICE/CalculiX FSI, a flapping-wing
-  validation ladder against experiment/DNS (Dickinson 1999; McCroskey;
-  Heathcote-Gursul), NASA TMR turbulence-model baselines, and a small-signal
-  UQ core — makes every claimed improvement trustworthy. Surrogates accelerate
-  the optimization loop, trained only on the platform's own validated CFD.
-  Every result traces to a four-tuple provenance record (git SHA, DVC input
-  hash, Apptainer SIF SHA256, config hash), and no improvement is reported
-  unless its CFD-verified delta exceeds its combined uncertainty.
+  An open-source, CFD-in-the-loop aerodynamic shape optimizer whose outputs
+  are gated by provenance and uncertainty. Every reported number carries a
+  four-fold provenance tuple (git SHA, DVC input-sync hash, Apptainer SIF
+  SHA-256, config hash) and a combined U95 envelope. U95 combines a GCI /
+  ASME V&V 20 numerical term, a batch-means statistical term and an input
+  term. A claimed improvement must exceed 2 x U95 at matched numerics, every
+  optimum is re-verified by CFD, and every exported result is a
+  self-describing result crate (RO-Crate 1.3 / PROV) that verifies away from
+  the compute cluster. The forward stack runs OpenFOAM-ESI and preCICE in
+  Apptainer containers. Version 0.1.0 demonstrates the optimizer on a 2-D
+  airfoil (validated tier, gate-honest) and the forward capability on a rigid
+  flapping wing, whose gated mean lift is a documented NO-GO. The optimizer
+  has never been run on a flapping-wing case, and v0.1.0 makes no
+  flapping-wing optimization claim.
 keywords:
   - computational fluid dynamics
   - aerodynamics
   - aerodynamic shape optimization
-  - design optimization
   - Bayesian optimization
   - flapping-wing aerodynamics
   - OpenFOAM
@@ -42,11 +44,10 @@ keywords:
   - fluid-structure interaction
   - verification and validation
   - uncertainty quantification
-  - neural operators
-  - surrogate modeling
   - provenance
   - reproducibility
-license: GPL-3.0
+  - RO-Crate
+license: GPL-3.0-or-later
 version: 0.0.4
 date-released: "2026-05-19"
 # Zenodo concept DOI — resolves to the latest release (currently v0.0.4).
@@ -100,3 +101,179 @@ references:
     year: 2024
     url: https://arxiv.org/abs/2406.09624
     notes: "CC-BY-NC-4.0 — non-commercial use only. Harvard Dataverse: https://dataverse.harvard.edu/dataverse/DrivAerNet"
+  - type: article
+    title: "A tensorial approach to computational continuum mechanics using object-oriented techniques"
+    authors:
+      - family-names: Weller
+        given-names: H. G.
+      - family-names: Tabor
+        given-names: G.
+      - family-names: Jasak
+        given-names: H.
+      - family-names: Fureby
+        given-names: C.
+    journal: Computers in Physics
+    volume: 12
+    issue: 6
+    start: 620
+    end: 631
+    year: 1998
+    doi: 10.1063/1.168744
+    notes: OpenFOAM (the ESI release runs inside the platform's Apptainer SIFs)
+  - type: article
+    title: "preCICE v2: A sustainable and user-friendly coupling library"
+    authors:
+      - family-names: Chourdakis
+        given-names: Gerasimos
+      - family-names: Davis
+        given-names: Kyle
+      - family-names: Rodenberg
+        given-names: Benjamin
+      - family-names: Schulte
+        given-names: Miriam
+      - family-names: Simonis
+        given-names: Frédéric
+      - family-names: Uekermann
+        given-names: Benjamin
+      - family-names: Abrams
+        given-names: Georg
+      - family-names: Bungartz
+        given-names: Hans-Joachim
+      - family-names: Cheung Yau
+        given-names: Lucia
+      - family-names: Desai
+        given-names: Ishaan
+      - family-names: Eder
+        given-names: Konrad
+      - family-names: Hertrich
+        given-names: Richard
+      - family-names: Lindner
+        given-names: Florian
+      - family-names: Rusch
+        given-names: Alexander
+      - family-names: Sashko
+        given-names: Dmytro
+      - family-names: Schneider
+        given-names: David
+      - family-names: Totounferoush
+        given-names: Amin
+      - family-names: Volland
+        given-names: Dominik
+      - family-names: Vollmer
+        given-names: Peter
+      - family-names: Koseomur
+        given-names: Oguz Ziya
+    journal: Open Research Europe
+    volume: 2
+    start: 51
+    year: 2022
+    doi: 10.12688/openreseurope.14445.2
+  - type: book
+    title: "The Finite Element Method for Three-Dimensional Thermomechanical Applications"
+    authors:
+      - family-names: Dhondt
+        given-names: Guido
+    publisher:
+      name: Wiley
+    year: 2004
+    doi: 10.1002/0470021217
+    notes: CalculiX (the Stage-20 FSI solid solver)
+  - type: article
+    title: "Singularity: Scientific containers for mobility of compute"
+    authors:
+      - family-names: Kurtzer
+        given-names: Gregory M.
+      - family-names: Sochat
+        given-names: Vanessa
+      - family-names: Bauer
+        given-names: Michael W.
+    journal: PLOS ONE
+    volume: 12
+    issue: 5
+    start: e0177459
+    year: 2017
+    doi: 10.1371/journal.pone.0177459
+    notes: Apptainer (formerly Singularity)
+  - type: standard
+    title: "Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer (V&V 20-2009)"
+    authors:
+      - name: American Society of Mechanical Engineers
+    year: 2009
+  - type: article
+    title: "Quantification of uncertainty in computational fluid dynamics"
+    authors:
+      - family-names: Roache
+        given-names: Patrick J.
+    journal: Annual Review of Fluid Mechanics
+    volume: 29
+    start: 123
+    end: 160
+    year: 1997
+    doi: 10.1146/annurev.fluid.29.1.123
+  - type: article
+    title: "Wing rotation and the aerodynamic basis of insect flight"
+    authors:
+      - family-names: Dickinson
+        given-names: Michael H.
+      - family-names: Lehmann
+        given-names: Fritz-Olaf
+      - family-names: Sane
+        given-names: Sanjay P.
+    journal: Science
+    volume: 284
+    issue: 5422
+    start: 1954
+    end: 1960
+    year: 1999
+    doi: 10.1126/science.284.5422.1954
+  - type: article
+    title: "Unsteady forces and flows in low Reynolds number hovering flight: two-dimensional computations vs robotic wing experiments"
+    authors:
+      - family-names: Wang
+        given-names: Z. Jane
+      - family-names: Birch
+        given-names: James M.
+      - family-names: Dickinson
+        given-names: Michael H.
+    journal: Journal of Experimental Biology
+    volume: 207
+    issue: 3
+    start: 449
+    end: 460
+    year: 2004
+    doi: 10.1242/jeb.00739
+    notes: Stage-14 reference data
+  - type: article
+    title: "Flexible Flapping Airfoil Propulsion at Low Reynolds Numbers"
+    authors:
+      - family-names: Heathcote
+        given-names: Sam
+      - family-names: Gursul
+        given-names: Ismet
+    journal: AIAA Journal
+    volume: 45
+    issue: 5
+    start: 1066
+    end: 1079
+    year: 2007
+    doi: 10.2514/1.25431
+    notes: Stage-13/20 reference data
+  - type: book
+    title: "Proposal for Numerical Benchmarking of Fluid-Structure Interaction between an Elastic Object and Laminar Incompressible Flow"
+    authors:
+      - family-names: Turek
+        given-names: Stefan
+      - family-names: Hron
+        given-names: Jaroslav
+    collection-title: "Fluid-Structure Interaction (Lecture Notes in Computational Science and Engineering 53)"
+    publisher:
+      name: Springer
+    year: 2006
+    doi: 10.1007/3-540-34596-5_15
+    notes: Stage-18/19 reference data
+  - type: website
+    title: "Turbulence Modeling Resource"
+    authors:
+      - name: NASA Langley Research Center and the Turbulence Model Benchmarking Working Group
+    url: https://tmbwg.github.io/turbmodels/
+    notes: NASA TMR verification cases (Stage 05/10)
