@@ -1,0 +1,1319 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.3/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.3"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "author": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "citation": {
+        "@id": "https://doi.org/10.5281/zenodo.20292712"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/process/0.6"
+        },
+        {
+          "@id": "#aero-result-crate-format-1"
+        }
+      ],
+      "datePublished": "2026-10-12",
+      "description": "3-grid observed-order GCI on the matched L/D delta, URANS-stabilized values. NO-GO by one pre-registered gate (observed order 0.465 vs 0.5). validated tier, airfoil only.",
+      "hasPart": [
+        {
+          "@id": "SHA256SUMS"
+        },
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "configs/0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488.json"
+        },
+        {
+          "@id": "configs/39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c.json"
+        },
+        {
+          "@id": "configs/3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e.json"
+        },
+        {
+          "@id": "configs/42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f.json"
+        },
+        {
+          "@id": "configs/4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d.json"
+        },
+        {
+          "@id": "configs/5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47.json"
+        },
+        {
+          "@id": "configs/86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe.json"
+        },
+        {
+          "@id": "configs/97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1.json"
+        },
+        {
+          "@id": "configs/c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2.json"
+        },
+        {
+          "@id": "evidence/stage16_relaxed_convergence.json"
+        },
+        {
+          "@id": "evidence/stage16_relaxed_optimization.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "identifier": "stage16-airfoil-grid-certification",
+      "license": {
+        "@id": "https://spdx.org/licenses/CC-BY-4.0"
+      },
+      "mainEntity": {
+        "@id": "result.json"
+      },
+      "mentions": [
+        {
+          "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974"
+        },
+        {
+          "@id": "#593af734-d553-444d-8ba4-484483e5a079"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e"
+        },
+        {
+          "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7"
+        },
+        {
+          "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24"
+        },
+        {
+          "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9"
+        },
+        {
+          "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1"
+        },
+        {
+          "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96"
+        },
+        {
+          "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d"
+        },
+        {
+          "@id": "#export"
+        },
+        {
+          "@id": "#gate-grid-certification-all-converged"
+        },
+        {
+          "@id": "#gate-grid-certification-delta-monotone"
+        },
+        {
+          "@id": "#gate-grid-certification-order-in-asymptotic-range"
+        },
+        {
+          "@id": "#gate-grid-certification-significant"
+        },
+        {
+          "@id": "#limitation-container-digest-by-lookup"
+        },
+        {
+          "@id": "#limitation-dvc-input-hash-sync-state"
+        },
+        {
+          "@id": "#limitation-input-uq-skipped"
+        },
+        {
+          "@id": "#limitation-no-experiment-anchor"
+        },
+        {
+          "@id": "#limitation-nogo"
+        },
+        {
+          "@id": "#limitation-not-flagship-domain"
+        },
+        {
+          "@id": "#limitation-record-provenance-is-spec-identity"
+        },
+        {
+          "@id": "#limitation-superseded-campaign"
+        }
+      ],
+      "name": "Stage 16: grid-converged certification of the airfoil optimum (NO-GO by one gate)"
+    },
+    {
+      "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, coarse grid (x1), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_optimum_medium-20260713-111650",
+      "object": [
+        {
+          "@id": "configs/4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d.json"
+        },
+        {
+          "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-git_sha"
+        },
+        {
+          "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-dvc_input_hash"
+        },
+        {
+          "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-container_sif_sha256"
+        },
+        {
+          "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d"
+    },
+    {
+      "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#17d0e198-95a3-4dc0-b256-08ab5287e974-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#593af734-d553-444d-8ba4-484483e5a079",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, coarsest grid (x1.7), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_optimum_coarse-20260713-111654",
+      "object": [
+        {
+          "@id": "configs/0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488.json"
+        },
+        {
+          "@id": "#593af734-d553-444d-8ba4-484483e5a079-git_sha"
+        },
+        {
+          "@id": "#593af734-d553-444d-8ba4-484483e5a079-dvc_input_hash"
+        },
+        {
+          "@id": "#593af734-d553-444d-8ba4-484483e5a079-container_sif_sha256"
+        },
+        {
+          "@id": "#593af734-d553-444d-8ba4-484483e5a079-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#593af734-d553-444d-8ba4-484483e5a079-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488"
+    },
+    {
+      "@id": "#593af734-d553-444d-8ba4-484483e5a079-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#593af734-d553-444d-8ba4-484483e5a079-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#593af734-d553-444d-8ba4-484483e5a079-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "the held-out optimum's spec identity the record cites (roles: record-of-provenance)",
+      "instrument": {
+        "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+      },
+      "name": "g16r_optimum_fine-spec-identity",
+      "object": [
+        {
+          "@id": "configs/5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47.json"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-git_sha"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-dvc_input_hash"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-container_sif_sha256"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        }
+      ],
+      "result": [
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-value"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_numerical"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_statistical"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_input"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_total"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-value"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_numerical"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_statistical"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_input"
+        },
+        {
+          "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_total"
+        }
+      ]
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47"
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_input",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_numerical",
+      "value": 16.64455917415637
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_statistical",
+      "value": 0.0
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-u95_total",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.u95_total",
+      "value": 16.64455917415637
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q0-value",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_baseline.value",
+      "value": 28.200729819577244
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_input",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_numerical",
+      "value": 9.09074927764538
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_statistical",
+      "value": 0.0
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-u95_total",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.u95_total",
+      "value": 9.09074927764538
+    },
+    {
+      "@id": "#632a656f-31ea-4a16-b408-fcee89f93c9e-q1-value",
+      "@type": "PropertyValue",
+      "name": "lift_to_drag_optimum.value",
+      "value": 49.92001369026702
+    },
+    {
+      "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, medium grid (x0.5882), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_baseline_fine-20260713-111645",
+      "object": [
+        {
+          "@id": "configs/86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe.json"
+        },
+        {
+          "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-git_sha"
+        },
+        {
+          "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-dvc_input_hash"
+        },
+        {
+          "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-container_sif_sha256"
+        },
+        {
+          "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe"
+    },
+    {
+      "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, coarse grid (x1), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_baseline_medium-20260713-111649",
+      "object": [
+        {
+          "@id": "configs/c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2.json"
+        },
+        {
+          "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-git_sha"
+        },
+        {
+          "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-dvc_input_hash"
+        },
+        {
+          "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-container_sif_sha256"
+        },
+        {
+          "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2"
+    },
+    {
+      "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#7ed307b0-fd62-4027-9002-153a908f4e24-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, fine grid (x0.346), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+      },
+      "name": "g16r_baseline_fine-20260713-192733",
+      "object": [
+        {
+          "@id": "configs/97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1.json"
+        },
+        {
+          "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-git_sha"
+        },
+        {
+          "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-dvc_input_hash"
+        },
+        {
+          "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-container_sif_sha256"
+        },
+        {
+          "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        }
+      ]
+    },
+    {
+      "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1"
+    },
+    {
+      "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+    },
+    {
+      "@id": "#aero-crate-writer",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "name": "aero.crate writer",
+      "softwareVersion": "format-1",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md",
+      "version": "format-1"
+    },
+    {
+      "@id": "#aero-result-crate-format-1",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "aero-result-crate format 1 (ADR-047)",
+      "version": "1"
+    },
+    {
+      "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, fine grid (x0.346), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+      },
+      "name": "g16r_optimum_fine-20260713-192734",
+      "object": [
+        {
+          "@id": "configs/42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f.json"
+        },
+        {
+          "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-git_sha"
+        },
+        {
+          "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-dvc_input_hash"
+        },
+        {
+          "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-container_sif_sha256"
+        },
+        {
+          "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        }
+      ]
+    },
+    {
+      "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f"
+    },
+    {
+      "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+    },
+    {
+      "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "optimum design, medium grid (x0.5882), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_optimum_fine-20260713-111647",
+      "object": [
+        {
+          "@id": "configs/39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c.json"
+        },
+        {
+          "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-git_sha"
+        },
+        {
+          "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-dvc_input_hash"
+        },
+        {
+          "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-container_sif_sha256"
+        },
+        {
+          "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c"
+    },
+    {
+      "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#cdccbade-c811-49dc-813b-2c14a11a6e96-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "@type": "ContainerImage",
+      "additionalType": {
+        "@id": "https://w3id.org/ro/terms/workflow-run#SIFImage"
+      },
+      "name": "openfoam-esi.sif",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#creator-1",
+      "@type": [
+        "Person",
+        "prov:Person"
+      ],
+      "name": "Louis Ernesto Schulte Moredo"
+    },
+    {
+      "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "baseline design, coarsest grid (x1.7), time-accurate relaxation (roles: grid-family)",
+      "instrument": {
+        "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+      },
+      "name": "g16r_baseline_coarse-20260713-111652",
+      "object": [
+        {
+          "@id": "configs/3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e.json"
+        },
+        {
+          "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-git_sha"
+        },
+        {
+          "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-dvc_input_hash"
+        },
+        {
+          "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-container_sif_sha256"
+        },
+        {
+          "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311"
+        }
+      ]
+    },
+    {
+      "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e"
+    },
+    {
+      "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#d6420387-7be0-4ee8-ab78-312060c5207d-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "#export",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "agent": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "description": "Export of this result crate from the committed records it cites",
+      "endTime": "2026-10-12",
+      "instrument": {
+        "@id": "#aero-crate-writer"
+      },
+      "name": "aero result crate export",
+      "object": [
+        {
+          "@id": "evidence/stage16_relaxed_convergence.json"
+        },
+        {
+          "@id": "evidence/stage16_relaxed_optimization.json"
+        }
+      ],
+      "prov:generated": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "evidence/stage16_relaxed_convergence.json"
+        },
+        {
+          "@id": "evidence/stage16_relaxed_optimization.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#aero-crate-writer"
+        },
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "result": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ]
+    },
+    {
+      "@id": "#gate-grid-certification-all-converged",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); grid-certification NO-GO; passed=true; every claim-grid solve converged",
+      "name": "all-converged",
+      "value": true
+    },
+    {
+      "@id": "#gate-grid-certification-delta-monotone",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); grid-certification NO-GO; passed=true; the delta is monotone across the family",
+      "name": "delta-monotone",
+      "value": true
+    },
+    {
+      "@id": "#gate-grid-certification-order-in-asymptotic-range",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); grid-certification NO-GO; passed=false; observed order of the delta within [0.5, 2.0] (floor pre-registered before any campaign ran; not adjusted)",
+      "maxValue": 2.0,
+      "minValue": 0.5,
+      "name": "order-in-asymptotic-range",
+      "value": 0.4654573059064542
+    },
+    {
+      "@id": "#gate-grid-certification-significant",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); grid-certification NO-GO; passed=true; matched delta > 2 * U95_delta (fallback GCI, Fs=3, p=1)",
+      "minValue": 15.107734879735075,
+      "name": "significant",
+      "value": 21.719283870689775
+    },
+    {
+      "@id": "#limitation-container-digest-by-lookup",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "container-digest-by-lookup",
+      "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+    },
+    {
+      "@id": "#limitation-dvc-input-hash-sync-state",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "dvc-input-hash-sync-state",
+      "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+    },
+    {
+      "@id": "#limitation-input-uq-skipped",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/vv/reportable.py",
+      "name": "input-uq-skipped",
+      "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+    },
+    {
+      "@id": "#limitation-no-experiment-anchor",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage16_relaxed_optimization.json",
+      "name": "no-experiment-anchor",
+      "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+    },
+    {
+      "@id": "#limitation-nogo",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+      "name": "nogo",
+      "text": "Honest NO-GO by exactly one pre-registered gate: observed order 0.465 vs the 0.5 floor. At that measured order the same GCI construction gives 2 x U95 ~ 37.7, which the delta 21.72 would not clear. The result ships at validated tier."
+    },
+    {
+      "@id": "#limitation-not-flagship-domain",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+      "name": "not-flagship-domain",
+      "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+    },
+    {
+      "@id": "#limitation-record-provenance-is-spec-identity",
+      "@type": "CreativeWork",
+      "isBasedOn": "data/vv/stage16_relaxed_optimization.json",
+      "name": "record-provenance-is-spec-identity",
+      "text": "The record's four-tuple is the held-out optimum's SPEC identity (config without the 'initialization' key). The grid-family solves were hashed with that key, so they carry different config hashes; both preimages are in this crate."
+    },
+    {
+      "@id": "#limitation-superseded-campaign",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/handoffs/STAGE-16-grid-converged-certification-DONE-2026-07-15.md",
+      "name": "superseded-campaign",
+      "text": "data/vv/stage16_optimization.json and stage16_grid_convergence.json record the SUPERSEDED steady graded campaign (NO-GO on all four hard gates). This crate carries the record of record, the time-accurate relaxation."
+    },
+    {
+      "@id": "#software-2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "softwareVersion": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+      "version": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+    },
+    {
+      "@id": "#software-6b904e830a9f899084196944cb30b9fc339de311",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "softwareVersion": "6b904e830a9f899084196944cb30b9fc339de311",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/6b904e830a9f899084196944cb30b9fc339de311",
+      "version": "6b904e830a9f899084196944cb30b9fc339de311"
+    },
+    {
+      "@id": "SHA256SUMS",
+      "@type": "File",
+      "description": "coreutils `sha256sum -c` manifest of every other member; the crate digest is the sha256 of this file",
+      "encodingFormat": "text/plain"
+    },
+    {
+      "@id": "aero-crate.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "25637",
+      "description": "The typed crate envelope (aero-result-crate format 1, ADR-047)",
+      "encodingFormat": "application/json",
+      "sha256": "b3ff1824874e5d6bb0930e33f8d09f390e50408f99c55e82366d20f0e747e27d"
+    },
+    {
+      "@id": "configs/0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "801",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488"
+    },
+    {
+      "@id": "configs/39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "800",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c"
+    },
+    {
+      "@id": "configs/3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "787",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e"
+    },
+    {
+      "@id": "configs/42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "803",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f"
+    },
+    {
+      "@id": "configs/4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "753",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d"
+    },
+    {
+      "@id": "configs/5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "738",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47"
+    },
+    {
+      "@id": "configs/86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "786",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe"
+    },
+    {
+      "@id": "configs/97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "789",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1"
+    },
+    {
+      "@id": "configs/c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "739",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2"
+    },
+    {
+      "@id": "evidence/stage16_relaxed_convergence.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "11048",
+      "description": "the 4-level family, gates and GCI",
+      "encodingFormat": "application/json",
+      "sha256": "95bd61156e020ae0a677f25577eade666b19d15c95beba4d40ad12c39bd5ba46"
+    },
+    {
+      "@id": "evidence/stage16_relaxed_optimization.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1106",
+      "description": "the committed record of record",
+      "encodingFormat": "application/json",
+      "sha256": "1586c8873da9ae185a325a49c09ab3c5b060d505a409a14f623e168e379ee5ed"
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20292712",
+      "@type": "CreativeWork",
+      "identifier": "10.5281/zenodo.20292712",
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "url": "https://github.com/ernesto01louis/aero-research-platform"
+    },
+    {
+      "@id": "https://spdx.org/licenses/CC-BY-4.0",
+      "@type": "CreativeWork",
+      "identifier": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International"
+    },
+    {
+      "@id": "https://spdx.org/licenses/GPL-3.0-or-later",
+      "@type": "CreativeWork",
+      "identifier": "GPL-3.0-or-later",
+      "name": "GNU General Public License v3.0 or later"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/process/0.6",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Process Run Crate",
+      "version": "0.6"
+    },
+    {
+      "@id": "prov.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "11573",
+      "description": "W3C PROV-JSON projection of this crate's provenance graph",
+      "encodingFormat": "application/json",
+      "sha256": "85f76c266957e82412496743eab1beb9c4ebc603526024f64f95d94d33df5400"
+    },
+    {
+      "@id": "result.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1128",
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "encodingFormat": "application/json",
+      "sha256": "fa67888f9d2514030624841ccf3ff8769a7afb0edeccc8dc9cfa03e74f23146c"
+    }
+  ]
+}

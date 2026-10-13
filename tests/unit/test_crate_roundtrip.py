@@ -98,3 +98,13 @@ def test_config_preimage_hashes_to_its_name_with_coreutils_semantics() -> None:
         for path, data in built(shape).items():
             if path.startswith("configs/"):
                 assert hashlib.sha256(data).hexdigest() == path[len("configs/") : -len(".json")]
+
+
+def test_runs_sharing_a_resolved_config_share_one_preimage() -> None:
+    # A held-out re-solve of a grid-family row has the same as-hashed config (the committed
+    # Stage-15 crate has one): the preimage is content-addressed, so it is stored once.
+    import dataclasses
+
+    spec = SHAPES["steady_optimization"]()
+    doubled = dataclasses.replace(spec, configs=spec.configs + spec.configs)
+    assert build_crate(doubled) == build_crate(spec)

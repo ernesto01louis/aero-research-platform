@@ -1,0 +1,569 @@
+{
+  "crate_id": "stage17-surrogate-accelerated-optimization",
+  "creators": [
+    {
+      "name": "Louis Ernesto Schulte Moredo"
+    }
+  ],
+  "date_published": "2026-10-12",
+  "description": "A surrogate-proposed, CFD-verified airfoil optimum: L/D 46.372 vs baseline 21.674, delta 24.70 > 2 x U95_delta = 4.15 (2-grid GCI), capped at validated. Certificate promoted to validated; the speed-up is a degenerate NO-GO. Airfoil only.",
+  "format": "aero-result-crate",
+  "format_version": 1,
+  "license": "CC-BY-4.0",
+  "members": [
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json",
+      "role": "config",
+      "sha256": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e",
+      "size": 515
+    },
+    {
+      "description": "the 42-solve training corpus (DVC md5 8f8d2648945180ed3f0700cb557a9149)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/corpus.json",
+      "role": "evidence",
+      "sha256": "c8a1a762ced683ca06dcb56b315238fbda459c052f720a664651f25991712734",
+      "size": 34019
+    },
+    {
+      "description": "the exploratory loop (16 CFD evals)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage17_arm_surrogate_explore.json",
+      "role": "evidence",
+      "sha256": "e2e4d0fe500c4dc14c00edb85b34031b3f451102da46d2d4e55fd50bbf340610",
+      "size": 27971
+    },
+    {
+      "description": "the committed record",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage17_optimization.json",
+      "role": "evidence",
+      "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be",
+      "size": 2086
+    },
+    {
+      "description": "the speed-up verdict and the V1/V2 verification",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage17_speedup.json",
+      "role": "evidence",
+      "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561",
+      "size": 2536
+    },
+    {
+      "description": "the validated certificate and its C1/C2 gates",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage17_surrogate_cert.json",
+      "role": "evidence",
+      "sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f",
+      "size": 2053
+    },
+    {
+      "description": "the refused v2 re-certification",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage17_surrogate_cert_v2_refused.json",
+      "role": "evidence",
+      "sha256": "5f7ec3a5ceda624044557c663a529955a52c930153e0782658a6578024a3abdd",
+      "size": 2284
+    },
+    {
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "result.json",
+      "role": "payload",
+      "sha256": "249eda405deff73de5365bf5d8982c1dbaaf8f517eea74175d6935d60b973b09",
+      "size": 2132
+    }
+  ],
+  "payload": "reportable-result",
+  "references": [
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage17_optimization.json",
+      "lines": null,
+      "locator": "data/vv/stage17_optimization.json",
+      "role": "source-record",
+      "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage17_speedup.json",
+      "lines": null,
+      "locator": "data/vv/stage17_speedup.json",
+      "role": "dataset",
+      "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage17_surrogate_cert.json",
+      "lines": null,
+      "locator": "data/vv/stage17_surrogate_cert.json",
+      "role": "dataset",
+      "sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage17_arm_surrogate_explore.json",
+      "lines": null,
+      "locator": "data/vv/stage17_arm_surrogate_explore.json",
+      "role": "dataset",
+      "sha256": "e2e4d0fe500c4dc14c00edb85b34031b3f451102da46d2d4e55fd50bbf340610"
+    },
+    {
+      "commit": null,
+      "embedded_as": null,
+      "lines": null,
+      "locator": "openfoam-esi.sif",
+      "role": "container",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": "71-72",
+      "locator": "docs/adrs/ADR-032-surrogate-accelerated-loop-and-speedup-protocol.md",
+      "role": "adr",
+      "sha256": null
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "data/datasets/stage17_naca4_ld/corpus.json.dvc",
+      "role": "dataset",
+      "sha256": null
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "docs/handoffs/STAGE-17-surrogate-accelerated-optimization-DONE-2026-07-24.md",
+      "role": "handoff",
+      "sha256": null
+    }
+  ],
+  "runs": [
+    {
+      "action_id": "#eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc",
+      "description": "CFD verification of the surrogate-proposed optimum (fine grid)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.17",
+          "equivalent_tag_commit": "d0b8fff1118ee885631846cea921bd7140ed90bf",
+          "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134",
+          "public_refs": [
+            "refs/tags/stage-17-evidence-2026-07-24"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "record-of-provenance",
+        "cfd-verification"
+      ],
+      "run_id": "s17v_opt_fine"
+    }
+  ],
+  "software": {
+    "concept_doi": "10.5281/zenodo.20292712",
+    "license": "GPL-3.0-or-later",
+    "name": "aero-research-platform",
+    "repository": "https://github.com/ernesto01louis/aero-research-platform"
+  },
+  "title": "Stage 17: surrogate-accelerated airfoil optimization (validated, airfoil only)",
+  "unavailable": [
+    {
+      "item": "baseline_provenance",
+      "reason": "the s17v_base_fine four-tuple was not recorded"
+    },
+    {
+      "item": "grid_inputs",
+      "reason": "the 2-grid coarse solves were not committed"
+    }
+  ],
+  "validity": {
+    "certificate_expiry": "2027-01-20T12:31:12.529036Z",
+    "claim_scope": "optimization",
+    "claim_tier": "validated",
+    "conditions": {
+      "aoa_deg": 4.0,
+      "model": "RANS k-omega SST, wall functions, NACA-4 camber line",
+      "reynolds": 500000.0
+    },
+    "design_space": {
+      "camber_position": [
+        0.2,
+        0.6
+      ],
+      "max_camber": [
+        0.0,
+        0.08
+      ]
+    },
+    "flagship_domain": false,
+    "limitations": [
+      {
+        "id": "dvc-input-hash-sync-state",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "229-247",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+      },
+      {
+        "id": "container-digest-by-lookup",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "250-264",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+      },
+      {
+        "id": "input-uq-skipped",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "144-156",
+          "locator": "aero/vv/reportable.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+      },
+      {
+        "id": "no-experiment-anchor",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage17_optimization.json",
+          "role": "source-record",
+          "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+        },
+        "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+      },
+      {
+        "id": "not-flagship-domain",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "96-99",
+          "locator": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+          "role": "adr",
+          "sha256": null
+        },
+        "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+      },
+      {
+        "id": "tier-capped",
+        "kind": "quote",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_speedup.json",
+          "lines": null,
+          "locator": "data/vv/stage17_speedup.json",
+          "role": "dataset",
+          "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+        },
+        "text": "2-grid fallback GCI reached thesis-grade, but Stage-16 3-grid analysis found sub-first-order convergence (order 0.465 < 0.5); capped at validated (ADR-031/032). Thesis-grade rests on the ledgered 393^2 rung."
+      },
+      {
+        "id": "speedup-nogo",
+        "kind": "quote",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_speedup.json",
+          "lines": null,
+          "locator": "data/vv/stage17_speedup.json",
+          "role": "dataset",
+          "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+        },
+        "text": "No genuine single-run acceleration is demonstrated; fall back to direct-CFD BO (S7)."
+      },
+      {
+        "id": "nogo",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_speedup.json",
+          "lines": null,
+          "locator": "data/vv/stage17_speedup.json",
+          "role": "dataset",
+          "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+        },
+        "text": "The pre-registered speed-up is a DEGENERATE NO-GO: the 42-solve corpus already held 5 designs past the bar, so the surrogate arm performed no marginal search."
+      },
+      {
+        "id": "surrogate-proposals-smoke-tier",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_arm_surrogate_explore.json",
+          "lines": null,
+          "locator": "data/vv/stage17_arm_surrogate_explore.json",
+          "role": "dataset",
+          "sha256": "e2e4d0fe500c4dc14c00edb85b34031b3f451102da46d2d4e55fd50bbf340610"
+        },
+        "text": "The loop's proposals came from smoke-tier, in-loop retrained ensembles, by design (ADR-032): the proposing iteration's certificate had held-out p95 8.21 and coverage 0.75. Every proposal was CFD-verified. The validated certificate is a separate fit."
+      },
+      {
+        "id": "margin-inside-u95",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage17_optimization.json",
+          "role": "source-record",
+          "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+        },
+        "text": "46.372 exceeds the corpus best 46.337 by 0.035, far inside the quantity's U95 of 7.03, and is not claimed. The claim that clears 2 x U95 is against the BASELINE."
+      },
+      {
+        "id": "held-out-is-same-grid-re-solve",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_speedup.json",
+          "lines": null,
+          "locator": "data/vv/stage17_speedup.json",
+          "role": "dataset",
+          "sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+        },
+        "text": "'Held out' means a deterministic same-grid re-solve that reproduces the loop's value bit for bit. It re-confirms the value; it adds no resolution."
+      },
+      {
+        "id": "recorded-not-re-derivable",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage17_optimization.json",
+          "role": "source-record",
+          "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+        },
+        "text": "u95_delta = 2.075 comes from 2-grid solves (s17v_base_coarse, s17v_opt_coarse) whose values and the baseline's four-tuple were not committed: recorded, not re-derivable."
+      },
+      {
+        "id": "certificate-expiry",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_surrogate_cert.json",
+          "lines": null,
+          "locator": "data/vv/stage17_surrogate_cert.json",
+          "role": "dataset",
+          "sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f"
+        },
+        "text": "The validated surrogate certificate expires 2027-01-20T12:31:12.529036Z."
+      },
+      {
+        "id": "certificate-data-gate-content-blind",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_surrogate_cert.json",
+          "lines": null,
+          "locator": "data/vv/stage17_surrogate_cert.json",
+          "role": "dataset",
+          "sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f"
+        },
+        "text": "The certificate's training_dataset_dvc_hash is sha256('{}'), the in-sync DVC status digest, not a content hash. This crate carries corpus.json itself and its md5."
+      },
+      {
+        "id": "diagnostic-not-gate",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage17_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage17_optimization.json",
+          "role": "source-record",
+          "sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+        },
+        "text": "Gates marked gated decided the verdicts. The rest are reported diagnostics, including the margin over the corpus best and the proposer's certificate."
+      }
+    ],
+    "validated_against_experiment": false,
+    "verdicts": [
+      {
+        "gates": [
+          {
+            "comparator": "gt",
+            "criterion": "CFD-verified delta vs the baseline > k * U95_delta, k = 2 (2-grid GCI)",
+            "gated": true,
+            "name": "delta-exceeds-k-u95",
+            "observed": 24.6980545297548,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": null,
+              "locator": "docs/adrs/ADR-015-small-signal-and-data-origin-invariants.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": 4.15005727858274
+          },
+          {
+            "comparator": "gt",
+            "criterion": "reported L/D minus the corpus best (46.336921044931366, the best of the 42 corpus solves) > the quantity's U95 (reported)",
+            "gated": false,
+            "name": "margin-over-corpus-best-exceeds-u95",
+            "observed": 0.03516580759715282,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": 7.033600211508836
+          },
+          {
+            "comparator": "is-true",
+            "criterion": "the held-out verification is a deterministic same-grid re-solve that reproduces the loop's value bit for bit (reported)",
+            "gated": false,
+            "name": "held-out-is-same-grid-re-solve",
+            "observed": true,
+            "passed": true,
+            "preregistered_in": null,
+            "threshold": null
+          },
+          {
+            "comparator": "le",
+            "criterion": "the in-loop ensemble that proposed the optimum, judged by C2: held-out |L/D error| p95 <= 2.5 (reported; it was smoke tier by design)",
+            "gated": false,
+            "name": "proposer-certificate-p95-within-bar",
+            "observed": 8.212365396297887,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": 2.5
+          },
+          {
+            "comparator": "within",
+            "criterion": "the in-loop ensemble that proposed the optimum, judged by C1: empirical +-2 std coverage in [0.85, 1.0] (reported; smoke tier by design)",
+            "gated": false,
+            "name": "proposer-certificate-coverage-in-band",
+            "observed": 0.75,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": [
+              0.85,
+              1.0
+            ]
+          }
+        ],
+        "overall": "GO",
+        "qualifier": null,
+        "scope": "optimization-claim"
+      },
+      {
+        "gates": [
+          {
+            "comparator": "within",
+            "criterion": "C1 empirical +-2 std coverage in [0.85, 1.0] (seeded 25 % held-out split)",
+            "gated": true,
+            "name": "c1-coverage-in-band",
+            "observed": 0.9,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "71-72",
+              "locator": "docs/adrs/ADR-032-surrogate-accelerated-loop-and-speedup-protocol.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": [
+              0.85,
+              1.0
+            ]
+          },
+          {
+            "comparator": "le",
+            "criterion": "C2 held-out |L/D error| p95 <= 2.5",
+            "gated": true,
+            "name": "c2-p95-within-bar",
+            "observed": 1.3119185403823792,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "71-72",
+              "locator": "docs/adrs/ADR-032-surrogate-accelerated-loop-and-speedup-protocol.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": 2.5
+          }
+        ],
+        "overall": "GO",
+        "qualifier": null,
+        "scope": "surrogate-certificate"
+      },
+      {
+        "gates": [
+          {
+            "comparator": "ge",
+            "criterion": "S6 as the record applies it: the surrogate arm wins a seed only if it searched (>= 1 marginal eval) AND used fewer marginal evals than direct-CFD BO; GO needs >= 2 of 3 seeds",
+            "gated": true,
+            "name": "genuine-wins-in-2-of-3-seeds",
+            "observed": 0.0,
+            "passed": false,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "100-101",
+              "locator": "docs/adrs/ADR-032-surrogate-accelerated-loop-and-speedup-protocol.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": 2.0
+          },
+          {
+            "comparator": "ge",
+            "criterion": "literal S6 count, fewer marginal evals in >= 2 of 3 seeds (reported: the surrogate arm spent 0 marginal evals in every seed because the corpus already held the bar, so this count is degenerate)",
+            "gated": false,
+            "name": "literal-marginal-wins",
+            "observed": 3.0,
+            "passed": true,
+            "preregistered_in": null,
+            "threshold": 2.0
+          }
+        ],
+        "overall": "NO-GO",
+        "qualifier": "degenerate",
+        "scope": "speed-up"
+      }
+    ]
+  }
+}
