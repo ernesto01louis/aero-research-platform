@@ -1,0 +1,295 @@
+{
+  "crate_id": "stage14-rigid-flapping-wbd2004",
+  "creators": [
+    {
+      "name": "Louis Ernesto Schulte Moredo"
+    }
+  ],
+  "date_published": "2026-10-12",
+  "description": "The flagship flapping-wing forward capability. The rotation-timing ordering is reproduced as a pre-registered, NON-gated diagnostic; the gated mean lift is a documented NO-GO. Evidence only: provenance was never recorded, so no claim.",
+  "format": "aero-result-crate",
+  "format_version": 1,
+  "license": "CC-BY-4.0",
+  "members": [
+    {
+      "description": "the gate pre-registration",
+      "license": null,
+      "media_type": "text/markdown",
+      "path": "evidence/stage14-preregistration.md",
+      "role": "evidence",
+      "sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a",
+      "size": 4846
+    },
+    {
+      "description": "the committed NO-GO verdict record",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage14_flapping_nogo.json",
+      "role": "evidence",
+      "sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025",
+      "size": 964
+    }
+  ],
+  "payload": "none",
+  "references": [
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage14_flapping_nogo.json",
+      "lines": null,
+      "locator": "data/vv/stage14_flapping_nogo.json",
+      "role": "dataset",
+      "sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage14-preregistration.md",
+      "lines": null,
+      "locator": "docs/vv/stage14-preregistration.md",
+      "role": "preregistration",
+      "sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a"
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": "29-33",
+      "locator": "docs/handoffs/STAGE-14-rigid-flapping-wing-DONE-2026-07-10.md",
+      "role": "handoff",
+      "sha256": null
+    },
+    {
+      "commit": null,
+      "embedded_as": null,
+      "lines": null,
+      "locator": "https://doi.org/10.1242/jeb.00739",
+      "role": "reference-data",
+      "sha256": null
+    },
+    {
+      "commit": "4cb68c0d322bf61a591de54822f2415e42d93511",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "data/references/flapping/wbd2004_2d_ellipse/mean_coefficients.csv",
+      "role": "reference-data",
+      "sha256": "968264a6965701bf1e98231aea5bd79c60e2146db9335ab93250b632882ea787"
+    }
+  ],
+  "runs": [
+    {
+      "action_id": "#3dfbd103-c94b-43ab-9efd-420de48b3e5b",
+      "description": "symmetrical rotation timing, 22 stroke cycles",
+      "provenance": {
+        "code_at_tag": "v0.0.14",
+        "missing": [
+          "git_sha",
+          "dvc_input_hash",
+          "container_sif_sha256",
+          "config_hash"
+        ],
+        "reason": "the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+        "status": "unavailable"
+      },
+      "roles": [
+        "forward-validation"
+      ],
+      "run_id": "flapping_wing_wbd2004_symmetrical"
+    },
+    {
+      "action_id": "#218d2760-2417-4b04-847f-0138a06142ab",
+      "description": "advanced rotation timing, 23 stroke cycles",
+      "provenance": {
+        "code_at_tag": "v0.0.14",
+        "missing": [
+          "git_sha",
+          "dvc_input_hash",
+          "container_sif_sha256",
+          "config_hash"
+        ],
+        "reason": "the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+        "status": "unavailable"
+      },
+      "roles": [
+        "forward-validation"
+      ],
+      "run_id": "flapping_wing_wbd2004_advanced"
+    },
+    {
+      "action_id": "#c284e0ea-fc47-4ed3-af49-563d44ba5eb8",
+      "description": "delayed rotation timing, 19 stroke cycles",
+      "provenance": {
+        "code_at_tag": "v0.0.14",
+        "missing": [
+          "git_sha",
+          "dvc_input_hash",
+          "container_sif_sha256",
+          "config_hash"
+        ],
+        "reason": "the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run",
+        "status": "unavailable"
+      },
+      "roles": [
+        "forward-validation"
+      ],
+      "run_id": "flapping_wing_wbd2004_delayed"
+    }
+  ],
+  "software": {
+    "concept_doi": "10.5281/zenodo.20292712",
+    "license": "GPL-3.0-or-later",
+    "name": "aero-research-platform",
+    "repository": "https://github.com/ernesto01louis/aero-research-platform"
+  },
+  "title": "Stage 14: rigid flapping wing vs Wang-Birch-Dickinson 2004 (evidence only)",
+  "unavailable": [
+    {
+      "item": "four_tuple",
+      "reason": "never recorded for the Stage-14 campaign runs"
+    },
+    {
+      "item": "u95",
+      "reason": "GCI and thesis-grade composition were not run"
+    },
+    {
+      "item": "case_spec",
+      "reason": "no config hash was recorded to verify one against"
+    },
+    {
+      "item": "raw_series",
+      "reason": "force histories live on cluster NFS only"
+    }
+  ],
+  "validity": {
+    "certificate_expiry": null,
+    "claim_scope": "forward-capability",
+    "claim_tier": "none",
+    "conditions": {
+      "geometry": "2-D ellipse, prescribed translation + pitch",
+      "reynolds": 75.0
+    },
+    "design_space": {},
+    "flagship_domain": true,
+    "limitations": [
+      {
+        "id": "no-claim",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage14_flapping_nogo.json",
+          "lines": null,
+          "locator": "data/vv/stage14_flapping_nogo.json",
+          "role": "dataset",
+          "sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025"
+        },
+        "text": "Evidence only, no claim: no four-tuple, U95 or config hash was recorded for these runs, so they cannot carry a validation tier. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+      },
+      {
+        "id": "nogo",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "29-33",
+          "locator": "docs/handoffs/STAGE-14-rigid-flapping-wing-DONE-2026-07-10.md",
+          "role": "handoff",
+          "sha256": null
+        },
+        "text": "NO-GO on the gated quantity: the symmetrical stroke-averaged mean lift misses the WBD (2004) experiment by 45.7 % against a pre-registered +-25 % band; the band was not relaxed."
+      },
+      {
+        "id": "diagnostic-not-gate",
+        "kind": "quote",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage14-preregistration.md",
+          "lines": "51-56",
+          "locator": "docs/vv/stage14-preregistration.md",
+          "role": "preregistration",
+          "sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a"
+        },
+        "text": "## Diagnostics (reported, NEVER gated)\n\n- **Advanced** (`+45\u00b0`) mean C_L vs experiment 0.93, and **delayed** (`\u221245\u00b0`) vs 0.38 \u2014 reported;\n  delayed is a documented 2-D limitation, not a pass/fail.\n- The **advanced > symmetrical > delayed** mean-lift ordering (the Dickinson 1999 rotation-timing\n  signature) \u2014 strong corroborating evidence at zero extra machinery."
+      },
+      {
+        "id": "provenance-unavailable",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage14_flapping_nogo.json",
+          "lines": null,
+          "locator": "data/vv/stage14_flapping_nogo.json",
+          "role": "dataset",
+          "sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025"
+        },
+        "text": "No run of this crate has a recorded four-tuple (git SHA, DVC input hash, container digest, config hash). The code is identified only as the v0.0.14 tag."
+      },
+      {
+        "id": "attribution-leading-hypothesis",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "153-154",
+          "locator": "docs/handoffs/STAGE-14-rigid-flapping-wing-DONE-2026-07-10.md",
+          "role": "handoff",
+          "sha256": null
+        },
+        "text": "The record's root_cause names overset wake-capture dissipation. The Stage-14 handoff states that attribution as the leading hypothesis: it could not be isolated against a body-fitted run at this amplitude."
+      }
+    ],
+    "validated_against_experiment": false,
+    "verdicts": [
+      {
+        "gates": [
+          {
+            "comparator": "le",
+            "criterion": "symmetrical stroke-averaged mean C_L within +-25 % of the WBD (2004) experiment (0.86); band pre-registered, NOT relaxed",
+            "gated": true,
+            "name": "symmetrical-mean-lift-within-band",
+            "observed": 0.457,
+            "passed": false,
+            "preregistered_in": {
+              "commit": null,
+              "embedded_as": "evidence/stage14-preregistration.md",
+              "lines": null,
+              "locator": "docs/vv/stage14-preregistration.md",
+              "role": "preregistration",
+              "sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a"
+            },
+            "threshold": 0.25
+          },
+          {
+            "comparator": "is-true",
+            "criterion": "advanced > symmetrical > delayed mean lift (reported, NEVER gated)",
+            "gated": false,
+            "name": "rotation-timing-ordering",
+            "observed": true,
+            "passed": true,
+            "preregistered_in": null,
+            "threshold": null
+          },
+          {
+            "comparator": "le",
+            "criterion": "advanced mean C_L vs experiment 0.93 within 25 % (reported, never gated)",
+            "gated": false,
+            "name": "advanced-mean-lift-rel-err",
+            "observed": 0.38,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": 0.25
+          },
+          {
+            "comparator": "le",
+            "criterion": "delayed mean C_L vs experiment 0.38 within 25 % (reported, never gated; a documented 2-D limitation)",
+            "gated": false,
+            "name": "delayed-mean-lift-rel-err",
+            "observed": 0.639,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": 0.25
+          }
+        ],
+        "overall": "NO-GO",
+        "qualifier": null,
+        "scope": "forward-validation"
+      }
+    ]
+  }
+}
