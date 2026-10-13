@@ -1,16 +1,22 @@
 name: tag-handoff-gate
 
-# Hard Rule 10 / handoff-discipline.md promise this check exists ("CI enforces it on
-# tag push") — Stage 18 makes the docs true. A `v0.0.NN` tag may only exist once
-# `docs/handoffs/STAGE-NN-*-DONE-*.md` is present with valid frontmatter; the same
-# validator as the local Stop hook (scripts/check_handoff_exists.sh) is the single
-# source of truth. On failure the tag exists but the workflow flags it loudly — the
-# operator deletes the tag and fixes the handoff (propose-first; CI cannot delete).
+# Hard Rule 10 / handoff-discipline.md promise this check exists ("CI enforces it on tag push").
+# Stage 18 made that true for `v0.0.NN` stage tags. Stage 21 (ADR-049 R1) extends it to `vX.Y.Z`
+# release tags. scripts/check_release_tag.sh is the gate; it calls the local Stop hook's validator
+# (scripts/check_handoff_exists.sh, unedited) as the single source of truth for the five
+# frontmatter fields.
+#   - v0.0.NN: the stage-NN handoff exists with valid frontmatter (unchanged).
+#   - vX.Y.Z:  exactly one handoff carries `stage_tag: vX.Y.Z`, status complete. Its git_sha_end
+#              resolves and has the tagged code tree; the next stage's prompt exists; the versions
+#              agree. Then scripts/release_readiness.py checks the release itself.
+# On failure the tag exists but the workflow flags it loudly. The operator deletes the tag and
+# fixes the handoff (propose-first; CI cannot delete). Evidence tags (`stage-NN-evidence-*`) never
+# match the trigger.
 
 on:
   push:
     tags:
-      - "v0.0.*"
+      - "v*.*.*"
 
 permissions:
   contents: read
@@ -19,15 +25,26 @@ jobs:
   handoff-exists:
     runs-on: ubuntu-24.04
     name: handoff exists for the tagged stage
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate the tagged stage's handoff frontmatter
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          stage="${tag##v0.0.}"
-          stage_padded=$(printf "%02d" "$stage")
-          echo "$stage_padded" > .aero-stage
-          bash scripts/check_handoff_exists.sh
+          fetch-depth: 0
+      - name: Fetch PR heads (a squash-merged handoff's git_sha_end lives on its PR head)
+        run: git fetch --no-tags --quiet origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+      - name: Validate the tagged stage's handoff
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/check_release_tag.sh "$TAG" --ci
+      - name: Release readiness (release tags only)
+        if: ${{ !startsWith(github.ref_name, 'v0.0.') }}
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 -I scripts/release_readiness.py --gate release --ci --tag "$TAG" --online

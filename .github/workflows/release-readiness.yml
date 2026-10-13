@@ -1,0 +1,103 @@
+name: release-readiness
+
+# Dispatched by hand on main before a release tag (ADR-049 R2/R3). Not a required check, and it
+# never tags. It ends by printing `READY TO TAG vX.Y.Z at <sha>` and the operator's commands, and it
+# uploads the release artifacts the operator attaches to the GitHub Release:
+#   - the wheel and sdist, each built twice and compared byte for byte;
+#   - every crate as a deterministic .crate.zip;
+#   - the licence report;
+#   - SHA256SUMS.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "the release version, e.g. 0.1.0"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: release readiness
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      checks: read
+      statuses: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Fetch PR heads (PR-only contexts are read from the merged PR's head)
+        run: git fetch --no-tags --quiet origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+      - name: The version input is a version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::'$VERSION' is not X.Y.Z"; exit 1; }
+      - name: Every release check, online
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 -I scripts/release_readiness.py --gate release --tag "v$VERSION" --online
+
+  licence-online:
+    name: licence snapshot re-verified against the index
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -I scripts/licence_scan.py refresh --verify
+
+  artifacts:
+    name: reproducible release artifacts
+    needs: [readiness, licence-online]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.14"
+      - name: Install from the lock
+        run: |
+          uv sync --locked --python 3.12
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Build twice; the bytes must agree
+        run: |
+          set -euo pipefail
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          uv build -o "$RUNNER_TEMP/a"
+          uv build -o "$RUNNER_TEMP/b"
+          for f in "$RUNNER_TEMP"/a/*; do cmp "$f" "$RUNNER_TEMP/b/$(basename "$f")"; done
+          mkdir -p "$RUNNER_TEMP/release"
+          cp "$RUNNER_TEMP"/a/* "$RUNNER_TEMP/release/"
+      - name: Pack every crate (deterministic .crate.zip)
+        run: |
+          set -euo pipefail
+          for d in crates/stage*; do
+            python -I -B -m aero.crate pack "$d" "$RUNNER_TEMP/release/$(basename "$d").crate.zip"
+          done
+          python -I -B -m aero.crate verify "$RUNNER_TEMP"/release/*.crate.zip
+      - name: Licence report and SHA256SUMS
+        run: |
+          set -euo pipefail
+          python3 -I scripts/licence_scan.py check --report "$RUNNER_TEMP/release/licence-report.json"
+          (cd "$RUNNER_TEMP/release" && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-artifacts-v${{ inputs.version }}
+          path: ${{ runner.temp }}/release
+          retention-days: 90
+          if-no-files-found: error
