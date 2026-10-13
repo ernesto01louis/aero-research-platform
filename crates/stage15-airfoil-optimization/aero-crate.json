@@ -1,0 +1,539 @@
+{
+  "crate_id": "stage15-airfoil-optimization",
+  "creators": [
+    {
+      "name": "Louis Ernesto Schulte Moredo"
+    }
+  ],
+  "date_published": "2026-10-12",
+  "description": "Direct-CFD Bayesian optimization of a NACA-4 camber line for L/D at Re 5e5, AoA 4 deg, re-verified on a 3-grid family. NO-GO: the matched delta is not significant. validated tier, airfoil only.",
+  "format": "aero-result-crate",
+  "format_version": 1,
+  "license": "CC-BY-4.0",
+  "members": [
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json",
+      "role": "config",
+      "sha256": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40",
+      "size": 472
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json",
+      "role": "config",
+      "sha256": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb",
+      "size": 457
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json",
+      "role": "config",
+      "sha256": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2",
+      "size": 472
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json",
+      "role": "config",
+      "sha256": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514",
+      "size": 470
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json",
+      "role": "config",
+      "sha256": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c",
+      "size": 457
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json",
+      "role": "config",
+      "sha256": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961",
+      "size": 455
+    },
+    {
+      "description": "the 3-grid family and its GCI",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage15_grid_convergence.json",
+      "role": "evidence",
+      "sha256": "a527161a705ab3d46ea852d2f5ba1d16134002d8d6fe94b7e1191038485f1e01",
+      "size": 5370
+    },
+    {
+      "description": "the committed record",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage15_optimization.json",
+      "role": "evidence",
+      "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2",
+      "size": 1112
+    },
+    {
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "result.json",
+      "role": "payload",
+      "sha256": "b94a4b89011b3ea668236fa818db77cb46221081313b29e2e8f9b647d9b9bdf8",
+      "size": 1134
+    }
+  ],
+  "payload": "reportable-result",
+  "references": [
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage15_optimization.json",
+      "lines": null,
+      "locator": "data/vv/stage15_optimization.json",
+      "role": "source-record",
+      "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage15_grid_convergence.json",
+      "lines": null,
+      "locator": "data/vv/stage15_grid_convergence.json",
+      "role": "dataset",
+      "sha256": "a527161a705ab3d46ea852d2f5ba1d16134002d8d6fe94b7e1191038485f1e01"
+    },
+    {
+      "commit": null,
+      "embedded_as": null,
+      "lines": null,
+      "locator": "openfoam-esi.sif",
+      "role": "container",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": "278-282",
+      "locator": "CHANGELOG.md",
+      "role": "handoff",
+      "sha256": null
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "docs/handoffs/STAGE-15-cfd-in-the-loop-airfoil-optimization-DONE-2026-07-11.md",
+      "role": "handoff",
+      "sha256": null
+    }
+  ],
+  "runs": [
+    {
+      "action_id": "#07e62b5e-13f4-4d77-9733-8265eadd0a6d",
+      "description": "held-out re-verification of the optimum on the finest grid",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "record-of-provenance"
+      ],
+      "run_id": "gm_optimum_fine-heldout"
+    },
+    {
+      "action_id": "#4ffc149c-2591-4cb4-b59a-83639c8d6416",
+      "description": "baseline design, fine grid (x1)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_baseline_fine"
+    },
+    {
+      "action_id": "#4cffbd87-64ad-4497-bb04-1743673f7626",
+      "description": "optimum design, fine grid (x1)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_optimum_fine"
+    },
+    {
+      "action_id": "#61422044-817d-4276-a9a5-1063e60fefea",
+      "description": "baseline design, medium grid (x1.7)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_baseline_medium"
+    },
+    {
+      "action_id": "#784f71a1-abc3-4e77-99eb-9aaf9628e556",
+      "description": "optimum design, medium grid (x1.7)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_optimum_medium"
+    },
+    {
+      "action_id": "#21c8e75e-e043-47ea-912b-0efa1a4dec06",
+      "description": "baseline design, coarse grid (x2.89)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_baseline_coarse"
+    },
+    {
+      "action_id": "#da062081-1073-4459-8102-c352dd344cda",
+      "description": "optimum design, coarse grid (x2.89)",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.15",
+          "equivalent_tag_commit": "f5d5eada9a9e71905212b94e6c17df3fda3e8d67",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774",
+          "public_refs": [
+            "refs/tags/stage-15-evidence-2026-07-12"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "3dc4d308e1053c1384f8a67f46201839440ac774"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "gm_optimum_coarse"
+    }
+  ],
+  "software": {
+    "concept_doi": "10.5281/zenodo.20292712",
+    "license": "GPL-3.0-or-later",
+    "name": "aero-research-platform",
+    "repository": "https://github.com/ernesto01louis/aero-research-platform"
+  },
+  "title": "Stage 15: CFD-in-the-loop airfoil optimization (NO-GO, delta inside its U95)",
+  "unavailable": [],
+  "validity": {
+    "certificate_expiry": null,
+    "claim_scope": "optimization",
+    "claim_tier": "validated",
+    "conditions": {
+      "aoa_deg": 4.0,
+      "model": "RANS k-omega SST, wall functions, NACA-4 camber line",
+      "reynolds": 500000.0
+    },
+    "design_space": {
+      "camber_position": [
+        0.2,
+        0.6
+      ],
+      "max_camber": [
+        0.0,
+        0.08
+      ]
+    },
+    "flagship_domain": false,
+    "limitations": [
+      {
+        "id": "dvc-input-hash-sync-state",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "229-247",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+      },
+      {
+        "id": "container-digest-by-lookup",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "250-264",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+      },
+      {
+        "id": "input-uq-skipped",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "144-156",
+          "locator": "aero/vv/reportable.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+      },
+      {
+        "id": "no-experiment-anchor",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage15_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage15_optimization.json",
+          "role": "source-record",
+          "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+        },
+        "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+      },
+      {
+        "id": "not-flagship-domain",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "96-99",
+          "locator": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+          "role": "adr",
+          "sha256": null
+        },
+        "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+      },
+      {
+        "id": "nogo",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage15_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage15_optimization.json",
+          "role": "source-record",
+          "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+        },
+        "text": "NO-GO: the optimum's matched delta 24.66 did NOT exceed even its own U95 of 25.37 (the gated bar is 2 x U95 = 50.75). The family is not grid-converged (observed order -1.10). The +113.8 % baseline-to-optimum change is NOT an improvement claim."
+      },
+      {
+        "id": "retracted-claim",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "278-282",
+          "locator": "CHANGELOG.md",
+          "role": "handoff",
+          "sha256": null
+        },
+        "text": "An earlier draft claimed a '+47 % thesis-grade CFD-verified improvement'. It was withdrawn after an adversarial audit and a 3-grid observed-order V&V refuted it."
+      },
+      {
+        "id": "diagnostic-not-gate",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage15_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage15_optimization.json",
+          "role": "source-record",
+          "sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+        },
+        "text": "Only 'delta-exceeds-k-u95' decided the Stage-15 verdict. The other gates are reported diagnostics."
+      }
+    ],
+    "validated_against_experiment": false,
+    "verdicts": [
+      {
+        "gates": [
+          {
+            "comparator": "gt",
+            "criterion": "matched delta > k * U95_delta with k = 2 (Invariant 10)",
+            "gated": true,
+            "name": "delta-exceeds-k-u95",
+            "observed": 24.662888722157646,
+            "passed": false,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": null,
+              "locator": "docs/adrs/ADR-015-small-signal-and-data-origin-invariants.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": 50.7457481304144
+          },
+          {
+            "comparator": "gt",
+            "criterion": "matched delta > 1 * U95_delta (reported)",
+            "gated": false,
+            "name": "delta-exceeds-own-u95",
+            "observed": 24.662888722157646,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": 25.3728740652072
+          },
+          {
+            "comparator": "within",
+            "criterion": "observed order of the delta within [0.5, 2.0] (reported; not gated at Stage 15)",
+            "gated": false,
+            "name": "observed-order-in-asymptotic-range",
+            "observed": -1.1039441944064048,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": [
+              0.5,
+              2.0
+            ]
+          },
+          {
+            "comparator": "is-true",
+            "criterion": "every solve of the family converged (reported)",
+            "gated": false,
+            "name": "all-solves-converged",
+            "observed": false,
+            "passed": false,
+            "preregistered_in": null,
+            "threshold": null
+          }
+        ],
+        "overall": "NO-GO",
+        "qualifier": null,
+        "scope": "optimization-claim"
+      }
+    ]
+  }
+}

@@ -11,7 +11,7 @@ name: data-origin-fence
 #   2. The runtime enforcement test — a foreign+validated CertificateOfValidity is
 #      unconstructible on any code path (aero/vv/... schema validator).
 #
-# Pure grep + pytest on ubuntu-latest -> required-safe (no self-hosted runner).
+# Pure grep + pytest on a GitHub-hosted runner -> required-safe (no self-hosted runner).
 
 on:
   # Runs on EVERY pull request (no path filter): as a *required* status check, a
@@ -29,10 +29,11 @@ permissions:
 jobs:
   data-origin-fence:
     name: data-origin-fence — Invariant 11
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Every foreign loader tags data_origin="foreign" (and never "platform-validated")
         run: |
           set -euo pipefail
@@ -63,17 +64,22 @@ jobs:
           fi
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: ">=0.5"
+          version: "0.11.14"
 
       - name: Install package + dev extras
-        run: uv pip install --system -e ".[dev]"
+        # Locked install (Stage 21, ADR-049 H-15): CI tests exactly the versions in uv.lock
+        # (the licence scan and the release are built from the same lock) instead of
+        # re-resolving fresh on every run. .venv/bin goes first on PATH for later steps.
+        run: |
+          uv sync --locked --extra dev --python 3.12
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Enforce Invariant 11 (foreign cannot be validated/production)
         run: pytest -v tests/stage_12/test_data_origin.py

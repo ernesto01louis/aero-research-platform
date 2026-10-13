@@ -1,0 +1,17 @@
+{
+  "_comment": "The required status contexts on main, each mapped to the ONE workflow job that reports it. tests/unit/test_workflow_hygiene.py checks every entry against the workflow files byte for byte (a renamed job would otherwise leave a required context unreported and block every PR). Branch protection is changed by the operator or under standing approval via gh api, never by this file. Stage 21, ADR-049 H-32.",
+  "contexts": [
+    {"context": "ruff", "workflow": "lint.yml", "job": "ruff", "pr_only": false},
+    {"context": "mypy (strict on aero/)", "workflow": "type.yml", "job": "mypy", "pr_only": false},
+    {"context": "pytest unit (py3.12)", "workflow": "test.yml", "job": "unit", "pr_only": false},
+    {"context": "README STATUS block consistency", "workflow": "docs-sync.yml", "job": "status-block", "pr_only": false},
+    {"context": "enforce Conventional Commits on PR title and every commit", "workflow": "commit-lint.yml", "job": "conventional-commits", "pr_only": true},
+    {"context": "import aero with no extras", "workflow": "import-platform-only.yml", "job": "import-platform-only", "pr_only": false},
+    {"context": "vv-required — stage-gated V&V", "workflow": "vv-required.yml", "job": "vv-required", "pr_only": true},
+    {"context": "fence", "workflow": "non-commercial-fence.yml", "job": "fence", "pr_only": false},
+    {"context": "small-signal-gate — Invariant 10", "workflow": "small-signal-gate.yml", "job": "small-signal-gate", "pr_only": false},
+    {"context": "data-origin-fence — Invariant 11", "workflow": "data-origin-fence.yml", "job": "data-origin-fence", "pr_only": false},
+    {"context": "crate round-trip — Invariant 13", "workflow": "crate-roundtrip.yml", "job": "gate", "pr_only": false},
+    {"context": "dependency licence scan — Invariant 5", "workflow": "dependency-licences.yml", "job": "scan", "pr_only": false}
+  ]
+}

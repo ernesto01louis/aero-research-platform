@@ -264,6 +264,21 @@ def container_sif_sha256(repo_root: Path, container_sif: Path | str) -> str:
     raise ProvenanceError(f"no SHA256 entry for '{name}' in {sums}")
 
 
+def canonical_config_bytes(resolved_config: Mapping[str, Any]) -> bytes:
+    """The exact bytes `config_hash` digests: canonical JSON, sorted keys, no whitespace.
+
+    Exposed (Stage 21, ADR-047) so the result crate can carry the *preimage* of a run's
+    `config_hash` -- `sha256(canonical_config_bytes(cfg)) == config_hash(cfg)` by construction --
+    instead of a CaseSpec re-derived from today's models, which no longer hashes to what old
+    runs recorded (CaseSpec has gained fields since).
+    """
+    try:
+        canonical = json.dumps(dict(resolved_config), sort_keys=True, separators=(",", ":"))
+    except (TypeError, ValueError) as exc:
+        raise ProvenanceError(f"resolved config is not JSON-serializable: {exc}") from exc
+    return canonical.encode("utf-8")
+
+
 def config_hash(resolved_config: Mapping[str, Any]) -> str:
     """sha256 of the resolved config serialized as canonical JSON.
 
@@ -272,11 +287,7 @@ def config_hash(resolved_config: Mapping[str, Any]) -> str:
     JSON (sorted keys, no whitespace) makes the hash reproducible across
     machines. See `.claude/rules/fail-loud-pydantic.md`.
     """
-    try:
-        canonical = json.dumps(dict(resolved_config), sort_keys=True, separators=(",", ":"))
-    except (TypeError, ValueError) as exc:
-        raise ProvenanceError(f"resolved config is not JSON-serializable: {exc}") from exc
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical_config_bytes(resolved_config)).hexdigest()
 
 
 def container_roster(

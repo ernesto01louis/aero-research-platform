@@ -299,6 +299,19 @@ New findings during Stage 21 (not release-blocking):
 - [ ] **The external RO-Crate validator's Process Run Crate profile is still 0.5** (RO-Crate 1.1),
   so the PRC 0.6 MUSTs are checked in-repo (`aero/crate/conformance.py`). Re-check when
   roc-validator ships PRC 0.6.
+- [ ] **H-34: path-safe preCICE directory fields** (ADR-049 P2, not done at Stage 21).
+  - Add a simple-name pattern (no `.`/`..`, only `[A-Za-z0-9._-]`) to the workdir / tutorial /
+    participant-dir fields in `aero/adapters/precice/case.py`, and `shlex.quote` at the
+    solver's shell line.
+  - Every committed value is a simple name, so `config_hash` is unchanged.
+  - It touches `aero/adapters/**`, so it needs a FULL vv-required run.
+- [ ] **H-35: 3MF zip caps** (ADR-049 P2, not done at Stage 21). In `aero/geometry/threemf.py`:
+  - at most 10 000 entries;
+  - at most 512 MiB per part;
+  - a compression ratio of at most 200;
+  - refuse `..` and absolute member names.
+
+  It touches `aero/geometry/**`, so it needs a FULL vv-required run.
 - [ ] **`scripts/regenerate_status.sh` has no unit test** for complete-untagged, complete-tagged or
   an empty `next_stage`. It is exercised only by the required docs-sync job.
 - [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was

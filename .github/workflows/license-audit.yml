@@ -1,10 +1,14 @@
 name: license-audit
 
+# NOT the dependency licence scan. That is dependency-licences.yml (Invariant 5, ADR-048), which
+# checks every package uv.lock can install. This workflow is ADR-009's CC-BY-NC quarantine check on
+# the repository's OWN artifacts.
+#
 # ADR-009 layer 8: scans every PR + push for cross-licence contamination.
 #
 # Three checks:
 #
-# 1. Every `certificates/*.json` artifact carrying `"non_commercial": true`
+# 1. Every certificate in any tracked JSON file (at any depth) carrying `"non_commercial": true`
 #    MUST have its `"surrogate_name"` end with `_nc`. The watermark is
 #    structural per ADR-009 §"surrogate-name watermark"; if a cert sneaks
 #    in without it, this CI blocks the merge.
@@ -25,58 +29,46 @@ name: license-audit
 # the flagged line is treated as an audited exception (mirrors the
 # non-commercial-fence pragma pattern).
 
+# No path filter (Stage 21): a certificate can land anywhere under data/ or crates/, and the
+# check takes seconds.
 on:
   pull_request:
-    paths:
-      - 'aero/**'
-      - 'tests/**'
-      - 'data/datasets/**'
-      - 'docs/**'
-      - 'certificates/**'
-      - '.github/workflows/license-audit.yml'
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: license-audit-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   watermark-check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: certificate watermark + cross-licence diff
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           # Full history so the cross-licence diff scan can resolve the PR base.
           fetch-depth: 0
 
       - name: Cert watermark — non_commercial=True requires `_nc` suffix
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          fail=0
-          for f in certificates/*.json $(find . -name 'certificates' -type d -prune -o -name '*.json' -print 2>/dev/null | grep '/certificates/' || true); do
-              [[ -f "$f" ]] || continue
-              if python3 -c "
-          import json, sys
-          d = json.load(open(sys.argv[1]))
-          if d.get('non_commercial') is True and not d.get('surrogate_name','').endswith('_nc'):
-              sys.exit(1)
-          " "$f"; then
-                  echo "  ok: $f"
-              else
-                  echo "  FAIL: $f — non_commercial=True but surrogate_name lacks '_nc' suffix"
-                  fail=$((fail+1))
-              fi
-          done
-          if [[ "$fail" -gt 0 ]]; then
-              echo "::error::$fail certificate(s) lack the mandatory _nc watermark (ADR-009 §5)."
-              exit 1
-          fi
+        # Every certificate in every tracked JSON file, at any depth. It fails if none is found: the
+        # step this replaces globbed a certificates/ directory that does not exist, and checked zero
+        # files (Stage 21, ADR-049 H-18).
+        run: python3 -I scripts/check_cert_watermark.py
 
       - name: Cross-licence diff scan (warning-only on push; block on PR)
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          base=${{ github.event.pull_request.base.sha }}
-          head=${{ github.event.pull_request.head.sha }}
+          base=$BASE_SHA
+          head=$HEAD_SHA
           changed=$(git diff --name-only "$base" "$head")
           touches_nc_data=false
           touches_aero_outside_nc=false
@@ -108,7 +100,7 @@ jobs:
           ADR-009 license-audit summary
           ─────────────────────────────
           This workflow guards against:
-            • CC-BY-NC certs missing the _nc watermark
+            • CC-BY-NC certs missing the _nc watermark (any tracked JSON, any depth)
             • PRs that mix DrivAerNet++ data changes with aero/ code outside the quarantine
           See docs/adrs/ADR-009-cc-by-nc-quarantine-posture.md for the full posture.
           NOTE

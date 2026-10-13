@@ -1,0 +1,60 @@
+{
+  "case_name": "stage17_surrogate_accel_naca4",
+  "quantities": [
+    {
+      "name": "lift_to_drag",
+      "value": 46.37208685252852,
+      "units": "",
+      "kind": "steady",
+      "u95_numerical": 7.033600211508836,
+      "u95_statistical": 0.0,
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_total": 7.033600211508836
+    }
+  ],
+  "provenance": {
+    "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "config_hash": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
+  },
+  "anchors": [],
+  "improvement": null,
+  "optimization": {
+    "objective": "maximize lift_to_drag at AoA=4 deg (Re=5e5 k-omega SST NACA-4 camber; surrogate-accelerated, every optimum CFD-verified)",
+    "design_variables": {
+      "max_camber": 0.07142396440260919,
+      "camber_position": 0.21977148504550229
+    },
+    "improvement": {
+      "quantity": "lift_to_drag",
+      "kind": "steady",
+      "baseline": 21.67403232277372,
+      "improved": 46.37208685252852,
+      "higher_is_better": true,
+      "delta_uncertainty": {
+        "source": "composed",
+        "u95_numerical": 2.07502863929137,
+        "paired": null,
+        "u95_input": 0.0,
+        "u95_delta": 2.07502863929137
+      },
+      "k": 2.0,
+      "matched_conditions": true,
+      "delta": 24.6980545297548,
+      "u95_delta": 2.07502863929137,
+      "required_margin": 4.15005727858274
+    },
+    "cfd_verified": {
+      "git_sha": "30595a39371dc6a29bf89e09b3f166714a34d134",
+      "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+      "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "config_hash": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
+    },
+    "surrogate_predicted": true,
+    "n_candidates": 74,
+    "held_out_verification": true
+  },
+  "validation_tag": "validated"
+}

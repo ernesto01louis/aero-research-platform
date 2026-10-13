@@ -1,0 +1,22 @@
+{
+  "case": "oscillating_cylinder_lockin",
+  "metric": "cd",
+  "method": "2-grid space+time GCI (base reused), ASME V&V 20 Fs=3.0",
+  "git_sha": "882c7bd4ffb5b9cb4aaa9ef15969da2888c18657",
+  "cd_fine": 1.9931465473474796,
+  "base_run_dir": "/mnt/aero-nfs/runs/oscillating_cylinder_lockin-20260705-155503",
+  "spatial": {
+    "ratio": 1.7,
+    "cd_coarse": 2.021295895569864,
+    "order": 2.0,
+    "gci_fraction": 0.022417571439670953
+  },
+  "temporal": {
+    "ratio": 2.0,
+    "cd_coarse": 2.0142439252544118,
+    "order": 1.0,
+    "gci_fraction": 0.03175488215105247
+  },
+  "u95_numerical_fraction": 0.038870555047233135,
+  "u95_numerical_abs": 0.07747471258587287
+}

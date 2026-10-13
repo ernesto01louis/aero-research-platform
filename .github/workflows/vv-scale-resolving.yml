@@ -14,20 +14,24 @@ name: vv-scale-resolving
 #
 # See ADR-007 for the full design + rationale.
 
+# Stage 21 (ADR-049 H-19): the schedules are removed. No [self-hosted, gpu] runner
+# exists, so every scheduled run skipped both GPU jobs and reported a green that
+# verified nothing. The workflow is now dispatch-only and FAILS LOUDLY when no GPU
+# runner is registered. Restore a schedule only together with a real GPU runner.
 on:
-  schedule:
-    - cron: "0 7 * * *"   # nightly — scale-resolving PyFR/NekRS
-    - cron: "0 6 * * 1"   # weekly Mon — surrogate-inference-smoke (Stage 09)
   workflow_dispatch:
+
+concurrency:
+  group: vv-scale-resolving
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   detect-gpu-runner:
     name: detect a GPU runner
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       have_gpu: ${{ steps.check.outputs.have_gpu }}
     steps:
@@ -41,6 +45,8 @@ jobs:
           echo "only when an operator has labelled a self-hosted runner 'gpu'."
           # Default to skip; the downstream job is gated by this output.
           echo "have_gpu=false" >> "$GITHUB_OUTPUT"
+          echo "::error::no [self-hosted, gpu] runner is registered -- vv-scale-resolving cannot run, so it fails instead of reporting a vacuous green"
+          exit 1
 
   vv-scale-resolving:
     name: V&V scale-resolving — PyFR + NekRS
@@ -49,23 +55,30 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 240
     env:
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
       AERO_RUNPOD_MONTHLY_CAP_USD: "50"
+      AERO_RUN_LONG_REAP: "1"
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install aero with pyfr + nekrs + provenance + vv extras
         run: |
           uv venv --python 3.12 --clear
           uv pip install -e ".[pyfr,nekrs,provenance,vv,dev]"
 
       - name: Fetch DVC-tracked scale-resolving references
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         # Brachet 1983 Taylor-Green dissipation reference; Breuer 2009 periodic-hill.
         run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped"
 
       - name: Run the scale-resolving suite
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         # Tests are stage_07-marked + slow; the host fixtures `vv_cluster_ready_pyfr`
         # / `vv_cluster_ready_nekrs` gate execution on SIF + DSN + scipy.
         run: |
@@ -75,6 +88,10 @@ jobs:
 
       - name: Regenerate the V&V dashboard
         if: always()
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
 
       - name: Cost-cap audit (post-run)
@@ -85,7 +102,7 @@ jobs:
 
       - name: Upload the V&V dashboard
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vv-dashboard-scale-resolving
           path: docs/vv-dashboard.html
@@ -100,18 +117,21 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 60
     env:
-      AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
+      AERO_RUN_LONG_REAP: "1"
     steps:
-      - uses: actions/checkout@v5
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install aero with physicsnemo + provenance + vv extras
         run: |
           uv venv --python 3.12 --clear
           uv pip install -e ".[physicsnemo-cu12,provenance,vv,dev]"
 
       - name: DoMINO inference smoke + surrogate V&V cross-check
+        env:
+          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         # Loads the latest DoMINO checkpoint and predicts a held-out DrivAerML
         # case inside physicsnemo.sif; the on-pod path writes the surrogate_vv
         # report, which `aero vv surrogate --report` renders + asserts here.
@@ -121,7 +141,7 @@ jobs:
 
       - name: Upload the surrogate_vv report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: surrogate-vv-domino
           path: docs/surrogate_vv-latest.json

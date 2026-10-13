@@ -77,9 +77,8 @@ labels:
   - `fence`
   - `small-signal-gate — Invariant 10`
   - `data-origin-fence — Invariant 11`
-
-  At Stage 21, `crate round-trip — Invariant 13` and `dependency licence scan — Invariant 5` join
-  them after their first green run on `main`.
+  - `crate round-trip — Invariant 13` (since Stage 21, ADR-047)
+  - `dependency licence scan — Invariant 5` (since Stage 21, ADR-048)
 - **Code-owner review** is required, with 0 approving reviews: the sole code owner is the repo
   admin, who merges.
 - Linear history (squash merges); no force pushes; no direct pushes.

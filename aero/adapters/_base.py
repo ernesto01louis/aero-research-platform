@@ -20,8 +20,11 @@ adapters — but the door is left open: `mesh()` and `run()` stay abstract
 because their post-command verification still differs enough to make
 hoisting only the command-string into a template method near-pointless.
 
-This module is PLATFORM-NOT-HUB clean: it imports only stdlib, numpy, pydantic,
-loguru and `aero.orchestration._base`. No solver library, no `xarray`.
+This module is PLATFORM-NOT-HUB clean: it imports only stdlib, numpy, pydantic and
+`aero.orchestration._base`. No solver library, no `xarray`. loguru is imported lazily at
+its one call site (Stage 21, ADR-049 H-12): `aero.vv` imports this module, so a
+module-level import put loguru on the import path of `aero.vv.reportable` and of the
+result-crate reader, which must load with only stdlib + numpy + pydantic.
 """
 
 from __future__ import annotations
@@ -34,7 +37,6 @@ from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
 import numpy as np
-from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.orchestration._base import Executor
@@ -383,6 +385,8 @@ class Solver(abc.ABC):
         writing to the adapter's `_write_case`, and returns the `CaseDir`.
         """
         run_id, host_path, remote_path = self._new_run_paths(case)
+        from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
+
         logger.info("preparing case {} at {}", run_id, host_path)
         self._write_case(case, host_path)
         return CaseDir(run_id=run_id, spec=case, host_path=host_path, remote_path=remote_path)

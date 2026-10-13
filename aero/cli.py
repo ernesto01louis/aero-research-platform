@@ -16,7 +16,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import typer
 from loguru import logger
@@ -313,8 +313,10 @@ def _cli() -> None:
 
 
 def _repo_root() -> Path:
-    """Repo root — the editable-installed package lives at ``<repo>/aero/``."""
-    return Path(__file__).resolve().parents[1]
+    """Repo root of the source checkout; fails loudly under a wheel install (ADR-049 H-16)."""
+    from aero._repo import source_checkout_root
+
+    return source_checkout_root()
 
 
 def _detect_nfs_roots() -> tuple[Path, Path]:
@@ -1387,6 +1389,59 @@ def geometry_ingest(
     if json_out:
         Path(json_out).write_text(json.dumps(record.model_dump(mode="json"), indent=2) + "\n")
         typer.echo(f"  record written     {json_out}")
+
+
+# =============================================================================
+# `aero crate` — result crates, the RESULTS-MUST-TRAVEL bundle (Stage 21, ADR-047)
+# =============================================================================
+crate_app = typer.Typer(
+    name="crate",
+    help="Verify, inspect and pack result crates (works without the cluster).",
+    no_args_is_help=True,
+)
+app.add_typer(crate_app, name="crate")
+
+
+def _crate_main(argv: list[str]) -> None:
+    # The stdlib CLI is the one implementation; `python -I -B -m aero.crate` is the
+    # clean-machine entry point (no typer needed), and this group is a convenience over it.
+    from aero.crate.__main__ import main as crate_main
+
+    raise typer.Exit(code=crate_main(argv))
+
+
+@crate_app.command("verify")
+def crate_verify(
+    paths: Annotated[list[str], typer.Argument(help="Crate directories or .crate.zip files.")],
+    expect_digests: str = typer.Option("", "--expect-digests", help="JSON {crate_id: digest}."),
+) -> None:
+    """Verify crates: hash every member, parse strictly, re-derive every number and verdict."""
+    _crate_main(
+        ["verify", *(["--expect-digests", expect_digests] if expect_digests else []), *paths]
+    )
+
+
+@crate_app.command("show")
+def crate_show(path: str = typer.Argument(..., help="A crate directory or .crate.zip.")) -> None:
+    """Verify one crate and print its claim tier, verdicts and limitations."""
+    _crate_main(["show", path])
+
+
+@crate_app.command("numbers")
+def crate_numbers(
+    paths: Annotated[list[str], typer.Argument(help="Crate directories or .crate.zip files.")],
+) -> None:
+    """Verify crates and print every number they carry (floats as float.hex) as JSON."""
+    _crate_main(["numbers", *paths])
+
+
+@crate_app.command("pack")
+def crate_pack(
+    directory: str = typer.Argument(..., help="A crate directory."),
+    output: str = typer.Argument(..., help="The .crate.zip to write (never overwritten)."),
+) -> None:
+    """Verify a crate directory and write its deterministic .crate.zip."""
+    _crate_main(["pack", directory, output])
 
 
 if __name__ == "__main__":

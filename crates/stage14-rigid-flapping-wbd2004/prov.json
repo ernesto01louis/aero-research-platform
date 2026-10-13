@@ -1,0 +1,97 @@
+{
+  "activity": {
+    "crate:218d2760-2417-4b04-847f-0138a06142ab": {
+      "prov:label": "flapping_wing_wbd2004_advanced",
+      "schema:description": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run"
+    },
+    "crate:3dfbd103-c94b-43ab-9efd-420de48b3e5b": {
+      "prov:label": "flapping_wing_wbd2004_symmetrical",
+      "schema:description": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run"
+    },
+    "crate:c284e0ea-fc47-4ed3-af49-563d44ba5eb8": {
+      "prov:label": "flapping_wing_wbd2004_delayed",
+      "schema:description": "provenance UNAVAILABLE: the committed verdict record was hand-composed and carries no four-tuple, no run id and no config hash; the Stage-14 GCI and thesis-grade composition were not run"
+    },
+    "crate:export": {
+      "prov:endTime": "2026-10-12T00:00:00Z",
+      "prov:label": "aero result crate export"
+    }
+  },
+  "agent": {
+    "crate:aero-crate-writer": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "format-1"
+    },
+    "crate:creator-1": {
+      "prov:type": {
+        "$": "prov:Person",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:name": "Louis Ernesto Schulte Moredo"
+    }
+  },
+  "entity": {
+    "crate:aero-crate.json": {
+      "schema:contentSize": 10870,
+      "schema:sha256": "136d2e4d07a2fdb65dcde6a447a3e78cb5a2af9e0d47f61f07034150168e7af7"
+    },
+    "crate:evidence/stage14-preregistration.md": {
+      "schema:contentSize": 4846,
+      "schema:sha256": "1126bb9fedac94ebf2c6dec30ab1ec1c78d4123e8c1a47b9d90be94ec8d4417a"
+    },
+    "crate:evidence/stage14_flapping_nogo.json": {
+      "schema:contentSize": 964,
+      "schema:sha256": "77b15c4166fc879c3f61bc6c11dffcae3929e58f2feaf9352464f22e823a4025"
+    },
+    "crate:prov.json": {
+      "prov:label": "this PROV-JSON document"
+    }
+  },
+  "prefix": {
+    "crate": "arcp://name,stage14-rigid-flapping-wbd2004/",
+    "schema": "http://schema.org/"
+  },
+  "used": {
+    "_:u1": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage14-preregistration.md"
+    },
+    "_:u2": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage14_flapping_nogo.json"
+    }
+  },
+  "wasAssociatedWith": {
+    "_:w1": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:aero-crate-writer"
+    },
+    "_:w2": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:creator-1"
+    }
+  },
+  "wasAttributedTo": {
+    "_:t1": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:t2": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:prov.json"
+    }
+  },
+  "wasGeneratedBy": {
+    "_:g1": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:g2": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:prov.json"
+    }
+  }
+}

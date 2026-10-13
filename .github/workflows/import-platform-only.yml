@@ -27,18 +27,25 @@ concurrency:
 jobs:
   import-platform-only:
     name: import aero with no extras
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          version: ">=0.5"
+          version: "0.11.14"
 
       - name: Install aero with NO extras
-        run: uv pip install --system -e .
+        # Locked install (Stage 21, ADR-049 H-15): CI tests exactly the versions in uv.lock
+        # (the licence scan and the release are built from the same lock) instead of
+        # re-resolving fresh on every run. .venv/bin goes first on PATH for later steps.
+        run: |
+          uv sync --locked --python 3.12
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Import aero — no solver / ML / scientific modules may load
         run: |
@@ -84,6 +91,21 @@ jobs:
               # from. Pure numpy least squares -- named so that reaching for scipy.stats
               # here (the obvious next step for confidence intervals) fails loudly.
               "aero.vv.fsi.cost_model",
+              # Stage 21 (ADR-049 H-12): the reportable surface the result crate is built on.
+              # It was never imported here, so nothing fenced it. Named explicitly. The
+              # STRICTER proof -- these load with ONLY stdlib + numpy + pydantic, no loguru,
+              # typer or dvc -- is tests/unit/test_core_import_isolation.py, because this job
+              # installs the base deps and so cannot see a base-dependency leak.
+              "aero.vv.reportable", "aero.vv.reportable_compose",
+              "aero.vv.paired_difference", "aero.vv.statistical_uncertainty",
+              "aero.surrogates._common.certificate",
+              # Stage 21 (ADR-047): the result-crate package. Every module EXCEPT
+              # aero.crate.__main__ (importing it runs the CLI).
+              "aero.crate", "aero.crate.errors", "aero.crate._canonical",
+              "aero.crate.model_base", "aero.crate.model", "aero.crate.validity",
+              "aero.crate.payload", "aero.crate.members", "aero.crate.projections",
+              "aero.crate.conformance", "aero.crate.rules", "aero.crate.reader",
+              "aero.crate.writer", "aero.crate.sandbox",
           ):
               importlib.import_module(mod)
 
@@ -98,6 +120,9 @@ jobs:
               # solid participant's stack and lives in the SIF's own venv -- it must
               # never be reachable from the platform core.
               "precice", "pyprecice", "nutils",
+              # Stage 21: the RO-Crate / PROV validators are CI-side tools only (ADR-047 D5);
+              # the crate core writes and reads JSON-LD and PROV-JSON with the stdlib.
+              "rocrate", "rocrate_validator", "prov", "rdflib", "pyshacl",
           )
           loaded = sorted(m for m in banned if m in sys.modules)
           if loaded:
