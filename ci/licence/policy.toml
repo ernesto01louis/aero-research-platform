@@ -1,0 +1,36 @@
+# The dependency licence policy (ADR-048; CONSTITUTION Invariant 5). Read by scripts/licence_scan.py.
+#
+# The platform is GPL-3.0-or-later. Every package uv.lock can install must carry a licence on this
+# GPL-3.0-compatible allowlist (FSF licence list), or hold a reviewed exact-version exception in
+# exceptions.toml. An SPDX `AND` needs every term allowed and an `OR` needs one; a `WITH` pair must
+# be listed in allow_with.
+
+adr = "ADR-048"
+
+allow = [
+  "MIT", "MIT-0", "MIT-CMU", "X11", "HPND",
+  "BSD-1-Clause", "BSD-2-Clause", "BSD-3-Clause", "0BSD",
+  # The bare classifier "License :: OSI Approved :: BSD License" names no clause count; every
+  # OSI-approved BSD variant is GPL-3.0-compatible. The report lists these packages separately.
+  "LicenseRef-OSI-BSD-family",
+  "Apache-2.0", "ISC", "PSF-2.0", "Python-2.0", "CNRI-Python", "MPL-2.0",
+  "LGPL-2.1-only", "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later",
+  "GPL-2.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later",
+  "ZPL-2.1", "Zlib", "CC0-1.0", "Unlicense", "BSL-1.0",
+]
+
+allow_with = ["Apache-2.0 WITH LLVM-exception"]
+
+# Every locked extra belongs to exactly one scope. A package reachable from several scopes must
+# satisfy every one of them.
+[scopes.base]
+base = true
+
+[scopes.supported-extras]
+extras = ["cad", "dev", "gpu-rental", "nekrs", "openfoam", "precice", "provenance", "pyfr", "su2", "vv"]
+
+# Frozen-optional (ADR-013). The only scope where NVIDIA's proprietary CUDA components are admitted
+# (ADR-010's footing): base and supported-extras are proprietary-free.
+[scopes.gpu-frozen]
+extras = ["jax-fluids", "surrogate-smoke", "physicsnemo-cu12"]
+allow_patterns = ["LicenseRef-NVIDIA-*"]
