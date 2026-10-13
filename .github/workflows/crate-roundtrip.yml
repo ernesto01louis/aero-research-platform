@@ -1,0 +1,289 @@
+name: crate-roundtrip
+
+# The clean-machine round trip of the result crates: Hard Rule 16 / CONSTITUTION Invariant 13
+# (draft), ADR-047. The README-handoff row-21 gate is "bundle round-trips on a clean machine".
+# This workflow proves PORTABILITY, not merely that the writer runs:
+#
+#   write  one runner checks the five COMMITTED crates (crates/) against the repository and git,
+#          builds an independent stdlib oracle of their numbers from the committed records, writes
+#          the synthetic self-test crates (every payload shape), packs every crate twice
+#          (determinism), builds the wheel from the sdist, exports hash-pinned reader
+#          requirements from uv.lock, and seals it all in an artifact with a sha256 manifest.
+#   read   FRESH runners (Linux py3.12 / py3.13, macOS, Windows, and a dependency-floor leg)
+#          with NO checkout -- no repository, no cluster, no DVC remote, no MLflow -- receive the
+#          artifact at a different path (a space and a non-ASCII character in it: the "move"),
+#          install ONLY the wheel (--no-deps) + numpy + pydantic, and
+#            L0  check every member with coreutils `sha256sum -c` (POSIX),
+#            L2  verify every zip and every OS-extracted directory under the sandboxed stdlib CLI,
+#                require every crate digest to be the pinned one, compare every number BIT FOR
+#                BIT (self-test crates against the writer's expectation, committed crates
+#                against the oracle), re-pack each extracted directory and require the received
+#                bytes back.
+#   read-windows-checkout  a Windows clone with core.autocrlf=true verifies crates/ in place:
+#          `.gitattributes` must stop git from rewriting a single crate byte.
+#   gate   the ONE required context. It fails unless every leg succeeded (a skipped job counts
+#          as success for a required check, so the gate checks results explicitly).
+#
+# conformance (informational, never gating): the external RO-Crate validator (whose Process Run
+# Crate profile is still 0.5, for RO-Crate 1.1) and the W3C `prov` parser, CI-side only. The
+# in-repo stdlib checks run in the required pytest job and inside every verify.
+#
+# Required context: `crate round-trip — Invariant 13` (added to branch protection after its first
+# green run on main). Never path-filtered: a required check must always report.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crate-roundtrip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  write:
+    name: crate round-trip — write and pack
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history and tags: each run's git SHA, its evidence tag and its stage tag must
+          # resolve, and the declared code-tree equivalence is re-measured with `git diff`.
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.14"
+      - name: Install from the lock
+        run: |
+          uv sync --locked --extra dev --python 3.12
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: The committed crates match the repository and git (never re-runs an era recipe)
+        run: python scripts/stage21_export_crates.py check
+      - name: The independent oracle (stdlib, reads only the committed records)
+        run: |
+          mkdir -p "$RUNNER_TEMP/transport/committed"
+          python3 -I scripts/crate_oracle.py build --out "$RUNNER_TEMP/transport/oracle.json"
+          cp -R crates/stage* "$RUNNER_TEMP/transport/committed/"
+      - name: Write the self-test crates (every payload shape) and the expected numbers
+        run: python scripts/crate_ci.py selftest --out "$RUNNER_TEMP/transport/selftest"
+      - name: Build the sdist, then the wheel FROM the sdist
+        run: |
+          uv build -o "$RUNNER_TEMP/dist"
+          mkdir -p "$RUNNER_TEMP/transport/dist"
+          cp "$RUNNER_TEMP"/dist/*.whl "$RUNNER_TEMP/transport/dist/"
+          python scripts/crate_ci.py wheel-hygiene "$RUNNER_TEMP"/transport/dist/*.whl
+      - name: Pack every crate twice and require identical bytes
+        run: |
+          for kind in selftest committed; do
+            mkdir -p "$RUNNER_TEMP/transport/zip-$kind"
+            for d in "$RUNNER_TEMP/transport/$kind"/stage*; do
+              n=$(basename "$d")
+              python -I -B -m aero.crate pack "$d" "$RUNNER_TEMP/transport/zip-$kind/$n.crate.zip"
+              python -I -B -m aero.crate pack "$d" "$RUNNER_TEMP/$n.again.zip"
+              python scripts/crate_ci.py same-bytes "$RUNNER_TEMP/transport/zip-$kind/$n.crate.zip" "$RUNNER_TEMP/$n.again.zip"
+            done
+          done
+      - name: The digest every crate must have on arrival (committed ones are pinned in the oracle)
+        run: |
+          python3 -I scripts/crate_oracle.py digests "$RUNNER_TEMP/transport/oracle.json" \
+            --merge "$RUNNER_TEMP/transport/selftest/expected.json" \
+            --out "$RUNNER_TEMP/transport/expected-digests.json"
+      - name: Hash-pinned reader requirements, from uv.lock
+        run: python scripts/crate_ci.py reader-requirements --out "$RUNNER_TEMP/transport/reader-requirements.txt"
+      - name: Seal the transport
+        run: |
+          cp scripts/crate_ci.py scripts/crate_oracle.py "$RUNNER_TEMP/transport/"
+          python scripts/crate_ci.py transport-sums "$RUNNER_TEMP/transport"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crate-transport
+          path: ${{ runner.temp }}/transport
+          retention-days: 7
+          if-no-files-found: error
+
+  read:
+    name: crate round-trip — read (${{ matrix.os }}, py${{ matrix.python }}, ${{ matrix.deps }})
+    needs: write
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, python: "3.12", deps: locked }
+          - { os: ubuntu-24.04, python: "3.13", deps: locked }
+          - { os: macos-15, python: "3.12", deps: locked }
+          - { os: windows-2025, python: "3.12", deps: locked }
+          - { os: ubuntu-24.04, python: "3.12", deps: floor }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Make the destination (the move) -- a path with a space and a non-ASCII character
+        working-directory: ${{ runner.temp }}
+        run: mkdir -p "moved crate ü"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: crate-transport
+          path: ${{ runner.temp }}/moved crate ü/received
+      - name: The move altered no byte
+        working-directory: ${{ runner.temp }}/moved crate ü
+        run: python -I received/crate_ci.py check-transport received
+      - name: A clean environment -- the wheel, numpy and pydantic, nothing else
+        working-directory: ${{ runner.temp }}/moved crate ü
+        env:
+          DEPS: ${{ matrix.deps }}
+        run: |
+          set -euo pipefail
+          python -m venv clean
+          if [ "$RUNNER_OS" = "Windows" ]; then PY="$PWD/clean/Scripts/python.exe"; else PY="$PWD/clean/bin/python"; fi
+          echo "PY=$PY" >> "$GITHUB_ENV"
+          if [ "$DEPS" = floor ]; then
+            # The declared lower bounds (pyproject: pydantic>=2.12, numpy>=2.0).
+            "$PY" -m pip install --only-binary=:all: "pydantic==2.12.0" "numpy==2.0.2"
+          else
+            "$PY" -m pip install --no-deps --require-hashes --only-binary=:all: -r received/reader-requirements.txt
+          fi
+          "$PY" -m pip install --no-deps --no-index received/dist/*.whl
+          "$PY" -I received/crate_ci.py assert-absent loguru typer dvc scipy mlflow yaml
+      - name: L0 -- coreutils only (unzip + sha256sum -c)
+        if: runner.os != 'Windows'
+        working-directory: ${{ runner.temp }}/moved crate ü
+        run: |
+          set -euo pipefail
+          for z in received/zip-*/*.crate.zip; do
+            n=$(basename "$z" .crate.zip)
+            mkdir -p "extracted/$n"
+            unzip -q "$z" -d "extracted/$n"
+            if command -v sha256sum >/dev/null; then
+              (cd "extracted/$n" && sha256sum -c --quiet SHA256SUMS)
+            else
+              (cd "extracted/$n" && shasum -a 256 -c --quiet SHA256SUMS)
+            fi
+          done
+      - name: Native extraction (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ${{ runner.temp }}/moved crate ü
+        shell: pwsh
+        run: |
+          Get-ChildItem received/zip-*/*.crate.zip | ForEach-Object {
+            $n = $_.Name -replace '\.crate\.zip$', ''
+            Expand-Archive -Path $_.FullName -DestinationPath "extracted/$n"
+          }
+      - name: L2 -- verify every zip and directory, each with its pinned digest (sandboxed stdlib CLI)
+        working-directory: ${{ runner.temp }}/moved crate ü
+        run: |
+          "$PY" -I -B -m aero.crate verify --expect-digests received/expected-digests.json \
+            received/zip-*/*.crate.zip extracted/* received/selftest/stage* received/committed/stage*
+      - name: Same numbers, bit for bit
+        working-directory: ${{ runner.temp }}/moved crate ü
+        run: |
+          set -euo pipefail
+          "$PY" -I -B -m aero.crate numbers received/zip-selftest/*.crate.zip > got-selftest.json
+          "$PY" -I received/crate_ci.py compare received/selftest/expected.json got-selftest.json
+          "$PY" -I -B -m aero.crate numbers received/zip-committed/*.crate.zip > got-committed.json
+          "$PY" -I received/crate_oracle.py compare received/oracle.json got-committed.json
+      - name: Rewrite identity -- re-pack each extracted crate and get the received bytes back
+        working-directory: ${{ runner.temp }}/moved crate ü
+        run: |
+          set -euo pipefail
+          for d in extracted/*; do
+            n=$(basename "$d")
+            "$PY" -I -B -m aero.crate pack "$d" "repacked-$n.crate.zip"
+            "$PY" -I received/crate_ci.py same-bytes "repacked-$n.crate.zip" received/zip-*/"$n.crate.zip"
+          done
+
+  read-windows-checkout:
+    name: crate round-trip — read a Windows checkout (core.autocrlf=true)
+    needs: write
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: The line-ending setting a Windows git install defaults to
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: crate-transport
+          path: ${{ runner.temp }}/received
+      - name: A clean environment -- the wheel, numpy and pydantic, nothing else
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          python -m venv clean
+          PY="$PWD/clean/Scripts/python.exe"
+          echo "PY=$PY" >> "$GITHUB_ENV"
+          echo "DIGESTS=$PWD/received/expected-digests.json" >> "$GITHUB_ENV"
+          "$PY" -m pip install --no-deps --require-hashes --only-binary=:all: -r received/reader-requirements.txt
+          "$PY" -m pip install --no-deps --no-index received/dist/*.whl
+      - name: git treats crate bytes as binary (no end-of-line conversion)
+        run: |
+          set -euo pipefail
+          got=$(git check-attr text -- crates/stage12-oscillating-cylinder-lockin/SHA256SUMS)
+          echo "$got"
+          test "$got" = "crates/stage12-oscillating-cylinder-lockin/SHA256SUMS: text: unset"
+      - name: Verify crates/ exactly as checked out, with the pinned digests
+        # -I: the installed wheel's aero, not the checkout's source tree.
+        run: '"$PY" -I -B -m aero.crate verify --expect-digests "$DIGESTS" crates/stage*'
+
+  conformance:
+    name: crate conformance — roc-validator + prov (informational)
+    needs: write
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: crate-transport
+          path: ${{ runner.temp }}/transport
+      - name: External validators (CI-side only; never imported by aero/)
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -uo pipefail
+          python -m venv v
+          v/bin/pip install -q "roc-validator==0.12.2" "prov==3.2.2"
+          rc=0
+          for d in transport/selftest/stage* transport/committed/stage*; do
+            echo "::group::rocrate-validator $d"
+            v/bin/rocrate-validator validate -p ro-crate-1.3 -l REQUIRED --no-paging "$d" || rc=1
+            echo "::endgroup::"
+            v/bin/python -c "import sys, prov.model as m; m.ProvDocument.deserialize(sys.argv[1], format='json'); print('prov parses', sys.argv[1])" "$d/prov.json" || rc=1
+          done
+          exit $rc
+
+  gate:
+    name: crate round-trip — Invariant 13
+    if: always()
+    needs: [write, read, read-windows-checkout]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every write and read leg succeeded (a skipped leg is a failure here)
+        env:
+          WRITE: ${{ needs.write.result }}
+          READ: ${{ needs.read.result }}
+          CHECKOUT: ${{ needs.read-windows-checkout.result }}
+        run: |
+          echo "write=$WRITE read=$READ read-windows-checkout=$CHECKOUT"
+          test "$WRITE" = success && test "$READ" = success && test "$CHECKOUT" = success

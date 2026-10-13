@@ -1,0 +1,208 @@
+{
+  "crate_id": "stage12-oscillating-cylinder-lockin",
+  "creators": [
+    {
+      "name": "Louis Ernesto Schulte Moredo"
+    }
+  ],
+  "date_published": "2026-10-12",
+  "description": "Time-averaged drag coefficient of a cylinder in forced oscillation (wake lock-in), with GCI + batch-means U95 and a passing lock-in anchor. thesis-grade.",
+  "format": "aero-result-crate",
+  "format_version": 1,
+  "license": "CC-BY-4.0",
+  "members": [
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json",
+      "role": "config",
+      "sha256": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92",
+      "size": 437
+    },
+    {
+      "description": "the GCI study behind u95_numerical",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage12_cylinder_gci.json",
+      "role": "evidence",
+      "sha256": "7e6191f47bdd4a21c9cf0a1cbe926be95b44a4bdbfef835ec70310d6f8413c04",
+      "size": 668
+    },
+    {
+      "description": "the committed record",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage12_reportable_oscillating_cylinder_lockin.json",
+      "role": "evidence",
+      "sha256": "d6bfdd7d297d331faff10ad04a7c7002404037d1582547ed93c2fbc5034a6a3e",
+      "size": 1114
+    },
+    {
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "result.json",
+      "role": "payload",
+      "sha256": "81b9e6f6cc7ade772f7b9530415440decb3b7b8b3dcaeb552c77abec8ece213d",
+      "size": 1172
+    }
+  ],
+  "payload": "reportable-result",
+  "references": [
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage12_reportable_oscillating_cylinder_lockin.json",
+      "lines": null,
+      "locator": "data/vv/stage12_reportable_oscillating_cylinder_lockin.json",
+      "role": "source-record",
+      "sha256": "d6bfdd7d297d331faff10ad04a7c7002404037d1582547ed93c2fbc5034a6a3e"
+    },
+    {
+      "commit": null,
+      "embedded_as": null,
+      "lines": null,
+      "locator": "openfoam-esi.sif",
+      "role": "container",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "docs/handoffs/STAGE-12-vv-uq-core-DONE-2026-07-05.md",
+      "role": "handoff",
+      "sha256": null
+    }
+  ],
+  "runs": [
+    {
+      "action_id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33",
+      "description": "the lock-in solve the record cites",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage12_reportable.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.12",
+          "equivalent_tag_commit": "cbfc75a0dde7845f40606a4a9f0e2c129fad82e2",
+          "git_sha": "a5c759a252cf654a884a9f539348d04b8b59d655",
+          "public_refs": [
+            "refs/tags/stage-12-evidence-2026-07-05"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "a5c759a252cf654a884a9f539348d04b8b59d655"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "record-of-provenance"
+      ],
+      "run_id": "oscillating_cylinder_lockin"
+    }
+  ],
+  "software": {
+    "concept_doi": "10.5281/zenodo.20292712",
+    "license": "GPL-3.0-or-later",
+    "name": "aero-research-platform",
+    "repository": "https://github.com/ernesto01louis/aero-research-platform"
+  },
+  "title": "Stage 12: oscillating-cylinder lock-in, thesis-grade U95 reference",
+  "unavailable": [],
+  "validity": {
+    "certificate_expiry": null,
+    "claim_scope": "uq-reference",
+    "claim_tier": "thesis-grade",
+    "conditions": {},
+    "design_space": {},
+    "flagship_domain": false,
+    "limitations": [
+      {
+        "id": "dvc-input-hash-sync-state",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "229-247",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+      },
+      {
+        "id": "container-digest-by-lookup",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "250-264",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+      },
+      {
+        "id": "input-uq-skipped",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "144-156",
+          "locator": "aero/vv/reportable.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+      },
+      {
+        "id": "uq-reference-outside-release-narrative",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": null,
+          "locator": "docs/handoffs/STAGE-12-vv-uq-core-DONE-2026-07-05.md",
+          "role": "handoff",
+          "sha256": null
+        },
+        "text": "A U95-machinery reference, not part of the optimizer demonstration: the only thesis-grade record committed, carrying both a numerical (GCI) and a statistical (batch-means) U95 term and a passing experiment anchor."
+      }
+    ],
+    "validated_against_experiment": true,
+    "verdicts": [
+      {
+        "gates": [
+          {
+            "comparator": "le",
+            "criterion": "Wake lock-in: response frequency = forcing frequency (Placzek 2009; Koopmann 1967): observed error <= tolerance",
+            "gated": true,
+            "name": "lock-in-anchor",
+            "observed": 0.0030084060121843234,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "87-90",
+              "locator": "aero/vv/unsteady/oscillating_cylinder.py",
+              "role": "code",
+              "sha256": null
+            },
+            "threshold": 0.03
+          }
+        ],
+        "overall": "GO",
+        "qualifier": null,
+        "scope": "thesis-grade-gate"
+      }
+    ]
+  }
+}

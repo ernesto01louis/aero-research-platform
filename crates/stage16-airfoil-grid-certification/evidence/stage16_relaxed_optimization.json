@@ -1,0 +1,37 @@
+{
+  "case_name": "airfoil_opt_naca4",
+  "quantities": [
+    {
+      "name": "lift_to_drag_baseline",
+      "value": 28.200729819577244,
+      "units": "",
+      "kind": "steady",
+      "u95_numerical": 16.64455917415637,
+      "u95_statistical": 0.0,
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_total": 16.64455917415637
+    },
+    {
+      "name": "lift_to_drag_optimum",
+      "value": 49.92001369026702,
+      "units": "",
+      "kind": "steady",
+      "u95_numerical": 9.09074927764538,
+      "u95_statistical": 0.0,
+      "u95_input": 0.0,
+      "u95_input_basis": "skipped",
+      "u95_total": 9.09074927764538
+    }
+  ],
+  "provenance": {
+    "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+    "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "config_hash": "5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47"
+  },
+  "anchors": [],
+  "improvement": null,
+  "optimization": null,
+  "validation_tag": "validated"
+}
