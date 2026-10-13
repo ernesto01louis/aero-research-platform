@@ -1,0 +1,38 @@
+{
+  "case": "flapping_wing_wbd2004",
+  "verdict": "NO-GO",
+  "gated_quantity": "symmetrical mean_lift_coefficient",
+  "band_rel": 0.25,
+  "gated_rel_err": 0.457,
+  "ordering_correct": true,
+  "root_cause": "overset wake-capture dissipation; robust to numerics (finer mesh/scheme gave 0.463 vs 0.465)",
+  "per_timing": [
+    {
+      "timing": "symmetrical",
+      "pitch_phase_deg": 0.0,
+      "ncyc": 22,
+      "mean_cl_cfd": 0.4669,
+      "mean_cl_experiment": 0.86,
+      "mean_cl_wbd_2d": 0.82,
+      "rel_err_vs_exp": 0.457
+    },
+    {
+      "timing": "advanced",
+      "pitch_phase_deg": 45.0,
+      "ncyc": 23,
+      "mean_cl_cfd": 0.5768,
+      "mean_cl_experiment": 0.93,
+      "mean_cl_wbd_2d": 1.1,
+      "rel_err_vs_exp": 0.38
+    },
+    {
+      "timing": "delayed",
+      "pitch_phase_deg": -45.0,
+      "ncyc": 19,
+      "mean_cl_cfd": 0.1371,
+      "mean_cl_experiment": 0.38,
+      "mean_cl_wbd_2d": 0.19,
+      "rel_err_vs_exp": 0.639
+    }
+  ]
+}

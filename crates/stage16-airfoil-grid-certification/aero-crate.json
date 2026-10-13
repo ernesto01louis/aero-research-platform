@@ -1,0 +1,658 @@
+{
+  "crate_id": "stage16-airfoil-grid-certification",
+  "creators": [
+    {
+      "name": "Louis Ernesto Schulte Moredo"
+    }
+  ],
+  "date_published": "2026-10-12",
+  "description": "3-grid observed-order GCI on the matched L/D delta, URANS-stabilized values. NO-GO by one pre-registered gate (observed order 0.465 vs 0.5). validated tier, airfoil only.",
+  "format": "aero-result-crate",
+  "format_version": 1,
+  "license": "CC-BY-4.0",
+  "members": [
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488.json",
+      "role": "config",
+      "sha256": "0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488",
+      "size": 801
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c.json",
+      "role": "config",
+      "sha256": "39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c",
+      "size": 800
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e.json",
+      "role": "config",
+      "sha256": "3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e",
+      "size": 787
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f.json",
+      "role": "config",
+      "sha256": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f",
+      "size": 803
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d.json",
+      "role": "config",
+      "sha256": "4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d",
+      "size": 753
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47.json",
+      "role": "config",
+      "sha256": "5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47",
+      "size": 738
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe.json",
+      "role": "config",
+      "sha256": "86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe",
+      "size": 786
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1.json",
+      "role": "config",
+      "sha256": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1",
+      "size": 789
+    },
+    {
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "license": null,
+      "media_type": "application/json",
+      "path": "configs/c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2.json",
+      "role": "config",
+      "sha256": "c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2",
+      "size": 739
+    },
+    {
+      "description": "the 4-level family, gates and GCI",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage16_relaxed_convergence.json",
+      "role": "evidence",
+      "sha256": "95bd61156e020ae0a677f25577eade666b19d15c95beba4d40ad12c39bd5ba46",
+      "size": 11048
+    },
+    {
+      "description": "the committed record of record",
+      "license": null,
+      "media_type": "application/json",
+      "path": "evidence/stage16_relaxed_optimization.json",
+      "role": "evidence",
+      "sha256": "1586c8873da9ae185a325a49c09ab3c5b060d505a409a14f623e168e379ee5ed",
+      "size": 1106
+    },
+    {
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "license": null,
+      "media_type": "application/json",
+      "path": "result.json",
+      "role": "payload",
+      "sha256": "fa67888f9d2514030624841ccf3ff8769a7afb0edeccc8dc9cfa03e74f23146c",
+      "size": 1128
+    }
+  ],
+  "payload": "reportable-result",
+  "references": [
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage16_relaxed_optimization.json",
+      "lines": null,
+      "locator": "data/vv/stage16_relaxed_optimization.json",
+      "role": "source-record",
+      "sha256": "1586c8873da9ae185a325a49c09ab3c5b060d505a409a14f623e168e379ee5ed"
+    },
+    {
+      "commit": null,
+      "embedded_as": "evidence/stage16_relaxed_convergence.json",
+      "lines": null,
+      "locator": "data/vv/stage16_relaxed_convergence.json",
+      "role": "dataset",
+      "sha256": "95bd61156e020ae0a677f25577eade666b19d15c95beba4d40ad12c39bd5ba46"
+    },
+    {
+      "commit": null,
+      "embedded_as": null,
+      "lines": null,
+      "locator": "openfoam-esi.sif",
+      "role": "container",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": "75-81",
+      "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+      "role": "adr",
+      "sha256": null
+    },
+    {
+      "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+      "embedded_as": null,
+      "lines": null,
+      "locator": "data/vv/stage16_optimization.json",
+      "role": "superseded-record",
+      "sha256": null
+    }
+  ],
+  "runs": [
+    {
+      "action_id": "#632a656f-31ea-4a16-b408-fcee89f93c9e",
+      "description": "the held-out optimum's spec identity the record cites",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "5b3590ef2852e2c2ba8bf3e1c1688a4a1e7a59e958fc5a40e05be38ea587ac47",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "record-of-provenance"
+      ],
+      "run_id": "g16r_optimum_fine-spec-identity"
+    },
+    {
+      "action_id": "#9b68602c-b4a3-45d6-93c7-1209f2bcd5c9",
+      "description": "baseline design, fine grid (x0.346), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "97195c322f8600fdf025f57976412c9ff15d0f8fd34500ea2476c7761486b9f1",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_baseline_fine-20260713-192733"
+    },
+    {
+      "action_id": "#b0e3a7d8-de59-439e-bbee-d15c3a929ba1",
+      "description": "optimum design, fine grid (x0.346), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [],
+          "equivalence": "code-trees-identical",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "42871e89daa958c48ab7b64a06a336df20d07d13af141ffc479e900f1752979f",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "2e7106ac900c44676c0f30b9f129855fc1aaaccc"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_optimum_fine-20260713-192734"
+    },
+    {
+      "action_id": "#69c5f9be-3cb0-487b-883e-271f59e2ecd7",
+      "description": "baseline design, medium grid (x0.5882), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "86540badd3c06821c5e107d3b8362e9a5b3179bc529856ae2039a9808bf24bfe",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_baseline_fine-20260713-111645"
+    },
+    {
+      "action_id": "#cdccbade-c811-49dc-813b-2c14a11a6e96",
+      "description": "optimum design, medium grid (x0.5882), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "39b843f122d368f776e91d1712fc5f15253c5fca3e10a5fc3e18d67ac4ae356c",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_optimum_fine-20260713-111647"
+    },
+    {
+      "action_id": "#7ed307b0-fd62-4027-9002-153a908f4e24",
+      "description": "baseline design, coarse grid (x1), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "c9aa0da550c53284eac2113133d4b52470d1f7093aa68cda1b3fd7ab795d44d2",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_baseline_medium-20260713-111649"
+    },
+    {
+      "action_id": "#17d0e198-95a3-4dc0-b256-08ab5287e974",
+      "description": "optimum design, coarse grid (x1), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "4b536e1ebe9f3f19f71183e7a788dcf5551243e44b45e90c56a1b1797b3ec67d",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_optimum_medium-20260713-111650"
+    },
+    {
+      "action_id": "#d6420387-7be0-4ee8-ab78-312060c5207d",
+      "description": "baseline design, coarsest grid (x1.7), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "3cc7bdab449c942681abe9ad99ef32befe48285a58175ab890d51cebb899e96e",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_baseline_coarse-20260713-111652"
+    },
+    {
+      "action_id": "#593af734-d553-444d-8ba4-484483e5a079",
+      "description": "optimum design, coarsest grid (x1.7), time-accurate relaxation",
+      "provenance": {
+        "code": {
+          "differing_paths": [
+            "scripts/stage16_relaxed_cert.py"
+          ],
+          "equivalence": "code-trees-differ",
+          "equivalent_tag": "v0.0.16",
+          "equivalent_tag_commit": "3874ff7555844be4b01a6c4083bcdd0efece17e1",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311",
+          "public_refs": [
+            "refs/tags/stage-16-evidence-2026-07-15"
+          ],
+          "publicly_resolvable": true
+        },
+        "four_tuple": {
+          "config_hash": "0a1979de029bf9f376d4aac77aebb85da31d81f4b2544fed5b2958bd16b53488",
+          "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+          "containers": [],
+          "dvc_input_hash": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092",
+          "git_sha": "6b904e830a9f899084196944cb30b9fc339de311"
+        },
+        "status": "available"
+      },
+      "roles": [
+        "grid-family"
+      ],
+      "run_id": "g16r_optimum_coarse-20260713-111654"
+    }
+  ],
+  "software": {
+    "concept_doi": "10.5281/zenodo.20292712",
+    "license": "GPL-3.0-or-later",
+    "name": "aero-research-platform",
+    "repository": "https://github.com/ernesto01louis/aero-research-platform"
+  },
+  "title": "Stage 16: grid-converged certification of the airfoil optimum (NO-GO by one gate)",
+  "unavailable": [],
+  "validity": {
+    "certificate_expiry": null,
+    "claim_scope": "optimization",
+    "claim_tier": "validated",
+    "conditions": {
+      "aoa_deg": 4.0,
+      "max_courant": 4.0,
+      "model": "RANS k-omega SST, wall functions, NACA-4 camber line",
+      "reynolds": 500000.0
+    },
+    "design_space": {
+      "camber_position": [
+        0.2,
+        0.6
+      ],
+      "max_camber": [
+        0.0,
+        0.08
+      ]
+    },
+    "flagship_domain": false,
+    "limitations": [
+      {
+        "id": "dvc-input-hash-sync-state",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "229-247",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+      },
+      {
+        "id": "container-digest-by-lookup",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "250-264",
+          "locator": "aero/provenance/four_fold.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+      },
+      {
+        "id": "input-uq-skipped",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "144-156",
+          "locator": "aero/vv/reportable.py",
+          "role": "code",
+          "sha256": null
+        },
+        "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+      },
+      {
+        "id": "no-experiment-anchor",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage16_relaxed_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage16_relaxed_optimization.json",
+          "role": "source-record",
+          "sha256": "1586c8873da9ae185a325a49c09ab3c5b060d505a409a14f623e168e379ee5ed"
+        },
+        "text": "The airfoil objective's forward model (k-omega SST, wall functions, Re 5e5) has no experiment anchor: anchors = [] in the record. Improvements are matched-condition CFD deltas, not validated absolute values."
+      },
+      {
+        "id": "not-flagship-domain",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "96-99",
+          "locator": "docs/adrs/ADR-046-stage-21-rescope-release-first.md",
+          "role": "adr",
+          "sha256": null
+        },
+        "text": "This optimization is on the AIRFOIL case. The optimizer has never been run on a flapping-wing case. No flapping optimization claim is made in v0.1.0."
+      },
+      {
+        "id": "nogo",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "75-81",
+          "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+          "role": "adr",
+          "sha256": null
+        },
+        "text": "Honest NO-GO by exactly one pre-registered gate: observed order 0.465 vs the 0.5 floor. At that measured order the same GCI construction gives 2 x U95 ~ 37.7, which the delta 21.72 would not clear. The result ships at validated tier."
+      },
+      {
+        "id": "record-provenance-is-spec-identity",
+        "kind": "statement",
+        "source": {
+          "commit": null,
+          "embedded_as": "evidence/stage16_relaxed_optimization.json",
+          "lines": null,
+          "locator": "data/vv/stage16_relaxed_optimization.json",
+          "role": "source-record",
+          "sha256": "1586c8873da9ae185a325a49c09ab3c5b060d505a409a14f623e168e379ee5ed"
+        },
+        "text": "The record's four-tuple is the held-out optimum's SPEC identity (config without the 'initialization' key). The grid-family solves were hashed with that key, so they carry different config hashes; both preimages are in this crate."
+      },
+      {
+        "id": "superseded-campaign",
+        "kind": "statement",
+        "source": {
+          "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+          "embedded_as": null,
+          "lines": "39-42",
+          "locator": "docs/handoffs/STAGE-16-grid-converged-certification-DONE-2026-07-15.md",
+          "role": "handoff",
+          "sha256": null
+        },
+        "text": "data/vv/stage16_optimization.json and stage16_grid_convergence.json record the SUPERSEDED steady graded campaign (NO-GO on all four hard gates). This crate carries the record of record, the time-accurate relaxation."
+      }
+    ],
+    "validated_against_experiment": false,
+    "verdicts": [
+      {
+        "gates": [
+          {
+            "comparator": "gt",
+            "criterion": "matched delta > 2 * U95_delta (fallback GCI, Fs=3, p=1)",
+            "gated": true,
+            "name": "significant",
+            "observed": 21.719283870689775,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "75-81",
+              "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": 15.107734879735075
+          },
+          {
+            "comparator": "is-true",
+            "criterion": "every claim-grid solve converged",
+            "gated": true,
+            "name": "all-converged",
+            "observed": true,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "75-81",
+              "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": null
+          },
+          {
+            "comparator": "is-true",
+            "criterion": "the delta is monotone across the family",
+            "gated": true,
+            "name": "delta-monotone",
+            "observed": true,
+            "passed": true,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "75-81",
+              "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": null
+          },
+          {
+            "comparator": "within",
+            "criterion": "observed order of the delta within [0.5, 2.0] (floor pre-registered before any campaign ran; not adjusted)",
+            "gated": true,
+            "name": "order-in-asymptotic-range",
+            "observed": 0.4654573059064542,
+            "passed": false,
+            "preregistered_in": {
+              "commit": "83baa43225cd9a5f9684a0481b8502b6004fa49c",
+              "embedded_as": null,
+              "lines": "75-81",
+              "locator": "docs/adrs/ADR-030-relaxation-certification-and-spurious-attractor.md",
+              "role": "adr",
+              "sha256": null
+            },
+            "threshold": [
+              0.5,
+              2.0
+            ]
+          }
+        ],
+        "overall": "NO-GO",
+        "qualifier": null,
+        "scope": "grid-certification"
+      }
+    ]
+  }
+}

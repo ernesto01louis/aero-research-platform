@@ -1,0 +1,468 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.3/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.3"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "author": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "citation": {
+        "@id": "https://doi.org/10.5281/zenodo.20292712"
+      },
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/process/0.6"
+        },
+        {
+          "@id": "#aero-result-crate-format-1"
+        }
+      ],
+      "datePublished": "2026-10-12",
+      "description": "Time-averaged drag coefficient of a cylinder in forced oscillation (wake lock-in), with GCI + batch-means U95 and a passing lock-in anchor. thesis-grade.",
+      "hasPart": [
+        {
+          "@id": "SHA256SUMS"
+        },
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json"
+        },
+        {
+          "@id": "evidence/stage12_cylinder_gci.json"
+        },
+        {
+          "@id": "evidence/stage12_reportable_oscillating_cylinder_lockin.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "identifier": "stage12-oscillating-cylinder-lockin",
+      "license": {
+        "@id": "https://spdx.org/licenses/CC-BY-4.0"
+      },
+      "mainEntity": {
+        "@id": "result.json"
+      },
+      "mentions": [
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33"
+        },
+        {
+          "@id": "#export"
+        },
+        {
+          "@id": "#gate-thesis-grade-gate-lock-in-anchor"
+        },
+        {
+          "@id": "#limitation-container-digest-by-lookup"
+        },
+        {
+          "@id": "#limitation-dvc-input-hash-sync-state"
+        },
+        {
+          "@id": "#limitation-input-uq-skipped"
+        },
+        {
+          "@id": "#limitation-uq-reference-outside-release-narrative"
+        }
+      ],
+      "name": "Stage 12: oscillating-cylinder lock-in, thesis-grade U95 reference"
+    },
+    {
+      "@id": "#aero-crate-writer",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "name": "aero.crate writer",
+      "softwareVersion": "format-1",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/blob/main/docs/adrs/ADR-047-results-must-travel-result-crates.md",
+      "version": "format-1"
+    },
+    {
+      "@id": "#aero-result-crate-format-1",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "aero-result-crate format 1 (ADR-047)",
+      "version": "1"
+    },
+    {
+      "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+      "@type": "ContainerImage",
+      "additionalType": {
+        "@id": "https://w3id.org/ro/terms/workflow-run#SIFImage"
+      },
+      "name": "openfoam-esi.sif",
+      "sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#creator-1",
+      "@type": [
+        "Person",
+        "prov:Person"
+      ],
+      "name": "Louis Ernesto Schulte Moredo"
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "containerImage": {
+        "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+      },
+      "description": "the lock-in solve the record cites (roles: record-of-provenance)",
+      "instrument": {
+        "@id": "#software-a5c759a252cf654a884a9f539348d04b8b59d655"
+      },
+      "name": "oscillating_cylinder_lockin",
+      "object": [
+        {
+          "@id": "configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-git_sha"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-dvc_input_hash"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-container_sif_sha256"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-config_hash"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "#container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+        },
+        {
+          "@id": "configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#software-a5c759a252cf654a884a9f539348d04b8b59d655"
+        }
+      ],
+      "result": [
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-value"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_numerical"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_statistical"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_input"
+        },
+        {
+          "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_total"
+        }
+      ]
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-config_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "config_hash",
+      "value": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92"
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-container_sif_sha256",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "container_sif_sha256",
+      "value": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-dvc_input_hash",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "dvc_input_hash",
+      "value": "7ec8590f5fb8607da8f64b854ef5a04322408ad76b72f14eea29f3adca66f092"
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-git_sha",
+      "@type": "PropertyValue",
+      "description": "four-fold provenance component",
+      "name": "git_sha",
+      "value": "a5c759a252cf654a884a9f539348d04b8b59d655"
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_input",
+      "@type": "PropertyValue",
+      "name": "cd.u95_input",
+      "value": 0.0
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_numerical",
+      "@type": "PropertyValue",
+      "name": "cd.u95_numerical",
+      "value": 0.07747471258587287
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_statistical",
+      "@type": "PropertyValue",
+      "name": "cd.u95_statistical",
+      "value": 0.013138954176770053
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-u95_total",
+      "@type": "PropertyValue",
+      "name": "cd.u95_total",
+      "value": 0.07858093411968879
+    },
+    {
+      "@id": "#ec4b5cc6-49fa-4a45-86d9-906498d28f33-q0-value",
+      "@type": "PropertyValue",
+      "name": "cd.value",
+      "value": 1.9931465473474796
+    },
+    {
+      "@id": "#export",
+      "@type": [
+        "CreateAction",
+        "prov:Activity"
+      ],
+      "agent": [
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "description": "Export of this result crate from the committed records it cites",
+      "endTime": "2026-10-12",
+      "instrument": {
+        "@id": "#aero-crate-writer"
+      },
+      "name": "aero result crate export",
+      "object": [
+        {
+          "@id": "evidence/stage12_cylinder_gci.json"
+        },
+        {
+          "@id": "evidence/stage12_reportable_oscillating_cylinder_lockin.json"
+        }
+      ],
+      "prov:generated": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ],
+      "prov:used": [
+        {
+          "@id": "evidence/stage12_cylinder_gci.json"
+        },
+        {
+          "@id": "evidence/stage12_reportable_oscillating_cylinder_lockin.json"
+        }
+      ],
+      "prov:wasAssociatedWith": [
+        {
+          "@id": "#aero-crate-writer"
+        },
+        {
+          "@id": "#creator-1"
+        }
+      ],
+      "result": [
+        {
+          "@id": "aero-crate.json"
+        },
+        {
+          "@id": "prov.json"
+        },
+        {
+          "@id": "result.json"
+        }
+      ]
+    },
+    {
+      "@id": "#gate-thesis-grade-gate-lock-in-anchor",
+      "@type": "PropertyValue",
+      "description": "GATED (pre-registered); thesis-grade-gate GO; passed=true; Wake lock-in: response frequency = forcing frequency (Placzek 2009; Koopmann 1967): observed error <= tolerance",
+      "maxValue": 0.03,
+      "name": "lock-in-anchor",
+      "value": 0.0030084060121843234
+    },
+    {
+      "@id": "#limitation-container-digest-by-lookup",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "container-digest-by-lookup",
+      "text": "container_sif_sha256 is looked up by SIF basename in containers/SHA256SUMS at run time; the SIF that actually ran was not re-hashed (review item P1c)."
+    },
+    {
+      "@id": "#limitation-dvc-input-hash-sync-state",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/provenance/four_fold.py",
+      "name": "dvc-input-hash-sync-state",
+      "text": "dvc_input_hash is the sha256 of the DVC remote sync state (`dvc status -c`), not a content address of the inputs: one constant value appears across all 74 occurrences in data/vv. It shows the inputs were in sync with the remote at run time; it does not identify them."
+    },
+    {
+      "@id": "#limitation-input-uq-skipped",
+      "@type": "CreativeWork",
+      "isBasedOn": "aero/vv/reportable.py",
+      "name": "input-uq-skipped",
+      "text": "No input (parametric) uncertainty quantification was performed: u95_input is 0 with basis 'skipped', so U95 here is numerical (+ statistical where stated) only."
+    },
+    {
+      "@id": "#limitation-uq-reference-outside-release-narrative",
+      "@type": "CreativeWork",
+      "isBasedOn": "docs/handoffs/STAGE-12-vv-uq-core-DONE-2026-07-05.md",
+      "name": "uq-reference-outside-release-narrative",
+      "text": "A U95-machinery reference, not part of the optimizer demonstration: the only thesis-grade record committed, carrying both a numerical (GCI) and a statistical (batch-means) U95 term and a passing experiment anchor."
+    },
+    {
+      "@id": "#software-a5c759a252cf654a884a9f539348d04b8b59d655",
+      "@type": [
+        "SoftwareApplication",
+        "prov:SoftwareAgent"
+      ],
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "softwareVersion": "a5c759a252cf654a884a9f539348d04b8b59d655",
+      "url": "https://github.com/ernesto01louis/aero-research-platform/commit/a5c759a252cf654a884a9f539348d04b8b59d655",
+      "version": "a5c759a252cf654a884a9f539348d04b8b59d655"
+    },
+    {
+      "@id": "SHA256SUMS",
+      "@type": "File",
+      "description": "coreutils `sha256sum -c` manifest of every other member; the crate digest is the sha256 of this file",
+      "encodingFormat": "text/plain"
+    },
+    {
+      "@id": "aero-crate.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "7574",
+      "description": "The typed crate envelope (aero-result-crate format 1, ADR-047)",
+      "encodingFormat": "application/json",
+      "sha256": "b0377f5d6e220bb1a95656cb75f131cb0518d49228aaa4b99d3d5fd4bc551465"
+    },
+    {
+      "@id": "configs/01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "437",
+      "description": "Exact as-hashed config preimage: sha256(this file) == the run's config_hash",
+      "encodingFormat": "application/json",
+      "sha256": "01de2d82ffd7f9418ad5c6cb6f748a4692147cfd698dbcf2870802a636371f92"
+    },
+    {
+      "@id": "evidence/stage12_cylinder_gci.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "668",
+      "description": "the GCI study behind u95_numerical",
+      "encodingFormat": "application/json",
+      "sha256": "7e6191f47bdd4a21c9cf0a1cbe926be95b44a4bdbfef835ec70310d6f8413c04"
+    },
+    {
+      "@id": "evidence/stage12_reportable_oscillating_cylinder_lockin.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1114",
+      "description": "the committed record",
+      "encodingFormat": "application/json",
+      "sha256": "d6bfdd7d297d331faff10ad04a7c7002404037d1582547ed93c2fbc5034a6a3e"
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20292712",
+      "@type": "CreativeWork",
+      "identifier": "10.5281/zenodo.20292712",
+      "license": {
+        "@id": "https://spdx.org/licenses/GPL-3.0-or-later"
+      },
+      "name": "aero-research-platform",
+      "url": "https://github.com/ernesto01louis/aero-research-platform"
+    },
+    {
+      "@id": "https://spdx.org/licenses/CC-BY-4.0",
+      "@type": "CreativeWork",
+      "identifier": "CC-BY-4.0",
+      "name": "Creative Commons Attribution 4.0 International"
+    },
+    {
+      "@id": "https://spdx.org/licenses/GPL-3.0-or-later",
+      "@type": "CreativeWork",
+      "identifier": "GPL-3.0-or-later",
+      "name": "GNU General Public License v3.0 or later"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/process/0.6",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Process Run Crate",
+      "version": "0.6"
+    },
+    {
+      "@id": "prov.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "4156",
+      "description": "W3C PROV-JSON projection of this crate's provenance graph",
+      "encodingFormat": "application/json",
+      "sha256": "f051850e4423b6294e0836545973faa80313a8b328476a96573cec6b2d2e385d"
+    },
+    {
+      "@id": "result.json",
+      "@type": [
+        "File",
+        "prov:Entity"
+      ],
+      "contentSize": "1172",
+      "description": "The ReportableResult (four-tuple, U95 envelope, claim, tier)",
+      "encodingFormat": "application/json",
+      "sha256": "81b9e6f6cc7ade772f7b9530415440decb3b7b8b3dcaeb552c77abec8ece213d"
+    }
+  ]
+}

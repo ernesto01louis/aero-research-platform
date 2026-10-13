@@ -1,0 +1,164 @@
+{
+  "activity": {
+    "crate:eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc": {
+      "prov:label": "s17v_opt_fine"
+    },
+    "crate:export": {
+      "prov:endTime": "2026-10-12T00:00:00Z",
+      "prov:label": "aero result crate export"
+    }
+  },
+  "agent": {
+    "crate:aero-crate-writer": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "format-1"
+    },
+    "crate:creator-1": {
+      "prov:type": {
+        "$": "prov:Person",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:name": "Louis Ernesto Schulte Moredo"
+    },
+    "crate:software-30595a39371dc6a29bf89e09b3f166714a34d134": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "30595a39371dc6a29bf89e09b3f166714a34d134"
+    }
+  },
+  "entity": {
+    "crate:aero-crate.json": {
+      "schema:contentSize": 21737,
+      "schema:sha256": "38a233cc9598fde3db9755c221635df73cb7d2d6c8407e94e44dfb354aa9eafc"
+    },
+    "crate:configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json": {
+      "schema:contentSize": 515,
+      "schema:sha256": "72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e"
+    },
+    "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c": {
+      "schema:sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "crate:evidence/corpus.json": {
+      "schema:contentSize": 34019,
+      "schema:sha256": "c8a1a762ced683ca06dcb56b315238fbda459c052f720a664651f25991712734"
+    },
+    "crate:evidence/stage17_arm_surrogate_explore.json": {
+      "schema:contentSize": 27971,
+      "schema:sha256": "e2e4d0fe500c4dc14c00edb85b34031b3f451102da46d2d4e55fd50bbf340610"
+    },
+    "crate:evidence/stage17_optimization.json": {
+      "schema:contentSize": 2086,
+      "schema:sha256": "d4b346a028bb2677f2aed765f364fce5166512a97df458a8d88cbf8b281830be"
+    },
+    "crate:evidence/stage17_speedup.json": {
+      "schema:contentSize": 2536,
+      "schema:sha256": "e1f273a8f8c1ec79c58822af2c27b0ff0137eb54ab2199e9d780fa87b7102561"
+    },
+    "crate:evidence/stage17_surrogate_cert.json": {
+      "schema:contentSize": 2053,
+      "schema:sha256": "de4a5a05fcfe81f61b604c4b7c3c84186dea276e277b8bfc734493e4a823040f"
+    },
+    "crate:evidence/stage17_surrogate_cert_v2_refused.json": {
+      "schema:contentSize": 2284,
+      "schema:sha256": "5f7ec3a5ceda624044557c663a529955a52c930153e0782658a6578024a3abdd"
+    },
+    "crate:prov.json": {
+      "prov:label": "this PROV-JSON document"
+    },
+    "crate:result.json": {
+      "schema:contentSize": 2132,
+      "schema:sha256": "249eda405deff73de5365bf5d8982c1dbaaf8f517eea74175d6935d60b973b09"
+    }
+  },
+  "prefix": {
+    "crate": "arcp://name,stage17-surrogate-accelerated-optimization/",
+    "schema": "http://schema.org/"
+  },
+  "used": {
+    "_:u1": {
+      "prov:activity": "crate:eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u2": {
+      "prov:activity": "crate:eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc",
+      "prov:entity": "crate:configs/72e3e030f27a95083cc5d6f94f0dfa85c385df6a96a7f92952a246abd886a21e.json"
+    },
+    "_:u3": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/corpus.json"
+    },
+    "_:u4": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage17_arm_surrogate_explore.json"
+    },
+    "_:u5": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage17_optimization.json"
+    },
+    "_:u6": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage17_speedup.json"
+    },
+    "_:u7": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage17_surrogate_cert.json"
+    },
+    "_:u8": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage17_surrogate_cert_v2_refused.json"
+    }
+  },
+  "wasAssociatedWith": {
+    "_:w1": {
+      "prov:activity": "crate:eab5dd28-f2ed-4fa3-bffb-f635e1ec5acc",
+      "prov:agent": "crate:software-30595a39371dc6a29bf89e09b3f166714a34d134"
+    },
+    "_:w2": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:aero-crate-writer"
+    },
+    "_:w3": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:creator-1"
+    }
+  },
+  "wasAttributedTo": {
+    "_:t1": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:t2": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:t3": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:result.json"
+    }
+  },
+  "wasDerivedFrom": {
+    "_:d1": {
+      "prov:generatedEntity": "crate:result.json",
+      "prov:usedEntity": "crate:evidence/stage17_optimization.json"
+    }
+  },
+  "wasGeneratedBy": {
+    "_:g1": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:g2": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:g3": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:result.json"
+    }
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "activity": {
+    "crate:07e62b5e-13f4-4d77-9733-8265eadd0a6d": {
+      "prov:label": "gm_optimum_fine-heldout"
+    },
+    "crate:21c8e75e-e043-47ea-912b-0efa1a4dec06": {
+      "prov:label": "gm_baseline_coarse"
+    },
+    "crate:4cffbd87-64ad-4497-bb04-1743673f7626": {
+      "prov:label": "gm_optimum_fine"
+    },
+    "crate:4ffc149c-2591-4cb4-b59a-83639c8d6416": {
+      "prov:label": "gm_baseline_fine"
+    },
+    "crate:61422044-817d-4276-a9a5-1063e60fefea": {
+      "prov:label": "gm_baseline_medium"
+    },
+    "crate:784f71a1-abc3-4e77-99eb-9aaf9628e556": {
+      "prov:label": "gm_optimum_medium"
+    },
+    "crate:da062081-1073-4459-8102-c352dd344cda": {
+      "prov:label": "gm_optimum_coarse"
+    },
+    "crate:export": {
+      "prov:endTime": "2026-10-12T00:00:00Z",
+      "prov:label": "aero result crate export"
+    }
+  },
+  "agent": {
+    "crate:aero-crate-writer": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "format-1"
+    },
+    "crate:creator-1": {
+      "prov:type": {
+        "$": "prov:Person",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:name": "Louis Ernesto Schulte Moredo"
+    },
+    "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774": {
+      "prov:type": {
+        "$": "prov:SoftwareAgent",
+        "type": "prov:QUALIFIED_NAME"
+      },
+      "schema:softwareVersion": "3dc4d308e1053c1384f8a67f46201839440ac774"
+    }
+  },
+  "entity": {
+    "crate:aero-crate.json": {
+      "schema:contentSize": 20318,
+      "schema:sha256": "97187bc5364abb72a14b67b0bc97886615e03603aacc657ade2574dcd095f462"
+    },
+    "crate:configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json": {
+      "schema:contentSize": 472,
+      "schema:sha256": "0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40"
+    },
+    "crate:configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json": {
+      "schema:contentSize": 457,
+      "schema:sha256": "1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb"
+    },
+    "crate:configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json": {
+      "schema:contentSize": 472,
+      "schema:sha256": "29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2"
+    },
+    "crate:configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json": {
+      "schema:contentSize": 470,
+      "schema:sha256": "30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514"
+    },
+    "crate:configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json": {
+      "schema:contentSize": 457,
+      "schema:sha256": "86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c"
+    },
+    "crate:configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json": {
+      "schema:contentSize": 455,
+      "schema:sha256": "e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961"
+    },
+    "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c": {
+      "schema:sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "crate:evidence/stage15_grid_convergence.json": {
+      "schema:contentSize": 5370,
+      "schema:sha256": "a527161a705ab3d46ea852d2f5ba1d16134002d8d6fe94b7e1191038485f1e01"
+    },
+    "crate:evidence/stage15_optimization.json": {
+      "schema:contentSize": 1112,
+      "schema:sha256": "09ff2dbcd662a0da4cfa97df4e640f715a2f43b50fbc4565554bcf2b41caebc2"
+    },
+    "crate:prov.json": {
+      "prov:label": "this PROV-JSON document"
+    },
+    "crate:result.json": {
+      "schema:contentSize": 1134,
+      "schema:sha256": "b94a4b89011b3ea668236fa818db77cb46221081313b29e2e8f9b647d9b9bdf8"
+    }
+  },
+  "prefix": {
+    "crate": "arcp://name,stage15-airfoil-optimization/",
+    "schema": "http://schema.org/"
+  },
+  "used": {
+    "_:u1": {
+      "prov:activity": "crate:07e62b5e-13f4-4d77-9733-8265eadd0a6d",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u10": {
+      "prov:activity": "crate:61422044-817d-4276-a9a5-1063e60fefea",
+      "prov:entity": "crate:configs/1abb9c10fdb9a14966a5021b4059817c95d7a88a2235460a66322a00d71eb7cb.json"
+    },
+    "_:u11": {
+      "prov:activity": "crate:784f71a1-abc3-4e77-99eb-9aaf9628e556",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u12": {
+      "prov:activity": "crate:784f71a1-abc3-4e77-99eb-9aaf9628e556",
+      "prov:entity": "crate:configs/0f61267f0a1e2b0e512cd80ee020ec37430e427d48fa38582ef186f71143fd40.json"
+    },
+    "_:u13": {
+      "prov:activity": "crate:da062081-1073-4459-8102-c352dd344cda",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u14": {
+      "prov:activity": "crate:da062081-1073-4459-8102-c352dd344cda",
+      "prov:entity": "crate:configs/29d36df10e724fd6acf7a144e6233af8c734dadf2460eec6fb0edd167aeda6b2.json"
+    },
+    "_:u15": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage15_grid_convergence.json"
+    },
+    "_:u16": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:evidence/stage15_optimization.json"
+    },
+    "_:u2": {
+      "prov:activity": "crate:07e62b5e-13f4-4d77-9733-8265eadd0a6d",
+      "prov:entity": "crate:configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+    },
+    "_:u3": {
+      "prov:activity": "crate:21c8e75e-e043-47ea-912b-0efa1a4dec06",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u4": {
+      "prov:activity": "crate:21c8e75e-e043-47ea-912b-0efa1a4dec06",
+      "prov:entity": "crate:configs/86bba14ebb1df37c7c760aa7e6548df6f3fa675dd03eaed23bbecf50b8ead98c.json"
+    },
+    "_:u5": {
+      "prov:activity": "crate:4cffbd87-64ad-4497-bb04-1743673f7626",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u6": {
+      "prov:activity": "crate:4cffbd87-64ad-4497-bb04-1743673f7626",
+      "prov:entity": "crate:configs/30e25aab65d76e5513d3bb350d121ab82bb09ec02937d8a47e9d5af72e6b1514.json"
+    },
+    "_:u7": {
+      "prov:activity": "crate:4ffc149c-2591-4cb4-b59a-83639c8d6416",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    },
+    "_:u8": {
+      "prov:activity": "crate:4ffc149c-2591-4cb4-b59a-83639c8d6416",
+      "prov:entity": "crate:configs/e484eccc5e892526dce1033f54a42650e86b89dd0274bc5ab36d88d7ccbf3961.json"
+    },
+    "_:u9": {
+      "prov:activity": "crate:61422044-817d-4276-a9a5-1063e60fefea",
+      "prov:entity": "crate:container-c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    }
+  },
+  "wasAssociatedWith": {
+    "_:w1": {
+      "prov:activity": "crate:07e62b5e-13f4-4d77-9733-8265eadd0a6d",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w2": {
+      "prov:activity": "crate:21c8e75e-e043-47ea-912b-0efa1a4dec06",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w3": {
+      "prov:activity": "crate:4cffbd87-64ad-4497-bb04-1743673f7626",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w4": {
+      "prov:activity": "crate:4ffc149c-2591-4cb4-b59a-83639c8d6416",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w5": {
+      "prov:activity": "crate:61422044-817d-4276-a9a5-1063e60fefea",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w6": {
+      "prov:activity": "crate:784f71a1-abc3-4e77-99eb-9aaf9628e556",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w7": {
+      "prov:activity": "crate:da062081-1073-4459-8102-c352dd344cda",
+      "prov:agent": "crate:software-3dc4d308e1053c1384f8a67f46201839440ac774"
+    },
+    "_:w8": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:aero-crate-writer"
+    },
+    "_:w9": {
+      "prov:activity": "crate:export",
+      "prov:agent": "crate:creator-1"
+    }
+  },
+  "wasAttributedTo": {
+    "_:t1": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:t2": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:t3": {
+      "prov:agent": "crate:creator-1",
+      "prov:entity": "crate:result.json"
+    }
+  },
+  "wasDerivedFrom": {
+    "_:d1": {
+      "prov:generatedEntity": "crate:result.json",
+      "prov:usedEntity": "crate:evidence/stage15_optimization.json"
+    }
+  },
+  "wasGeneratedBy": {
+    "_:g1": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:aero-crate.json"
+    },
+    "_:g2": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:prov.json"
+    },
+    "_:g3": {
+      "prov:activity": "crate:export",
+      "prov:entity": "crate:result.json"
+    }
+  }
+}

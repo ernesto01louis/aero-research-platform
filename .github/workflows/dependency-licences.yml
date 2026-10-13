@@ -1,0 +1,120 @@
+name: dependency-licences
+
+# CONSTITUTION Invariant 5, as reworded by ADR-048. The rules:
+#   - Every package uv.lock can install carries a licence on the GPL-3.0-compatible ADR-048
+#     allowlist, or a reviewed exact-version exception.
+#   - The base install and the supported extras are proprietary-free.
+#   - NVIDIA's proprietary CUDA wheels are admitted only in the frozen GPU extras.
+#
+# Jobs:
+#   scan      REQUIRED. Offline and deterministic, nothing installed, stdlib Python. It checks:
+#               - the lock is current (`uv lock --check`);
+#               - the scanner's closure equals `uv export`;
+#               - every package's snapshotted metadata normalises to a licence allowed in every
+#                 scope that reaches it (scripts/licence_scan.py check).
+#             Never path-filtered: a required check must always report.
+#   reverify  Informational. Re-fetches every package's PEP 658 metadata, hash-verified against
+#             the PEP 691 index, and compares it to the committed snapshot. It catches a drifted or
+#             hand-edited snapshot. On a PR it runs only when the lock, the policy or the scanner
+#             changed; that decision is made inside the job.
+#   audit     Informational. pip-audit over the locked versions.
+#
+# Required context: `dependency licence scan — Invariant 5`. It is added to branch protection after
+# its first green run on main (ADR-049).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-licences-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: dependency licence scan — Invariant 5
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.14"
+      - name: The lock is current
+        run: uv lock --check
+      - name: The scanner's closure is exactly what uv would install (all extras; base alone)
+        run: |
+          set -euo pipefail
+          uv export --frozen --all-extras --no-emit-project --no-header --no-hashes \
+            --format requirements.txt -o "$RUNNER_TEMP/all.txt"
+          uv export --frozen --no-emit-project --no-header --no-hashes \
+            --format requirements.txt -o "$RUNNER_TEMP/base.txt"
+          python3 -I scripts/licence_scan.py closure --all-extras --compare-export "$RUNNER_TEMP/all.txt"
+          python3 -I scripts/licence_scan.py closure --scope base --compare-export "$RUNNER_TEMP/base.txt"
+      - name: Every locked package's licence, in every scope that reaches it (offline)
+        run: |
+          python3 -I scripts/licence_scan.py check \
+            --report "$RUNNER_TEMP/licence-report.json" --summary-md "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: licence-report
+          path: ${{ runner.temp }}/licence-report.json
+          retention-days: 30
+          if-no-files-found: warn
+
+  reverify:
+    name: dependency licence snapshot — online re-verify (informational)
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Decide (on a PR, only when the lock, the policy or the scanner changed)
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ] \
+            || git diff --name-only "$BASE_SHA" HEAD -- uv.lock ci/licence scripts/licence_scan.py | grep -q .; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "lock, policy and scanner unchanged: nothing to re-verify"
+          fi
+      - name: Re-fetch every package's metadata and compare with the committed snapshot
+        if: steps.scope.outputs.run == 'true'
+        run: python3 -I scripts/licence_scan.py refresh --verify
+
+  audit:
+    name: pip-audit over uv.lock (informational)
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.14"
+      - name: Known vulnerabilities in the locked versions
+        # Unhashed export: pip-audit refuses a hashed file containing one unhashed line, and the
+        # git-sourced jaxfluids (frozen-optional; no index advisories exist for it) is dropped.
+        run: |
+          set -euo pipefail
+          uv export --frozen --all-extras --no-emit-project --no-header --no-hashes \
+            --format requirements.txt | grep -v ' @ git+' > "$RUNNER_TEMP/locked.txt"
+          uvx --from "pip-audit==2.10.1" pip-audit --disable-pip --no-deps \
+            --progress-spinner off -r "$RUNNER_TEMP/locked.txt"
