@@ -316,3 +316,39 @@ New findings during Stage 21 (not release-blocking):
   an empty `next_stage`. It is exercised only by the required docs-sync job.
 - [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was
   already fixed: Invariant 8 reads `default 150.0`, raised from 50.0 by ADR-014. Nothing to carry.
+
+## Stage 22 — pre-registration items carried from Stage 21
+
+- [ ] **Per-evaluation crash tolerance in the optimizer loop** (external review addendum C,
+  operator decision 2026-10-13). This must be fixed in the Stage-22 pre-registration ADR, then
+  built in that stage's first PR.
+
+  **What exists today.** Both drivers already skip a failed solve: `scripts/stage17_speedup_arm.py`
+  and the `EvaluateBatch` path of `aero/optimize/accelerated.py`. A failed solve becomes `None`,
+  still counts against the budget (pre-registered S8) and is recorded in `IterationRecord.results`.
+
+  **What is missing:**
+  1. a **bounded retry** for transient infrastructure failures (SSH or host faults, which the
+     Executor's `transport_error` already distinguishes from a solver failure), with no retry for
+     a deterministic divergence;
+  2. the **failure signature persisted in the evidence**. Today it is only printed.
+
+  **To pre-register:** whether a retry consumes budget. The S8 analogue is "every attempt is a
+  spent eval", and it must be stated before any campaign runs.
+
+  **Boundary, non-negotiable:** this is per-evaluation retry of independent, restartable airfoil
+  or rigid-flapping solves only. It does **not** reopen coupled-FSI restart (ADR-045 A19 /
+  ADR-046 S5).
+
+## Post-v0.1.0 — proposed ADRs awaiting implementation
+
+- [ ] **ADR-050: a hosted, CPU-only, outsider-reproducible CFD number** (addendum B, operator
+  decision 2026-10-13: ADR now, build later). The parts:
+  - `blasius_flat_plate` on `ubuntu-24.04`;
+  - a pinned Apptainer running the digest-pinned OpenFOAM OCI image;
+  - a `LocalContainerExecutor`;
+  - the off-cluster four-tuple semantics (an OCI digest; an empty-input DVC hash);
+  - output as a `reproducibility-proof` crate;
+  - a non-required `hosted-repro.yml`.
+
+  It interacts with O-07 (a content-addressed `dvc_input_hash`).
