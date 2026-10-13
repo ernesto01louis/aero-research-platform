@@ -72,8 +72,11 @@ Three layers:
    `scripts/check_handoff_exists.sh` which refuses to allow session Stop
    if the current stage's handoff is missing or has incomplete
    frontmatter.
-2. **Tag-push CI check** (`tag-handoff-gate.yml`, added in Stage 18) refuses to tag `v0.0.NN`
-   without the matching handoff.
+2. **Tag-push CI check** (`tag-handoff-gate.yml`, added in Stage 18) refuses a `v0.0.NN` tag
+   without the matching handoff. Since Stage 21 (ADR-049) it also gates `vX.Y.Z` release tags
+   through `scripts/check_release_tag.sh`: exactly one handoff with `stage_tag: vX.Y.Z`,
+   `status: complete`, a resolvable `git_sha_end` with the tagged code tree, and the next stage's
+   prompt.
 3. **Stage prompts** each end with a `POST-STAGE HANDOFF` section that
    lists required emphases for that specific stage.
 

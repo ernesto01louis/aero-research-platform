@@ -1,8 +1,8 @@
 # Contributing
 
-This project is built session-by-session against a staged handoff bundle (16
-stages, each `v0.0.NN`). All work funnels through pull requests; `main` is
-protected. The conventions below apply to everyone (humans and AI agents
+This project is built session-by-session against a staged handoff bundle: 21 stages to v0.1.0.
+Stages 1–20 are tagged `v0.0.NN`, and Stage 21 is the `v0.1.0` release. All work funnels
+through pull requests; `main` is protected. The conventions below apply to everyone (humans and AI agents
 alike).
 
 ## Commit messages — Conventional Commits
@@ -52,35 +52,48 @@ labels:
 3. `pre-commit run --all-files` locally; all green.
 4. `gh pr create --base main --head <branch>` with PR title in Conventional
    Commits form and body describing what / why.
-5. CI must go green: `lint`, `type`, `test`, `docs-sync`, `commit-lint`,
-   and any stage-specific checks (`vv-required`, `provenance-completeness`,
-   `production-budget`, `import-platform-only` from later stages).
-6. **24-hour cooling-off rule** — no merge within 24 h of the PR's last
-   non-trivial change unless it's a documented hotfix; this gives a chance
-   for second thoughts and external reviewers to weigh in.
+5. Every required check must go green (the list below). A skipped required job is not a pass.
+   Non-required jobs (`vv-smoke`, `provenance-completeness`, `secret-scan`, the informational
+   licence re-verify and pip-audit, crate conformance) are read, not ignored.
+6. **24-hour cooling-off guideline.** Wait 24 h after a PR's last non-trivial change before
+   merging, unless it is a documented hotfix, so there is time for second thoughts and outside
+   review. It is a convention, not enforced by CI. Constitution amendments wait at least 72 h
+   (`CONSTITUTION.md`, "Amendment process").
 7. Merge: squash, linear history. The PR title becomes the squash commit
    message — keep it clean.
 
 ## Branch protection on `main`
 
-After Stage 01 merges:
-
-- Required status checks: `lint`, `type`, `test`, `docs-sync`, `commit-lint`
-- 1 approving review via CODEOWNERS
-- Linear history required (no merge commits except via squash)
-- No force pushes
-- No direct pushes
-- `enforce_admins: false` — repo admin can self-merge for solo-developer
-  workflow (revisit once collaborators join; see ADR-001)
+- **Required status checks** (strict: the branch must be up to date). The registry of record is
+  `.github/required-checks.json`; `tests/unit/test_workflow_hygiene.py` keeps it byte-identical
+  to the workflow job names.
+  - `ruff`
+  - `mypy (strict on aero/)`
+  - `pytest unit (py3.12)`
+  - `README STATUS block consistency`
+  - `enforce Conventional Commits on PR title and every commit`
+  - `import aero with no extras`
+  - `vv-required — stage-gated V&V`
+  - `fence`
+  - `small-signal-gate — Invariant 10`
+  - `data-origin-fence — Invariant 11`
+  - `crate round-trip — Invariant 13` (since Stage 21, ADR-047)
+  - `dependency licence scan — Invariant 5` (since Stage 21, ADR-048)
+- **Code-owner review** is required, with 0 approving reviews: the sole code owner is the repo
+  admin, who merges.
+- Linear history (squash merges); no force pushes; no direct pushes.
+- `enforce_admins: false`, so the solo admin can self-merge (ADR-001). Because that means a red PR
+  *can* be merged, a release is gated separately: `scripts/release_readiness.py --online` verifies
+  every required context on the release commit (ADR-049).
 
 ## Post-stage handoff (mandatory)
 
 Every stage completes with a handoff at
 `docs/handoffs/STAGE-NN-<slug>-DONE-YYYY-MM-DD.md`, written from the template
 at `docs/handoffs/_template.md`. The `v0.0.NN` git tag is gated on the
-handoff existing with valid frontmatter. The `Stop` hook in
-`.claude/settings.json` enforces this in Claude Code sessions; CI enforces
-it on tag push.
+handoff existing with valid frontmatter, and so is a `vX.Y.Z` release tag (ADR-049). The `Stop`
+hook in `.claude/settings.json` enforces this in Claude Code sessions. CI enforces it on tag push
+(`tag-handoff-gate.yml`, which runs `scripts/check_release_tag.sh`).
 
 Required handoff sections: deliverables status, decisions made (with
 rationale), deviations from plan, environment/dependency/schema changes,
@@ -102,20 +115,39 @@ is wrong, fix the hook, not the bypass.
 
 ## Dependency policy
 
-Base `pip install aero` pulls only stdlib + numpy + pydantic + typer + loguru
-+ dvc. Every heavy dependency (solver Python wrapper, ML framework, cloud
-SDK) lives in an optional extra (`aero[openfoam]`, `aero[su2]`, etc.). Every
-heavy version pin is documented in an ADR. See [`CONSTITUTION.md`](CONSTITUTION.md).
+Install from a clone with `uv sync` (add `--extra <name>` per extra). Released wheels are attached
+to the GitHub Release. **Do not install `aero` from PyPI**: that name on PyPI belongs to an unrelated
+project.
+
+- **Base dependencies:** numpy, pydantic, typer, loguru and dvc. The `aero/` core imports only
+  stdlib + numpy + pydantic (Invariant 1).
+- **Heavy dependencies** (solver Python wrappers, ML frameworks, cloud SDKs) live in optional
+  extras (`openfoam`, `su2`, `provenance`, …; Invariant 4). Every heavy version pin is documented
+  in an ADR.
+- **Licences:** every locked package must carry a GPL-3.0-compatible licence or a reviewed
+  exact-version exception. This is checked by `dependency licence scan — Invariant 5` over
+  `uv.lock` (ADR-048).
+- **Changing dependencies:** after a change, run `uv lock`. If a new or changed package lacks clean
+  metadata, run `python3 -I scripts/licence_scan.py refresh` and review the result. See
+  [`CONSTITUTION.md`](CONSTITUTION.md).
 
 ## Secret hygiene
 
 No secrets in the repo, ever. `.env*`, `*.key`, `*.pem` are gitignored.
-Secrets live in Vault (host TBD in Stage 02) and are injected as env vars at
-job time. `gitleaks` pre-commit hook plus CI scan catches leaks.
+Secrets live in Vault (`aero-vault`, LXC 217; ADR-004) and are injected as environment variables
+at job time. In CI they are scoped to the step that needs them. The `gitleaks` pre-commit hook
+and the `secret-scan` workflow catch leaks. See [`SECURITY.md`](SECURITY.md).
 
 ## Code of conduct
 
-We adhere to academic norms of intellectual honesty and crediting prior
-work. The literature pipeline (Stage 15) is part of the citation
-infrastructure — use `auto_cite` to generate BibTeX from MLflow runs rather
-than reconstructing citations by hand.
+See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). We also follow academic norms of intellectual
+honesty and crediting prior work:
+- cite results by their crate digest plus the four-tuple;
+- never relax a pre-registered band to make something pass;
+- report a NO-GO as plainly as a GO.
+
+## Reporting bugs and asking for features
+
+Use the issue templates. A bug report about a result names its four-tuple or its crate id and the
+platform version. A feature request answers the SCOPE-GATE question: does it serve the optimizer
+mission or the flapping-wing flagship?

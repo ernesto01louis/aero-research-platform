@@ -10,6 +10,8 @@
     {"context": "vv-required — stage-gated V&V", "workflow": "vv-required.yml", "job": "vv-required", "pr_only": true},
     {"context": "fence", "workflow": "non-commercial-fence.yml", "job": "fence", "pr_only": false},
     {"context": "small-signal-gate — Invariant 10", "workflow": "small-signal-gate.yml", "job": "small-signal-gate", "pr_only": false},
-    {"context": "data-origin-fence — Invariant 11", "workflow": "data-origin-fence.yml", "job": "data-origin-fence", "pr_only": false}
+    {"context": "data-origin-fence — Invariant 11", "workflow": "data-origin-fence.yml", "job": "data-origin-fence", "pr_only": false},
+    {"context": "crate round-trip — Invariant 13", "workflow": "crate-roundtrip.yml", "job": "gate", "pr_only": false},
+    {"context": "dependency licence scan — Invariant 5", "workflow": "dependency-licences.yml", "job": "scan", "pr_only": false}
   ]
 }
