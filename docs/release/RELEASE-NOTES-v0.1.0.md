@@ -15,8 +15,9 @@ before it is reported. v0.1.0 is the release-first scope of ADR-046:
   (Stage 16) and surrogate-accelerated, CFD-verified optimization (Stage 17). The objective is
   NACA-4 camber-line lift-to-drag at Re 5×10⁵, AoA 4°, with k-ω SST.
 - **The forward and UQ stack.** OpenFOAM-ESI in Apptainer SIFs, the GCI / ASME V&V 20 numerical
-  term, a batch-means statistical term, matched-condition paired deltas, NASA TMR baselines, the
-  flapping-wing validation ladder, preCICE FSI coupling, and arbitrary-geometry ingestion.
+  term, a batch-means statistical term, matched-condition paired deltas, the NASA TMR verification
+  cases (not all passing; see §6), the flapping-wing validation ladder, preCICE FSI coupling, and
+  arbitrary-geometry ingestion.
 - **Result crates.** Five committed, self-verifying crates (§3). They follow CONSTITUTION Invariant
   13, RESULTS-MUST-TRAVEL.
 
@@ -64,8 +65,9 @@ order is 0.465 against the 0.5 floor. It shipped *validated*.
   the lock-in anchor passed).
 - Stage 19's Turek–Hron FSI3 run verified coupling correctness, not application fidelity.
 - Stage 20, flexible flapping vs. Heathcote–Gursul, ended NO-GO on infrastructure.
-- The mission's own publication bar is not met at v0.1.0: it requires a CFD-verified optimization
-  delta on a flapping case that exceeds its U95.
+- The mission's own publication bar is not met at v0.1.0. Two of its criteria are missing:
+  - a CFD-verified optimization delta on a flapping case that exceeds its U95;
+  - the turbulent NASA TMR canonical cases passing (§6).
 
 ## 3. Result crates
 
@@ -121,6 +123,15 @@ an unrelated project and is not this platform.
   - The JOSS paper draft.
 
 ## 6. Known issues
+
+- **The V&V report is not ALL GREEN, so no result is tagged `production`.**
+  - The laminar forward-regime cases pass (Blasius flat plate, laminar NACA 0012, cylinder
+    Strouhal), and so does the Stage-12 lock-in case.
+  - The turbulent NASA TMR flat plate has failed its Cf check since Stage 5 (12.6 % against a 5 %
+    tolerance, which was not relaxed).
+  - Stage 10 recorded the turbulent NACA 0012 Cd as a NO-GO, and the 2D bump as a concern.
+  - Most other registered cases have no recent `aero vv` run, and the registry-driven report
+    shows them as missing.
 
 - **Two provenance weaknesses**, both stated inside every affected crate:
   - `dvc_input_hash` is a DVC remote-sync-state digest, not a content address;
