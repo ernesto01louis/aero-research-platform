@@ -14,8 +14,8 @@ authors:
   - given-names: Louis Ernesto
     family-names: Schulte Moredo
     email: gr7x8mjy5d@privaterelay.appleid.com
-    # TODO(stage-04 or stage-15): backfill ORCID once registered at orcid.org
-    # orcid: https://orcid.org/0000-0000-0000-0000
+    orcid: https://orcid.org/0009-0004-8145-8319
+    affiliation: Independent Researcher
 repository-code: https://github.com/ernesto01louis/aero-research-platform
 url: https://github.com/ernesto01louis/aero-research-platform
 abstract: |

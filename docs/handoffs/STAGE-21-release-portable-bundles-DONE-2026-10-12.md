@@ -4,11 +4,11 @@ stage_name: "Stage 21 — Release: Portable Bundles + Hardening + v0.1.0"
 status: partial
 date_started: 2026-10-11
 date_completed: 2026-10-12
-session_duration_hours: 14
+session_duration_hours: 20
 claude_code_version: "2.1.150 (Claude Code)"
 model: claude-opus-5-5
 git_sha_start: 83baa43225cd9a5f9684a0481b8502b6004fa49c
-git_sha_end: 83baa43225cd9a5f9684a0481b8502b6004fa49c
+git_sha_end: 9c0fbc5110cd2b2ddea686ba581eca92383328c9
 stage_tag: v0.1.0
 next_stage: 22
 next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
@@ -16,10 +16,13 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 
 # Stage 21 — Release: Portable Bundles + Hardening + v0.1.0 — IN PROGRESS (partial)
 
-> **Stage 21 is OPEN and `partial`.** All build work is up as PRs **#47–#58**, and all of them
-> are green except informational jobs. **Nothing is merged yet:** the auto-mode classifier refuses
-> agent merges ("Merge Without Review"), so merging is the operator's. `git_sha_end` stays at the
-> stage-open main commit until something merges.
+> **Stage 21 is OPEN and `partial`.** The build work is **merged on main** (`9c0fbc5`): the
+> operator authorized agent merges on 2026-10-12. **#51 was replaced by #60** (a commit header over
+> the commit-lint limit). Three items remain open:
+> - **#57**, the constitution PR, is a draft. It is gated on time (2026-10-15) and the
+>   operator's `approved`.
+> - **The operator's inputs:** the licence-exception review and the JOSS/Zenodo metadata.
+> - **PR-15**, the v0.1.0 bump, which comes after #57.
 >
 > - **Do not create a second Stage-21 handoff.** The Stop hook picks the newest-mtime file and the
 >   README generator the lexicographically last.
@@ -31,15 +34,15 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
-| 1 | Bookkeeping (PR-01) | ✅ | **#47**: `.aero-stage` 21, prompt of record, Hard Rule 16 → Stage 21, template comments moved to their own lines, this handoff |
-| 2 | Result crates — the RESULTS-MUST-TRAVEL bundle (ADR-047) | ✅ (in review) | **#50** core hardening (prerequisite). **#51** `aero/crate/` format v1, plus an RO-Crate 1.3 conformance fix. **#53** the five committed crates under `crates/`, an independent oracle, `test_crate_committed` |
-| 3 | Round-trip CI (`crate-roundtrip.yml`) | ✅ (in review) | **#52**: clean Linux 3.12/3.13, macOS, Windows and floor read legs. **#53** adds the committed crates (pinned digests plus the oracle) and a Windows `core.autocrlf=true` checkout leg. All legs green; the external roc-validator now passes too |
-| 4 | Dependency licence scan (ADR-048) | ✅ (in review) | **#54**: `scripts/licence_scan.py`, `ci/licence/`, required job `dependency licence scan — Invariant 5`. 302 packages: 291 allowed, 9 identified, 2 admitted, 0 fail. Also the license-audit watermark repair |
-| 5 | Hardening — a closed list | ⚠️ | Done: H-01..H-36 except those listed under Deviations. **#49** CI supply chain (before 2026-10-19). **#50** finite U95, IEEE-exact RSS, lazy loguru, version single-source, repo-root, extra=forbid. **#55** release-tag gate plus readiness. **#56** docs truth |
-| 6 | JOSS + Zenodo — ends at "ready to submit" | ⚠️ | **#58**: paper (1338 words), bib (20 verified DOIs), generated AI disclosure, `.zenodo.json`, CITATION refresh, release notes, claims ledger. Still needs the operator's metadata (§7) and the 2026-11-18 date |
+| 1 | Bookkeeping (PR-01) | ✅ | **#47** (merged `caf3908`): `.aero-stage` 21, prompt of record, Hard Rule 16 → Stage 21, template comments moved to their own lines, this handoff |
+| 2 | Result crates — the RESULTS-MUST-TRAVEL bundle (ADR-047) | ✅ merged | **#50** core hardening, the prerequisite (`ff009e6`). **#60**, which replaced #51: `aero/crate/` format v1, plus an RO-Crate 1.3 conformance fix (`c7bca16`). **#53** the five committed crates (`32f52f3`) under `crates/`, an independent oracle, `test_crate_committed` |
+| 3 | Round-trip CI (`crate-roundtrip.yml`) | ✅ merged; **required** | **#52** (`0be02b6`): clean Linux 3.12/3.13, macOS, Windows and floor read legs. **#53** adds the committed crates (pinned digests plus the oracle) and a Windows `core.autocrlf=true` checkout leg. All legs green; the external roc-validator now passes too |
+| 4 | Dependency licence scan (ADR-048) | ✅ merged; **required** | **#54** (`35ed4a4`): `scripts/licence_scan.py`, `ci/licence/`, required job `dependency licence scan — Invariant 5`. 302 packages: 291 allowed, 9 identified, 2 admitted, 0 fail. Also the license-audit watermark repair |
+| 5 | Hardening — a closed list | ⚠️ | Done: H-01..H-36 except those listed under Deviations. **#49** CI supply chain (`f52c5b3`, before 2026-10-19). **#50** finite U95, IEEE-exact RSS, lazy loguru, version single-source, repo-root, extra=forbid. **#55** release-tag gate plus readiness (`42607a6`). **#56** docs truth (`ffe93a3`). The version-string policy is recorded in ADR-049 R3 (#48, `15721a4`) |
+| 6 | JOSS + Zenodo — ends at "ready to submit" | ⚠️ | **#58** (merged `9c0fbc5`): paper (1338 words), bib (20 verified DOIs), generated AI disclosure, `.zenodo.json`, CITATION refresh, release notes, claims ledger. Still needs the operator's metadata (§7) and the 2026-11-18 date |
 | 7 | Governance, then v0.1.0 last | ⚠️ | **#57** (DRAFT) is the constitution micro-PR: Invariant 13, Invariant 5 reworded, text fixes, ADR-047/048/049 accepted. It merges no earlier than **2026-10-15**, after both new contexts are required and the operator signs off. **PR-15** (the bump) is not opened yet; it comes last |
 
-**PR map** (base ← head; all squash-merged by the operator):
+**PR map** (all squash-merged to main, in this order, except #57; merged by the agent at the operator's request):
 
 | PR | Branch | Base | What |
 |---|---|---|---|
@@ -47,7 +50,7 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 | #48 | stage-21-adrs | stage-21-open | PR-02 ADR-047/048/049 (proposed) |
 | #49 | stage-21-ci-supply-chain | main | PR-03 SHA pins, ubuntu-24.04, locked installs, injection/REAP fixes, registry and hygiene test |
 | #50 | stage-21-core-hardening | main | PR-05 FULL vv-required; finite floats, exact RSS, lazy loguru, version |
-| #51 | stage-21-crate | #50 | PR-06 `aero/crate/` format v1 |
+| ~~#51~~ → #60 | stage-21-crate → stage-21-crate-r2 | main | PR-06 `aero/crate/` format v1 (#51 closed: one header was 104 > 100 chars) |
 | #52 | stage-21-crate-ci | #51 | PR-07 crate round-trip CI |
 | #53 | stage-21-crates | #52 | PR-08 the five committed crates |
 | #54 | stage-21-licence-scan | #49 | PR-09 dependency licence scan |
@@ -110,9 +113,28 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 
 ## 3. Deviations from the stage plan
 
-- **Agent merges are refused** by the auto-mode classifier. Every merge, and therefore every
-  "after it is green on main" step, is the operator's. This stage therefore ends with a reviewed
-  PR stack, not a release.
+- **Merges.** At first the auto-mode classifier refused agent merges. On 2026-10-12 the operator
+  explicitly asked the agent to do the steps itself, and the agent then squash-merged, in order:
+  #47, #50, #49, #48, #60, #52, #53, #54, #55, #56, #58.
+  - For each one it first merged `main` into the branch (conventional merge commits, no
+    force-push), checked locally, and waited for every required context.
+  - It never pushed to a branch while a self-hosted job on that branch was running.
+- **#51 was replaced by #60.** One commit header was 104 characters, over commit-lint's 100.
+  Rewriting it would need a force-push, which the hooks forbid. #60 is the same tree with that
+  commit re-made.
+- **Dependabot opened #59** (`dorny/paths-filter` 3.0.4 → 4.0.3). The operator closed it on
+  2026-10-13: v3.0.4 is kept deliberately, because that action runs in the secret-bearing
+  vv-required job. A Dependabot ignore rule for its majors keeps it from reopening.
+- **The external-review addendum (2026-10-11):**
+  - A (version policy) is recorded in ADR-049 R3, and Development Status is 3 - Alpha (#50). The
+    bump itself is PR-15.
+  - B (a hosted-runner CPU-only end-to-end number) is now **ADR-050, proposed** (operator
+    decision 2026-10-13: ADR now, build after v0.1.0). It is ledgered.
+  - C (per-evaluation retry in the optimizer loop) is a **Stage-22 pre-registration item**
+    (operator decision 2026-10-13), ledgered. The loop already skips and counts a failed solve
+    (S8); it lacks a bounded retry and a recorded failure reason.
+
+  Neither reopens Stage 20 or coupled-FSI restart.
 - **Not done (optional or ledgered):**
   - PR-04, the vv-required restructure (optional, propose-first);
   - PR-12, a hosted run of `tests/stage_*` (optional);
@@ -168,8 +190,14 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
   - `tag-handoff-gate.yml` triggers on `v*.*.*`;
   - `license-audit.yml`'s watermark now scans every certificate, and fails on zero.
 - **Registry:** `.github/required-checks.json` plus `tests/unit/test_workflow_hygiene.py`.
-- **Branch protection is unchanged so far.** The two new contexts are added after their first
-  green run on main (operator action).
+- **Branch protection now requires 12 contexts.** The two new ones were added after their first
+  green runs on main:
+  - `crate round-trip — Invariant 13`, at `0be02b6`;
+  - `dependency licence scan — Invariant 5`, at `35ed4a4`.
+
+  Strict mode is kept, and the registry equals protection (#56).
+- **Fork-PR workflow approval** is `all_external_contributors` (set 2026-10-12; was
+  `first_time_contributors`).
 
 ## 6. Gotchas discovered
 
@@ -196,51 +224,66 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
   unhashed and drop the git source.
 - **The PyPI name `aero` belongs to an unrelated Tornado project.** `pip install aero` installs the
   wrong thing.
+- **numpy reductions differ in the last bit across CPUs** (SIMD paths). This was seen with
+  identical numpy and pydantic versions on the CI runners vs. the host. A test that pins bytes
+  computed by numpy at test time is machine-dependent. The self-test paired fixture is now a
+  committed snapshot (#60), and a freshness test checks it to within 1e-12.
+- **Check commit headers before pushing.** A header over 100 characters cannot be fixed without a
+  force-push, so it costs a replacement PR. Validate a range before every push with:
 
-## 7. Open items — the operator's ordered actions, then the agent's
+  ```sh
+  git log --format=%s origin/main..HEAD | awk 'length > 100'
+  ```
+- **The self-hosted queue paces merges.** Each push to a same-repo PR starts `vv-smoke` (about 30
+  min) and `provenance-completeness`, and these hold the two runners that the required
+  `vv-required` job needs. Strict mode allows one merge per main movement, so a stack of N PRs
+  costs N CI cycles.
 
-1. **Merge in order, and for each stacked PR wait for green on main first:**
-   1. #47;
-   2. #48 and #49;
-   3. #50 (FULL vv-required);
-   4. #51 → #52 → #53;
-   5. #54 and #55, after #49;
-   6. #56, after #47 and #49;
-   7. #58, after #53.
+## 7. Open items — what is left, in order
 
-   After each base merges, the next session merges `main` into the next PR branch (a conventional
-   merge commit, no force-push) and waits for CI.
-2. **Add the two contexts to branch protection** after their first green run on main, and add them
-   to `.github/required-checks.json`:
-   - `crate round-trip — Invariant 13` (after #52/#53);
-   - `dependency licence scan — Invariant 5` (after #54).
-3. **Repo setting:** require approval before workflows run for **all external contributors**. It is
-   the primary control against fork PRs on the self-hosted runners.
-4. **Review the 11 licence exceptions** in `ci/licence/exceptions.toml`.
-5. **#57 constitution:**
-   - no earlier than **2026-10-15**;
-   - both contexts required;
-   - mark it ready, comment `approved`, merge.
-6. **Fill `docs/release/operator-metadata.toml`:**
+**Done on 2026-10-12/13:**
+- the merges (§3);
+- both contexts required;
+- fork approval set to all external contributors;
+- the registry updated.
+
+1. **Operator: review the 11 licence exceptions** in `ci/licence/exceptions.toml`.
+2. **#57, the constitution PR:**
+   - on or after **2026-10-15**, the operator comments `approved` on #57 (the sign-off must be the
+     operator's own words);
+   - then it is marked ready and merged, after its required checks are green on an up-to-date
+     branch.
+
+   Its diff against main is exactly the ratification commit; the merge-forwards changed no
+   constitutional text.
+3. **Operator: fill `docs/release/operator-metadata.toml`:**
    - ORCID, affiliation, ROR and funding;
    - realized research use;
-   - **the AI human-review statement, in your own words.**
-7. **Agent, after 1–6:** PR-15, the bump, comes last. It contains:
-   - the 0.1.0 version (pyproject, `uv.lock`, CITATION);
+   - **the AI human-review statement, in your own words**;
+   - the submission date.
+4. **Agent, after 2:** PR-15, the bump. It contains:
+   - the 0.1.0 version (pyproject, `uv.lock`, CITATION version and date);
    - CHANGELOG `[0.1.0]`;
-   - this handoff `complete` with `git_sha_end`;
+   - the AI disclosure regenerated (`scripts/ai_usage_inventory.py --write --ref origin/main`);
+   - this handoff `complete`, with `git_sha_end`;
    - the Stage-22 prompt.
 
    It is a FULL vv-required run. Then dispatch `release-readiness.yml` and wait for
    `READY TO TAG v0.1.0 at <sha>`.
-8. **Operator:**
+5. **Operator:**
    1. Tag `v0.1.0` at that sha; `tag-handoff-gate` must go green.
    2. Agent: PR-16, the README refresh.
    3. Publish the GitHub Release with the readiness artifacts (published, not a draft).
    4. QA the Zenodo record.
    5. Agent: PR-17 records the version DOI.
-9. **JOSS:** submission on or after **2026-11-18**. Only the operator replies to editors and
+6. **JOSS:** submission on or after **2026-11-18**. Only the operator replies to editors and
    reviewers.
+7. **Decided 2026-10-13:**
+   - #59 closed, with an ignore rule;
+   - addendum B → ADR-050 (proposed, build after v0.1.0);
+   - addendum C → the Stage-22 pre-registration.
+
+   **PR-15's Stage-22 prompt must carry C.**
 
 The Stage-22 prompt is authored in PR-15 at close. It does not exist yet.
 
@@ -252,7 +295,7 @@ The Stage-22 prompt is authored in PR-15 at close. It does not exist yet.
   - `PATH=.venv/bin:$PATH pytest -q tests/unit tests/stage_20`;
   - `bash scripts/check_handoff_exists.sh; echo $?`, which should print 0;
   - `scripts/regenerate_status.sh --check`;
-  - `gh pr checks <n>` for #47–#58;
+  - `gh pr checks 57`, and `gh pr list` (open: #57 draft, #59 Dependabot, #21 unrelated);
   - the hard-don't checks:
     - both ADR-045 records are absent;
     - `git ls-remote --tags origin stage-20-evidence-2026-09-20` returns the tag;
@@ -281,10 +324,8 @@ The Stage-22 prompt is authored in PR-15 at close. It does not exist yet.
   - the licence scan's closure: it equals `uv export` for 302 and 105 packages;
   - the release gates refuse today for exactly the expected reasons.
 - **Risks:**
-  - **Merge sequencing.** Twelve stacked PRs need the operator's merges in order. Each stacked
-    branch needs `main` merged in after its base lands.
   - **The constitution window plus sign-off gates the release.**
-  - **The Ubuntu-26 runner migration** on 2026-10-19: every workflow is pinned to
-    `ubuntu-24.04`, but only after #49 merges.
+  - **The Ubuntu-26 runner migration** on 2026-10-19 is covered: every workflow is pinned to
+    `ubuntu-24.04` (#49 merged).
   - **The Stage-17 certificate expires 2027-01-20.** Readiness needs more than 30 days left, which
     is fine until about 2026-12-21.
