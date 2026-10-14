@@ -9,7 +9,7 @@ tags:
   - reproducibility
 authors:
   - name: Louis Ernesto Schulte Moredo
-    # orcid: <<OPERATOR-ORCID>>
+    orcid: 0009-0004-8145-8319
     affiliation: 1
     corresponding: true
 affiliations:

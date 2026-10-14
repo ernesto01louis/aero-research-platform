@@ -12,7 +12,7 @@
 #   - ai_human_review_statement: the paper's "AI usage disclosure", in the operator's own words;
 #   - submission_date: the paper front matter `date`, as "%e %B %Y".
 
-orcid = "<<OPERATOR-ORCID>>"
+orcid = "https://orcid.org/0009-0004-8145-8319"
 affiliation = "<<OPERATOR-AFFILIATION>>"
 ror = "<<OPERATOR-ROR>>"
 funding = "<<OPERATOR-FUNDING>>"

@@ -92,6 +92,12 @@ def test_no_operator_placeholder_is_published() -> None:
     meta = tomllib.loads((REPO / "docs/release/operator-metadata.toml").read_text(encoding="utf-8"))
     if str(meta["orcid"]).startswith("<<OPERATOR-"):
         assert "orcid" not in CFF["authors"][0] and "orcid" not in ZENODO["creators"][0]
+    else:
+        # Once supplied, one ORCID everywhere it is published.
+        oid = str(meta["orcid"]).removeprefix("https://orcid.org/")
+        assert CFF["authors"][0]["orcid"] == f"https://orcid.org/{oid}"
+        assert ZENODO["creators"][0]["orcid"] == oid
+        assert str(FRONT["authors"][0]["orcid"]) == oid
     if str(meta["affiliation"]).startswith("<<OPERATOR-"):
         assert "affiliation" not in CFF["authors"][0] and "affiliation" not in ZENODO["creators"][0]
 
