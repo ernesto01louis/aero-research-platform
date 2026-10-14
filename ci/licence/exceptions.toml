@@ -9,8 +9,9 @@
 #
 # Every exception is keyed by exact name + version (+ commit for a git source). It FAILS the scan when
 # the lock moves (stale), when it is unused, or when the package is reachable from a scope it does
-# not list. Prepared by the Stage-21 agent from the upstream licence texts linked below; the operator
-# reviews them at the ADR-048 ratification.
+# not list. Prepared by the Stage-21 agent from the upstream licence texts linked below, and reviewed
+# and approved by the operator on 2026-10-14 (his sign-off comment on PR #57, the ADR-048
+# ratification).
 
 # --- base (dvc's transitive GPL-2 family; ADR-048 D1: dvc stays in the base dependencies) ---------
 
@@ -25,7 +26,7 @@ redistributes it; the user's installer resolves it. Neither GPL-2.0-only nor EPL
 GPL-3.0-compatible, so it is admitted, not allowed. Re-review whenever dvc moves."""
 adr = "ADR-048"
 evidence = "https://github.com/bdcht/grandalf/blob/v0.8/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -40,7 +41,7 @@ with other programs"). aero never imports it and never redistributes it. Admitte
 Re-review whenever dvc or scmrepo moves."""
 adr = "ADR-048"
 evidence = "https://github.com/libgit2/pygit2/blob/v1.19.2/COPYING"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -54,7 +55,7 @@ puts contributions after 2017 under Apache-2.0 and states that the BSD-3-Clause 
 to all code, so both apply. Both terms are on the allowlist."""
 adr = "ADR-048"
 evidence = "https://github.com/dateutil/dateutil/blob/2.9.0.post0/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 # --- supported extras ----------------------------------------------------------------------------
@@ -68,7 +69,7 @@ scopes = ["supported-extras"]
 reason = "No licence metadata in the wheel (cad extra, via build123d). The LICENSE at the tag is Apache-2.0."
 adr = "ADR-048"
 evidence = "https://github.com/snoyer/ocpsvg/blob/0.6.0/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -82,7 +83,7 @@ LGPL version. The LICENSE is LGPL-3.0-or-later, plus an OpenSSL linking permissi
 adds rights (provenance extra)."""
 adr = "ADR-048"
 evidence = "https://github.com/psycopg/psycopg2/blob/2.9.12/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -96,7 +97,7 @@ License v2 or later (GPLv2+), and the index entry for this exact version lists i
 extra)."""
 adr = "ADR-048"
 evidence = "https://pypi.org/project/PyFoam/2023.7/"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -108,7 +109,7 @@ scopes = ["supported-extras", "gpu-frozen"]
 reason = "No licence metadata in the wheel. The LICENSE at the v0.14 tag is MIT."
 adr = "ADR-048"
 evidence = "https://github.com/skops-dev/skops/blob/v0.14/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 # --- gpu-frozen (frozen-optional, ADR-013; NVIDIA proprietary admitted here only, ADR-010) ---------
@@ -123,7 +124,7 @@ scopes = ["gpu-frozen"]
 reason = "A git source, so there is no index metadata. The LICENSE at the pinned commit is MIT (ADR-008 section D2)."
 adr = "ADR-048"
 evidence = "https://github.com/tumaer/JAXFLUIDS/blob/ac7c090f27cffa1e05dc986d9bfe4163c31f1c94/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -135,7 +136,7 @@ scopes = ["gpu-frozen"]
 reason = "No licence metadata in the wheel. The LICENSE at the v1.8.0 tag is Apache-2.0."
 adr = "ADR-048"
 evidence = "https://github.com/googleapis/python-crc32c/blob/v1.8.0/LICENSE"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -149,7 +150,7 @@ is reviewed as the CUDA Toolkit EULA, the terms of the nvidia-* runtime wheels i
 admitted in gpu-frozen only (ADR-010)."""
 adr = "ADR-048"
 evidence = "https://docs.nvidia.com/cuda/eula/index.html"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
 
 [[exception]]
@@ -163,5 +164,5 @@ wheel is published by NVIDIA alongside the other CUDA runtime wheels. Reviewed a
 reading (CUDA EULA), which is admitted in gpu-frozen only, so either reading passes there."""
 adr = "ADR-048"
 evidence = "https://pypi.org/project/nvidia-nvtx/13.0.85/"
-reviewer = "Claude Code (Stage 21 agent); operator review at ADR-048 ratification"
+reviewer = "Louis Ernesto Schulte Moredo (operator), approved 2026-10-14 on PR #57; prepared by Claude Code (Stage 21 agent)"
 date = "2026-10-12"
