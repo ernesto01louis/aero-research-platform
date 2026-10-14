@@ -154,7 +154,9 @@ met at v0.1.0. Rigid-flapping optimization, under a new pre-registration, is the
 
 # Research impact statement
 
-To date, the platform has been used by its author for testing.
+The author is an aerospace-engineering student focusing on CFD software. To date the author has
+used the platform for testing, and plans to use it to build an understanding of flapping-wing
+and other bio-inspired aerodynamics.
 
 There are no external users to date. The reusable output of v0.1.0 is the set of gate-honest
 records, NO-GOs included, published as verifiable result crates. A reader can check each crate's
