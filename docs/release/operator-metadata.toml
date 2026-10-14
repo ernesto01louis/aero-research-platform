@@ -12,10 +12,10 @@
 #   - ai_human_review_statement: the paper's "AI usage disclosure", in the operator's own words;
 #   - submission_date: the paper front matter `date`, as "%e %B %Y".
 
-orcid = "<<OPERATOR-ORCID>>"
-affiliation = "<<OPERATOR-AFFILIATION>>"
-ror = "<<OPERATOR-ROR>>"
-funding = "<<OPERATOR-FUNDING>>"
-research_use = "<<OPERATOR-RESEARCH-USE>>"
-ai_human_review_statement = "<<OPERATOR-AI-HUMAN-REVIEW>>"
+orcid = "https://orcid.org/0009-0004-8145-8319"
+affiliation = "Independent Researcher"
+ror = "none (independent researcher)"
+funding = "No external funding."
+research_use = "Testing so far. Studying aerospace engineering, focusing on CFD software; plan: build an understanding of flapping wings and other bio-inspired principles of aerodynamics."
+ai_human_review_statement = "By splitting the work into steps and reviewing the code before the merge."
 submission_date = "<<OPERATOR-SUBMISSION-DATE>>"

@@ -9,11 +9,11 @@ tags:
   - reproducibility
 authors:
   - name: Louis Ernesto Schulte Moredo
-    # orcid: <<OPERATOR-ORCID>>
+    orcid: 0009-0004-8145-8319
     affiliation: 1
     corresponding: true
 affiliations:
-  - name: <<OPERATOR-AFFILIATION>>
+  - name: Independent Researcher
     index: 1
 date: 12 October 2026
 bibliography: paper.bib
@@ -154,7 +154,9 @@ met at v0.1.0. Rigid-flapping optimization, under a new pre-registration, is the
 
 # Research impact statement
 
-<<OPERATOR-RESEARCH-USE>>
+The author is an aerospace-engineering student focusing on CFD software. To date the author has
+used the platform for testing, and plans to use it to build an understanding of flapping-wing
+and other bio-inspired aerodynamics.
 
 There are no external users to date. The reusable output of v0.1.0 is the set of gate-honest
 records, NO-GOs included, published as verifiable result crates. A reader can check each crate's
@@ -168,10 +170,10 @@ numbers and limitations with three commands and no access to the original infras
 Every stage of the build (1–21) was carried out in Claude Code sessions (Anthropic) by an AI coding agent that wrote most of the code, tests and documentation, under the direction of the author. The models, as recorded in each stage's handoff, were: `claude-opus-4-7` (Stages 1–8); `claude-opus-4-8` (Stages 9–13, 15); `claude-fable-5` (Stages 14, 16–18); `claude-opus-5` (Stages 19–20); `claude-opus-5-5` (Stage 21). Of the 44 commits on `origin/main`, 27 carry a Claude `Co-Authored-By` trailer. The author directed every stage and accepted every architecture decision record and pre-registration. Merges and releases were the author's acts, or ran under the author's standing approval.
 <!-- AI-INVENTORY:END -->
 
-<<OPERATOR-AI-HUMAN-REVIEW>>
+The author reviewed the AI-assisted work by splitting it into steps and reviewing the code before it was merged.
 
 # Acknowledgements
 
-<<OPERATOR-FUNDING>>
+This work received no external funding.
 
 # References
