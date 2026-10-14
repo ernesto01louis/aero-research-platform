@@ -4,7 +4,8 @@
   "creators": [
     {
       "name": "Schulte Moredo, Louis Ernesto",
-      "orcid": "0009-0004-8145-8319"
+      "orcid": "0009-0004-8145-8319",
+      "affiliation": "Independent Researcher"
     }
   ],
   "description": "<p>An open-source, CFD-in-the-loop aerodynamic shape optimizer whose outputs are gated by provenance and uncertainty. Every reported number carries a four-fold provenance tuple and a combined U95 envelope (GCI / ASME V&amp;V 20 numerical, batch-means statistical, and input terms). A claimed improvement must exceed 2&#215;U95 at matched numerics, every optimum is re-verified by CFD, and every exported result is a self-describing result crate (RO-Crate 1.3 / PROV) that verifies away from the compute cluster.</p><p><strong>The optimizer has never been run on a flapping-wing case, and v0.1.0 makes no flapping-wing optimization claim.</strong> It is demonstrated on a 2-D airfoil (validated tier, gate-honest). The flagship flapping domain ships as a forward capability, whose gated mean lift is a documented NO-GO. The release notes list every gate outcome and every result-crate digest.</p>",

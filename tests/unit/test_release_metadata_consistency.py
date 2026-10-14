@@ -100,6 +100,10 @@ def test_no_operator_placeholder_is_published() -> None:
         assert str(FRONT["authors"][0]["orcid"]) == oid
     if str(meta["affiliation"]).startswith("<<OPERATOR-"):
         assert "affiliation" not in CFF["authors"][0] and "affiliation" not in ZENODO["creators"][0]
+    else:
+        aff = meta["affiliation"]
+        assert CFF["authors"][0]["affiliation"] == ZENODO["creators"][0]["affiliation"] == aff
+        assert FRONT["affiliations"][0]["name"] == aff
 
 
 def test_the_paper_has_the_joss_shape() -> None:

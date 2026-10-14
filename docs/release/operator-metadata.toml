@@ -13,9 +13,9 @@
 #   - submission_date: the paper front matter `date`, as "%e %B %Y".
 
 orcid = "https://orcid.org/0009-0004-8145-8319"
-affiliation = "<<OPERATOR-AFFILIATION>>"
-ror = "<<OPERATOR-ROR>>"
-funding = "<<OPERATOR-FUNDING>>"
-research_use = "<<OPERATOR-RESEARCH-USE>>"
-ai_human_review_statement = "<<OPERATOR-AI-HUMAN-REVIEW>>"
+affiliation = "Independent Researcher"
+ror = "none (independent researcher)"
+funding = "No external funding."
+research_use = "Testing (used by the author for testing)."
+ai_human_review_statement = "By splitting the work into steps and reviewing the code before the merge."
 submission_date = "<<OPERATOR-SUBMISSION-DATE>>"
