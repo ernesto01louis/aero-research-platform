@@ -149,8 +149,11 @@ Beyond the table:
 - **Stage 20.** A flexible-flapping campaign against @heathcote2007 ended as a NO-GO on
   infrastructure, and flexible-flapping optimization is deferred.
 
-The project's own publication bar — a CFD-verified optimization delta on a flapping case — is not
-met at v0.1.0. Rigid-flapping optimization, under a new pre-registration, is the next stage.
+The turbulent NASA TMR verification cases do not all pass: the flat-plate skin friction misses
+by 12.6 % against a 5 % tolerance, which is not relaxed. So no result carries the production
+tier. The project's own publication bar is therefore not met at v0.1.0: it needs a CFD-verified
+optimization delta on a flapping case, and the turbulent canonical cases passing. Rigid-flapping
+optimization, under a new pre-registration, is the next stage.
 
 # Research impact statement
 
