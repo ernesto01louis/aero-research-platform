@@ -48,10 +48,10 @@ keywords:
   - reproducibility
   - RO-Crate
 license: GPL-3.0-or-later
-version: 0.0.4
-date-released: "2026-05-19"
-# Zenodo concept DOI — resolves to the latest release (currently v0.0.4).
-# Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
+version: 0.1.0
+date-released: "2026-10-15"
+# Zenodo concept DOI — resolves to the latest Zenodo version (v0.1.0 once its GitHub Release is
+# published). Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
 doi: 10.5281/zenodo.20292712
 
 # Public datasets the platform consumes — Stage 08 onward. Anyone publishing

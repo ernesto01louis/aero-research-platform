@@ -155,6 +155,51 @@ def test_the_body_excludes_acknowledgements_references_and_footnotes() -> None:
 )
 def test_bare_pip_install_is_recognised(line: str, bad: bool) -> None:
     assert bool(rr.BARE_PIP.search(line)) is bad
+    assert rr._bare_pip(line) is bad
+
+
+@pytest.mark.parametrize(
+    ("line", "bad"),
+    [
+        # CONSTITUTION Invariant 1 (ratified in #57) warns against it; a warning is not an instruction.
+        (
+            "  module. It installs from the checkout, never `pip install aero`: that PyPI name",
+            False,
+        ),
+        ("Do not pip install aero.", False),
+        ("There is no `pip install aero`.", False),
+        ("Never mind; pip install aero", True),
+        ("never `pip install aero`, but then: pip install aero[cad]", True),
+    ],
+)
+def test_a_warning_against_bare_pip_is_not_an_instruction(line: str, bad: bool) -> None:
+    assert rr._bare_pip(line) is bad
+
+
+def test_a_required_phrase_is_found_when_wrapped_and_set_in_bold() -> None:
+    # The release notes and the paper wrap L1 across source lines; the notes also set it in bold.
+    words = rr.L1.split(" ")
+    wrapped = " ".join(words[:12]) + "\n" + " ".join(words[12:])
+    assert rr.L1 not in wrapped
+    assert rr.L1 in rr._flat(rr._body("# Summary\n\n**" + wrapped + "**\n"))
+    assert "certified optimum" in rr._flat("a certified\noptimum")
+
+
+def _here() -> Any:
+    return rr.Ctx(
+        repo=REPO,
+        tag=None,
+        ci=False,
+        online=False,
+        api=None,
+        today=dt.date(2026, 10, 20),
+        gh_repo=GH,
+    )
+
+
+def test_the_limitation_and_install_checks_hold_in_this_checkout() -> None:
+    assert rr.check_limitation_in_body(_here()) == []
+    assert rr.check_install_text(_here()) == []
 
 
 def test_the_hard_donts_hold_in_this_checkout() -> None:

@@ -7,8 +7,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
-Stage 21 (Release: Portable Bundles + Hardening + v0.1.0; ADR-046, release-first) is in progress.
-Its entries are collected under `[0.1.0]` at the release commit.
+## [0.1.0] - 2026-10-15
+
+The first release, cut at the close of Stage 21 (Release: Portable Bundles + Hardening + v0.1.0;
+ADR-046, release-first). **The optimizer has never been run on a flapping-wing case, and v0.1.0
+makes no flapping-wing optimization claim.** The optimizer is demonstrated on the airfoil case only
+(Stages 15/16/17): its best tier is `validated`, and it is gate-honest, including Stage 16's
+one-gate NO-GO and Stage 17's degenerate speed-up NO-GO. The flagship flapping domain ships as
+Stage 14's forward capability: its rotation-timing ordering is reproduced — a pre-registered,
+non-gated diagnostic — and its gated mean lift is a documented NO-GO. Rigid-flapping optimization
+is Stage 22; flexible-flapping optimization is deferred (ADR-046 S4/S5). The V&V report is not
+ALL GREEN, so no result is tagged `production`. Release notes:
+`docs/release/RELEASE-NOTES-v0.1.0.md`.
 
 ### CONSTITUTION
 
@@ -29,8 +39,82 @@ Its entries are collected under `[0.1.0]` at the release commit.
   - Principle 5 matches Invariant 5;
   - Hard Rule 10 covers `vX.Y.Z` release tags;
   - Hard Rule 16 is recorded as promoted.
-- **ADR-047, ADR-048 and ADR-049 accepted**, ratified by this change's merge after the ≥72 h
-  window (proposed 2026-10-12) and the operator's sign-off.
+- **ADR-047, ADR-048 and ADR-049 accepted.** They were ratified by the merge of #57 on
+  2026-10-15, after the ≥72 h window (proposed 2026-10-12) and the operator's sign-off on
+  2026-10-14.
+
+### Added — Stage 21 (Release: Portable Bundles + Hardening + v0.1.0) — released; no flapping optimization claim
+
+- **Result crates, `aero-result-crate` format v1** (`aero/crate/`, ADR-047; Invariant 13).
+  - RO-Crate 1.3 + Process Run Crate 0.6 + a PROV-JSON sidecar.
+  - Content-addressed config preimages: `sha256(configs/<hash>.json)` is the recorded
+    `config_hash`.
+  - The reader hashes every member before it parses anything, parses strictly, recomputes every
+    computed field bit for bit, and regenerates both projections byte for byte.
+  - A sandboxed stdlib CLI, `python -I -B -m aero.crate {verify,show,numbers,pack}`, plus
+    `aero crate …`.
+- **Five committed crates** under `crates/` (Stages 12, 14, 15, 16, 17), cited by crate digest
+  (the sha256 of `SHA256SUMS`; table in `crates/README.md`). Stage 14 is evidence-only and carries
+  no claim. An independent stdlib oracle (`scripts/crate_oracle.py`) pins the digests and every
+  number the crates carry.
+- **Required CI `crate round-trip — Invariant 13`** (`crate-roundtrip.yml`). Crates are written on
+  one runner and verified on clean Linux (Python 3.12 and 3.13), macOS and Windows runners holding
+  only the wheel, numpy and pydantic, on a dependency-floor leg, and from a Windows
+  `core.autocrlf=true` checkout.
+- **Required CI `dependency licence scan — Invariant 5`** (`dependency-licences.yml`, ADR-048). A
+  scoped GPL-3.0-compatible allowlist over `uv.lock`, with an offline metadata snapshot and 11
+  reviewed exact-version exceptions (9 identify, 2 admit), approved by the operator on 2026-10-14.
+- **Release governance** (ADR-049):
+  - `scripts/check_release_tag.sh`, run by `tag-handoff-gate.yml` on every `v*.*.*` tag;
+  - `scripts/release_readiness.py` and the dispatch-only `release-readiness.yml`, which verify
+    "all required CI green" instead of assuming it;
+  - `.github/required-checks.json` (the 12 required contexts) and a workflow-hygiene test.
+- **JOSS and Zenodo:** the paper draft (`paper/`), `.zenodo.json`, a refreshed `CITATION.cff`,
+  the v0.1.0 release notes, a claims ledger tying their numbers to the crates
+  (`docs/release/claims-ledger.toml`), and an AI-usage disclosure generated from the record
+  (`scripts/ai_usage_inventory.py`).
+- **Community files:** `CODE_OF_CONDUCT.md`, issue templates, and a README "Support and
+  governance" section.
+- **Evidence tags** `stage-12/15/16/17-evidence-*`, which make every crate's provenance SHA
+  publicly resolvable. They are not release tags.
+- **ADR-050, proposed:** a hosted, CPU-only end-to-end case that emits one CFD number, its
+  four-tuple and a crate. It is built after v0.1.0.
+
+### Changed — Stage 21
+
+- **The version has one source.** `pyproject.toml` 0.1.0 equals `aero.__version__`, the `uv.lock`
+  root and `CITATION.cff`, and a required test pins all four. The version string is static and
+  bumped only in a release PR (ADR-049 R3). Development Status is 3 - Alpha, and `pydantic>=2.12`.
+- **CI supply chain.** Every action is SHA-pinned, hosted jobs run on `ubuntu-24.04`, installs are
+  locked, secrets are step-scoped, and checkouts do not persist credentials. Also new: gitleaks,
+  and Dependabot for github-actions (with `dorny/paths-filter` majors ignored).
+- **Docs match reality:** SECURITY, CONTRIBUTING (the 12 required contexts), the deferred-work
+  ledger, and the install text. Install from a clone with `uv sync`, or from the wheel attached to
+  the Release; the PyPI name `aero` belongs to an unrelated project.
+
+### Fixed — Stage 21
+
+- **`ReportableResult` and its parts refuse non-finite numbers.** `ImprovementClaim(baseline=nan)`
+  used to compose into a thesis-grade record; the small-signal guard is now NaN-safe.
+- **IEEE-exact RSS** (`x*x`, summed left to right): every committed U95 reproduces
+  bit-identically on every platform.
+- **The core import path no longer needs loguru** (lazy imports in two modules), so the crate
+  reader runs with stdlib, numpy and pydantic only.
+- **Repository-root lookups fail loudly** outside a source checkout (`aero/_repo.py`).
+- **`license-audit.yml` scanned zero files.** It now finds all 12 certificates and fails on zero.
+- **Workflow defects:** shell injection through the commit-lint PR title and the moving-vv
+  dispatch input; `vv-transonic` without REAP or a concurrency group; `vv-scale-resolving`
+  reporting a no-op green on a schedule.
+- **The handoff template's inline comments broke the Stop hook's frontmatter parser.**
+
+### Known issues
+
+Listed in the release notes, §6. In short:
+- the turbulent NASA TMR flat plate has failed its Cf check since Stage 5 (12.6 % against a 5 %
+  tolerance, not relaxed);
+- the two documented provenance weaknesses (`dvc_input_hash` is a sync-state digest;
+  `container_sif_sha256` is a basename lookup);
+- the Stage-17 surrogate certificate expires 2027-01-20.
 
 ## [0.0.20] - 2026-09-20
 
@@ -1083,7 +1167,8 @@ Optimizer-mission refocus continued + the Stage-10 output-validity bar.
   CODEOWNERS 1-approval; `enforce_admins: false` for solo-admin self-merge
 - Post-stage handoff: `docs/handoffs/STAGE-01-scaffolding-and-conventions-DONE-2026-05-17.md`
 
-[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.20...HEAD
+[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.20...v0.1.0
 [0.0.20]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.17...v0.0.18

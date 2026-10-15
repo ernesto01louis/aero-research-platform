@@ -71,6 +71,8 @@ ADR045_ABSENT = ("data/vv/stage20_adr045_r3.json", "data/vv/stage20_n3_confirmat
 STAGE20_EVIDENCE_TAG = "stage-20-evidence-2026-09-20"
 INSTALL_DOCS = ("README.md", "CONTRIBUTING.md", "CONSTITUTION.md", "SECURITY.md", "CITATION.cff")
 BARE_PIP = re.compile(r"pip install aero(?![-\w])")
+# A warning against it ("never `pip install aero`", CONSTITUTION Invariant 1) is not an instruction.
+NEGATED_PIP = re.compile(r"\b(?:never|not|no)\s+`?$", re.I)
 CERT_MARGIN = dt.timedelta(days=30)
 JOSS_EARLIEST = dt.date(2026, 11, 18)  # repo public 2026-05-17 + 6 months + 1 day
 JOSS_HEADINGS = (
@@ -143,6 +145,20 @@ def _body(markdown: str) -> str:
     cut = re.search(r"^#{1,3}\s+(Acknowledg|References)", markdown, re.M)
     text = markdown[: cut.start()] if cut else markdown
     return "\n".join(line for line in text.splitlines() if not re.match(r"^\[\^[^\]]+\]:", line))
+
+
+def _flat(markdown: str) -> str:
+    """Prose as a reader sees it: bold markers dropped, every whitespace run one space.
+
+    A required phrase wraps across source lines and may be set in bold, so phrases are matched on
+    this form. Forbidden phrases are matched on it too, so a line break cannot hide one.
+    """
+    return re.sub(r"\s+", " ", re.sub(r"\*\*|__", "", markdown))
+
+
+def _bare_pip(line: str) -> bool:
+    """True if the line tells the reader to ``pip install aero``; a warning against it does not."""
+    return any(not NEGATED_PIP.search(line[: m.start()]) for m in BARE_PIP.finditer(line))
 
 
 def _urlopen_api(gh_repo: str) -> Api:
@@ -252,9 +268,9 @@ def check_limitation_in_body(c: Ctx) -> list[str]:
         if text is None:
             out.append(f"{rel} is missing")
             continue
-        body = _body(text)
+        body, flat = _flat(_body(text)), _flat(text)
         out += [f"{rel}: the body lacks {p!r}" for p in phrases if p not in body]
-        out += [f"{rel}: forbidden phrase {p!r}" for p in FORBIDDEN_PHRASES if p in text]
+        out += [f"{rel}: forbidden phrase {p!r}" for p in FORBIDDEN_PHRASES if p in flat]
     return out
 
 
@@ -310,7 +326,7 @@ def check_install_text(c: Ctx) -> list[str]:
     for rel in files:
         text = _read(c.repo, rel) or ""
         for n, line in enumerate(text.splitlines(), 1):
-            if BARE_PIP.search(line):
+            if _bare_pip(line):
                 out.append(
                     f"{rel}:{n}: bare `pip install aero` (the name is not ours on PyPI; ADR-049 R3)"
                 )
