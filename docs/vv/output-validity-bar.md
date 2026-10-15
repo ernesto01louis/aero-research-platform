@@ -98,3 +98,5 @@ Since the 2026-07 review (finding F1; ADR-023) the delta's U95 is **measured, no
 | `delta > k·U95`, matched-condition | `ImprovementClaim` validator (`SmallSignalError`) | Stage 10 (schema); `small-signal-gate` CI Stage 12 |
 | `u95_delta` computed, never trusted (cancellation measured) | `DeltaU95` union + `paired_difference.py` + thesis-grade gate | Stage 13 (review F1; ADR-023) |
 | CFD-verified optimum + selection-bias guard | `OptimizationResult` validators | Stage 10 (schema); exercised Stage 15 |
+| Results travel (CaseSpec + four-tuple + U95 + validity context, verifiable off-cluster) | `aero/crate/` (`verify_crate`), `crates/`, required `crate round-trip — Invariant 13` | Stage 21 (ADR-047; CONSTITUTION Invariant 13) |
+| Finite U95 terms, IEEE-exact RSS | `allow_inf_nan=False` on the reportable/paired/statistical models; `x*x` RSS | Stage 21 (ADR-049 H-02/H-03) |

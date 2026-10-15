@@ -68,8 +68,10 @@ Then begin work.
 4. **ML augments, never replaces, validated physics.** A surrogate is
    admissible only with a published `CertificateOfValidity` below
    threshold.
-5. **GPL is fine.** GPL-3 / LGPL-3 / Apache-2.0 / BSD-3 only. No
-   proprietary blobs.
+5. **GPL-3.0-compatible only.** Every locked dependency carries a licence on the ADR-048
+   GPL-3.0-compatible allowlist, or a reviewed exact-version exception. This is checked over
+   `uv.lock` by `dependency licence scan — Invariant 5`. The base install and the supported
+   extras are proprietary-free; NVIDIA CUDA components appear only in the frozen GPU extras.
 
 ## Hard rules — IMMUTABLE; override any conflicting stage prompt
 
@@ -97,10 +99,12 @@ Then begin work.
    release, SU2 git commit, etc.); document every pin in an ADR.
 9. **DOCS MATCH REALITY.** README `## Status` is auto-regenerated from
    the latest post-stage handoff frontmatter; hand-editing it fails CI.
-10. **POST-STAGE HANDOFF MANDATORY.** No `v0.0.NN` tag without
-    `docs/handoffs/STAGE-NN-<slug>-DONE-YYYY-MM-DD.md` existing with
-    valid frontmatter (the `Stop` hook in `.claude/settings.json`
-    enforces this in-session; CI enforces it on tag push via `tag-handoff-gate.yml`, Stage 18).
+10. **POST-STAGE HANDOFF MANDATORY.** No `v0.0.NN` stage tag or `vX.Y.Z` release tag without
+    the matching `docs/handoffs/STAGE-NN-<slug>-DONE-YYYY-MM-DD.md` with valid frontmatter.
+    The `Stop` hook in `.claude/settings.json` enforces this in-session. CI enforces it on tag
+    push: `tag-handoff-gate.yml` (Stage 18) runs `scripts/check_release_tag.sh` (ADR-049), and a
+    release tag also needs `status: complete`, a resolvable `git_sha_end` with the tagged code tree,
+    agreeing versions and the next stage's prompt.
 11. **DO NOT TOUCH PRE-EXISTING NON-AERO INFRASTRUCTURE.** The Proxmox
     host runs many other workloads (LXCs 101-114, 200-207 except where
     explicitly listed below; VMs 100, 104, 111, 112). The aero stack
@@ -143,8 +147,10 @@ Then begin work.
     ≥1 experiment-anchored gate.
 16. **RESULTS-MUST-TRAVEL.** Every exported result is a self-describing bundle
     (`CaseSpec` + four-tuple + U95 envelope + validity context) usable in a thesis
-    without the cluster. Constitutional promotion at Stage 21 with the bundle +
-    round-trip CI (moved from Stage 20 by ADR-046 S1).
+    without the cluster. **Promoted to CONSTITUTION Invariant 13** (ADR-047, ratified by the
+    Stage-21 constitution PR). It is delivered as the `aero-result-crate` format v1 (`aero/crate/`,
+    `crates/`), with the required `crate round-trip — Invariant 13` CI; it moved from Stage 20 by
+    ADR-046 S1.
 17. **SCOPE-GATE.** New solvers/ML/agents/features stay deferred unless they directly
     serve the optimizer mission or the flapping-wing flagship. This gates **effort
     allocation, NOT interface generality** — the `Solver`/`Surrogate` protocols stay

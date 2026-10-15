@@ -1,8 +1,9 @@
 # ADR-048 — Dependency licence policy: a GPL-3.0-compatible allowlist, scoped exceptions, and the licence-scan gate (amends Invariant 5 and Principle 5)
 
-- **Status:** proposed. The Invariant 5 and CLAUDE.md Principle 5 rewording ratifies in the Stage-21
-  constitution micro-PR (≥72 h window plus the operator's sign-off). The scanner code lands without
-  waiting.
+- **Status:** accepted. Proposed 2026-10-12, and ratified by the merge of the Stage-21 constitution
+  PR. That merge followed the ≥72 h window and the operator's sign-off recorded in the PR
+  (CONSTITUTION "Amendment process"; the ADR-027 two-track precedent).
+  CONSTITUTION Invariant 5 and CLAUDE.md Principle 5 are reworded.
 - **Date:** 2026-10-12
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo; policy chosen 2026-10-11 as stage decision
   D1); Claude Code agent (Stage 21)
