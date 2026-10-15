@@ -28,8 +28,8 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 >
 > **v0.1.0 is released (2026-10-15).** The operator tagged `9d02892`, and `tag-handoff-gate` is
 > green. The GitHub Release is published, and Zenodo minted the version DOI
-> **10.5281/zenodo.23396402** (§7). What is left is the operator's JOSS submission, on or after
-> 2026-11-18.
+> **10.5281/zenodo.23396402** (§7). The JOSS submission is deferred until the platform has
+> evidence of research use (§7).
 >
 > - **Do not create a second Stage-21 handoff.** The Stop hook picks the newest-mtime file and the
 >   README generator the lexicographically last.
@@ -281,10 +281,11 @@ The crate digests in the Release are the five pinned in `crates/README.md` and
 the CITATION `identifiers`) landed in one post-release PR, PR-16/17 combined.
 
 **Left:**
-1. **JOSS:** the operator submits on or after **2026-11-18** and sets `submission_date` then.
-   Before submitting, regenerate the AI disclosure (`--write --ref origin/main`) and run
-   `release_readiness.py --gate joss --online`. **Only the operator replies to editors and
-   reviewers.**
+1. **JOSS: deferred** (operator decision, 2026-10-15). JOSS's screening requires evidence of
+   research use, and the platform has been used for testing only, so a submission would be desk
+   rejected. It resumes once a publication, an analysis or an external adopter exists
+   (`docs/release/joss.md`; ledger). Draft PR #68 is closed and its branch kept. **Only the
+   operator replies to editors and reviewers.**
 2. **Post-v0.1.0:**
    - Stage 22 (`docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`), which carries
      addendum C as a pre-registration item;

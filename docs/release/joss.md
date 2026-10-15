@@ -1,5 +1,17 @@
 # JOSS submission (Stage 21 ends at "ready to submit")
 
+> **Status: DEFERRED (operator decision, 2026-10-15).** JOSS's pre-review screening has a must-meet
+> item: "There must be evidence that the software is being used for research"; "Aspirational
+> statements about future use are not sufficient"; a submission that fails it "will receive a desk
+> rejection" (JOSS submitting guide, read 2026-10-15). The paper's research-impact statement is,
+> honestly, "used for testing so far", with no external users. So a submission now would be refused.
+>
+> The project builds its foundation first (ADR-051, proposed). **Resume when** there is evidence of
+> research use: a publication or an analysis that uses the platform, or an external adopter. Then
+> rewrite the research-impact statement from that evidence, and run the procedure below. The prepared
+> metadata (submission date, conflicts of interest: none) is on the branch `joss-submission`
+> (closed PR #68); its date and AI disclosure must be redone at that time.
+
 The paper is `paper/paper.md` with `paper/paper.bib`. `.github/workflows/joss-draft.yml` builds the
 JOSS PDF on every PR that touches `paper/`.
 
@@ -26,7 +38,8 @@ JOSS PDF on every PR that touches `paper/`.
 The Stage-17 surrogate certificate expires 2027-01-20, and the release checks inside the JOSS gate
 require at least 30 days of validity. So the gate passes only through **2026-12-21**. After that the
 certificate is re-certified first (compute; a new ADR), or the expiry stands as a stated
-limitation and the gate's margin is an operator decision.
+limitation and the gate's margin is an operator decision. With the submission deferred, this
+decision comes with the resumption.
 
 ## Submission day (on or after 2026-11-18)
 
