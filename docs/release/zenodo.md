@@ -53,4 +53,4 @@ and `scripts/release_readiness.py --gate joss` requires it. Concept DOI: `10.528
 
 | Release | Version DOI | Published |
 |---|---|---|
-| v0.1.0 | *(recorded after the Release is published)* | — |
+| v0.1.0 | [`10.5281/zenodo.23396402`](https://doi.org/10.5281/zenodo.23396402) (record 23396402) | 2026-10-15 |
