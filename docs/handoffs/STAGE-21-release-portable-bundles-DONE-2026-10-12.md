@@ -14,7 +14,7 @@ next_stage: 22
 next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 ---
 
-# Stage 21 — Release: Portable Bundles + Hardening + v0.1.0 — COMPLETE (v0.1.0 ready to tag)
+# Stage 21 — Release: Portable Bundles + Hardening + v0.1.0 — COMPLETE (v0.1.0 released)
 
 > **Stage 21 is `complete`.** Every deliverable is merged on main. The constitution PR (#57) merged
 > on 2026-10-15 after its 72 h window and the operator's sign-off, and **PR-15**, the v0.1.0
@@ -26,9 +26,10 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
 > v0.1.0 makes no flapping-wing optimization claim. It is in the body of the release notes, the
 > paper, the CHANGELOG, `CITATION.cff` and `.zenodo.json`.
 >
-> **What is left is operator-gated (§7):** the `v0.1.0` tag, the README refresh after it (PR-16),
-> the GitHub Release (which mints the Zenodo version DOI), PR-17 for that DOI, and the JOSS
-> submission on or after 2026-11-18.
+> **v0.1.0 is released (2026-10-15).** The operator tagged `9d02892`, and `tag-handoff-gate` is
+> green. The GitHub Release is published, and Zenodo minted the version DOI
+> **10.5281/zenodo.23396402** (§7). What is left is the operator's JOSS submission, on or after
+> 2026-11-18.
 >
 > - **Do not create a second Stage-21 handoff.** The Stop hook picks the newest-mtime file and the
 >   README generator the lexicographically last.
@@ -258,38 +259,37 @@ next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
   `vv-required` job needs. Strict mode allows one merge per main movement, so a stack of N PRs
   costs N CI cycles.
 
-## 7. Open items — what is left, in order
+## 7. Release facts, and what is left
 
 **Done by the close (2026-10-15):** the merges (§1); both new contexts required; fork approval set
 to all external contributors; the licence exceptions approved; the operator metadata filled; #57
-merged; PR-15 merged; the Stage-22 prompt written.
+merged; PR-15 (#65) merged; the Stage-22 prompt written; the release below.
 
-1. **Agent:** after PR-15 merges, run `python3 -I scripts/release_readiness.py --gate release
-   --online` on main and dispatch `gh workflow run release-readiness.yml -f version=0.1.0 --ref
-   main`. Both must print `READY TO TAG v0.1.0 at <sha>`.
-2. **Operator:** tag that sha and push the tag:
+**The v0.1.0 release:**
 
-   ```sh
-   git tag -a v0.1.0 <sha> -m "aero-research-platform v0.1.0"
-   git push origin v0.1.0
-   ```
+| Fact | Value |
+|---|---|
+| Release commit | `9d0289273d757b820819b8d6394cbdd6e8c19441` (#65's squash merge; code tree == `git_sha_end` `c2a00b4`) |
+| Readiness | `release_readiness.py --gate release --online`: 12/12 PASS, `READY TO TAG v0.1.0 at 9d02892`. `release-readiness.yml` run 38741086533: the same verdict, and the reproducible artifacts (each built twice, byte-identical) |
+| Tag | `v0.1.0`, annotated (tag object `76cbafe`), cut and pushed by the operator. The agent's `git tag` was refused by the auto-mode classifier, even though the operator had delegated it |
+| Tag gate | `tag-handoff-gate` run 38741505654: success |
+| GitHub Release | <https://github.com/ernesto01louis/aero-research-platform/releases/tag/v0.1.0>, published 2026-10-15T13:18:21Z, not a draft or pre-release. Nine assets: the wheel, the sdist, five `.crate.zip` files, `licence-report.json` and `SHA256SUMS`. Every asset's GitHub-computed sha256 equals its `SHA256SUMS` line |
+| Zenodo | Record 23396402, **version DOI `10.5281/zenodo.23396402`**, version `v0.1.0`, published 2026-10-15. Creator with ORCID and affiliation, `gpl-3.0-or-later`, and the limitation sentence in the description. The concept DOI `10.5281/zenodo.20292712` now resolves to it |
 
-   `tag-handoff-gate` must go green. If it goes red, the operator deletes the tag (propose-first),
-   the handoff is fixed, and the tag is re-cut.
-3. **Agent:** PR-16, the README STATUS refresh, as the **first** PR after the tag. The tagged
-   tree's README reads "(not yet tagged)" by design.
-4. **Operator:** download the readiness run's `release-artifacts-v0.1.0`, check `sha256sum -c
-   SHA256SUMS`, confirm the Zenodo toggle is on, and publish the GitHub Release (published, not a
-   draft or pre-release) with `docs/release/RELEASE-NOTES-v0.1.0.md` and those artifacts. Then QA
-   the Zenodo record: creators, `gpl-3.0-or-later`, v0.1.0, and the limitation in the description.
-5. **Agent:** PR-17 records the version DOI in `docs/release/zenodo.md` and `CITATION.cff`.
-6. **JOSS:** the operator submits on or after **2026-11-18** and sets `submission_date` then.
+The crate digests in the Release are the five pinned in `crates/README.md` and
+`scripts/crate_oracle.py`. The README STATUS refresh and the DOI record (`docs/release/zenodo.md`,
+the CITATION `identifiers`) landed in one post-release PR, PR-16/17 combined.
+
+**Left:**
+1. **JOSS:** the operator submits on or after **2026-11-18** and sets `submission_date` then.
    Before submitting, regenerate the AI disclosure (`--write --ref origin/main`) and run
    `release_readiness.py --gate joss --online`. **Only the operator replies to editors and
    reviewers.**
-7. **Post-v0.1.0:** Stage 22 (`docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`,
-   which carries addendum C as a pre-registration item); ADR-050 (proposed, addendum B); H-34 and
-   H-35 (ledgered).
+2. **Post-v0.1.0:**
+   - Stage 22 (`docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`), which carries
+     addendum C as a pre-registration item;
+   - ADR-050 (proposed, addendum B);
+   - H-34 and H-35 (ledgered).
 
 The Stage-22 prompt exists: `docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`.
 

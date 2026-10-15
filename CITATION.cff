@@ -50,9 +50,13 @@ keywords:
 license: GPL-3.0-or-later
 version: 0.1.0
 date-released: "2026-10-15"
-# Zenodo concept DOI — resolves to the latest Zenodo version (v0.1.0 once its GitHub Release is
-# published). Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
+# Zenodo concept DOI — resolves to the latest Zenodo version (v0.1.0 since 2026-10-15).
+# Per-version DOIs are minted per GitHub Release; see docs/release/zenodo.md.
 doi: 10.5281/zenodo.20292712
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23396402
+    description: The version DOI of v0.1.0 (Zenodo record 23396402).
 
 # Public datasets the platform consumes — Stage 08 onward. Anyone publishing
 # results that use a surrogate trained on one of these MUST cite the

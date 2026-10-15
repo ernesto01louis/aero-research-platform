@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.1.0 (not yet tagged)  ·  **Status:** complete  ·  **Completed:** 2026-10-15
+**Latest tag:** v0.1.0  ·  **Status:** complete  ·  **Completed:** 2026-10-15
 
 **Stage 21 — Release: Portable Bundles + Hardening + v0.1.0** — most recent stage.
 
