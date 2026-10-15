@@ -340,6 +340,15 @@ New findings during Stage 21 (not release-blocking):
   or rigid-flapping solves only. It does **not** reopen coupled-FSI restart (ADR-045 A19 /
   ADR-046 S5).
 
+## Post-v0.1.0 — deferred by operator decision
+
+- [ ] **The JOSS submission** (deferred 2026-10-15). JOSS's pre-review screening requires evidence
+  of research use, and aspirational future use is not enough. The paper's research-impact
+  statement is "testing so far". **Resume when** a publication, an analysis using the platform, or
+  an external adopter exists: rewrite the impact statement from it, then follow
+  `docs/release/joss.md`. The prepared metadata is on branch `joss-submission` (closed PR #68).
+  The release itself (v0.1.0, Zenodo DOI 10.5281/zenodo.23396402) is unaffected.
+
 ## Post-v0.1.0 — proposed ADRs awaiting implementation
 
 - [ ] **ADR-050: a hosted, CPU-only, outsider-reproducible CFD number** (addendum B, operator
