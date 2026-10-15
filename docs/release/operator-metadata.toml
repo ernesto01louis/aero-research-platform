@@ -7,7 +7,7 @@
 #   - orcid: CITATION.cff authors[0].orcid, .zenodo.json creators[0].orcid, paper front matter;
 #   - affiliation and ror: CITATION.cff authors[0].affiliation, .zenodo.json creators[0].affiliation,
 #     paper affiliations;
-#   - funding: the paper's Acknowledgements;
+#   - funding and conflicts_of_interest: the paper's Acknowledgements;
 #   - research_use: the paper's "Research impact statement";
 #   - ai_human_review_statement: the paper's "AI usage disclosure", in the operator's own words;
 #   - submission_date: the paper front matter `date`, as "%e %B %Y".
@@ -18,4 +18,5 @@ ror = "none (independent researcher)"
 funding = "No external funding."
 research_use = "Testing so far. Studying aerospace engineering, focusing on CFD software; plan: build an understanding of flapping wings and other bio-inspired principles of aerodynamics."
 ai_human_review_statement = "By splitting the work into steps and reviewing the code before the merge."
-submission_date = "<<OPERATOR-SUBMISSION-DATE>>"
+conflicts_of_interest = "None. The author declares no conflicts of interest."
+submission_date = "2026-11-18"
