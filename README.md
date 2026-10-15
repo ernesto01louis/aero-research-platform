@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.1.0 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-10-12
+**Latest tag:** v0.1.0 (not yet tagged)  ·  **Status:** complete  ·  **Completed:** 2026-10-15
 
 **Stage 21 — Release: Portable Bundles + Hardening + v0.1.0** — most recent stage.
 
-**Next:** resume Stage 21 — Release: Portable Bundles + Hardening + v0.1.0 — partial, not finished.
+**Next:** Stage 22 — Rigid-Flapping Optimization.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
