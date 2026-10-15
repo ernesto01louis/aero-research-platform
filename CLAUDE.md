@@ -469,8 +469,10 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 - **Release: result crates, licence scan, release governance** (Stage 21, ADR-046/047/048/049;
   v0.1.0) — Stage 21 was release-first (ADR-046). **The optimizer has never been run on a
-  flapping-wing case, and v0.1.0 makes no flapping-wing optimization claim**; Stage 22 is
-  rigid-flapping optimization, and flexible flapping is deferred (ADR-046 S4/S5).
+  flapping-wing case, and v0.1.0 makes no flapping-wing optimization claim**. ADR-051 puts the
+  foundation first: Stages 22–26 (honest V&V report, provenance, the whole registry, the turbulent
+  canonical cases, forward-model validation) come before rigid-flapping optimization. Flexible
+  flapping is deferred (ADR-046 S4/S5).
   **Result crates** (`aero/crate/`, format v1; CONSTITUTION Invariant 13): every externally
   reported result is an `aero-result-crate` — RO-Crate 1.3 + Process Run Crate 0.6 + PROV-JSON,
   content-addressed config preimages (`sha256(configs/<hash>.json) == config_hash`), and a

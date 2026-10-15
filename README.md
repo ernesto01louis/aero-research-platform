@@ -23,7 +23,7 @@ for scope.
 
 **Stage 21 — Release: Portable Bundles + Hardening + v0.1.0** — most recent stage.
 
-**Next:** Stage 22 — Rigid-Flapping Optimization.
+**Next:** Stage 22 — Foundation I: An Honest V&V Report.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.

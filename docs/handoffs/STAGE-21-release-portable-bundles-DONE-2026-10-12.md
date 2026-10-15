@@ -11,7 +11,7 @@ git_sha_start: 83baa43225cd9a5f9684a0481b8502b6004fa49c
 git_sha_end: c2a00b4369b8cb8aa16a57dce93dff657f9af26b
 stage_tag: v0.1.0
 next_stage: 22
-next_stage_name: "Stage 22 — Rigid-Flapping Optimization"
+next_stage_name: "Stage 22 — Foundation I: An Honest V&V Report"
 ---
 
 # Stage 21 — Release: Portable Bundles + Hardening + v0.1.0 — COMPLETE (v0.1.0 released)
@@ -286,13 +286,16 @@ the CITATION `identifiers`) landed in one post-release PR, PR-16/17 combined.
    rejected. It resumes once a publication, an analysis or an external adopter exists
    (`docs/release/joss.md`; ledger). Draft PR #68 is closed and its branch kept. **Only the
    operator replies to editors and reviewers.**
-2. **Post-v0.1.0:**
-   - Stage 22 (`docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`), which carries
-     addendum C as a pre-registration item;
-   - ADR-050 (proposed, addendum B);
-   - H-34 and H-35 (ledgered).
+2. **Post-v0.1.0, re-sequenced by ADR-051 (operator, 2026-10-15): the foundation first.**
+   - Stages 22–26: an honest V&V report; provenance you can trust; running the registry; the
+     turbulent canonical cases; forward-model validation for the optimization targets.
+   - Rigid-flapping optimization comes after Stage 26. The prompt drafted here, which carries
+     addendum C as a pre-registration item, moved to
+     `docs/handoff-bundle/LATER-rigid-flapping-optimization.md`.
+   - ADR-050 (addendum B) is Stage 23's end-to-end proof. H-34 and H-35 ride along in Stage 22
+     if there is time, and otherwise stay ledgered.
 
-The Stage-22 prompt exists: `docs/handoff-bundle/STAGE-22-rigid-flapping-optimization.md`.
+The Stage-22 prompt exists: `docs/handoff-bundle/STAGE-22-foundation-honest-vv-report.md`.
 
 ## 8. Pointers for next session
 

@@ -7,6 +7,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
+### Changed — the post-v0.1.0 plan
+
+- **Foundation first (ADR-051).** Stages 22–26 build an honest, validated base before any new
+  optimization: an honest V&V report; provenance you can trust; the whole registry run; the
+  turbulent canonical cases; forward-model validation for the optimization targets.
+  Rigid-flapping optimization follows them (prompt draft
+  `docs/handoff-bundle/LATER-rigid-flapping-optimization.md`). No band, tolerance or gate moves.
+- **The JOSS submission is deferred** until the platform has evidence of research use (#69;
+  `docs/release/joss.md`). The v0.1.0 release and its Zenodo DOI are unaffected.
+
 ## [0.1.0] - 2026-10-15
 
 The first release, cut at the close of Stage 21 (Release: Portable Bundles + Hardening + v0.1.0;
