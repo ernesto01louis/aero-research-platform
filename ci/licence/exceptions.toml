@@ -10,7 +10,7 @@
 # Every exception is keyed by exact name + version (+ commit for a git source). It FAILS the scan when
 # the lock moves (stale), when it is unused, or when the package is reachable from a scope it does
 # not list. Prepared by the Stage-21 agent from the upstream licence texts linked below, and reviewed
-# and approved by the operator on 2026-10-14 (his sign-off comment on PR #57, the ADR-048
+# and approved by the operator on 2026-10-14 (the sign-off comment on PR #57, the ADR-048
 # ratification).
 
 # --- base (dvc's transitive GPL-2 family; ADR-048 D1: dvc stays in the base dependencies) ---------

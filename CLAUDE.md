@@ -467,6 +467,38 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   15 %; near-zero mean lift is a diagnostic). The `aero vv run` path is single-shot
   (no ladder) — promoting the ladder into the runner is ledgered.
 
+- **Release: result crates, licence scan, release governance** (Stage 21, ADR-046/047/048/049;
+  v0.1.0) — Stage 21 was release-first (ADR-046). **The optimizer has never been run on a
+  flapping-wing case, and v0.1.0 makes no flapping-wing optimization claim**; Stage 22 is
+  rigid-flapping optimization, and flexible flapping is deferred (ADR-046 S4/S5).
+  **Result crates** (`aero/crate/`, format v1; CONSTITUTION Invariant 13): every externally
+  reported result is an `aero-result-crate` — RO-Crate 1.3 + Process Run Crate 0.6 + PROV-JSON,
+  content-addressed config preimages (`sha256(configs/<hash>.json) == config_hash`), and a
+  `SHA256SUMS` whose sha256 is the citable **crate digest**. The reader hashes every member before
+  parsing and recomputes computed fields bit for bit; `python -I -B -m aero.crate
+  verify|show|numbers|pack` runs sandboxed with only stdlib + numpy + pydantic. **Producer
+  contract:** keep the exact `resolved_config` passed to `compute_provenance` and call
+  `aero.crate.write_crate`; never write a crate under `data/vv/`. Committed crates (`crates/`) are
+  immutable and a regression corpus; their digests are pinned in `scripts/crate_oracle.py` (an
+  independent stdlib oracle that never imports `aero`), so a new crate updates the oracle in the
+  same PR. Format v1 is frozen: any change is v2 plus an ADR. **Licence scan** (Invariant 5,
+  ADR-048): `scripts/licence_scan.py check` over `uv.lock`. A lock change that adds or moves a
+  package needs `refresh` of `ci/licence/metadata-snapshot.json`, and possibly a reviewed
+  exact-version exception in `ci/licence/exceptions.toml`; stale or unused exceptions fail.
+  **Release governance** (ADR-049): `scripts/check_release_tag.sh` gates `vX.Y.Z` tags (exactly
+  one handoff with that `stage_tag`, `status: complete`, a `git_sha_end` with the tagged code
+  tree, the next stage's prompt, agreeing versions), and `scripts/release_readiness.py --gate
+  release --online` verifies every required context green (skipped is not green). The version is
+  static in pyproject and bumped only in a release PR; pyproject == `aero.__version__` == the
+  `uv.lock` root == CITATION.cff. The **12 required contexts** are listed in
+  `.github/required-checks.json`, which must equal branch protection (`test_workflow_hygiene.py`).
+  **Gotchas:** actions are SHA-pinned and hosted jobs pinned to `ubuntu-24.04`; squash merges
+  break stacked branches (merge `main` in and take main's copy of the base's files); commit
+  headers must be ≤ 100 characters **before** pushing, since fixing one needs a force-push; numpy
+  reductions differ in the last bit across CPUs, so pinned bytes of numpy output need a committed
+  snapshot. **JOSS:** only the operator replies to editors and reviewers; an agent never drafts a
+  review comment (`docs/release/joss.md`).
+
 ## Pointers (do not re-derive — read these)
 
 - `CONSTITUTION.md` — invariants in spec-kit form
@@ -493,4 +525,4 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 ---
 
-*Stage 01 (2026-05-17); updated through Stage 21 (2026-10-12) by each stage's post-stage handoff write.*
+*Stage 01 (2026-05-17); updated through Stage 21 (2026-10-15, v0.1.0) by each stage's post-stage handoff write.*
