@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-16
+
+Stage 22, the first foundation stage of ADR-051 (an honest V&V report). It changes what the
+production gate shows, never what a case is: no tolerance moved and no case became `pass` without
+a passing run. Release notes: `docs/release/RELEASE-NOTES-v0.1.1.md`.
+
 ### Fixed — the V&V report shows the truth (Stage 22, ADR-051)
 
 - **`aero vv report --latest` no longer reads a window.** It read the newest 500 of 2388 runs, and
@@ -25,6 +31,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
   `docs/vv/output-validity-bar.md` say a production run is gated by its own stack.
 - **A solver failure now carries the tail of the solver log** in its `BenchmarkError`, so its cause
   reaches the CI log instead of a bare return code.
+
+### Changed — no V&V workflow is green when it measured nothing (Stage 22, ADR-051)
+
+- **Every `dvc pull` in CI is targeted and fails loudly.** All five V&V workflows ran
+  `dvc pull --quiet || echo "dvc pull skipped (no remote configured)"`, which failed on every run
+  (a bare pull also targets the DrivAerML dataset on the `aero-nfs` remote) and was relabelled a
+  skip. Only `vv-transonic` pulls now: the ONERA M6 mesh, by path.
+- **Only a measured tolerance miss may `xfail`** (`raises=AssertionError`; strict on single-grid
+  gates), and no test skips on a solver error. The NACA 0012 verification, whose solve diverges at
+  iteration 83 (ADR-017), is deselected with its reason (`unmeasurable`) instead of reading as
+  `xfailed`.
+- **The active-stack jobs** (`vv-required`, `vv-smoke`) run the OpenFOAM stack only; the five SU2
+  tests are `su2`-marked and run in `vv-transonic`, which is **dispatch-only** (operator decision
+  2026-10-16).
+- **`AERO_VV_REQUIRE_CLUSTER=1`**: a cluster that is not ready fails the suite instead of skipping
+  it green.
+- **Every V&V workflow writes a step summary** (`scripts/vv_ci_summary.py`): each test's outcome
+  and reason, and every deselected solve grouped by why it was not measured.
+- A unit test for `scripts/regenerate_status.sh` (Stage-21 ledger item).
 
 ### Changed — the post-v0.1.0 plan
 
@@ -1196,7 +1221,8 @@ Optimizer-mission refocus continued + the Stage-10 output-validity bar.
   CODEOWNERS 1-approval; `enforce_admins: false` for solo-admin self-merge
 - Post-stage handoff: `docs/handoffs/STAGE-01-scaffolding-and-conventions-DONE-2026-05-17.md`
 
-[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.20...v0.1.0
 [0.0.20]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.19...v0.0.20
 [0.0.19]: https://github.com/ernesto01louis/aero-research-platform/compare/v0.0.18...v0.0.19
