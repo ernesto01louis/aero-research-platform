@@ -14,14 +14,16 @@ next_stage: 23
 next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 ---
 
-# Stage 22 — Foundation I: An Honest V&V Report — COMPLETE (v0.1.1 ready to tag)
+# Stage 22 — Foundation I: An Honest V&V Report — COMPLETE (v0.1.1 tagged)
 
 > **Stage 22 is `complete`.** Deliverables 1–5 are merged on main (#71, #72, #73), and the release
 > PR carries deliverable 6. `git_sha_end` is that PR's bump commit (`cfad02a`); the commit after it
 > is docs-only (this handoff and the README), so the squash-merged commit that gets tagged has the
-> same code tree, which `check_release_tag.sh` checks. **The tag `v0.1.1` is the operator's** (the
-> agent's `git tag` is classifier-blocked): after the release PR merges,
-> `release_readiness.py --gate release --online` must print `READY TO TAG v0.1.1`.
+> same code tree, which `check_release_tag.sh` checks. **`v0.1.1` is tagged (2026-10-16).**
+> `release_readiness.py --gate release --online` printed `READY TO TAG v0.1.1 at 6ca22c9` (12/12
+> PASS); the operator cut the annotated tag (tag object `6cbd34d` → `6ca22c9`, #74's squash
+> merge) and pushed it; `tag-handoff-gate` run 38936703995 succeeded. No GitHub Release was
+> published (the operator's choice; no Zenodo version DOI for v0.1.1).
 >
 > **The verdict at the close is unchanged and RED.** No stack is clear for production-tagged runs:
 > openfoam RED (7 pass, 4 fail, 9 missing), su2 and pyfr FROZEN. Stage 22 changed what the gate
@@ -43,7 +45,7 @@ next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 | 3 | Typed status and the verdict | ✅ #72 | `aero/vv/status.py` (`VVStatus` Literal, `stack_verdicts`), `aero/vv/stacks.py` (the 25-case stack table, loud on drift); `DashboardEntry.status` typed; one verdict per stack in the text and the HTML; CLAUDE.md, ADR-005 (dated scope note) and `docs/vv/output-validity-bar.md` cite ADR-051 D2 |
 | 4 | No V&V workflow is green when it measured nothing | ✅ #73 | every `dvc pull` targeted and fail-loud; only a tolerance miss may `xfail` (`raises=AssertionError`); no skip on a solver error; a not-ready cluster fails in CI (`AERO_VV_REQUIRE_CLUSTER=1`); every V&V job writes a step summary of what it measured and what it did not; `vv-transonic` dispatch-only; hygiene tests pin all of it. The audit table and the diagnostic dispatch (run 38891472030) are in §5 |
 | 5 | The per-case table | ✅ | before and after tables below; `scripts/vv_report_crosscheck.py` (a full pagination, independent of `aero.vv.report`) agrees case for case: status and run id on all 25 |
-| 6 | The close: `v0.1.1` (D4) | ✅ ready to tag | the release PR: bump commit `cfad02a` (pyproject, the `uv.lock` root, CITATION `version` + `date-released`, CHANGELOG `[0.1.1] - 2026-10-16`, `docs/release/RELEASE-NOTES-v0.1.1.md`), then this docs-only commit. The tag is the operator's (§7) |
+| 6 | The close: `v0.1.1` (D4) | ✅ tagged | the release PR: bump commit `cfad02a` (pyproject, the `uv.lock` root, CITATION `version` + `date-released`, CHANGELOG `[0.1.1] - 2026-10-16`, `docs/release/RELEASE-NOTES-v0.1.1.md`), then this docs-only commit. The operator tagged it: `v0.1.1` (`6cbd34d` → `6ca22c9`), `tag-handoff-gate` green (§7) |
 
 (✅ = done, ⚠️ = partial, ❌ = not done / blocked)
 
@@ -338,12 +340,10 @@ a dispatch before it is believed; it is ledgered, not applied.
 
 ## 7. Open items for the next stage (and beyond)
 
-- **The operator, to close Stage 22:**
-  1. after the release PR merges, run
-     `PATH=.venv/bin:$PATH python scripts/release_readiness.py --gate release --online` and expect
-     `READY TO TAG v0.1.1 at <sha>`; then cut the annotated tag it prints and push it;
-  2. decide whether to publish a GitHub Release (which mints a Zenodo version DOI);
-  3. the README STATUS refresh follows the tag (one docs-only PR that drops "(not yet tagged)").
+- **The close is done:** `READY TO TAG v0.1.1 at 6ca22c9` (12/12); the operator tagged it
+  (`6cbd34d` → `6ca22c9`); `tag-handoff-gate` run 38936703995 succeeded; the README STATUS refresh
+  landed in the docs-only PR after the tag. A GitHub Release for v0.1.1 stays the operator's
+  choice (none published).
 - **The Stage-23 prompt exists:** `docs/handoff-bundle/STAGE-23-foundation-provenance.md`. It lists
   six decisions to put to the operator at stage open.
 - **Stage 23 (provenance):** a bare `dvc pull` can never succeed in this repository because the
