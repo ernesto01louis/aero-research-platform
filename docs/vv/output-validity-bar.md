@@ -30,6 +30,12 @@ against another CFD run or a workshop-consensus band alone (Hard Rule 15;
 substitute for an anchor (see §5); the forward model it relies on is itself anchored
 upstream by stage sequencing (Stage 14 validates before Stage 15 optimizes).
 
+**The solver stack must also be clear for production.** A `production`-tagged run additionally
+needs its own solver stack GREEN in `aero vv report --latest`: every registered case on that stack
+`pass` (ADR-005, scoped per solver stack by ADR-051 D2 (b), the decision of record). Frozen-optional
+(ADR-013) and deferred (ADR-046 S4) cases are shown as `frozen` / `deferred` and never count as a
+pass. This is a gate on the stack, separate from the per-result anchor above.
+
 ## 3. Quantified uncertainty — U95 = RSS of three independent contributions
 
 ```
