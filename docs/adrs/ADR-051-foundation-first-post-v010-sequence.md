@@ -1,8 +1,9 @@
 # ADR-051 — Foundation first: the post-v0.1.0 sequence puts an honest V&V base before any new optimization
 
-- **Status:** proposed (2026-10-15). It is accepted by the operator's word on its PR, and that
-  acceptance is recorded by the commit that lands this change, the ADR-046 pattern. Until then the
-  plan of record is ADR-046's: rigid-flapping optimization is the first post-v0.1.0 stage.
+- **Status:** **accepted** — proposed 2026-10-15 and **accepted by the operator on 2026-10-16**
+  ("Accept as written"), in the Stage-21 close-out session. That acceptance is recorded by the
+  commit that lands this change, the ADR-046 pattern. The operator decided D2 and D4 at the same
+  time: D2 → (b), a per-solver-stack verdict; D4 → `v0.1.N` per foundation stage.
 - **Date:** 2026-10-15
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 21 close-out)
 - **Stage:** 22 onward. This ADR defines Stages 22–26.
@@ -145,7 +146,7 @@ last: Stage 26 validates the models the optimizer would rely on.
 Running the registry (24) before the provenance fix (23) would record a whole campaign under the
 weak semantics. The operator may reorder 23 and 24 at Stage 22's close if the provenance work blocks.
 
-### D2 — Cases that cannot run on the active stack (operator decision at Stage 22 open)
+### D2 — Cases that cannot run on the active stack (decided 2026-10-16: option (b))
 
 Five registered cases cannot run on the stack the platform actively uses:
 - the two SU2 transonic cases and the two PyFR GPU cases, whose solvers are frozen-optional by
@@ -157,7 +158,7 @@ Options:
   - The SU2 pair runs on CPU in principle. Today the ONERA M6 solve fails, because its mesh is not
     pulled, and the transonic NACA 0012 test is xfail (§1).
   - The PyFR pair needs a GPU runner that does not exist, or RunPod spend.
-- **(b) Scope the verdict per solver stack (recommended).** ADR-005's rule is "a V&V case outside
+- **(b) Scope the verdict per solver stack. Chosen by the operator, 2026-10-16.** ADR-005's rule is "a V&V case outside
   tolerance means *the solver stack* is not trustworthy". A production run on the OpenFOAM stack
   would then need every OpenFOAM-stack case green, and a PyFR production run every PyFR case.
   Frozen or deferred cases stay registered and visible with a typed status (`frozen`, `deferred`),
@@ -173,7 +174,7 @@ took 20.3 h. Each of those stages opens with a compute plan (cases, wall-time es
 recorded runs, the `run_long.sh` reap and timeout plan), and the operator approves it before any
 run. Any cloud spend needs its own ADR (Invariant 8).
 
-### D4 — Stage tags after v0.1.0 (operator decision at Stage 22 open)
+### D4 — Stage tags after v0.1.0 (decided 2026-10-16: `v0.1.N`)
 
 ADR-049 R3 defines the version policy only up to v0.1.0. Recommended: each foundation stage closes
 with a patch version, `v0.1.N` (Stage 22 → `v0.1.1`). It goes through the same release PR, tag gate

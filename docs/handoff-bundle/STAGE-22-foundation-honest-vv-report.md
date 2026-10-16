@@ -50,14 +50,14 @@ close it printed 5 pass, 1 fail, 20 missing. The truth, read by paging the whole
 The full table is in ADR-051 §1. The RED verdict was right; the information behind it was not. A
 foundation cannot be built on a gate that misreports.
 
-## Operator decisions at stage open (ask before building on them)
+## Operator decisions (made 2026-10-16, with ADR-051's acceptance)
 
-| # | Decision | Recommended |
+| # | Decision | Decided |
 |---|---|---|
-| D2 | What happens to the 5 cases that cannot run on the active stack: the SU2 transonic pair and the PyFR GPU pair (frozen-optional, ADR-013), and `hg2007_flexible_foil` (deferred, ADR-046 S4) | **(b) Scope the verdict per solver stack.** Frozen and deferred cases stay registered and visible with a typed status, never `pass`, and no longer gate a stack they do not measure. Option (a) runs them; option (c), removing them, is rejected (ADR-051) |
-| D4 | The stage tag after v0.1.0 | **`v0.1.1`**: a patch version per foundation stage, via the ADR-049 release PR and tag gate. A GitHub Release (Zenodo DOI) only when the operator chooses |
+| D2 | What happens to the 5 cases that cannot run on the active stack: the SU2 transonic pair and the PyFR GPU pair (frozen-optional, ADR-013), and `hg2007_flexible_foil` (deferred, ADR-046 S4) | **Decided: (b) scope the verdict per solver stack.** Frozen and deferred cases stay registered and visible with a typed status, never `pass`, and no longer gate a stack they do not measure. Option (a) runs them; option (c), removing them, is rejected (ADR-051) |
+| D4 | The stage tag after v0.1.0 | **Decided: `v0.1.1`**: a patch version per foundation stage, via the ADR-049 release PR and tag gate. A GitHub Release (Zenodo DOI) only when the operator chooses |
 
-Record both in the handoff, and in an ADR if D2's answer changes ADR-005's rule.
+D2 changes the scope of ADR-005's rule: a production run is gated by its own solver stack's cases. ADR-051 D2 is the decision of record, so cite it wherever the rule is restated (CLAUDE.md, `docs/vv/output-validity-bar.md`, the report's output). Record both decisions in the handoff.
 
 ## Deliverables
 
@@ -65,7 +65,7 @@ Record both in the handoff, and in an ADR if D2's answer changes ADR-005's rule.
 
 - `.aero-stage` → `22`, and the Dependabot commit prefix → `ci(stage-22)` (the workflow-hygiene
   test enforces that the two agree).
-- A `status: partial` Stage-22 handoff from the first commit on, with `stage_tag` per D4,
+- A `status: partial` Stage-22 handoff from the first commit on, with `stage_tag: v0.1.1` (D4),
   `next_stage: 23` and `next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"`.
   Regenerate the README in the same commit.
 
@@ -86,8 +86,8 @@ Record both in the handoff, and in an ADR if D2's answer changes ADR-005's rule.
 ### 3. Typed status and the verdict
 
 - `DashboardEntry.status` becomes a `Literal`. Its values are `pass`, `fail`, `regress`,
-  `missing`, `unknown`, plus `frozen` and `deferred` if D2 is (b). An unknown string fails loudly.
-- **The verdict follows D2.** Under (b), each solver stack's verdict is green only if every case on
+  `missing`, `unknown`, plus `frozen` and `deferred` (D2 (b)). An unknown string fails loudly.
+- **The verdict is per solver stack (D2 (b)).** Each stack's verdict is green only if every case on
   that stack is `pass`. `frozen` and `deferred` render distinctly and never count as `pass`.
 - The report says which stack a production run would be gated by. Update the ADR-005 rule's wording
   in CLAUDE.md to match, citing the decision's ADR.
@@ -112,6 +112,23 @@ Run the fixed `aero vv report --latest` and record its full output in the handof
 ids. Cross-check it against an independent read: a full pagination of the experiment by a small
 read-only script under `scripts/`. The two must agree case for case.
 
+### 6. The close: `v0.1.1` (D4)
+
+This follows ADR-049 R3, as v0.1.0 did:
+1. **The release PR:**
+   - bumps `0.1.1` in every version carrier (pyproject, the `uv.lock` root, CITATION
+     `version` and `date-released`, and a CHANGELOG `## [0.1.1]` heading);
+   - adds `docs/release/RELEASE-NOTES-v0.1.1.md`, whose body carries the phrases
+     `release_readiness.py` requires;
+   - marks the handoff `complete`, with `git_sha_end` as the bump commit.
+
+   Its last commit is docs-only.
+2. After it merges, `release_readiness.py --gate release --online` must print `READY TO TAG
+   v0.1.1`. **The operator cuts the tag.**
+3. The README refresh follows the tag.
+
+A GitHub Release is published only if the operator chooses.
+
 ### Ride-alongs, only if 1–5 are done (otherwise they stay ledgered)
 
 - A unit test for `scripts/regenerate_status.sh` (ledger, Stage 21).
@@ -120,10 +137,10 @@ read-only script under `scripts/`. The two must agree case for case.
 ## GO / NO-GO
 
 - **GO requires all of these:**
-  - deliverables 1–5;
+  - deliverables 1–6 (the tag itself is the operator's);
   - the fixed report agrees case for case with the independent full-pagination read;
   - no V&V workflow reports green on a run that measured nothing;
-  - D2 and D4 decided and recorded;
+  - D2 and D4 recorded in the handoff and implemented as decided;
   - all required CI green.
 - **NO-GO** means the handoff stays `partial` and names what is missing. This stage changes what the
   report *shows*, never what a case *is*: no case moves to `pass` without a passing run.
