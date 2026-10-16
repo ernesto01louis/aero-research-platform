@@ -58,6 +58,16 @@ run of 2026-10-15 measured nothing:
 
 A green job that skips on a solver failure is the pattern H-19 removed from `vv-scale-resolving`.
 
+> **Erratum (2026-10-16, the Stage-22 workflow audit).** The mesh *was* fetched. "`onera_m6:
+> solver failed (rc=1)`" can only be raised after the SU2 adapter has copied the mesh and parsed
+> its element count; a genuinely missing mesh reads "SU2 mesh asset not found". SU2_CFD itself
+> dies at startup on `aero-build`: the 2D bump through SU2, which uses no DVC asset, fails the same
+> way. The `dvc pull` printed "skipped" because a bare pull also targets the DrivAerML dataset on
+> the `aero-nfs` remote and exits 1 after fetching everything else, and `|| echo "dvc pull skipped
+> (no remote configured)"` relabelled that. `OneraM6.evaluate()` is also unimplemented. The
+> conclusion above stands — the job was green while measuring nothing — only the cause differs.
+> Details: the Stage-22 handoff §3 and the deferred-work ledger.
+
 ### 2. The turbulent canonical cases have never passed
 
 - **TMR flat plate:** Cf is 12.6 % off the CFL3D SST data against a 5 % tolerance, since Stage 5
