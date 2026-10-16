@@ -40,6 +40,10 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
     "not grid-converged for a reliable GCI; needs a dedicated convergence pass "
     "or a transient-mean treatment (Stage 11). Tolerance NOT relaxed; see "
     "ADR-017. [resolution-milestone: deferred]",
+    # Only a convergence/order assertion may xfail; a solver or harness error FAILS (Stage 22).
+    # strict=False: this sweep XPASSed on the 2026-10-15 nightly; whether the marker is stale is
+    # Stage 25's question, not a tolerance to move here.
+    raises=AssertionError,
     strict=False,
 )
 def test_bump_gci_mesh_sweep(vv_cluster_ready: bool, vv_runner: Any, repo_root: Path) -> None:

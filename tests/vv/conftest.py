@@ -5,17 +5,69 @@ mirror provenance into Postgres — so the slow tests need SSH, the OpenFOAM
 SIF, the `aero[openfoam,provenance,vv]` extras, a reachable MLflow server, and
 `AERO_PROVENANCE_DSN`. `vv_cluster_ready` gates all of that; a slow test
 skips cleanly when any piece is missing.
+
+In CI the cluster is not optional (Stage 22, ADR-051): the V&V jobs set
+`AERO_VV_REQUIRE_CLUSTER=1`, and a readiness fixture then FAILS, naming the missing
+pieces, instead of letting every test skip and the job go green having measured
+nothing. `pytest_deselected` records what the `-m` selection left out, so the job
+summary can say in words what was not measured and why (`scripts/vv_ci_summary.py`).
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Set by the V&V CI jobs: a cluster that is not ready is a failure there, not a skip.
+_REQUIRE_CLUSTER = "AERO_VV_REQUIRE_CLUSTER"
+#: Set by the V&V CI jobs: where `pytest_deselected` appends one JSON line per deselected test.
+_DESELECTED_JSON = "AERO_VV_DESELECTED_JSON"
+
+
+def _ready(stack: str, checks: dict[str, bool]) -> bool:
+    """All `checks` pass; with `AERO_VV_REQUIRE_CLUSTER=1`, fail loudly naming the gaps."""
+    missing = [name for name, ok in checks.items() if not ok]
+    if missing and os.environ.get(_REQUIRE_CLUSTER) == "1":
+        pytest.fail(
+            f"{_REQUIRE_CLUSTER}=1 but the {stack} V&V cluster is not ready: missing "
+            + ", ".join(missing)
+            + ". A V&V job that cannot reach its cluster has measured nothing; it must not "
+            "pass by skipping (Stage 22, ADR-051).",
+            pytrace=False,
+        )
+    return not missing
+
+
+def _base_checks(reachable: bool, sif: bool, extra: bool, sif_name: str) -> dict[str, bool]:
+    return {
+        "ssh root@aero-build": reachable,
+        f"/opt/aero/containers/{sif_name} on aero-build": sif,
+        "the solver extras (importable)": extra,
+        "scipy (aero[vv])": importlib.util.find_spec("scipy") is not None,
+        "AERO_PROVENANCE_DSN": bool(os.environ.get("AERO_PROVENANCE_DSN")),
+    }
+
+
+def pytest_deselected(items: list[pytest.Item]) -> None:
+    """Record every deselected test with its markers and any `unmeasurable` reason."""
+    dest = os.environ.get(_DESELECTED_JSON)
+    if not dest:
+        return
+    with open(dest, "a", encoding="utf-8") as fh:
+        for item in items:
+            mark = item.get_closest_marker("unmeasurable")
+            record = {
+                "nodeid": item.nodeid,
+                "markers": sorted({m.name for m in item.iter_markers()}),
+                "reason": str(mark.kwargs.get("reason", "")) if mark else "",
+            }
+            fh.write(json.dumps(record) + "\n")
 
 
 @pytest.fixture(scope="session")
@@ -30,11 +82,12 @@ def vv_cluster_ready(
     openfoam_extra_installed: bool,
 ) -> bool:
     """True iff a full V&V run can execute: cluster, extras, MLflow, Postgres DSN."""
-    if not (aero_build_reachable and openfoam_sif_present and openfoam_extra_installed):
-        return False
-    if importlib.util.find_spec("scipy") is None:
-        return False
-    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+    return _ready(
+        "OpenFOAM",
+        _base_checks(
+            aero_build_reachable, openfoam_sif_present, openfoam_extra_installed, "openfoam-esi.sif"
+        ),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -44,11 +97,10 @@ def vv_cluster_ready_su2(
     su2_extra_installed: bool,
 ) -> bool:
     """True iff a full SU2 V&V run can execute (Stage 06)."""
-    if not (aero_build_reachable and su2_sif_present and su2_extra_installed):
-        return False
-    if importlib.util.find_spec("scipy") is None:
-        return False
-    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+    return _ready(
+        "SU2",
+        _base_checks(aero_build_reachable, su2_sif_present, su2_extra_installed, "su2-v8.sif"),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -64,11 +116,10 @@ def vv_cluster_ready_pyfr(
     needs `RUNPOD_API_KEY` + `/etc/aero/runpod-ledger.json` instead; that
     integration test is gated by env var, not by this fixture.
     """
-    if not (aero_build_reachable and pyfr_sif_present and pyfr_extra_installed):
-        return False
-    if importlib.util.find_spec("scipy") is None:
-        return False
-    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+    return _ready(
+        "PyFR",
+        _base_checks(aero_build_reachable, pyfr_sif_present, pyfr_extra_installed, "pyfr.sif"),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -78,11 +129,10 @@ def vv_cluster_ready_nekrs(
     nekrs_extra_installed: bool,
 ) -> bool:
     """True iff a full NekRS V&V run can execute (Stage 07)."""
-    if not (aero_build_reachable and nekrs_sif_present and nekrs_extra_installed):
-        return False
-    if importlib.util.find_spec("scipy") is None:
-        return False
-    return bool(os.environ.get("AERO_PROVENANCE_DSN"))
+    return _ready(
+        "NekRS",
+        _base_checks(aero_build_reachable, nekrs_sif_present, nekrs_extra_installed, "nekrs.sif"),
+    )
 
 
 def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-def]

@@ -97,12 +97,10 @@ jobs:
           uv venv --python 3.12 --clear
           uv pip install -e ".[openfoam,provenance,vv,dev]"
 
-      - name: Fetch DVC-tracked V&V assets
-        env:
-          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
+      # Stage 22: the `dvc pull --quiet || echo "dvc pull skipped ..."` step that stood here is
+      # gone. Neither moving case reads a DVC-tracked file, and the bare pull failed on every
+      # run (it also targets the DrivAerML dataset on the aero-nfs remote) while the echo
+      # relabelled the failure as a skip.
 
       - name: Run the moving-mesh cases through the Stage-11 driver
         # Sequential and fail-slow: a failure in the first case must not hide the
@@ -126,12 +124,22 @@ jobs:
             CASES="oscillating_cylinder_lockin plunging_airfoil_hg2007"
           fi
           rc=0
+          {
+            echo "## moving-vv: what this job measured"
+            echo ""
+            echo "Each case runs through scripts/stage11_moving_vv.py; FAIL includes a solver"
+            echo "failure or a timeout (the run log has the reason)."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
           for c in $CASES; do
             echo "::group::moving-vv $c"
             if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host "$AERO_SOLVE_HOST"; then
               echo "$c: PASS"
+              echo "- \`$c\`: PASS" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo "$c: FAIL (exit $?)"
+              code=$?
+              echo "$c: FAIL (exit $code)"
+              echo "- \`$c\`: FAIL (exit $code)" >> "$GITHUB_STEP_SUMMARY"
               rc=1
             fi
             echo "::endgroup::"

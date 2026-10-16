@@ -26,7 +26,9 @@ pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_05]
     reason="measured Cf ~12.6% off the TMR CFL3D SST data — a flat-plate "
     "boundary-layer-development discrepancy; Stage-05 open item. "
     "[resolution-milestone: stage-12 correlation-spread]",
-    strict=False,
+    # Only a measured tolerance miss may xfail; a solver or harness error FAILS (Stage 22).
+    raises=AssertionError,
+    strict=True,
 )
 def test_flat_plate_cf_within_tolerance(
     vv_cluster_ready: bool, vv_runner: Any, repo_root: Path

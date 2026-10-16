@@ -45,7 +45,7 @@ _XFAIL_REASON = (
 )
 
 
-@pytest.mark.xfail(reason=_XFAIL_REASON, strict=False)
+@pytest.mark.xfail(reason=_XFAIL_REASON, raises=AssertionError, strict=True)
 def test_naca0012_cd_within_tolerance(
     vv_cluster_ready: bool, vv_runner: Any, repo_root: Path
 ) -> None:
@@ -60,7 +60,7 @@ def test_naca0012_cd_within_tolerance(
 
 
 @pytest.mark.mesh_sweep
-@pytest.mark.xfail(reason=_XFAIL_REASON, strict=False)
+@pytest.mark.xfail(reason=_XFAIL_REASON, raises=AssertionError, strict=False)
 def test_naca0012_grid_converged_cd(
     vv_cluster_ready: bool, vv_runner: Any, repo_root: Path
 ) -> None:

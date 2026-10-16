@@ -1,20 +1,22 @@
 name: vv-transonic
 
-# V&V transonic — runs the Stage-06 compressible verification cases (the
-# transonic NACA 0012 and the ONERA M6 wing) through SU2 v8 on the self-hosted
-# `vv` runner. Nightly only — never on push/PR. These solves are slow
-# (transonic compressible RANS, multi-thousand iterations) and the cases are
-# Stage 06's *first cluster runs* of SU2 cases; their dashboard signal lives
-# alongside the TMR dashboard but does not gate PRs.
+# V&V SU2 stack — runs every `su2`-marked V&V test (the Stage-06 transonic NACA 0012 and
+# ONERA M6 cases, plus the TMR flat plate / NACA 0012 / 2D bump through SU2) on the
+# self-hosted `vv` runner. The SU2 stack is FROZEN-OPTIONAL (ADR-013): the report shows its
+# cases as `frozen` and gives the stack its own verdict, which never gates an OpenFOAM-stack
+# production run (ADR-051 D2 (b)).
 #
-# A GitHub-hosted runner cannot reach the private aero cluster, the SU2 SIF,
-# the MLflow server, or the aero_provenance DB, so this job must run
-# self-hosted. The required, stage-gated check is `vv-required` (TMR only;
-# transonic is honestly slow + new). See ADR-006.
+# DISPATCH ONLY since Stage 22 (operator decision 2026-10-16), the H-19 pattern applied to
+# vv-scale-resolving. It used to run nightly and was green every night while measuring nothing:
+# SU2_CFD died at startup ("solver failed (rc=1)"), the ONERA M6 test turned that into a SKIP and
+# the transonic NACA 0012 test into an XFAIL, and the `dvc pull --quiet || echo "dvc pull skipped
+# (no remote configured)"` step relabelled its own failure. Now the pull is targeted and fails
+# loudly, a solver failure FAILS its test, and the step summary says what was measured.
+#
+# A GitHub-hosted runner cannot reach the private aero cluster, the SU2 SIF, the MLflow server,
+# or the aero_provenance DB, so this job must run self-hosted. See ADR-006.
 
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch:
 
 # REAP first, then the concurrency group (the order vv-smoke documents): the SU2 path
@@ -32,7 +34,7 @@ permissions:
 
 jobs:
   vv-transonic:
-    name: V&V transonic — SU2 v8
+    name: V&V SU2 stack — SU2 v8 (frozen-optional, dispatch only)
     runs-on: [self-hosted, vv]
     timeout-minutes: 180
     env:
@@ -42,6 +44,10 @@ jobs:
       # This job owns the lifetime of every solve it submits: run_long.sh reaps the
       # detached tmux session on cancellation or timeout instead of leaving it running.
       AERO_RUN_LONG_REAP: "1"
+      # Stage 22 (ADR-051): a cluster that is not ready FAILS the suite instead of skipping it.
+      AERO_VV_REQUIRE_CLUSTER: "1"
+      AERO_VV_DESELECTED_JSON: vv-deselected.jsonl
+      VV_SELECTION: "su2 and vv and slow and not mesh_sweep"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,25 +59,30 @@ jobs:
           uv venv --python 3.12 --clear
           uv pip install -e ".[openfoam,su2,provenance,vv,dev]"
 
-      - name: Fetch DVC-tracked transonic assets (ONERA M6 mesh + reference Cp)
+      - name: Fetch the ONERA M6 mesh (DVC, fail-loud)
+        # Exactly the one DVC-tracked file an SU2 test reads (the Cp reference CSVs are in git).
+        # Targeted, not quiet, and no `||`: a pull failure fails this step. A bare `dvc pull`
+        # can never succeed here, because it also targets the DrivAerML dataset on the
+        # aero-nfs remote (ADR-011).
         env:
-          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped (no remote configured)"
+        run: .venv/bin/dvc pull data/meshes/su2/onera_m6.su2.dvc
 
-      - name: Run the transonic suite
-        # Tests are stage_06-marked + slow; they live under tests/vv/ alongside
-        # the TMR suite. The cases skip cleanly if the SU2 SIF / DSN / assets
-        # are unavailable.
+      - name: Run the SU2-stack suite
+        # A solver failure FAILS its test (Stage 22); only a measured tolerance miss may xfail.
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-        run: |
-          .venv/bin/pytest -m "stage_06 and vv and slow" --run-slow -v \
-              tests/vv/test_transonic_naca0012.py \
-              tests/vv/test_transonic_onera_m6.py
+        run: .venv/bin/pytest -m "$VV_SELECTION" --run-slow -v --junitxml=vv-junit.xml tests/vv
+
+      - name: Summarise what this job measured
+        if: always()
+        run: >-
+          python3 -I scripts/vv_ci_summary.py --title "V&V SU2 stack (frozen-optional)"
+          --selection "$VV_SELECTION" --junit vv-junit.xml --deselected vv-deselected.jsonl
+          >> "$GITHUB_STEP_SUMMARY"
 
       - name: Regenerate the V&V dashboard
         if: always()

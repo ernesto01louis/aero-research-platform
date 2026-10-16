@@ -18,7 +18,9 @@ from typing import Any
 import pytest
 from aero.vv.tmr import NACA0012Verification
 
-pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_06]
+# `su2`: the frozen-optional SU2 stack (ADR-013, ADR-051 D2). The active-stack jobs deselect
+# it; only the vv-transonic dispatch measures it (Stage 22).
+pytestmark = [pytest.mark.slow, pytest.mark.vv, pytest.mark.stage_06, pytest.mark.su2]
 
 _XFAIL_REASON = (
     "SU2 v8 NACA 0012 not yet cluster-validated against the TMR reference; "
@@ -27,7 +29,7 @@ _XFAIL_REASON = (
 )
 
 
-@pytest.mark.xfail(reason=_XFAIL_REASON, strict=False)
+@pytest.mark.xfail(reason=_XFAIL_REASON, raises=AssertionError, strict=True)
 def test_naca0012_cd_within_tolerance_su2(
     vv_cluster_ready_su2: bool, vv_runner_su2: Any, repo_root: Path
 ) -> None:
