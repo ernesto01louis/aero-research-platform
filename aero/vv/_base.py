@@ -49,6 +49,19 @@ class BenchmarkError(RuntimeError):
     """A benchmark could not be evaluated (mesh failed, solve failed, no data)."""
 
 
+#: Lines of captured solver output a solver-failure `BenchmarkError` carries.
+_LOG_TAIL_LINES = 20
+_LOG_TAIL_LINE_CHARS = 300
+
+
+def _log_tail(log: object) -> str:
+    """The last `_LOG_TAIL_LINES` lines of a solver log, for a solver-failure message."""
+    if not isinstance(log, str) or not log.strip():
+        return "; the solver log is empty"
+    lines = [line[:_LOG_TAIL_LINE_CHARS] for line in log.rstrip().splitlines()[-_LOG_TAIL_LINES:]]
+    return "; last solver log lines:\n" + "\n".join(f"  | {line}" for line in lines)
+
+
 # --- data models --------------------------------------------------------------
 class Series(BaseModel):
     """A 1-D distribution — paired x and y samples, e.g. Cf along a wall."""
@@ -345,7 +358,12 @@ class BenchmarkRunner:
             raise BenchmarkError(f"{case.name}: case did not mesh — {detail}")
         result = self.solver.run(case_dir, self.executor)
         if getattr(result, "returncode", 1) != 0:
-            raise BenchmarkError(f"{case.name}: solver failed (rc={result.returncode})")
+            # Carry the tail of the captured solver output: without it a crash reaches the CI
+            # log as a bare return code and its cause is invisible (Stage 22, ADR-051).
+            raise BenchmarkError(
+                f"{case.name}: solver failed (rc={result.returncode})"
+                + _log_tail(getattr(result, "solver_log", ""))
+            )
         measured = case.evaluate(self.solver, result)
         return measured, mesh, result
 

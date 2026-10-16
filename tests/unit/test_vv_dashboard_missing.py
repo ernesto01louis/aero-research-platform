@@ -15,6 +15,8 @@ from aero.vv.dashboard import DashboardEntry, render_dashboard
 pytestmark = [pytest.mark.stage_19]
 
 _FAIL_RED = "#cf222e"
+# Since Stage 22 every entry names its solver stack (ADR-051 D2); these are OpenFOAM-stack cases.
+_OF = {"stack": "openfoam", "disposition": "active"}
 
 
 def test_missing_is_rendered_as_red_not_as_a_neutral_blank(tmp_path) -> None:
@@ -23,16 +25,15 @@ def test_missing_is_rendered_as_red_not_as_a_neutral_blank(tmp_path) -> None:
 
     render_dashboard(
         [
-            DashboardEntry(case_name="turek_hron_fsi3", status="pass"),
-            DashboardEntry(case_name="plunging_airfoil_hg2007", status="missing"),
+            DashboardEntry(case_name="turek_hron_fsi3", status="pass", **_OF),
+            DashboardEntry(case_name="plunging_airfoil_hg2007", status="missing", **_OF),
         ],
         out,
     )
     html = out.read_text()
 
     assert "plunging_airfoil_hg2007" in html
-    # The unevaluated case is coloured with the failure red, not the neutral grey that
-    # `unknown` and unrecognised statuses fall back to.
+    # The unevaluated case is coloured with the failure red, not a neutral colour.
     assert html.count(_FAIL_RED) >= 1
     assert "MISSING" in html
     # The property that actually guards the production gate: one unevaluated case is
@@ -47,8 +48,8 @@ def test_all_green_still_reachable_when_every_case_passes(tmp_path) -> None:
 
     render_dashboard(
         [
-            DashboardEntry(case_name="turek_hron_fsi3", status="pass"),
-            DashboardEntry(case_name="naca0012", status="pass"),
+            DashboardEntry(case_name="turek_hron_fsi3", status="pass", **_OF),
+            DashboardEntry(case_name="naca0012", status="pass", **_OF),
         ],
         out,
     )
@@ -64,7 +65,7 @@ def test_an_unevaluated_case_is_not_silently_dropped(tmp_path) -> None:
     names = ["flat_plate_te", "bump_2d", "naca0012", "oscillating_cylinder_lockin"]
 
     render_dashboard(
-        [DashboardEntry(case_name=n, status="missing") for n in names],
+        [DashboardEntry(case_name=n, status="missing", **_OF) for n in names],
         out,
     )
     html = out.read_text()

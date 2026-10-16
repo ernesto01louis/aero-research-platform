@@ -362,6 +362,9 @@ markers = [
     "stage_19: tests gated to stage 19 deliverables",
     "stage_20: tests gated to stage 20 deliverables",
     "stage_21: tests gated to stage 21 deliverables",
+    "stage_22: tests gated to stage 22 deliverables",
+    "su2: frozen-optional SU2 stack (ADR-013, ADR-051 D2); measured only by the vv-transonic dispatch",
+    "unmeasurable: documented NO-GO whose solve cannot complete; deselected with words in CI, not a regression signal",
 ]
 
 [tool.uv]

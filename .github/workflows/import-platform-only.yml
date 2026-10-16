@@ -106,6 +106,8 @@ jobs:
               "aero.crate.payload", "aero.crate.members", "aero.crate.projections",
               "aero.crate.conformance", "aero.crate.rules", "aero.crate.reader",
               "aero.crate.writer", "aero.crate.sandbox",
+              # Stage 22: the production gate's typed status, stack table and MLflow read.
+              "aero.vv.status", "aero.vv.stacks", "aero.vv.report",
           ):
               importlib.import_module(mod)
 

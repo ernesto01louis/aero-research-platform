@@ -35,13 +35,28 @@ from aero.vv.mesh_sweep import (
     SweepReport,
     grid_convergence_index,
 )
+from aero.vv.stacks import CASE_STACK, DEFERRED_CASES, STACKS, SolverStack, registered_cases
+from aero.vv.status import (
+    VV_STATUSES,
+    Disposition,
+    StackName,
+    StackVerdict,
+    Verdict,
+    VVStatus,
+    stack_verdicts,
+)
 
 __all__ = [
+    "CASE_STACK",
+    "DEFERRED_CASES",
+    "STACKS",
+    "VV_STATUSES",
     "BenchmarkCase",
     "BenchmarkError",
     "BenchmarkResult",
     "BenchmarkRunner",
     "DashboardEntry",
+    "Disposition",
     "GridPoint",
     "MeshSweep",
     "MetricResult",
@@ -50,11 +65,18 @@ __all__ = [
     "ScalarObservation",
     "Series",
     "SolverLike",
+    "SolverStack",
+    "StackName",
+    "StackVerdict",
     "SweepReport",
+    "VVStatus",
+    "Verdict",
     "compare",
     "grid_convergence_index",
     "load_scalar_csv",
     "load_series_csv",
+    "registered_cases",
     "render_dashboard",
     "scaled_count",
+    "stack_verdicts",
 ]
