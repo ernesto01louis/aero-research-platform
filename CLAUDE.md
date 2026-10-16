@@ -348,8 +348,17 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   tolerances (Cd 3 %, Cf 5 %, Cp 3 %), and logs a `BenchmarkResult` with a
   `validation_tag` MLflow tag. `aero vv list|run|report`; `aero vv run --case
   X --mesh-sweep` runs an ASME V&V 20 GCI study. **Before any
-  `production`-tagged run, verify `aero vv report --latest` shows all green —
-  a red V&V dashboard means no `production` runs.** Run the *command*; there is
+  `production`-tagged run, verify `aero vv report --latest` shows that run's
+  solver stack GREEN — a red stack means no `production` runs on it.** Since
+  Stage 22 the verdict is **per solver stack** (ADR-051 D2 (b), the decision of
+  record): an OpenFOAM-stack run needs every OpenFOAM-stack case `pass`; the
+  frozen-optional SU2 and PyFR stacks (ADR-013) and the deferred
+  `hg2007_flexible_foil` (ADR-046 S4) are shown as `frozen` / `deferred`, never
+  count as a pass, and gate only their own stack (deferred gates nothing). The
+  report queries MLflow once per registered case (no window; it read only the
+  newest 500 runs until Stage 22), and `DashboardEntry.status` is a typed
+  `Literal`. The stack table is `aero/vv/stacks.py`; a new case needs an entry
+  there or the report fails loudly. Run the *command*; there is
   no dashboard file to read. `docs/vv-dashboard.html` is a CI build artifact
   (uploaded by `vv-smoke` / `vv-transonic`) and is gitignored — a copy was
   tracked until Stage 19 and had gone 69 days stale, wrong in both directions.

@@ -30,6 +30,11 @@ CORE_MODULES = (
     "aero.vv.reportable",
     "aero.vv.reportable_compose",
     "aero.surrogates._common.certificate",
+    # Stage 22: the production gate's typed status, stack table and MLflow read. The report
+    # takes its client as a parameter, so it must load no mlflow of its own.
+    "aero.vv.status",
+    "aero.vv.stacks",
+    "aero.vv.report",
 )
 
 # Present in a full dev install, so their ABSENCE from sys.modules is the real assertion.

@@ -32,10 +32,10 @@ next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 22, Dependabot prefix `ci(stage-22)`, this handoff, README regenerated |
-| 2 | The report reads the truth | ❌ | not started — per-case MLflow query, explicit paging, fake-client tests |
-| 3 | Typed status and the verdict | ❌ | not started — `DashboardEntry.status` Literal, per-stack verdict (D2 (b)) |
+| 2 | The report reads the truth | ✅ PR B | `aero/vv/report.py`: one MLflow query per registered case and stack prefix (no window); the history listing pages the whole experiment and states its bound; 25 fake-client tests in `tests/unit/test_vv_report.py`, incl. the four the prompt names |
+| 3 | Typed status and the verdict | ✅ PR B | `aero/vv/status.py` (`VVStatus` Literal, `stack_verdicts`), `aero/vv/stacks.py` (the 25-case stack table, loud on drift); `DashboardEntry.status` typed; one verdict per stack in the text and the HTML; CLAUDE.md, ADR-005 (dated scope note) and `docs/vv/output-validity-bar.md` cite ADR-051 D2 |
 | 4 | No V&V workflow is green when it measured nothing | ❌ | not started — audit of the five workflows; see the audit table in §5 for the measured state at open |
-| 5 | The per-case table | ❌ | the "before" table is below; the "after" table and the cross-check follow deliverable 2 |
+| 5 | The per-case table | ✅ | before and after tables below; `scripts/vv_report_crosscheck.py` (a full pagination, independent of `aero.vv.report`) agrees case for case: status and run id on all 25 |
 | 6 | The close: `v0.1.1` (D4) | ❌ | release PR, then the operator cuts the tag |
 
 (✅ = done, ⚠️ = partial, ❌ = not done / blocked)
@@ -78,6 +78,77 @@ Totals: the windowed report says **5 pass / 1 fail / 20 missing**; the truth is 
 (369), `naca0012_verification-sweep` (63), `oscillating_cylinder_lockin-sweep` (2), about 90
 Stage-17 `s17*-sweep` tags, and the tier names `thesis-grade` (1) and `validated` (4), which are
 reportable records written by the Stage-12/13/14 scripts and carry no `vv_status`.
+
+### The per-case table after the fix (deliverable 5)
+
+The fixed `aero vv report --latest`, run on branch `stage-22-honest-report` against live MLflow at
+2026-10-16T09:22Z (read-only). The four smoke cases' run ids differ from the "before" table only
+because `vv-smoke` logged newer runs in between; every other run id is the same.
+
+```text
+
+  V&V report: the newest run of every registered case on its own solver stack
+  (one MLflow query per case and stack prefix; no window)
+
+  25 registered case(s): 7 pass, 4 fail, 9 missing, 4 frozen, 1 deferred
+
+  stack openfoam: OpenFOAM-ESI v2412, including the preCICE-coupled OpenFOAM cases (active; ADR-051 D2)
+    [GREEN ] blasius_flat_plate                 pass     9cff5db048014808bd6c06d1240c2da3  2026-10-16  cf3a603a7148  OpenFOAM-ESI v2412
+    [RED   ] bump_2d                            missing  no run
+    [GREEN ] cylinder_strouhal_re100            pass     646bdabbdc52495386ef3905d5ad2328  2026-10-16  2235560dd217  OpenFOAM-ESI v2412
+    [RED   ] flapping_wing_wbd2004              missing  no run
+    [RED   ] flapping_wing_wbd2004_advanced     missing  no run
+    [RED   ] flapping_wing_wbd2004_delayed      missing  no run
+    [RED   ] flat_plate_te                      fail     c5bb17e5f02847db8021463311ea9524  2026-10-16  2235560dd217  OpenFOAM-ESI v2412
+    [DEFER ] hg2007_flexible_foil               deferred no run; deferred (ADR-046 S4), gates nothing
+    [RED   ] hg2007_rigid_foil                  missing  no run
+    [GREEN ] laminar_airfoil_naca0012           pass     9a4fe535006046fa88dfeeb1daf61c06  2026-10-16  2235560dd217  OpenFOAM-ESI v2412
+    [RED   ] naca0012_verification              fail     e8b29a4fb04645608ccb0203cf178002  2026-06-10  db413256a8a4  OpenFOAM-ESI v2412
+    [GREEN ] oscillating_cylinder_lockin        pass     2d8f6dfc97ed4f8c8b19b96255ad89ef  2026-10-11  bc1384adbf77  OpenFOAM-ESI v2412
+    [RED   ] plunging_airfoil_hg2007            missing  no run
+    [RED   ] plunging_airfoil_hg2007_st02       missing  no run
+    [RED   ] plunging_airfoil_hg2007_st02_lm    missing  no run
+    [RED   ] plunging_airfoil_hg2007_st03       fail     536d836e32a44afe8bc6484850d86006  2026-07-06  103283432393  OpenFOAM-ESI v2412
+    [RED   ] plunging_airfoil_hg2007_st03_lm    fail     c6b85732905c440b97932240108ae76d  2026-07-06  103283432393  OpenFOAM-ESI v2412
+    [GREEN ] t3a_flat_plate_transition          pass     b6c4783e82414060afa77c7c38374798  2026-07-06  0e0a0a7dbfc0  OpenFOAM-ESI v2412
+    [GREEN ] turek_hron_cfd2                    pass     c0dfea184dea497db9bc94050397e8c2  2026-07-26  6abf00f62f2b  OpenFOAM-ESI v2412
+    [GREEN ] turek_hron_cfd3                    pass     650ac4358365468f9db9e067b4681bec  2026-07-26  6abf00f62f2b  OpenFOAM-ESI v2412
+    [RED   ] turek_hron_fsi3                    missing  no run
+
+  stack su2: SU2 v8, frozen-optional (frozen; ADR-013)
+    [FROZEN] naca0012_transonic                 frozen   no run; frozen-optional stack (ADR-013)
+    [FROZEN] onera_m6                           frozen   no run; frozen-optional stack (ADR-013)
+
+  stack pyfr: PyFR 1.15.0 (GPU), frozen-optional (frozen; ADR-013)
+    [FROZEN] periodic_hill_2d                   frozen   no run; frozen-optional stack (ADR-013)
+    [FROZEN] taylor_green_p3_32                 frozen   no run; frozen-optional stack (ADR-013)
+
+  VERDICT openfoam: RED — not clear for production-tagged runs on this stack.
+      4 fail: flat_plate_te, naca0012_verification, plunging_airfoil_hg2007_st03, plunging_airfoil_hg2007_st03_lm
+      9 missing: bump_2d, flapping_wing_wbd2004, flapping_wing_wbd2004_advanced, flapping_wing_wbd2004_delayed, hg2007_rigid_foil, plunging_airfoil_hg2007, plunging_airfoil_hg2007_st02, plunging_airfoil_hg2007_st02_lm, turek_hron_fsi3
+      shown but not gating (deferred): hg2007_flexible_foil
+  VERDICT su2: FROZEN — never fully evaluated (frozen-optional, ADR-013); not clear for production-tagged runs on this stack.
+      2 frozen: naca0012_transonic, onera_m6
+  VERDICT pyfr: FROZEN — never fully evaluated (frozen-optional, ADR-013); not clear for production-tagged runs on this stack.
+      2 frozen: periodic_hill_2d, taylor_green_p3_32
+
+  A production-tagged run is gated by its OWN solver stack's verdict (ADR-005, scoped by ADR-051 D2).
+  Stacks clear for production-tagged runs: none.
+```
+
+The independent read, `scripts/vv_report_crosscheck.py --against <the --json output of the same
+minute>`, paging every run of the experiment:
+
+```text
+independent read: 2415 runs paged from http://192.168.2.234:5000, experiment 'aero-provenance'
+  totals: 1 deferred, 4 fail, 4 frozen, 9 missing, 7 pass
+AGREE: all 25 cases match /tmp/claude-0/-root/b9b9432a-eb74-451d-a326-1c869e8eb635/scratchpad/after.json (status and run id).
+```
+
+Before → after: **5 pass / 1 fail / 20 missing** → **7 pass / 4 fail / 9 missing / 4 frozen /
+1 deferred**, with the openfoam stack RED and the su2 and pyfr stacks FROZEN. No case changed
+status: the three hidden passes and three hidden failures are now shown, and the five cases that
+cannot run on the active stack carry their D2 status instead of `missing`.
 
 ## 2. Decisions made
 
@@ -132,7 +203,15 @@ reportable records written by the Stage-12/13/14 scripts and carry no `vv_status
 
 ## 4. Environment / dependency / schema changes
 
-- None yet.
+- New core modules, pure stdlib + pydantic: `aero/vv/status.py`, `aero/vv/stacks.py`,
+  `aero/vv/report.py`, registered in `tests/unit/test_core_import_isolation.py` and the
+  `import-platform-only` module list. `aero.vv` re-exports the status and stack names.
+- `DashboardEntry` gained two required fields, `stack` and `disposition`; `status` is now the
+  `VVStatus` Literal.
+- `aero vv report` gained `--limit` (history mode only); `--html` now needs `--latest` (exit 2).
+  `--json` is still a top-level array; each row gained `stack`, `disposition`, `solver_version` and
+  `start_time`.
+- New pytest markers (`pyproject.toml`): `stage_22`, `su2`, `unmeasurable`.
 
 ## 5. CI/CD changes
 
@@ -185,6 +264,10 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 ## 9. Artifacts produced
 
 - This handoff.
+- `aero/vv/{status,stacks,report}.py`; the rewritten `aero/vv/dashboard.py` and `aero vv report`.
+- `scripts/vv_report_crosscheck.py`, the independent full-pagination read.
+- Tests: `tests/unit/{test_vv_report,test_vv_stacks,test_vv_dashboard_types,test_vv_report_crosscheck}.py`
+  and the fake client `tests/unit/_fake_mlflow.py`.
 
 ## 10. Confidence / risk
 

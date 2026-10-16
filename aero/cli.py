@@ -652,27 +652,9 @@ def vv_run(
             raise typer.Exit(code=3)
 
     from aero.vv import BenchmarkError, BenchmarkRunner, MeshSweep
-    from aero.vv.ercoftac import ERCOFTAC_CASES
-    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
-    from aero.vv.flapping import FLAPPING_CASES
-    from aero.vv.forward_regime import FORWARD_REGIME_CASES
-    from aero.vv.fsi import FSI_CASES
-    from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
-    from aero.vv.tmr import TMR_CASES
-    from aero.vv.transonic import TRANSONIC_CASES
-    from aero.vv.unsteady import UNSTEADY_CASES
+    from aero.vv.stacks import registered_cases
 
-    all_cases = {
-        **TMR_CASES,
-        **FORWARD_REGIME_CASES,
-        **ERCOFTAC_CASES,
-        **UNSTEADY_CASES,
-        **FLAPPING_CASES,
-        **TRANSONIC_CASES,
-        **SCALE_RESOLVING_CASES,
-        **EXTERNAL_GEOMETRY_CASES,
-        **FSI_CASES,
-    }
+    all_cases = registered_cases()
     if case not in all_cases:
         known = ", ".join(all_cases)
         typer.echo(f"unknown V&V case '{case}' — known cases: {known}", err=True)
@@ -803,127 +785,104 @@ def vv_run(
         raise typer.Exit(code=1)
 
 
-@vv_app.command("report")
-def vv_report(
-    latest: bool = typer.Option(False, "--latest", help="Show only the most recent run per case."),
-    json_out: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
-    html_path: str = typer.Option("", "--html", help="Also write the HTML dashboard here."),
-) -> None:
-    """Report recent V&V runs from MLflow — the production-gate green/red check."""
-    import json as _json
+def _vv_report_client() -> tuple[Any, str]:
+    """`(MlflowClient, experiment name)` for the V&V report; exits 3 when mlflow is missing.
 
+    The one seam the report's unit tests replace with a fake client (no cluster in CI).
+    """
     if importlib.util.find_spec("mlflow") is None:
         typer.echo("missing dependency 'mlflow' — install '.[provenance]'", err=True)
         raise typer.Exit(code=3)
-
+    tracking_uri, experiment, _ = _vv_settings(_repo_root())
     from mlflow.tracking import MlflowClient
 
-    from aero.vv import DashboardEntry, render_dashboard
+    return MlflowClient(tracking_uri=tracking_uri), experiment
 
-    tracking_uri, experiment, _ = _vv_settings(_repo_root())
-    client = MlflowClient(tracking_uri=tracking_uri)
+
+@vv_app.command("report")
+def vv_report(
+    latest: bool = typer.Option(
+        False,
+        "--latest",
+        help="The production gate: the newest run of every registered case on its own stack.",
+    ),
+    json_out: bool = typer.Option(False, "--json", help="Emit machine-readable JSON (an array)."),
+    html_path: str = typer.Option(
+        "", "--html", help="Also write the HTML dashboard here (needs --latest)."
+    ),
+    limit: int = typer.Option(
+        1000, "--limit", min=1, help="History listing only: list at most this many gated runs."
+    ),
+) -> None:
+    """Report V&V status from MLflow — `--latest` is the production-gate check (ADR-005).
+
+    `--latest` queries MLflow once per registered case and stack (no window), so a run of any age
+    is found (Stage 22). Without `--latest` it lists the run history, paging the whole experiment
+    and stating its bound. The verdict is per solver stack (ADR-051 D2): a production-tagged run
+    is gated by its own stack's verdict; frozen and deferred cases never count as a pass.
+    """
+    import json as _json
+
+    from aero.vv import DashboardEntry, render_dashboard
+    from aero.vv.report import (
+        RunSearcher,
+        collect_history,
+        collect_latest,
+        render_history,
+        render_latest,
+    )
+    from aero.vv.stacks import registered_cases
+
+    if html_path and not latest:
+        typer.echo("--html renders the production gate and needs --latest", err=True)
+        raise typer.Exit(code=2)
+
+    raw_client, experiment = _vv_report_client()
+    client = cast("RunSearcher", raw_client)
     exp = client.get_experiment_by_name(experiment)
     if exp is None:
         typer.echo(f"no MLflow experiment '{experiment}'", err=True)
         raise typer.Exit(code=1)
+    experiment_id = str(exp.experiment_id)
 
-    # The expected case set comes from the REGISTRY, not from whatever MLflow
-    # happens to return. Reporting only what came back makes a case that fails
-    # and then stops being re-run disappear from the dashboard entirely, so the
-    # suite can reach "all green" by attrition instead of by anyone fixing the
-    # physics — and the production gate (ADR-005) reads exactly this output.
-    # A registered case with no run is reported as `missing`, which is red.
-    from aero.vv.ercoftac import ERCOFTAC_CASES
-    from aero.vv.external_geometry import EXTERNAL_GEOMETRY_CASES
-    from aero.vv.flapping import FLAPPING_CASES
-    from aero.vv.forward_regime import FORWARD_REGIME_CASES
-    from aero.vv.fsi import FSI_CASES
-    from aero.vv.scale_resolving import SCALE_RESOLVING_CASES
-    from aero.vv.tmr import TMR_CASES
-    from aero.vv.transonic import TRANSONIC_CASES
-    from aero.vv.unsteady import UNSTEADY_CASES
+    # The expected case set comes from the REGISTRY, not from whatever MLflow happens to return
+    # (Stage 19): a registered case with no run is `missing`, which is red, so the suite cannot
+    # reach "all green" by attrition. Since Stage 22 each case is ASKED FOR by name, so no window
+    # of recent runs can hide a case either.
+    names = list(registered_cases())
 
-    registered: set[str] = {
-        *TMR_CASES,
-        *FORWARD_REGIME_CASES,
-        *ERCOFTAC_CASES,
-        *UNSTEADY_CASES,
-        *FLAPPING_CASES,
-        *TRANSONIC_CASES,
-        *SCALE_RESOLVING_CASES,
-        *EXTERNAL_GEOMETRY_CASES,
-        *FSI_CASES,
-    }
+    if not latest:
+        listing = collect_history(client, experiment_id, limit)
+        if json_out:
+            typer.echo(_json.dumps([r.model_dump() for r in listing.rows], indent=2))
+            return
+        typer.echo(render_history(listing))
+        return
 
-    runs = client.search_runs([exp.experiment_id], order_by=["start_time DESC"], max_results=500)
-    rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for run in runs:
-        tag = run.data.tags.get("validation_tag")
-        if not tag or tag.endswith("-sweep"):
-            continue
-        if latest and tag in seen:
-            continue
-        seen.add(tag)
-        errors = {k[:-6]: float(v) for k, v in run.data.metrics.items() if k.endswith("_error")}
-        rows.append(
-            {
-                "case": tag,
-                "status": run.data.tags.get("vv_status", "unknown"),
-                "run_id": run.info.run_id,
-                "git_sha": run.data.tags.get("git_sha", ""),
-                "metric_errors": errors,
-            }
-        )
-
-    missing = sorted(registered - seen)
-    rows.extend(
-        {"case": name, "status": "missing", "run_id": "", "git_sha": "", "metric_errors": {}}
-        for name in missing
-    )
-
+    rows = collect_latest(client, experiment_id, names)
     if html_path:
         render_dashboard(
             [
                 DashboardEntry(
-                    case_name=r["case"],
-                    status=r["status"],
-                    git_sha=r["git_sha"],
-                    mlflow_run_id=r["run_id"],
-                    metric_errors=r["metric_errors"],
+                    case_name=r.case,
+                    status=r.status,
+                    stack=r.stack,
+                    disposition=r.disposition,
+                    git_sha=r.git_sha,
+                    mlflow_run_id=r.run_id,
+                    metric_errors=r.metric_errors,
                 )
                 for r in rows
             ],
             Path(html_path),
         )
         typer.echo(f"dashboard written to {html_path}")
-
     if json_out:
-        typer.echo(_json.dumps(rows, indent=2))
+        typer.echo(_json.dumps([r.model_dump() for r in rows], indent=2))
         return
-    if not rows:
-        typer.echo("no V&V runs found in MLflow, and no cases are registered")
-        return
-    typer.echo("\n  V&V runs" + (" (latest per case)" if latest else "") + ":\n")
-    for r in rows:
-        mark = "GREEN" if r["status"] == "pass" else "RED  "
-        typer.echo(f"  [{mark}] {r['case']:<24} {r['status']:<8} {r['run_id']}")
-
-    # State the verdict rather than leaving it to be eyeballed off the rows. The
-    # production gate is "all green"; a registered case with no run has NOT been
-    # evaluated, so it cannot count towards green.
-    failed = sorted(r["case"] for r in rows if r["status"] not in {"pass", "missing"})
-    typer.echo("")
-    if missing:
-        typer.echo(f"  {len(missing)} registered case(s) with NO run: {', '.join(missing)}")
-    if failed:
-        typer.echo(f"  {len(failed)} case(s) not passing: {', '.join(failed)}")
-    if missing or failed:
-        typer.echo("\n  VERDICT: RED — not clear for production-tagged runs (ADR-005).")
-    else:
-        typer.echo(
-            f"\n  VERDICT: GREEN — all {len(registered)} registered case(s) evaluated and passing."
-        )
+    # The verdict is stated per solver stack rather than left to be eyeballed off the rows. A
+    # registered case with no run has NOT been evaluated, so it can never count towards green.
+    typer.echo(render_latest(rows))
 
 
 @vv_app.command("surrogate")

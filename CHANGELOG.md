@@ -7,6 +7,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
+### Fixed — the V&V report shows the truth (Stage 22, ADR-051)
+
+- **`aero vv report --latest` no longer reads a window.** It read the newest 500 of 2388 runs, and
+  `vv-smoke`'s four smoke cases filled that window, so three failures and three passes showed as
+  `missing` (5 pass / 1 fail / 20 missing; the truth was 7 pass / 4 fail / 14 no run). It now asks
+  MLflow, per registered case and stack, for that case's newest run (`aero/vv/report.py`). A full
+  pagination by `scripts/vv_report_crosscheck.py` agrees with it case for case.
+- **The history listing (no `--latest`) pages the whole experiment** and states its bound
+  (`--limit`) and every run it left out. `--html` now needs `--latest`.
+- **The status is typed** (`pass | fail | regress | missing | unknown | frozen | deferred`); an
+  unknown string fails validation. A run without a recognised `vv_status` is `unknown`, never `pass`.
+- **The verdict is per solver stack** (ADR-051 D2 (b)): `aero/vv/stacks.py` maps all 25 cases to
+  openfoam (20, including the preCICE-coupled OpenFOAM cases), su2 or pyfr (frozen-optional,
+  ADR-013); `hg2007_flexible_foil` is deferred (ADR-046 S4) and gates nothing. The report and the
+  dashboard state one verdict per stack. CLAUDE.md, ADR-005 (a dated scope note) and
+  `docs/vv/output-validity-bar.md` say a production run is gated by its own stack.
+- **A solver failure now carries the tail of the solver log** in its `BenchmarkError`, so its cause
+  reaches the CI log instead of a bare return code.
+
 ### Changed — the post-v0.1.0 plan
 
 - **Foundation first (ADR-051, accepted 2026-10-16).** Stages 22–26 build an honest, validated base before any new

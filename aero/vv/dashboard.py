@@ -1,9 +1,8 @@
 """The V&V dashboard — a single self-contained HTML status page.
 
-`render_dashboard` turns a set of V&V outcomes into `docs/vv-dashboard.html`:
-one colour-coded row per case (green = pass, red = fail), the per-metric
-errors, and the run's git SHA / MLflow run id. mkdocs publishes it from
-Stage 16; it is produced from Stage 05 on.
+`render_dashboard` turns a set of V&V outcomes into an HTML page (the `vv-dashboard` CI
+artifact): one colour-coded row per case, its solver stack, the per-metric errors, and the run's
+git SHA / MLflow run id, under one verdict banner per solver stack (ADR-051 D2 (b), Stage 22).
 
 No templating engine — plain stdlib string assembly, matching the case-writer
 philosophy elsewhere in the adapter layer.
@@ -17,6 +16,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aero.vv.status import STACK_ORDER, Disposition, StackName, Verdict, VVStatus, stack_verdicts
+
 _STRICT = ConfigDict(extra="forbid", frozen=True, validate_default=True)
 
 
@@ -26,7 +27,9 @@ class DashboardEntry(BaseModel):
     model_config = _STRICT
 
     case_name: str = Field(..., min_length=1)
-    status: str = Field(..., description="pass | fail | regress | missing | unknown")
+    status: VVStatus = Field(..., description="Typed; an unknown string fails validation.")
+    stack: StackName = Field(..., description="The solver stack the case measures.")
+    disposition: Disposition = Field(..., description="active | frozen | deferred (ADR-051 D2).")
     git_sha: str = Field(default="", description="git SHA of the run.")
     mlflow_run_id: str = Field(default="", description="MLflow run id.")
     metric_errors: dict[str, float] = Field(
@@ -38,17 +41,27 @@ class DashboardEntry(BaseModel):
 # run is not a blank cell to be skipped over — it is an unevaluated gate, and the
 # failure mode it guards against is a case that goes red, stops being run, and
 # then quietly stops appearing at all, letting the suite reach "all green" by
-# attrition rather than by anyone fixing the physics.
-_STATUS_COLOR = {
+# attrition rather than by anyone fixing the physics. `frozen` and `deferred` get
+# their own colours (ADR-051 D2): visible, never mistaken for a pass.
+_STATUS_COLOR: dict[VVStatus, str] = {
     "pass": "#1a7f37",
     "fail": "#cf222e",
-    "regress": "#bf8700",
     "missing": "#cf222e",
+    "regress": "#bf8700",
+    "unknown": "#9a6700",
+    "frozen": "#0550ae",
+    "deferred": "#57606a",
+}
+
+_VERDICT_TEXT: dict[Verdict, tuple[str, str]] = {
+    "GREEN": ("ALL GREEN", "#1a7f37"),
+    "RED": ("ATTENTION NEEDED", "#cf222e"),
+    "FROZEN": ("FROZEN — not evaluated", "#0550ae"),
 }
 
 
 def _row(entry: DashboardEntry) -> str:
-    color = _STATUS_COLOR.get(entry.status, "#57606a")
+    color = _STATUS_COLOR[entry.status]
     errs = (
         ", ".join(f"{html.escape(k)} {v:.2%}" for k, v in sorted(entry.metric_errors.items()))
         or "&mdash;"
@@ -56,6 +69,7 @@ def _row(entry: DashboardEntry) -> str:
     return (
         "    <tr>"
         f"<td>{html.escape(entry.case_name)}</td>"
+        f"<td>{html.escape(entry.stack)}</td>"
         f'<td style="color:#fff;background:{color};font-weight:600">'
         f"{html.escape(entry.status.upper())}</td>"
         f"<td>{errs}</td>"
@@ -65,14 +79,26 @@ def _row(entry: DashboardEntry) -> str:
     )
 
 
+def _banners(entries: list[DashboardEntry]) -> str:
+    if not entries:
+        return '<p class="banner" style="background:#cf222e">ATTENTION NEEDED — no cases</p>'
+    verdicts = stack_verdicts((e.case_name, e.stack, e.disposition, e.status) for e in entries)
+    lines = []
+    for stack in STACK_ORDER:
+        if stack not in verdicts:
+            continue
+        text, color = _VERDICT_TEXT[verdicts[stack].verdict]
+        lines.append(
+            f'<p class="banner" style="background:{color}">'
+            f"{html.escape(stack)}: {html.escape(text)}</p>"
+        )
+    return "\n".join(lines)
+
+
 def render_dashboard(entries: list[DashboardEntry], dest: Path) -> None:
-    """Write the V&V status dashboard to `dest` (typically docs/vv-dashboard.html)."""
+    """Write the V&V status dashboard to `dest`, one verdict banner per solver stack."""
     generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    overall = (
-        "ALL GREEN" if entries and all(e.status == "pass" for e in entries) else "ATTENTION NEEDED"
-    )
-    overall_color = "#1a7f37" if overall == "ALL GREEN" else "#cf222e"
-    rows = "\n".join(_row(e) for e in entries) or '    <tr><td colspan="5">no runs</td></tr>'
+    rows = "\n".join(_row(e) for e in entries) or '    <tr><td colspan="6">no runs</td></tr>'
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,18 +111,20 @@ def render_dashboard(entries: list[DashboardEntry], dest: Path) -> None:
   th, td {{ border: 1px solid #d0d7de; padding: 0.4rem 0.8rem; text-align: left; }}
   th {{ background: #f6f8fa; }}
   .mono {{ font-family: ui-monospace, monospace; font-size: 0.85rem; }}
-  .banner {{ color: #fff; background: {overall_color}; padding: 0.5rem 1rem;
-             display: inline-block; font-weight: 700; border-radius: 4px; }}
+  .banner {{ color: #fff; padding: 0.5rem 1rem; display: inline-block;
+             font-weight: 700; border-radius: 4px; margin: 0.2rem 0.5rem 0.2rem 0; }}
 </style>
 </head>
 <body>
 <h1>aero-research-platform &mdash; V&amp;V Dashboard</h1>
-<p class="banner">{overall}</p>
-<p>Canonical NASA TMR verification cases. A red dashboard blocks
-<code>production</code>-tagged runs (ADR-005). Generated {generated}.</p>
+{_banners(entries)}
+<p>Registered V&amp;V cases, newest run per case on its own solver stack. A
+<code>production</code>-tagged run is gated by its own stack's verdict (ADR-005, scoped by
+ADR-051 D2): frozen-optional stacks (ADR-013) and deferred cases (ADR-046 S4) are shown but
+never count as a pass. Generated {generated}.</p>
 <table>
   <thead>
-    <tr><th>Case</th><th>Status</th><th>Metric errors</th>
+    <tr><th>Case</th><th>Stack</th><th>Status</th><th>Metric errors</th>
         <th>git SHA</th><th>MLflow run</th></tr>
   </thead>
   <tbody>

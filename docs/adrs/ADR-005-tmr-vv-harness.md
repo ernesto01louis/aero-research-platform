@@ -78,6 +78,13 @@ rule, also recorded in CLAUDE.md: **before any `production`-tagged run, verify
 `aero vv report --latest` shows all green.** CI enforces continuously — a red
 `vv-required` check blocks the PR that broke physics.
 
+> **Scoped by ADR-051 D2 (b) (operator decision, 2026-10-16; implemented in Stage 22).** "All
+> green" now means *the run's own solver stack* is green: an OpenFOAM-stack production run needs
+> every OpenFOAM-stack case `pass`, and a PyFR production run every PyFR case. Frozen-optional
+> cases (ADR-013) and deferred cases (ADR-046 S4) stay registered and visible as `frozen` /
+> `deferred`, never count as a pass, and no longer gate a stack they do not measure. The report
+> states one verdict per stack. ADR-051 D2 is the decision of record; the text above is unchanged.
+
 ### The C-grid rebuild (supersedes ADR-003's O-grid)
 
 ADR-003 chose a four-block O-grid for the NACA 0012 walking skeleton, with the

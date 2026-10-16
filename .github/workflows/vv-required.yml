@@ -2,14 +2,15 @@ name: vv-required
 
 # vv-required — the stage-gated, *required* V&V status check on `main`.
 #
-# A red TMR dashboard means no `production` runs (ADR-005), and a PR that
-# changes a solver adapter or the V&V harness must not merge with broken
-# physics. But PRs that touch neither must not be blocked on the V&V cluster
+# A red solver stack in `aero vv report --latest` means no `production` runs on
+# that stack (ADR-005, scoped per stack by ADR-051 D2), and a PR that changes a
+# solver adapter or the V&V harness must not merge with broken physics. But PRs that touch neither must not be blocked on the V&V cluster
 # (guardrail 4). GitHub required checks must always report a result, and a
 # skipped job never satisfies one — so this workflow always runs, and a
 # `changed-files` filter decides whether the real V&V suite executes:
 #
-#   * PR touches aero/adapters/** , aero/vv/** , conf/case/** , pyproject.toml
+#   * PR touches aero/adapters/** , aero/vv/** , aero/geometry/** , conf/case/** ,
+#     pyproject.toml
 #       -> run the single-grid V&V suite; the job's result gates the merge.
 #   * otherwise
 #       -> the suite steps are skipped; the job is trivially green.
