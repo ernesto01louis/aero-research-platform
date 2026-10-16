@@ -510,6 +510,17 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   snapshot. **JOSS:** only the operator replies to editors and reviewers; an agent never drafts a
   review comment (`docs/release/joss.md`).
 
+- **An honest V&V gate** (Stage 22, ADR-051; v0.1.1) — `aero vv report --latest` queries MLflow
+  once per registered case and stack (`aero/vv/report.py`; no window), with a typed status and one
+  verdict per solver stack (`aero/vv/status.py`, `aero/vv/stacks.py`; ADR-051 D2). The independent
+  cross-check is `scripts/vv_report_crosscheck.py`. **In CI no V&V job may be green while it
+  measured nothing:** every `dvc pull` is targeted and fail-loud (a bare pull can never succeed —
+  DrivAerML lives on `aero-nfs`); `xfail` only with `raises=AssertionError`; never skip on a solver
+  error; `AERO_VV_REQUIRE_CLUSTER=1` turns a not-ready cluster into a failure; `su2`-marked tests
+  run only in the dispatch-only `vv-transonic`; documented NO-GOs whose solve cannot complete carry
+  `unmeasurable(reason=...)` and are deselected with words; every V&V job writes a step summary
+  (`scripts/vv_ci_summary.py`). `tests/unit/test_workflow_hygiene.py` pins these rules.
+
 ## Pointers (do not re-derive — read these)
 
 - `CONSTITUTION.md` — invariants in spec-kit form
@@ -536,4 +547,4 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
 
 ---
 
-*Stage 01 (2026-05-17); updated through Stage 21 (2026-10-15, v0.1.0) by each stage's post-stage handoff write.*
+*Stage 01 (2026-05-17); updated through Stage 22 (2026-10-16, v0.1.1) by each stage's post-stage handoff write.*
