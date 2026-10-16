@@ -19,7 +19,7 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.1.1 (not yet tagged)  ·  **Status:** complete  ·  **Completed:** 2026-10-16
+**Latest tag:** v0.1.1  ·  **Status:** complete  ·  **Completed:** 2026-10-16
 
 **Stage 22 — Foundation I: An Honest V&V Report** — most recent stage.
 
