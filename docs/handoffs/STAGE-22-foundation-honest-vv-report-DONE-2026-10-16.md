@@ -255,8 +255,9 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 
 ## 7. Open items for the next stage (and beyond)
 
-- **This stage:** deliverables 2–6; the Stage-23 prompt
-  (`docs/handoff-bundle/STAGE-23-foundation-provenance.md`) is **not yet written**.
+- **This stage:** the diagnostic `vv-transonic` dispatch, the `unmeasurable` classification from
+  evidence, and deliverable 6 (`v0.1.1`). **The Stage-23 prompt exists:**
+  `docs/handoff-bundle/STAGE-23-foundation-provenance.md`.
 - **Stage 23 (provenance):** a bare `dvc pull` can never succeed in this repository because the
   inputs are spread over several remotes (DrivAerML on `aero-nfs`, small assets on `aero-minio`);
   a content-addressed `dvc_input_hash` (O-07) must be defined per input, not per repository sync state.
