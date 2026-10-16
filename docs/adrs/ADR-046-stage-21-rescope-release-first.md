@@ -20,6 +20,11 @@
 > 2. The `## Decision (proposed)` heading below predates acceptance. The decision is accepted, as
 >    the Status line says.
 
+> **Amendment (ADR-051, accepted 2026-10-16).** The scheduling below ("the rigid-flapping
+> optimization is therefore scheduled as the **first post-v0.1.0 stage**") is superseded. The
+> post-v0.1.0 stages 22–26 build the foundation first, and the rigid-flapping optimization follows
+> them. The decision, S1–S6 and option (i) are unchanged.
+
 ## Context and problem statement
 
 Stage 21 is currently defined (`README-handoff.md:46`) as **"Flexible-Flapping Optimization +

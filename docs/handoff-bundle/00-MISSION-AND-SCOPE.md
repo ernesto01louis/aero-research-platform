@@ -226,11 +226,15 @@ Not: "the agent layer works" or "a surrogate trained." Those are not the bar.
     whose rotation-timing trend is validated and whose stroke-averaged mean lift is a documented
     NO-GO. **No flapping optimization claim is made at v0.1.0.** That is a real limitation against
     this brief's "flapping is the single flagship demonstration domain"; it is stated in the
-    release notes and the JOSS paper rather than smoothed over, and the rigid-flapping
-    optimization is the first post-v0.1.0 stage.
+    release notes and the JOSS paper rather than smoothed over. The rigid-flapping
+    optimization follows the post-v0.1.0 foundation stages 22–26 (ADR-051).
+
+**Post-v0.1.0 foundation (ADR-051, Stages 22–26):** an honest V&V report; provenance you can
+trust; the whole registry run; the turbulent canonical cases; forward-model validation for the
+optimization targets. Nothing new is optimized until the foundation's exits are met.
 
 **Post-v0.1.0 (committed, named, further out):** rigid-flapping optimization (the flagship's
-optimization result, scoped by Stage 14's mean-lift bound); flexible-flapping optimization, gated
+optimization result, its claim bound set by Stage 26's forward-model validation); flexible-flapping optimization, gated
 on ADR-046 S5's re-entry condition; adjoint shape/topology optimization
 (DAFoam v5 + SU2 adjoint) → generative / true-topology proposers.
 

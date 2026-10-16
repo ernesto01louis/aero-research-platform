@@ -1,4 +1,16 @@
-# STAGE 22 — Rigid-Flapping Optimization (the first post-v0.1.0 stage)
+# STAGE NN — Rigid-Flapping Optimization (after the foundation, ADR-051)
+
+> **Held until the foundation is built (ADR-051).** This prompt was drafted at Stage 21 as the first
+> post-v0.1.0 stage. ADR-051 moved it behind the five foundation stages (22–26):
+> - an honest V&V report;
+> - provenance you can trust;
+> - running the registry;
+> - the turbulent canonical cases;
+> - forward-model validation for the optimization targets.
+>
+> It gets its stage number, `NN`, when Stage 26 closes. Before it is used, update it from Stage 26's
+> result. In particular, the claim bound in D1.4 is set from Stage 26's flapping validation, not
+> from Stage 14's 45.7 % miss alone. Every "Stage 22" below means this stage.
 
 > **v0.1.0 is released, and Stage 21 is CLOSED.** The release-first stage (ADR-046) shipped:
 > - the result crates (Invariant 13, ADR-047);
@@ -20,7 +32,7 @@
 
 ## BEFORE YOU START — READ
 
-- `CLAUDE.md`, now with Invariant 13 and the release-tag rule; `.aero-stage` (set it to 22 in
+- `CLAUDE.md`, now with Invariant 13 and the release-tag rule; `.aero-stage` (set it to NN in
   the first commit).
 - `docs/handoffs/STAGE-21-release-portable-bundles-DONE-*.md`: the release record, the gotchas
   and the ledger pointers.
@@ -44,7 +56,7 @@
 - The producer contract for results: ADR-047. Keep the exact `resolved_config` passed to
   `compute_provenance`, and export through `aero.crate.write_crate`. No era recipes are needed
   from now on.
-- `docs/operator/deferred-work-ledger.md`, the section "Stage 22 — pre-registration items
+- `docs/operator/deferred-work-ledger.md`, the section "Rigid-flapping optimization — pre-registration items
   carried from Stage 21", which holds the per-evaluation retry item (D1.6).
 
 ## Why this stage
@@ -63,8 +75,8 @@ every claim this stage may make: **deltas, not absolutes**.
 
 ### 1. Bookkeeping (first commit)
 
-- `.aero-stage` → 22.
-- The Dependabot commit prefix → `ci(stage-22)`. The workflow-hygiene test enforces it.
+- `.aero-stage` → NN.
+- The Dependabot commit prefix → `ci(stage-NN)`. The workflow-hygiene test enforces it.
 - A `status: partial` Stage-22 handoff from the first commit on, with `stage_tag: v0.2.0`, or
   whatever version the operator chooses at open.
 

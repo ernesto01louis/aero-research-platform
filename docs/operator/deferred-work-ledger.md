@@ -317,7 +317,10 @@ New findings during Stage 21 (not release-blocking):
 - [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was
   already fixed: Invariant 8 reads `default 150.0`, raised from 50.0 by ADR-014. Nothing to carry.
 
-## Stage 22 — pre-registration items carried from Stage 21
+## Rigid-flapping optimization — pre-registration items carried from Stage 21
+
+The stage was Stage 22 until ADR-051 moved it behind the foundation stages 22–26. Its prompt draft
+is `docs/handoff-bundle/LATER-rigid-flapping-optimization.md`.
 
 - [ ] **Per-evaluation crash tolerance in the optimizer loop** (external review addendum C,
   operator decision 2026-10-13). This must be fixed in the Stage-22 pre-registration ADR, then

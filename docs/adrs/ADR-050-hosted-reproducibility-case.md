@@ -5,7 +5,7 @@
   release gate.
 - **Date:** 2026-10-13
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 21)
-- **Stage:** 21 (proposal); implementation in the first post-v0.1.0 stage, or a v0.1.x patch
+- **Stage:** 21 (proposal); implementation in Stage 23, Foundation II (ADR-051)
 - **Supersedes:** none. It extends ADR-047 (result crates) with one new claim scope. It interacts
   with the ledgered O-07 (content-addressed `dvc_input_hash`).
 
