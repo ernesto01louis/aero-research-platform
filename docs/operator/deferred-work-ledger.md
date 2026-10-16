@@ -312,10 +312,44 @@ New findings during Stage 21 (not release-blocking):
   - refuse `..` and absolute member names.
 
   It touches `aero/geometry/**`, so it needs a FULL vv-required run.
-- [ ] **`scripts/regenerate_status.sh` has no unit test** for complete-untagged, complete-tagged or
-  an empty `next_stage`. It is exercised only by the required docs-sync job.
+- [x] **`scripts/regenerate_status.sh` has no unit test** for complete-untagged, complete-tagged or
+  an empty `next_stage`. It is exercised only by the required docs-sync job. **Done in Stage 22**
+  (ride-along): `tests/unit/test_regenerate_status.py` covers all three, plus partial/blocked,
+  the lexicographic pick, `--check` drift and the bootstrap message.
 - [x] ~~CONSTITUTION Invariant 8's `default 50.0` parenthetical~~ (noted at Stage 10). This was
   already fixed: Invariant 8 reads `default 150.0`, raised from 50.0 by ADR-014. Nothing to carry.
+
+## Stage 22 (an honest V&V report) — findings carried forward
+
+Found by the Stage-22 workflow audit (ADR-051 deliverable 4). Stage 22 makes each of them
+visible; it fixes none of the physics or solver problems.
+
+- [ ] **SU2_CFD dies at startup on `aero-build` for every case** ("solver failed (rc=1)"; the
+  2D bump through SU2 uses an analytic mesh and fails the same way, so it is not the ONERA mesh).
+  The SU2 adapter already forces OpenMPI off TCP (the Stage-06 `rc=53` socket fix); the `rc=1`
+  may be `LocalSSHExecutor._remote_rc`'s fallback when the rc file is unreadable. The failure
+  message now carries the solver-log tail; the vv-transonic dispatch records it. SU2 is
+  frozen-optional (ADR-013), so this is fixed only if the operator invests in the SU2 stack.
+- [ ] **`OneraM6.evaluate()` always raises**: the eta = 0.44 chordwise Cp slice on the 3D wing
+  surface is unimplemented (`aero/vv/transonic/onera_m6.py`). The case cannot pass or fail on a
+  real comparison until it exists. SU2 stack, frozen-optional.
+- [ ] **A failed solve logs nothing to MLflow.** `BenchmarkRunner._drive` raises before `_log`, so
+  the report cannot show a crash: the case keeps its last logged status (or `missing`). Decide in
+  Stage 24 whether a failed solve becomes a logged `fail` with the error as an artifact.
+- [ ] **`bump_2d` has no single-grid V&V test** (`tests/vv/test_tmr_bump_2d.py` holds only the GCI
+  sweep), so it has 369 `-sweep` runs and no gated run. Stage 24.
+- [ ] **The bump GCI sweep XPASSed** on the 2026-10-15 nightly (`xfail(strict=False)`). Whether its
+  documented convergence concern still holds is Stage 25's question; the marker was not touched.
+- [ ] **`vv-scale-resolving` names two test files that never existed**
+  (`tests/vv/test_taylor_green_{pyfr,nekrs}.py`), and no `gpu` runner exists. The job fails loudly
+  on dispatch (H-19). PyFR stack, frozen-optional.
+- [ ] **A bare `dvc pull` can never succeed in this repository**: it also targets the DrivAerML
+  dataset, which lives on the `aero-nfs` remote (ADR-011), not the default `aero-minio`. Every pull
+  in CI is now targeted. Stage 23's content-addressed `dvc_input_hash` (O-07) must define inputs
+  per case, across remotes.
+- [ ] **`vv-smoke` floods the V&V experiment** (four runs per push; 18 in one day). The report no
+  longer has a window, but the history listing and the MLflow UI do. Consider a separate smoke
+  experiment or tag in Stage 24.
 
 ## Rigid-flapping optimization — pre-registration items carried from Stage 21
 

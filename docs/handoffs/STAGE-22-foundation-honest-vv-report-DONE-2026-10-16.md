@@ -34,7 +34,7 @@ next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 22, Dependabot prefix `ci(stage-22)`, this handoff, README regenerated |
 | 2 | The report reads the truth | ✅ PR B | `aero/vv/report.py`: one MLflow query per registered case and stack prefix (no window); the history listing pages the whole experiment and states its bound; 25 fake-client tests in `tests/unit/test_vv_report.py`, incl. the four the prompt names |
 | 3 | Typed status and the verdict | ✅ PR B | `aero/vv/status.py` (`VVStatus` Literal, `stack_verdicts`), `aero/vv/stacks.py` (the 25-case stack table, loud on drift); `DashboardEntry.status` typed; one verdict per stack in the text and the HTML; CLAUDE.md, ADR-005 (dated scope note) and `docs/vv/output-validity-bar.md` cite ADR-051 D2 |
-| 4 | No V&V workflow is green when it measured nothing | ❌ | not started — audit of the five workflows; see the audit table in §5 for the measured state at open |
+| 4 | No V&V workflow is green when it measured nothing | ✅ PR C | every `dvc pull` targeted and fail-loud; only a tolerance miss may `xfail` (`raises=AssertionError`); no skip on a solver error; a not-ready cluster fails in CI (`AERO_VV_REQUIRE_CLUSTER=1`); every V&V job writes a step summary of what it measured and what it did not; `vv-transonic` dispatch-only; hygiene tests pin all of it. The audit table is in §5; the diagnostic dispatch is pending |
 | 5 | The per-case table | ✅ | before and after tables below; `scripts/vv_report_crosscheck.py` (a full pagination, independent of `aero.vv.report`) agrees case for case: status and run id on all 25 |
 | 6 | The close: `v0.1.1` (D4) | ❌ | release PR, then the operator cuts the tag |
 
@@ -176,6 +176,15 @@ cannot run on the active stack carry their D2 status instead of `missing`.
   regression gate over measurable cases; the report carries the truth. Rejected: a nightly that
   attempts them and is red daily; attempting them everywhere, which turns the required
   `vv-required` context red until Stage 25.
+- **NACA 0012 verification is `unmeasurable`, on evidence.** Its OpenFOAM single-grid test and its
+  nightly GCI sweep are marked. The shared run directory of the 2026-10-16 `vv-required` run
+  (`/mnt/aero/runs/naca0012_verification-20261016-090809`) shows simpleFoam diverging:
+  `forceCoeffs` reach ~1e133 at iteration 83 and the solve dies before evaluation. That is
+  ADR-017's documented NO-GO ("diverges simpleFoam ~iter 83"). The old `xfail` swallowed the crash,
+  so every job read "xfailed" while measuring nothing, and its newest MLflow run is from
+  2026-06-10. The report still shows that `fail`; the tolerance is not relaxed; Stage 25 owns it.
+  No other active-stack test is deselected: the OpenFOAM flat plate completes and logs a real
+  `fail` every run, so it keeps a measuring `xfail`.
 - **`vv-transonic` becomes dispatch-only** (operator, 2026-10-16, plan review), the H-19 pattern
   already applied to `vv-scale-resolving`. It fails loudly on a solver failure; the SU2 stack is
   frozen-optional, so a nightly that is red every night was rejected.
@@ -215,17 +224,33 @@ cannot run on the active stack carry their D2 status instead of `missing`.
 
 ## 5. CI/CD changes
 
-- None yet. **The audit table at open** (what each workflow measured in its last run, read from
-  the run logs on 2026-10-16; "what changed" is filled in by deliverable 4):
+- **`import-platform-only`** imports the three new modules (PR B).
+- **The V&V workflows** (PR C), against the audit table below:
+  - every `dvc pull` is targeted and fail-loud; only `vv-transonic` pulls (the ONERA M6 mesh);
+  - the active-stack jobs (`vv-required`, `vv-smoke`) select `... and not su2 and not
+    unmeasurable`; the five SU2 tests are `su2`-marked and run only in the `vv-transonic` dispatch;
+  - `AERO_VV_REQUIRE_CLUSTER=1` in every pytest V&V job: a not-ready cluster fails the suite;
+  - every V&V job writes `$GITHUB_STEP_SUMMARY` (`scripts/vv_ci_summary.py` from the JUnit report
+    and the deselection record), including the trivial `vv-required` branch and the GPU-less
+    `vv-scale-resolving`;
+  - `vv-transonic` lost its nightly schedule (operator, 2026-10-16) and became the SU2-stack job;
+  - `vv-smoke`'s JSON step lost `|| echo "[]"`; its PR comment has a Stack column;
+  - `tests/unit/test_workflow_hygiene.py` pins: targeted, un-quieted pulls with no `||`; no
+    schedule on `vv-transonic`; a summary in all five; no `|| echo` in any V&V workflow; the
+    cluster requirement and the JUnit report in the three pytest jobs; the active-stack selections.
+- No required context changed.
+
+**The audit table at open** (what each workflow measured in its last run, read from the run logs
+on 2026-10-16), and what Stage 22 changed:
 
 | Workflow | Last run | Conclusion | What it measured | What changed |
 |---|---|---|---|---|
-| `vv-transonic` (nightly) | 38720763677, 2026-10-15 | success | **Nothing.** `test_onera_m6_cp_at_eta_044` SKIPPED on "solver failed (rc=1)"; `test_transonic_naca0012_cd_within_tolerance` XFAIL in 8 s. Test step 23 s. | — |
-| `vv-smoke` (push/PR) | 38770065555, 2026-10-15 | success | 3 passed (blasius, cylinder, laminar airfoil); 2 SKIPPED on rc=1 (bump_2d SU2, with a reason text that says "reference data not present"; onera_m6); 5 XFAIL, of which only the OpenFOAM flat plate measured and logged a `fail`; 72 deselected. 31 min. | — |
-| `vv-smoke` (nightly) | 38714744692, 2026-10-15 | success | 3 passed; 2 skipped (same); 7 xfailed; 1 XPASS (`test_bump_gci_mesh_sweep`). | — |
-| `vv-required` (required) | 38874315715, 2026-10-16 | success | Nothing: "V&V not relevant — passing trivially" (docs-only PR). On a relevant PR (38733522747): 3 passed, 2 skipped on rc=1 / missing mesh, 5 xfailed. | — |
-| `moving-vv` (weekly) | 38124230055, 2026-10-11 | failure | Honest: `oscillating_cylinder_lockin` pass (run `2d8f6dfc`), then `plunging_airfoil_hg2007` timed out at 14400 s, `BenchmarkError rc=124`, exit 1. Five straight weekly failures. | — |
-| `vv-scale-resolving` (dispatch) | 38275750272, 2026-10-12 (pre-H-19 schedule) | success | Nothing: `have_gpu=false` is hard-coded, both GPU jobs skipped. No run since H-19 made it fail loudly. | — |
+| `vv-transonic` (nightly) | 38720763677, 2026-10-15 | success | **Nothing.** `test_onera_m6_cp_at_eta_044` SKIPPED on "solver failed (rc=1)"; `test_transonic_naca0012_cd_within_tolerance` XFAIL in 8 s. Test step 23 s. | Dispatch-only; targeted fail-loud pull; runs all five `su2` tests; a solver failure FAILS; summary. |
+| `vv-smoke` (push/PR) | 38770065555, 2026-10-15 | success | 3 passed (blasius, cylinder, laminar airfoil); 2 SKIPPED on rc=1 (bump_2d SU2, with a reason text that says "reference data not present"; onera_m6); 5 XFAIL, of which only the OpenFOAM flat plate measured and logged a `fail`; 72 deselected. 31 min. | SU2 tests deselected (`su2`); no pull; cluster required; summary lists the deselected cases in words; JSON step fails loudly. |
+| `vv-smoke` (nightly) | 38714744692, 2026-10-15 | success | 3 passed; 2 skipped (same); 7 xfailed; 1 XPASS (`test_bump_gci_mesh_sweep`). | Same selection rules plus the GCI sweeps; summary. |
+| `vv-required` (required) | 38874315715, 2026-10-16 | success | Nothing: "V&V not relevant — passing trivially" (docs-only PR). On a relevant PR (38733522747): 3 passed, 2 skipped on rc=1 / missing mesh, 5 xfailed. | Same selection as vv-smoke on PRs; cluster required; summary on both branches, the trivial one saying nothing was measured. |
+| `moving-vv` (weekly) | 38124230055, 2026-10-11 | failure | Honest: `oscillating_cylinder_lockin` pass (run `2d8f6dfc`), then `plunging_airfoil_hg2007` timed out at 14400 s, `BenchmarkError rc=124`, exit 1. Five straight weekly failures. | No-op pull removed; per-case PASS/FAIL in the summary. Already honest. |
+| `vv-scale-resolving` (dispatch) | 38275750272, 2026-10-12 (pre-H-19 schedule) | success | Nothing: `have_gpu=false` is hard-coded, both GPU jobs skipped. No run since H-19 made it fail loudly. | Summary says no GPU runner, PyFR cases `frozen`; no-op pull removed; DoMINO step guarded instead of `|| echo`. |
 
 No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 
@@ -239,8 +264,9 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 
 ## 7. Open items for the next stage (and beyond)
 
-- **This stage:** deliverables 2–6; the Stage-23 prompt
-  (`docs/handoff-bundle/STAGE-23-foundation-provenance.md`) is **not yet written**.
+- **This stage:** the diagnostic `vv-transonic` dispatch, the `unmeasurable` classification from
+  evidence, and deliverable 6 (`v0.1.1`). **The Stage-23 prompt exists:**
+  `docs/handoff-bundle/STAGE-23-foundation-provenance.md`.
 - **Stage 23 (provenance):** a bare `dvc pull` can never succeed in this repository because the
   inputs are spread over several remotes (DrivAerML on `aero-nfs`, small assets on `aero-minio`);
   a content-addressed `dvc_input_hash` (O-07) must be defined per input, not per repository sync state.

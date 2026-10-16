@@ -247,3 +247,81 @@ def test_dependabot_prefix_names_the_current_stage() -> None:
     config = yaml.safe_load((REPO / ".github" / "dependabot.yml").read_text())
     prefixes = {u["commit-message"]["prefix"] for u in config["updates"]}
     assert prefixes == {f"ci(stage-{stage})"}, prefixes
+
+
+# --- Stage 22 (ADR-051): no V&V workflow is green when it measured nothing ------------------
+
+VV_WORKFLOWS = (
+    "vv-smoke.yml",
+    "vv-transonic.yml",
+    "vv-required.yml",
+    "moving-vv.yml",
+    "vv-scale-resolving.yml",
+)
+# The jobs that run the cluster V&V suite through pytest (moving-vv uses a driver script).
+_PYTEST_VV_JOBS = (
+    ("vv-smoke.yml", "vv-smoke"),
+    ("vv-transonic.yml", "vv-transonic"),
+    ("vv-required.yml", "vv-required"),
+)
+
+
+def _runs(wf: dict[str, Any]) -> list[str]:
+    return [
+        str(step.get("run", ""))
+        for job in wf.get("jobs", {}).values()
+        for step in job.get("steps", [])
+        if step.get("run")
+    ]
+
+
+def test_every_dvc_pull_is_targeted_and_fails_loudly(workflows: dict[str, Any]) -> None:
+    """`dvc pull --quiet || echo "dvc pull skipped"` relabelled every failure as a skip."""
+    pulls = [
+        (name, line.strip())
+        for name, wf in workflows.items()
+        for run in _runs(wf)
+        for line in run.splitlines()
+        if "dvc pull" in line and not line.strip().startswith("#")
+    ]
+    for name, line in pulls:
+        assert "||" not in line, f"{name}: a dvc pull must fail loudly: {line}"
+        assert "--quiet" not in line and " -q" not in line, f"{name}: never quiet: {line}"
+        assert re.search(r"\S+\.dvc\b", line), f"{name}: a dvc pull must name its target: {line}"
+
+
+def test_vv_transonic_has_no_schedule(workflows: dict[str, Any]) -> None:
+    """Dispatch only (operator decision 2026-10-16): the frozen SU2 stack is not a nightly signal."""
+    assert set(_triggers(workflows["vv-transonic.yml"])) == {"workflow_dispatch"}
+
+
+@pytest.mark.parametrize("name", VV_WORKFLOWS)
+def test_every_vv_workflow_writes_a_step_summary(name: str, workflows: dict[str, Any]) -> None:
+    assert any("GITHUB_STEP_SUMMARY" in run for run in _runs(workflows[name])), name
+
+
+@pytest.mark.parametrize("name", VV_WORKFLOWS)
+def test_no_vv_workflow_relabels_a_failure_with_echo(name: str, workflows: dict[str, Any]) -> None:
+    for run in _runs(workflows[name]):
+        assert "|| echo" not in run, f"{name}: `|| echo` turns a failure into a green step"
+
+
+@pytest.mark.parametrize(("name", "job"), _PYTEST_VV_JOBS)
+def test_pytest_vv_jobs_require_the_cluster_and_record_the_deselection(
+    name: str, job: str, workflows: dict[str, Any]
+) -> None:
+    env = workflows[name]["jobs"][job].get("env", {})
+    assert env.get("AERO_VV_REQUIRE_CLUSTER") == "1", name
+    assert env.get("AERO_VV_DESELECTED_JSON"), name
+    assert any("--junitxml=" in run for run in _runs(workflows[name])), name
+
+
+def test_active_stack_selections_exclude_the_frozen_stack_and_documented_no_gos(
+    workflows: dict[str, Any],
+) -> None:
+    required = workflows["vv-required.yml"]["jobs"]["vv-required"]["env"]["VV_SELECTION"]
+    smoke = "\n".join(_runs(workflows["vv-smoke.yml"]))
+    for text in (required, smoke):
+        assert "not su2" in text and "not unmeasurable" in text and "not moving" in text
+    transonic = workflows["vv-transonic.yml"]["jobs"]["vv-transonic"]["env"]["VV_SELECTION"]
+    assert transonic.startswith("su2 and ")

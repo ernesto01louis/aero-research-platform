@@ -45,6 +45,14 @@ jobs:
           echo "only when an operator has labelled a self-hosted runner 'gpu'."
           # Default to skip; the downstream job is gated by this output.
           echo "have_gpu=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "## vv-scale-resolving: nothing measured, and this job FAILS"
+            echo ""
+            echo "No [self-hosted, gpu] runner is registered (ADR-007), a resource absent by design."
+            echo "taylor_green_p3_32 and periodic_hill_2d (the PyFR stack, frozen-optional, ADR-013)"
+            echo "were not measured; the report shows them as frozen (ADR-051 D2). The job fails"
+            echo "rather than report a vacuous green (ADR-049 H-19)."
+          } >> "$GITHUB_STEP_SUMMARY"
           echo "::error::no [self-hosted, gpu] runner is registered -- vv-scale-resolving cannot run, so it fails instead of reporting a vacuous green"
           exit 1
 
@@ -66,13 +74,9 @@ jobs:
           uv venv --python 3.12 --clear
           uv pip install -e ".[pyfr,nekrs,provenance,vv,dev]"
 
-      - name: Fetch DVC-tracked scale-resolving references
-        env:
-          AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-        # Brachet 1983 Taylor-Green dissipation reference; Breuer 2009 periodic-hill.
-        run: .venv/bin/dvc pull --quiet || echo "dvc pull skipped"
+      # Stage 22: the `dvc pull --quiet || echo "dvc pull skipped"` step that stood here is gone.
+      # No scale-resolving case reads a DVC-tracked file, and a bare pull cannot succeed in this
+      # repository (it also targets the DrivAerML dataset on the aero-nfs remote).
 
       - name: Run the scale-resolving suite
         env:
@@ -81,6 +85,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         # Tests are stage_07-marked + slow; the host fixtures `vv_cluster_ready_pyfr`
         # / `vv_cluster_ready_nekrs` gate execution on SIF + DSN + scipy.
+        # NOTE (Stage 22 audit): these two test files have never existed in git, so if a GPU
+        # runner were registered this step would fail on "file not found" (loudly, not green).
+        # The PyFR stack is frozen-optional (ADR-013); writing its tests is not Stage 22's work.
         run: |
           .venv/bin/pytest -m "stage_07 and vv and slow" --run-slow -v \
               tests/vv/test_taylor_green_pyfr.py \
@@ -135,9 +142,16 @@ jobs:
         # Loads the latest DoMINO checkpoint and predicts a held-out DrivAerML
         # case inside physicsnemo.sif; the on-pod path writes the surrogate_vv
         # report, which `aero vv surrogate --report` renders + asserts here.
+        # Stage 22: an explicit guard instead of `|| echo`, so a failing cross-check fails the
+        # step. A missing report is a resource absent by design (DoMINO training was cancelled,
+        # ADR-013) and is said so in the step summary; it is never a pass.
         run: |
-          .venv/bin/aero vv surrogate domino --report docs/surrogate_vv-latest.json \
-            || echo "no saved surrogate_vv report yet — first DoMINO run pending"
+          if [ ! -f docs/surrogate_vv-latest.json ]; then
+            echo "## DoMINO inference smoke: nothing measured" >> "$GITHUB_STEP_SUMMARY"
+            echo "No saved surrogate_vv report exists (DoMINO training cancelled, ADR-013)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          .venv/bin/aero vv surrogate domino --report docs/surrogate_vv-latest.json
 
       - name: Upload the surrogate_vv report
         if: always()

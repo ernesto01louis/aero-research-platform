@@ -55,6 +55,15 @@ jobs:
       # solve on every superseded push — the runner reports `busy` with no job
       # in flight, and the next run competes with the last one's corpses.
       AERO_RUN_LONG_REAP: "1"
+      # Stage 22 (ADR-051): no V&V job is green when it measured nothing. A cluster that is
+      # not ready FAILS the suite instead of skipping it; the deselection record feeds the
+      # step summary, which says in words what was not measured and why.
+      AERO_VV_REQUIRE_CLUSTER: "1"
+      AERO_VV_DESELECTED_JSON: vv-deselected.jsonl
+      # The active (OpenFOAM) stack only: `su2` is the frozen-optional SU2 stack (ADR-013,
+      # ADR-051 D2; vv-transonic dispatch), `unmeasurable` a documented NO-GO whose solve
+      # cannot complete (deselected with words, operator decision 2026-10-16).
+      VV_SELECTION: "vv and slow and not mesh_sweep and not moving and not su2 and not unmeasurable"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,8 +92,23 @@ jobs:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-        run: .venv/bin/pytest -m "vv and slow and not mesh_sweep and not moving" --run-slow -v tests/vv
+        run: .venv/bin/pytest -m "$VV_SELECTION" --run-slow -v --junitxml=vv-junit.xml tests/vv
+
+      - name: Summarise what this job measured
+        if: always() && steps.filter.outputs.relevant == 'true'
+        run: >-
+          python3 -I scripts/vv_ci_summary.py --title "vv-required" --selection "$VV_SELECTION"
+          --junit vv-junit.xml --deselected vv-deselected.jsonl >> "$GITHUB_STEP_SUMMARY"
 
       - name: V&V not relevant — passing trivially
         if: steps.filter.outputs.relevant != 'true'
-        run: echo "PR touches no adapter or V&V code — vv-required passes trivially."
+        run: |
+          echo "PR touches no adapter or V&V code — vv-required passes trivially."
+          {
+            echo "## vv-required: nothing measured, by design"
+            echo ""
+            echo "This PR changes no path in the V&V filter (aero/adapters/**, aero/vv/**,"
+            echo "aero/geometry/**, conf/case/**, pyproject.toml), so no V&V case was run and this"
+            echo "check passes trivially. It is not evidence about any case's physics; the per-case"
+            echo "production gate is \`aero vv report --latest\` (ADR-005, scoped by ADR-051 D2)."
+          } >> "$GITHUB_STEP_SUMMARY"

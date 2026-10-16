@@ -45,7 +45,21 @@ _XFAIL_REASON = (
 )
 
 
-@pytest.mark.xfail(reason=_XFAIL_REASON, strict=False)
+# Stage 22 (operator decision 2026-10-16: documented NO-GOs are deselected with words). Evidence,
+# read from the shared run directory of the 2026-10-16 vv-required run
+# (naca0012_verification-20261016-090809): simpleFoam diverges, forceCoeffs reach ~1e133 at
+# iteration 83, and the solve dies before the case can be evaluated. That is ADR-017's documented
+# NO-GO. The xfail used to swallow the crash, so the job read "xfailed" while measuring nothing and
+# no MLflow run has been logged since 2026-06-10. The tolerance is NOT relaxed; Stage 25 owns it.
+_UNMEASURABLE = (
+    "ADR-017 NO-GO: the blunt-TE NACA 0012 diverges in simpleFoam at ~iteration 83 "
+    "(forceCoeffs ~1e133), so the solve cannot complete and nothing is measured; "
+    "tolerance not relaxed; owned by Stage 25"
+)
+
+
+@pytest.mark.unmeasurable(reason=_UNMEASURABLE)
+@pytest.mark.xfail(reason=_XFAIL_REASON, raises=AssertionError, strict=True)
 def test_naca0012_cd_within_tolerance(
     vv_cluster_ready: bool, vv_runner: Any, repo_root: Path
 ) -> None:
@@ -60,7 +74,8 @@ def test_naca0012_cd_within_tolerance(
 
 
 @pytest.mark.mesh_sweep
-@pytest.mark.xfail(reason=_XFAIL_REASON, strict=False)
+@pytest.mark.unmeasurable(reason=_UNMEASURABLE)
+@pytest.mark.xfail(reason=_XFAIL_REASON, raises=AssertionError, strict=False)
 def test_naca0012_grid_converged_cd(
     vv_cluster_ready: bool, vv_runner: Any, repo_root: Path
 ) -> None:
