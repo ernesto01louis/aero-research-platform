@@ -113,7 +113,10 @@ caps), each a FULL `vv-required` run (ADR-049 P2; ledger).
 - **Hard don'ts** (unchanged): never create the two ADR-045 records; never fill a B-sentinel; keep
   `stage-20-evidence-2026-09-20`; never write a crate under `data/vv/`.
 - **Release tags:** the agent's `git tag` is refused by the auto-mode classifier; the operator cuts
-  them. `release_readiness.py`'s limitation sentence names the release version (Stage 22).
+  them. `release_readiness.py` requires the v0.1.0 limitation sentence verbatim in every
+  release's notes ("... and v0.1.0 makes no flapping-wing optimization claim."); the v0.1.1
+  notes carry it (still true) and add that v0.1.1 makes none either. Keep that pattern, or
+  generalise the check in its own reviewed change before the bump commit.
 - **PR #21** (repointing the `aero-nas` DVC remote to `.60`) is unrelated to CI, which uses
   `aero-minio`. It stays "leave unless the operator asks", but it bears on D2 if a case's inputs
   live on `aero-nas`.
