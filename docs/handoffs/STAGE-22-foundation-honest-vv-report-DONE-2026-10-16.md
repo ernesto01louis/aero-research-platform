@@ -176,6 +176,15 @@ cannot run on the active stack carry their D2 status instead of `missing`.
   regression gate over measurable cases; the report carries the truth. Rejected: a nightly that
   attempts them and is red daily; attempting them everywhere, which turns the required
   `vv-required` context red until Stage 25.
+- **NACA 0012 verification is `unmeasurable`, on evidence.** Its OpenFOAM single-grid test and its
+  nightly GCI sweep are marked. The shared run directory of the 2026-10-16 `vv-required` run
+  (`/mnt/aero/runs/naca0012_verification-20261016-090809`) shows simpleFoam diverging:
+  `forceCoeffs` reach ~1e133 at iteration 83 and the solve dies before evaluation. That is
+  ADR-017's documented NO-GO ("diverges simpleFoam ~iter 83"). The old `xfail` swallowed the crash,
+  so every job read "xfailed" while measuring nothing, and its newest MLflow run is from
+  2026-06-10. The report still shows that `fail`; the tolerance is not relaxed; Stage 25 owns it.
+  No other active-stack test is deselected: the OpenFOAM flat plate completes and logs a real
+  `fail` every run, so it keeps a measuring `xfail`.
 - **`vv-transonic` becomes dispatch-only** (operator, 2026-10-16, plan review), the H-19 pattern
   already applied to `vv-scale-resolving`. It fails loudly on a solver failure; the SU2 stack is
   frozen-optional, so a nightly that is red every night was rejected.
