@@ -1,24 +1,31 @@
 ---
 stage: 22
 stage_name: "Stage 22 — Foundation I: An Honest V&V Report"
-status: partial
+status: complete
 date_started: 2026-10-16
 date_completed: 2026-10-16
-session_duration_hours: 0.5
+session_duration_hours: 4
 claude_code_version: "2.1.150 (Claude Code)"
 model: "claude-fable-5-1, then claude-opus-5-5"
 git_sha_start: 2235560dd217c4938655d38c382e48154bb533f9
-git_sha_end: 2235560dd217c4938655d38c382e48154bb533f9
+git_sha_end: cfad02aef26d6a509f4c92fc7fce7adf658e63e8
 stage_tag: v0.1.1
 next_stage: 23
 next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 ---
 
-# Stage 22 — Foundation I: An Honest V&V Report — PARTIAL (opened 2026-10-16)
+# Stage 22 — Foundation I: An Honest V&V Report — COMPLETE (v0.1.1 ready to tag)
 
-> **Stage 22 is `partial`.** This file is kept current from the first commit to the close, as the
-> Stage-21 handoff was. `git_sha_end` is the `main` commit the stage opened on until the release
-> PR's bump commit replaces it.
+> **Stage 22 is `complete`.** Deliverables 1–5 are merged on main (#71, #72, #73), and the release
+> PR carries deliverable 6. `git_sha_end` is that PR's bump commit (`cfad02a`); the commit after it
+> is docs-only (this handoff and the README), so the squash-merged commit that gets tagged has the
+> same code tree, which `check_release_tag.sh` checks. **The tag `v0.1.1` is the operator's** (the
+> agent's `git tag` is classifier-blocked): after the release PR merges,
+> `release_readiness.py --gate release --online` must print `READY TO TAG v0.1.1`.
+>
+> **The verdict at the close is unchanged and RED.** No stack is clear for production-tagged runs:
+> openfoam RED (7 pass, 4 fail, 9 missing), su2 and pyfr FROZEN. Stage 22 changed what the gate
+> shows, never what a case is.
 >
 > - **The prompt of record** is `docs/handoff-bundle/STAGE-22-foundation-honest-vv-report.md`.
 > - **The charter** is ADR-051 (accepted 2026-10-16). Its operator decisions bind this stage:
@@ -31,14 +38,28 @@ next_stage_name: "Stage 23 — Foundation II: Provenance You Can Trust"
 
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
-| 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 22, Dependabot prefix `ci(stage-22)`, this handoff, README regenerated |
-| 2 | The report reads the truth | ✅ PR B | `aero/vv/report.py`: one MLflow query per registered case and stack prefix (no window); the history listing pages the whole experiment and states its bound; 25 fake-client tests in `tests/unit/test_vv_report.py`, incl. the four the prompt names |
-| 3 | Typed status and the verdict | ✅ PR B | `aero/vv/status.py` (`VVStatus` Literal, `stack_verdicts`), `aero/vv/stacks.py` (the 25-case stack table, loud on drift); `DashboardEntry.status` typed; one verdict per stack in the text and the HTML; CLAUDE.md, ADR-005 (dated scope note) and `docs/vv/output-validity-bar.md` cite ADR-051 D2 |
-| 4 | No V&V workflow is green when it measured nothing | ✅ PR C | every `dvc pull` targeted and fail-loud; only a tolerance miss may `xfail` (`raises=AssertionError`); no skip on a solver error; a not-ready cluster fails in CI (`AERO_VV_REQUIRE_CLUSTER=1`); every V&V job writes a step summary of what it measured and what it did not; `vv-transonic` dispatch-only; hygiene tests pin all of it. The audit table is in §5; the diagnostic dispatch is pending |
+| 1 | Bookkeeping (first commit) | ✅ #71 | `.aero-stage` 22, Dependabot prefix `ci(stage-22)`, this handoff, README regenerated |
+| 2 | The report reads the truth | ✅ #72 | `aero/vv/report.py`: one MLflow query per registered case and stack prefix (no window); the history listing pages the whole experiment and states its bound; 25 fake-client tests in `tests/unit/test_vv_report.py`, incl. the four the prompt names |
+| 3 | Typed status and the verdict | ✅ #72 | `aero/vv/status.py` (`VVStatus` Literal, `stack_verdicts`), `aero/vv/stacks.py` (the 25-case stack table, loud on drift); `DashboardEntry.status` typed; one verdict per stack in the text and the HTML; CLAUDE.md, ADR-005 (dated scope note) and `docs/vv/output-validity-bar.md` cite ADR-051 D2 |
+| 4 | No V&V workflow is green when it measured nothing | ✅ #73 | every `dvc pull` targeted and fail-loud; only a tolerance miss may `xfail` (`raises=AssertionError`); no skip on a solver error; a not-ready cluster fails in CI (`AERO_VV_REQUIRE_CLUSTER=1`); every V&V job writes a step summary of what it measured and what it did not; `vv-transonic` dispatch-only; hygiene tests pin all of it. The audit table and the diagnostic dispatch (run 38891472030) are in §5 |
 | 5 | The per-case table | ✅ | before and after tables below; `scripts/vv_report_crosscheck.py` (a full pagination, independent of `aero.vv.report`) agrees case for case: status and run id on all 25 |
-| 6 | The close: `v0.1.1` (D4) | ❌ | release PR, then the operator cuts the tag |
+| 6 | The close: `v0.1.1` (D4) | ✅ ready to tag | the release PR: bump commit `cfad02a` (pyproject, the `uv.lock` root, CITATION `version` + `date-released`, CHANGELOG `[0.1.1] - 2026-10-16`, `docs/release/RELEASE-NOTES-v0.1.1.md`), then this docs-only commit. The tag is the operator's (§7) |
 
 (✅ = done, ⚠️ = partial, ❌ = not done / blocked)
+
+**PR map** (all squash-merged to main by the agent, each with all 12 required contexts green, as
+the operator authorized):
+
+| PR | Branch | What | Merge |
+|---|---|---|---|
+| #71 | `stage-22-open` | deliverable 1, bookkeeping | `389baf5` |
+| #72 | `stage-22-honest-report` | deliverables 2, 3, 5 (FULL `vv-required`) | `8187c41` |
+| #73 | `stage-22-honest-workflows` | deliverable 4, the ADR-051 erratum, the ledger, the Stage-23 prompt, the `regenerate_status.sh` test | `5f8e9c3` |
+| release | `stage-22-release-v0.1.1` | deliverable 6: the v0.1.1 bump (FULL `vv-required`), then this handoff `complete` | — |
+
+**Re-checked at the close** (2026-10-16T11:10Z, read-only): `aero vv report --latest` still gives
+7 pass / 4 fail / 9 missing / 4 frozen / 1 deferred, and `scripts/vv_report_crosscheck.py` agrees
+on all 25 cases (status and run id).
 
 ### The per-case table at open (the "before" table)
 
@@ -185,6 +206,18 @@ cannot run on the active stack carry their D2 status instead of `missing`.
   2026-06-10. The report still shows that `fail`; the tolerance is not relaxed; Stage 25 owns it.
   No other active-stack test is deselected: the OpenFOAM flat plate completes and logs a real
   `fail` every run, so it keeps a measuring `xfail`.
+- **The readiness gate's limitation sentence was kept, not generalised.** `release_readiness.py`
+  requires the v0.1.0 sentence ("... and v0.1.0 makes no flapping-wing optimization claim.")
+  verbatim in every release's notes. It is still true, so the v0.1.1 notes carry it and add that
+  v0.1.1 makes none either. Rejected: editing the gate in the release PR, which is a gate change
+  with no reviewer of its own.
+- **`vv-transonic` runs every `su2`-marked test**, not only the two transonic files: once the three
+  TMR-through-SU2 tests are deselected from the active-stack jobs, this is the only place they are
+  measured, which is what the `su2` marker's description says.
+- **`AERO_VV_REQUIRE_CLUSTER=1`** (an addition the brief did not spell out): every cluster test
+  skipped when its readiness fixture was false, so a runner that lost its cluster would have gone
+  green measuring nothing. In the three pytest V&V jobs a not-ready cluster now fails, naming the
+  missing pieces.
 - **`vv-transonic` becomes dispatch-only** (operator, 2026-10-16, plan review), the H-19 pattern
   already applied to `vv-scale-resolving`. It fails loudly on a solver failure; the SU2 stack is
   frozen-optional, so a nightly that is red every night was rejected.
@@ -208,7 +241,14 @@ cannot run on the active stack carry their D2 status instead of `missing`.
 
   Deliverable 4 therefore fixes the pull (targeted, un-quieted, fail-loud) and makes the SU2
   failure visible, and records the SU2 startup failure as an SU2-stack item instead of fixing a
-  frozen-optional solver. PR #21 only moves the `aero-nas` endpoint and is unrelated.
+  frozen-optional solver. PR #21 only moves the `aero-nas` endpoint and is unrelated. The
+  diagnostic dispatch then found the cause (§5): the adapter's own OpenMPI override names a
+  component that does not exist in the container. ADR-051 §1 carries a dated erratum.
+- **The NACA 0012 verification became `unmeasurable` before its PR ran**, not after, because the
+  evidence was already on the shared NFS (§2). The plan had expected to learn it from PR C's first
+  `vv-smoke` run.
+- **Ride-along done:** the `scripts/regenerate_status.sh` unit test. **Ride-alongs ledgered:** H-34
+  and H-35 (each a FULL `vv-required` run).
 
 ## 4. Environment / dependency / schema changes
 
@@ -254,6 +294,25 @@ on 2026-10-16), and what Stage 22 changed:
 
 No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 
+**Measured after the changes:**
+
+| Run | Result | What it measured |
+|---|---|---|
+| `vv-smoke` on #73 (38886826849) | success | 3 passed (blasius, cylinder, laminar airfoil), 1 xfailed (the OpenFOAM flat plate, a measured 12.6 % Cf miss), 78 deselected, 0 skipped; summary and the stack-aware PR comment written |
+| `vv-required` on #72 (38880338137) | success | the FULL run under the old selection, with the new report code |
+| `vv-required` on #73 (38886826797) | success | trivially (no filter path changed); its summary says so in words |
+| `vv-transonic` dispatch on main (38891472030) | **failure** | the targeted `dvc pull` of the ONERA M6 mesh succeeded; all five `su2` tests **FAILED** with `solver failed (rc=1)` and the solver-log tail; summary written |
+| `vv-scale-resolving` dispatch on main (38891504151) | **failure** (by design) | nothing: no `gpu` runner; the summary says the PyFR cases are `frozen` |
+
+**The SU2 diagnosis** (first diagnosis, not fixed; SU2 is frozen-optional). The log tail of every
+SU2 case reads "It looks like MPI_INIT failed … `mca_bml_base_open() failed` → Returned "Not
+found" (-13)", for framework `btl`, component `sm`. The SU2 container ships **Open MPI 4.1.6**,
+whose shared-memory BTL is called `vader`; it has no `sm` (`ompi_info` inside
+`/opt/aero/containers/su2-v8.sif` lists `ofi, openib, self, tcp, vader`). The adapter's Stage-06
+override `OMPI_MCA_btl=self,sm` (`aero/adapters/su2/solver.py`, the `rc=53` socket fix) therefore
+makes `MPI_Init` fail for every SU2 case. The likely fix is `self,vader`, which must be verified by
+a dispatch before it is believed; it is ledgered, not applied.
+
 ## 6. Gotchas discovered
 
 - **Stage open is one commit by construction.** The Stop hook requires a Stage-22 handoff as soon as
@@ -261,12 +320,32 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
   to equal `ci(stage-22)`: `.aero-stage`, the prefix, this file and the README must land together.
 - **The report's non-`--latest` mode and the window.** `vv-smoke` logs four cases on every push
   (18 runs between 2026-10-15 and 2026-10-16), so any fixed window is filled within days.
+- **A merged PR's `vv-smoke` keeps running** and holds a runner for ~30 minutes; it must not be
+  cancelled. The delayed nightly `vv-smoke` (it started at 09:35 UTC, not 05:00) superseded main's
+  push run through the workflow's own `cancel-in-progress`. Budget about 45–60 minutes per CI cycle.
+- **A required check run can stick at `in_progress` with conclusion `success`** (the licence scan on
+  #72). Re-running that hosted job (`gh run rerun <run> --job <id>`) cleared it.
+- **Merge commits need Conventional Commit messages:** commit-lint checks every commit in a PR, so
+  reword the merge of `main` into a stacked branch before pushing.
+- **A version bump needs the local editable install refreshed** before the unit suite passes locally
+  (`test_installed_version_is_the_pyproject_version` reads the installed metadata):
+  `VIRTUAL_ENV=$PWD/.venv uv pip install --offline --no-deps -e .`. CI installs fresh.
+- **`uv lock --offline` bumps only the root version line**, as in v0.1.0.
+- **Never print `.dvc/config.local`**: it holds the DVC remote credentials. Check it with `ls`.
+- **The case directories on the shared NFS are evidence** (`/mnt/aero-nfs/runs/<case>-<ts>/`): the
+  NACA 0012 divergence was read from `postProcessing/forceCoeffs1/0/coefficient.dat`, read-only.
+  The `naca0012-*` directories are the provenance-completeness job's walking-skeleton runs.
 
 ## 7. Open items for the next stage (and beyond)
 
-- **This stage:** the diagnostic `vv-transonic` dispatch, the `unmeasurable` classification from
-  evidence, and deliverable 6 (`v0.1.1`). **The Stage-23 prompt exists:**
-  `docs/handoff-bundle/STAGE-23-foundation-provenance.md`.
+- **The operator, to close Stage 22:**
+  1. after the release PR merges, run
+     `PATH=.venv/bin:$PATH python scripts/release_readiness.py --gate release --online` and expect
+     `READY TO TAG v0.1.1 at <sha>`; then cut the annotated tag it prints and push it;
+  2. decide whether to publish a GitHub Release (which mints a Zenodo version DOI);
+  3. the README STATUS refresh follows the tag (one docs-only PR that drops "(not yet tagged)").
+- **The Stage-23 prompt exists:** `docs/handoff-bundle/STAGE-23-foundation-provenance.md`. It lists
+  six decisions to put to the operator at stage open.
 - **Stage 23 (provenance):** a bare `dvc pull` can never succeed in this repository because the
   inputs are spread over several remotes (DrivAerML on `aero-nfs`, small assets on `aero-minio`);
   a content-addressed `dvc_input_hash` (O-07) must be defined per input, not per repository sync state.
@@ -275,17 +354,21 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
   `bump_2d` has no single-grid test and has only ever run as GCI sweeps (369 `-sweep` runs).
 - **Stage 25 (turbulent cases):** the bump GCI sweep XPASSed on the 2026-10-15 nightly, so its
   `xfail` may be stale.
-- **SU2 stack (frozen-optional):** SU2_CFD dies with rc=1 at startup on `aero-build` for every case;
-  `OneraM6.evaluate()` is unimplemented.
+- **SU2 stack (frozen-optional):** `MPI_Init` fails for every SU2 case because the adapter requests
+  the `sm` BTL, which Open MPI 4.1.6 calls `vader` (§5); `OneraM6.evaluate()` is unimplemented.
+  Both are ledgered; neither is Stage 23's work unless the operator invests in SU2.
+- **Ledgered from this stage:** `docs/operator/deferred-work-ledger.md`, "Stage 22 — findings carried
+  forward".
 
 ## 8. Pointers for the next session
 
-- **Read first:** this file, the prompt of record, ADR-051, ADR-005, the Stage-21 handoff §6–§7.
+- **Read first:** this file, the Stage-23 prompt, ADR-051 (with its §1 erratum), ADR-004, ADR-049.
 - **Do not re-read:** the Stage-20 campaign records.
 - **Run first:** `PATH=.venv/bin:$PATH pytest -q tests/unit`;
   `bash scripts/check_handoff_exists.sh; echo $?` (0); `scripts/regenerate_status.sh --check`;
-  `gh pr list`; the hard-don't checks (no ADR-045 records, the `stage-20-evidence-2026-09-20` tag,
-  unfilled B-sentinels).
+  `gh pr list` (#21 only, left alone); `PATH=.venv/bin:$PATH aero vv report --latest` and
+  `scripts/vv_report_crosscheck.py --against <its --json>`; the hard-don't checks (no ADR-045
+  records, the `stage-20-evidence-2026-09-20` tag, unfilled B-sentinels).
 
 ## 9. Artifacts produced
 
@@ -294,11 +377,29 @@ No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 - `scripts/vv_report_crosscheck.py`, the independent full-pagination read.
 - Tests: `tests/unit/{test_vv_report,test_vv_stacks,test_vv_dashboard_types,test_vv_report_crosscheck}.py`
   and the fake client `tests/unit/_fake_mlflow.py`.
+- `scripts/vv_ci_summary.py` (the V&V job summaries) with `tests/unit/test_vv_ci_summary.py`; the
+  `pytest_deselected` record and `AERO_VV_REQUIRE_CLUSTER` in `tests/vv/conftest.py`; the Stage-22
+  hygiene rules in `tests/unit/test_workflow_hygiene.py`; `tests/unit/test_regenerate_status.py`.
+- The five V&V workflows (§5); the `su2` and `unmeasurable` markers.
+- Docs: ADR-005's dated scope note; ADR-051's dated erratum; CLAUDE.md's per-stack rule;
+  `docs/vv/output-validity-bar.md`; the ledger section; the Stage-23 prompt.
+- The release: `docs/release/RELEASE-NOTES-v0.1.1.md`, CHANGELOG `[0.1.1]`, the version bump.
+- The unit suite: 1527 passed, 3 skipped (from 1441 at the stage's first commit).
 
 ## 10. Confidence / risk
 
-- **High confidence:** the per-case table in §1 (two independent read-only reads agree on all 25
-  cases).
-- **Medium confidence:** the cause of the SU2 rc=1 is not yet known; it is diagnosed in deliverable 4.
-- **Outstanding risks:** the self-hosted queue paces every PR (about 45 min per CI cycle); the
-  release close needs all 12 required contexts green and the operator's tag.
+- **High confidence:**
+  - the per-case table in §1: two independent read-only reads agree on all 25 cases, at three
+    different times;
+  - the per-stack verdict logic (unit-tested on every status combination);
+  - the CI measurement change: `vv-smoke` on #73 ran exactly the four active-stack tests, and the
+    SU2 dispatch failed loudly with the real error.
+- **Medium confidence:**
+  - the SU2 cause: the error names the missing `sm` component and `ompi_info` lists only `vader`,
+    but no SU2 solve has been run with `self,vader`;
+  - `strict=True` on the flat-plate `xfail` turns CI red the day the case passes. That is
+    intended (a stale marker is loud), but it will surprise whoever fixes the physics.
+- **Outstanding risks:**
+  - the self-hosted queue paces every PR (45–60 minutes per CI cycle);
+  - the release PR's FULL `vv-required` is the first FULL run under the new selection;
+  - the tag and any GitHub Release are the operator's.

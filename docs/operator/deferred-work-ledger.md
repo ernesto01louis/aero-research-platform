@@ -326,10 +326,14 @@ visible; it fixes none of the physics or solver problems.
 
 - [ ] **SU2_CFD dies at startup on `aero-build` for every case** ("solver failed (rc=1)"; the
   2D bump through SU2 uses an analytic mesh and fails the same way, so it is not the ONERA mesh).
-  The SU2 adapter already forces OpenMPI off TCP (the Stage-06 `rc=53` socket fix); the `rc=1`
-  may be `LocalSSHExecutor._remote_rc`'s fallback when the rc file is unreadable. The failure
-  message now carries the solver-log tail; the vv-transonic dispatch records it. SU2 is
-  frozen-optional (ADR-013), so this is fixed only if the operator invests in the SU2 stack.
+  **Diagnosed by the Stage-22 dispatch (run 38891472030):** `MPI_Init` fails with
+  `mca_bml_base_open() failed` / "Not found" for framework `btl`, component `sm`. The SU2 SIF ships
+  Open MPI 4.1.6, whose shared-memory BTL is `vader` (`ompi_info` lists `ofi, openib, self, tcp,
+  vader`), so the adapter's Stage-06 override `OMPI_MCA_btl=self,sm`
+  (`aero/adapters/su2/solver.py`) names a component that does not exist. Likely fix:
+  `self,vader`, verified by a `vv-transonic` dispatch before it is believed (a FULL `vv-required`
+  run, since it touches `aero/adapters/**`). SU2 is frozen-optional (ADR-013), so this is fixed
+  only if the operator invests in the SU2 stack.
 - [ ] **`OneraM6.evaluate()` always raises**: the eta = 0.44 chordwise Cp slice on the 3D wing
   surface is unimplemented (`aero/vv/transonic/onera_m6.py`). The case cannot pass or fail on a
   real comparison until it exists. SU2 stack, frozen-optional.
