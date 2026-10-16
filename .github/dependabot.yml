@@ -18,7 +18,7 @@ updates:
       github-actions:
         patterns: ["*"]
     commit-message:
-      prefix: "ci(stage-21)"
+      prefix: "ci(stage-22)"
     ignore:
       # Deliberately held on v3 (operator decision 2026-10-13; #59 closed). It runs inside the
       # secret-bearing vv-required job, so a major bump gets a deliberate, reviewed PR instead.
