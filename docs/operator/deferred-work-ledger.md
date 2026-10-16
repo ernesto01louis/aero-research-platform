@@ -323,8 +323,8 @@ The stage was Stage 22 until ADR-051 moved it behind the foundation stages 22–
 is `docs/handoff-bundle/LATER-rigid-flapping-optimization.md`.
 
 - [ ] **Per-evaluation crash tolerance in the optimizer loop** (external review addendum C,
-  operator decision 2026-10-13). This must be fixed in the Stage-22 pre-registration ADR, then
-  built in that stage's first PR.
+  operator decision 2026-10-13). This must be fixed in the rigid-flapping stage's
+  pre-registration ADR, then built in that stage's first PR.
 
   **What exists today.** Both drivers already skip a failed solve: `scripts/stage17_speedup_arm.py`
   and the `EvaluateBatch` path of `aero/optimize/accelerated.py`. A failed solve becomes `None`,

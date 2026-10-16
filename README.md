@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.1.0  ·  **Status:** complete  ·  **Completed:** 2026-10-15
+**Latest tag:** v0.1.1 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-10-16
 
-**Stage 21 — Release: Portable Bundles + Hardening + v0.1.0** — most recent stage.
+**Stage 22 — Foundation I: An Honest V&V Report** — most recent stage.
 
-**Next:** Stage 22 — Foundation I: An Honest V&V Report.
+**Next:** resume Stage 22 — Foundation I: An Honest V&V Report — partial, not finished.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
