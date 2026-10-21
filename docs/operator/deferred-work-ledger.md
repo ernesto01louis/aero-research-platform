@@ -388,10 +388,11 @@ visible; it fixes none of the physics or solver problems.
   committed to git or DVC and declared before it can be meshed; the frozen PyFR/NekRS mesh-file
   cases read assets in neither git nor DVC (absent from the checkout anyway). Trigger: the first
   external-geometry run on a user surface.
-- [ ] **The 30-min default executor ceiling sits on the cylinder case's runtime.**
+- [x] **The 30-min default executor ceiling sat on the cylinder case's runtime.**
   `cylinder_strouhal_re100` solves in about 29 min on an idle aero-build and timed out (rc 124)
-  while another V&V job shared the host (PR #79's first FULL run, 2026-10-21). Give the V&V
-  conftest's `LocalSSHExecutor` a case-sized `long_timeout_s` (a ceiling, never a tolerance).
+  while another V&V job shared the host (PR #79's first FULL run, 2026-10-21). **Fixed in PR 6 of
+  Stage 23:** the V&V conftest's executor has a 45-min ceiling (a ceiling, never a tolerance).
+  Still open: both `vv` runners solve on the one aero-build, so two V&V jobs always share it.
 - [ ] **The launch guard's residual gap** (ADR-053): it proves the SIF held the recorded bytes when it
   was hashed, not that apptainer then read the same bytes (a sub-second TOCTOU window). Complements:
   verify the SIF signature at launch, or an execution-control list. Trigger: a solve host shared with
