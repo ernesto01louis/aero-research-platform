@@ -19,11 +19,11 @@ for scope.
 ## Status
 
 <!-- STATUS:START -->
-**Latest tag:** v0.1.1  ·  **Status:** complete  ·  **Completed:** 2026-10-16
+**Latest tag:** v0.1.2 (not yet tagged)  ·  **Status:** partial  ·  **Completed:** 2026-10-21
 
-**Stage 22 — Foundation I: An Honest V&V Report** — most recent stage.
+**Stage 23 — Foundation II: Provenance You Can Trust** — most recent stage.
 
-**Next:** Stage 23 — Foundation II: Provenance You Can Trust.
+**Next:** resume Stage 23 — Foundation II: Provenance You Can Trust — partial, not finished.
 
 See [`docs/handoffs/`](docs/handoffs/) for per-stage exit notes and
 [`CHANGELOG.md`](CHANGELOG.md) for the version-tagged change log.
