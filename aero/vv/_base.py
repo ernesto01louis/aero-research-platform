@@ -173,6 +173,12 @@ class BenchmarkCase(Protocol):
     description: str
     sweep_metric: str
     """The scalar metric a `MeshSweep` tracks for this case's GCI study."""
+    dvc_inputs: tuple[str, ...]
+    """The repo-relative `.dvc` pointers the case reads; `()` for none (ADR-052 D1).
+
+    Required, with no default: the run's `dvc_input_hash` is the digest of exactly these, every
+    staging read is checked against them, and an undeclared DVC read is refused.
+    """
 
     def case_spec(self) -> Any:
         """The solver input spec (a `CaseSpec` or a `TMRCaseSpec`)."""
@@ -348,12 +354,16 @@ def _loggable(provenance: AnyProvenanceTuple) -> ProvenanceTupleV2:
     return provenance
 
 
-def _check_tuple_describes(case: BenchmarkCase, provenance: AnyProvenanceTuple) -> None:
-    """Refuse a tuple whose `config_hash` is not this case's spec (Stage 23).
+def _check_tuple_describes(
+    case: BenchmarkCase, provenance: AnyProvenanceTuple, repo_root: Path
+) -> None:
+    """Refuse a tuple that does not describe this case: its spec and its declared inputs.
 
     A mesh sweep used to log its refined grids under the base grid's tuple, so grids 2 and 3
-    carried the finest grid's `config_hash`. The runner now refuses any tuple that does not hash
-    the spec it is about to solve, so each grid needs its own.
+    carried the finest grid's `config_hash`. The runner refuses any tuple that does not hash the
+    spec it is about to solve, so each grid needs its own (Stage 23). And the tuple's inputs must
+    be the case's declaration, resolved at this checkout (ADR-052 D1): the hash names exactly
+    what staging may read.
     """
     expected = config_hash(case.case_spec().model_dump(mode="json"))
     if provenance.config_hash != expected:
@@ -361,6 +371,19 @@ def _check_tuple_describes(case: BenchmarkCase, provenance: AnyProvenanceTuple) 
             f"{case.name}: the provenance tuple's config_hash {provenance.config_hash[:12]}... is "
             f"not this case's spec ({expected[:12]}...) — compute one tuple per solved spec"
         )
+    from aero.provenance.dvc_inputs import resolve_declared
+
+    declared = resolve_declared(repo_root, case.dvc_inputs)
+    recorded = getattr(provenance, "dvc_inputs", None)
+    if recorded != declared:
+        raise ProvenanceError(
+            f"{case.name}: the tuple's inputs {_paths(recorded)} are not the case's declaration "
+            f"{_paths(declared)} (ADR-052) — compute it with dvc_inputs=case.dvc_inputs"
+        )
+
+
+def _paths(inputs: Any) -> str:
+    return "none recorded" if inputs is None else str([i.path for i in inputs])
 
 
 class BenchmarkRunner:
@@ -436,7 +459,7 @@ class BenchmarkRunner:
         the four-fold tuple and per-metric errors are logged to MLflow with a
         `validation_tag` tag.
         """
-        _check_tuple_describes(case, provenance)
+        _check_tuple_describes(case, provenance, repo_root)
         measured, mesh, result = self._drive(case, provenance)
         reference = case.reference(repo_root)
         metric_results = tuple(compare(m, measured[m.name], reference) for m in case.metrics())
@@ -475,7 +498,7 @@ class BenchmarkRunner:
         Index compares a solution against itself at three resolutions, so it
         needs the measured scalar but not the (validation) reference data.
         """
-        _check_tuple_describes(case, provenance)
+        _check_tuple_describes(case, provenance, repo_root)
         measured, mesh, result = self._drive(case, provenance)
         if metric not in measured:
             raise BenchmarkError(f"{case.name}: evaluate() produced no metric {metric!r}")

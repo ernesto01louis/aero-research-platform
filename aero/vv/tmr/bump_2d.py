@@ -34,6 +34,8 @@ class Bump2D:
     name = "bump_2d"
     description = "NASA TMR 2D bump-in-channel — Cp/Cf validation and a GCI mesh sweep."
     sweep_metric = "cp_min"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: Bump2DSpec | None = None) -> None:
         self._spec = spec or Bump2DSpec(name=self.name, reynolds=3.0e6, mach=0.2)

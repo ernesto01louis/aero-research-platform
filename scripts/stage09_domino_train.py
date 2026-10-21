@@ -114,6 +114,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root=repo_root,
         container_sif="physicsnemo.sif",
         resolved_config=resolved,
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=args.allow_dirty,
     )
     print(f"[stage09] provenance git_sha={provenance.git_sha}", flush=True)

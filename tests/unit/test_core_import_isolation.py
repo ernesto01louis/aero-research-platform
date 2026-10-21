@@ -35,6 +35,8 @@ CORE_MODULES = (
     "aero.vv.status",
     "aero.vv.stacks",
     "aero.vv.report",
+    # Stage 23 (ADR-052): the declared-input parser and the one read path; no yaml, no dvc.
+    "aero.provenance.dvc_inputs",
 )
 
 # Present in a full dev install, so their ABSENCE from sys.modules is the real assertion.

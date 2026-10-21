@@ -116,8 +116,16 @@ def _repo_root() -> Path:
     return source_checkout_root()
 
 
-def _verified(path: Path, *, what: str) -> str:
-    """Return `path`'s sha256, checked against its git-tracked sidecar."""
+#: The one `.dvc` pointer the case reads (ADR-052 D1): the pinned preCICE tutorial archive.
+_DVC_INPUTS = ("data/references/fsi/turek_hron_fsi3/precice-tutorials-turek-hron-fsi3.tar.gz.dvc",)
+
+
+def _verified(path: Path, *, what: str, repo_root: Path) -> str:
+    """Return `path`'s sha256, checked against its git-tracked sidecar.
+
+    The bytes are read through the case's declaration, so their md5 and size are also checked
+    against the pointer as committed (ADR-052).
+    """
     sidecar = path.with_suffix(path.suffix + ".sha256")
     if not sidecar.is_file():
         raise BenchmarkError(
@@ -127,7 +135,10 @@ def _verified(path: Path, *, what: str) -> str:
     recorded = sidecar.read_text(encoding="utf-8").strip()
     if not path.is_file():
         raise BenchmarkError(f"{path} not found — run `dvc pull` to fetch the {what}")
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    from aero.provenance.dvc_inputs import read_declared_input, resolve_declared
+
+    data = read_declared_input(repo_root, path, declared=resolve_declared(repo_root, _DVC_INPUTS))
+    actual = hashlib.sha256(data).hexdigest()
     if actual != recorded:
         raise BenchmarkError(
             f"{path}: SHA-256 {actual[:12]}... != recorded {recorded[:12]}... — "
@@ -164,7 +175,7 @@ def fsi3_case_spec(
     """Build the coupled case spec, verifying the pinned artifacts as it goes."""
     root = repo_root or _repo_root()
     archive = root / _REFERENCE_DIR / _ARCHIVE
-    archive_sha = _verified(archive, what="pinned preCICE tutorial archive")
+    archive_sha = _verified(archive, what="pinned preCICE tutorial archive", repo_root=root)
     # `gated` is DERIVED, never passed in. ADR-036 B2 pre-registers exactly one gated
     # configuration; B3's refined-mesh run is declared non-gated from the start "so it
     # cannot become a second attempt at the gate". Letting a caller assert gated=True for
@@ -225,6 +236,8 @@ class TurekHronFSI3:
         "values."
     )
     sweep_metric = "tip_uy_amplitude"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): the pinned preCICE tutorial archive.
+    dvc_inputs: tuple[str, ...] = _DVC_INPUTS
 
     def __init__(self, spec: CoupledCaseSpec | None = None) -> None:
         self._spec = spec

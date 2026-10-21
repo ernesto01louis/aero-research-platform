@@ -71,7 +71,7 @@ def test_write_case_rejects_foreign_spec(tmp_path: Path) -> None:
 
     solver = JaxFluidsSolver(host_nfs_root=tmp_path, remote_nfs_root=tmp_path)
     with pytest.raises(TypeError) as excinfo:
-        solver._write_case(_Other(), tmp_path / "case")  # type: ignore[arg-type]
+        solver._write_case(_Other(), tmp_path / "case", declared=())  # type: ignore[arg-type]
     assert "cannot handle spec of type" in str(excinfo.value)
 
 
@@ -83,7 +83,7 @@ def test_mesh_file_spec_requires_repo_root(tmp_path: Path) -> None:
         numerical_setup_path="some/numerical.json",
     )
     with pytest.raises(ValueError) as excinfo:
-        solver._write_case(spec, tmp_path / "case")
+        solver._write_case(spec, tmp_path / "case", declared=())
     assert "repo_root" in str(excinfo.value)
 
 

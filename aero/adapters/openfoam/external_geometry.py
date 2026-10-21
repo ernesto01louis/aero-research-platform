@@ -23,7 +23,6 @@ the one that passed the ingestion gate.
 from __future__ import annotations
 
 import hashlib
-import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -40,6 +39,8 @@ from aero.adapters.openfoam._foam_common import (
     turbulence_properties,
 )
 from aero.geometry import GeometryError
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import DeclaredInput
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -519,17 +520,26 @@ def _mapped_inlet_boundary_data(spec: ExternalGeometrySpec, constant: Path) -> N
 
 
 # --- the writer ------------------------------------------------------------------
-def write_external_geometry_case(spec: ExternalGeometrySpec, dest: Path) -> None:
+def write_external_geometry_case(
+    spec: ExternalGeometrySpec,
+    dest: Path,
+    *,
+    repo_root: Path,
+    declared: tuple[DeclaredInput, ...],
+) -> None:
     """Write the complete case under `dest` (system/, constant/, 0/).
 
-    Fails loud (`GeometryError`) if the referenced STL is missing or its SHA-256
-    does not match `spec.surface_sha256` — the meshed surface must be byte-identical
-    to the one that passed the ingestion gate.
+    The STL is read once, through the run's declaration (ADR-052): a DVC-tracked surface must be
+    declared and match its pointer, a git-tracked one is read as committed, and anything else
+    (an undeclared DVC output, a file outside the checkout) is refused with `ProvenanceError`.
+    Fails loud (`GeometryError`) if the bytes' SHA-256 does not match `spec.surface_sha256` —
+    the meshed surface must be byte-identical to the one that passed the ingestion gate.
     """
     source = Path(spec.surface_source)
     if not source.is_file():
         raise GeometryError(f"{source}: surface STL not found (did you `dvc pull`?)")
-    actual = hashlib.sha256(source.read_bytes()).hexdigest()
+    surface = read_declared_input(repo_root, source, declared=declared)
+    actual = hashlib.sha256(surface).hexdigest()
     if actual != spec.surface_sha256:
         raise GeometryError(
             f"{source}: SHA-256 {actual[:12]}... does not match the ingestion-gated "
@@ -543,7 +553,7 @@ def write_external_geometry_case(spec: ExternalGeometrySpec, dest: Path) -> None
     for d in (system, constant, zero, tri):
         d.mkdir(parents=True, exist_ok=True)
 
-    shutil.copyfile(source, tri / f"{spec.surface_name}.stl")
+    (tri / f"{spec.surface_name}.stl").write_bytes(surface)
 
     (system / "blockMeshDict").write_text(_blockmesh(spec), encoding="utf-8")
     (system / "surfaceFeatureExtractDict").write_text(

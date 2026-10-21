@@ -76,6 +76,8 @@ class FlappingWingWBD2004:
         "rotation) — stroke-averaged mean lift coefficient vs the robotic-wing experiment."
     )
     sweep_metric = "mean_lift_coefficient"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(
         self,

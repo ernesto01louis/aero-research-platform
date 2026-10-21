@@ -35,6 +35,8 @@ class CylinderStrouhal:
         "Low-Re cylinder (Re=100) vortex-shedding Strouhal vs the Roshko/Williamson St-Re."
     )
     sweep_metric = "strouhal"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: CylinderSpec | None = None) -> None:
         self._spec = spec or CylinderSpec(name=self.name, reynolds=100.0)

@@ -46,6 +46,8 @@ _SIMPLE_CONVERGED_RE = re.compile(r"SIMPLE solution converged in \d+ iterations"
 
 _REFERENCE_DIR = Path("data") / "references" / "fsi" / "turek_hron_fsi3"
 _STL_NAME = "cylinder_flag.stl"
+#: The one `.dvc` pointer both tests read (ADR-052 D1): the gated cylinder+flag STL.
+_DVC_INPUTS = ("data/references/fsi/turek_hron_fsi3/cylinder_flag.stl.dvc",)
 
 
 def _repo_root() -> Path:
@@ -59,7 +61,9 @@ def _gated_stl(repo_root: Path) -> tuple[str, str]:
     """(stl_path, sha256) of the acquired geometry; loud if not yet acquired/pulled.
 
     The sha256 sidecar is git-tracked next to the DVC-tracked STL; the spec embeds the
-    digest (provenance) and `write_external_geometry_case` re-verifies the bytes.
+    digest (provenance) and `write_external_geometry_case` re-verifies the bytes. The STL is
+    read through the case's declaration, so its md5 and size are checked against the pointer
+    as committed (ADR-052).
     """
     stl = repo_root / _REFERENCE_DIR / _STL_NAME
     sidecar = stl.with_suffix(stl.suffix + ".sha256")
@@ -71,7 +75,10 @@ def _gated_stl(repo_root: Path) -> tuple[str, str]:
     recorded = sidecar.read_text(encoding="utf-8").strip()
     if not stl.is_file():
         raise BenchmarkError(f"{stl} not found — run `dvc pull` to fetch the geometry")
-    actual = hashlib.sha256(stl.read_bytes()).hexdigest()
+    from aero.provenance.dvc_inputs import read_declared_input, resolve_declared
+
+    data = read_declared_input(repo_root, stl, declared=resolve_declared(repo_root, _DVC_INPUTS))
+    actual = hashlib.sha256(data).hexdigest()
     if actual != recorded:
         raise BenchmarkError(
             f"{stl}: SHA-256 {actual[:12]}... != recorded {recorded[:12]}... — "
@@ -125,6 +132,8 @@ class TurekHronCFD2:
         "cylinder+flag STL — drag/lift vs the published benchmark values."
     )
     sweep_metric = "cd"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): the gated cylinder+flag STL.
+    dvc_inputs: tuple[str, ...] = _DVC_INPUTS
 
     def __init__(self, spec: ExternalGeometrySpec | None = None) -> None:
         self._spec = spec
@@ -189,6 +198,8 @@ class TurekHronCFD3:
         "cylinder+flag STL — mean drag, lift amplitude + frequency vs published values."
     )
     sweep_metric = "cd"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): the gated cylinder+flag STL.
+    dvc_inputs: tuple[str, ...] = _DVC_INPUTS
 
     def __init__(self, spec: ExternalGeometrySpec | None = None) -> None:
         self._spec = spec

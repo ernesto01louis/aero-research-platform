@@ -46,6 +46,8 @@ class TaylorGreenVortex:
         "trace; canonical scale-resolving high-order benchmark."
     )
     sweep_metric = "peak_dissipation"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, *, solver_kind: TaylorGreenSolverKind = "pyfr") -> None:
         self.solver_kind = solver_kind

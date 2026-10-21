@@ -31,6 +31,7 @@ from aero.adapters.openfoam.solver import OpenFOAMSolver
 from aero.orchestration._base import ExecResult
 from aero.provenance import four_fold
 from aero.provenance.four_fold import (
+    EMPTY_DVC_INPUTS_DIGEST,
     ProvenanceError,
     ProvenanceTupleV2,
     read_sha256sums,
@@ -38,7 +39,7 @@ from aero.provenance.four_fold import (
 )
 from pydantic import BaseModel, ValidationError
 
-from tests.unit._launch_fixtures import REPO, SUMS, V1_CONTAINER, case_dir, run_tuple
+from tests.unit._launch_fixtures import REPO, SUMS, V1, case_dir, run_tuple
 
 pytestmark = pytest.mark.stage_23
 
@@ -124,12 +125,12 @@ def _sif(tmp_path: Path, name: str = "openfoam-esi.sif", content: bytes = b"sif 
 def _tuple(name: str, digest: str) -> ProvenanceTupleV2:
     return ProvenanceTupleV2(
         git_sha="0" * 40,
-        dvc_input_hash="b" * 64,
+        dvc_input_hash=EMPTY_DVC_INPUTS_DIGEST,
         container_sif_sha256=digest,
         config_hash="a" * 64,
         container_sif_name=name,
-        dvc_inputs=None,
-        schemes=V1_CONTAINER,
+        dvc_inputs=(),
+        schemes=V1,
     )
 
 
@@ -442,7 +443,11 @@ def test_compute_provenance_checks_sha256sums_before_anything_else(
     monkeypatch.setattr(four_fold, "git_sha", lambda *a, **k: pytest.fail("git_sha ran first"))
     with pytest.raises(ProvenanceError, match="differs from HEAD's"):
         four_fold.compute_provenance(
-            repo_root=REPO, container_sif="openfoam-esi.sif", resolved_config={}, allow_dirty=True
+            repo_root=REPO,
+            container_sif="openfoam-esi.sif",
+            resolved_config={},
+            dvc_inputs=(),
+            allow_dirty=True,
         )
 
 

@@ -931,6 +931,8 @@ class HeathcoteGursulFoil:
     """One arm of the Heathcote-Gursul flexible-foil validation."""
 
     sweep_metric = "c_t"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, arm: Arm = "flexible", spec: CoupledCaseSpec | None = None) -> None:
         self.arm = arm

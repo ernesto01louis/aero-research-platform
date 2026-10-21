@@ -195,6 +195,7 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
             repo_root=repo_root,
             container_sif=sif_name,
             resolved_config=case.case_spec().model_dump(mode="json"),  # type: ignore[attr-defined]
+            dvc_inputs=case.dvc_inputs,  # type: ignore[attr-defined]
             allow_dirty=True,
         )
 

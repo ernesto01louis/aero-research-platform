@@ -166,6 +166,7 @@ def _run_test(
                 repo_root=_REPO_ROOT,
                 container_sif="openfoam-esi.sif",
                 resolved_config=rung_spec.model_dump(mode="json"),
+                dvc_inputs=case.dvc_inputs,
                 allow_dirty=allow_dirty,
             ),
         )
@@ -294,6 +295,7 @@ def _preflight(host: str, timeout: int, inlet_bc: str) -> int:
                     repo_root=_REPO_ROOT,
                     container_sif="openfoam-esi.sif",
                     resolved_config=rung_spec.model_dump(mode="json"),
+                    dvc_inputs=(),
                     allow_dirty=True,
                 ),
                 gate=MeshQualityGate(),

@@ -104,6 +104,7 @@ def main() -> None:
         repo_root=_REPO_ROOT,
         container_sif="openfoam-esi.sif",
         resolved_config=base.case_spec().model_dump(mode="json"),
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=False,
     )
 

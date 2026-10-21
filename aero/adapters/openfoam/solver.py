@@ -78,6 +78,7 @@ from aero.postprocess.flapping_forces import FlappingTrace, flapping_trace
 from aero.postprocess.forces import ForceDecomposition, decompose_drag
 from aero.postprocess.frequency import strouhal as _pp_strouhal
 from aero.postprocess.phase_averaging import segment_cycles
+from aero.provenance.four_fold import DeclaredInput
 
 # `build_apptainer_exec` moved to `_base` in Stage 06 (it is solver-neutral);
 # it is re-exported here so the Stage-03 adapter unit tests keep importing it
@@ -107,7 +108,9 @@ class OpenFOAMSolver(Solver):
             sif_path=sif_path, host_nfs_root=host_nfs_root, remote_nfs_root=remote_nfs_root
         )
 
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         """Write the OpenFOAM case files under `host_path`.
 
         Dispatches on the spec type: an airfoil `CaseSpec` is written by the
@@ -130,7 +133,11 @@ class OpenFOAMSolver(Solver):
         elif isinstance(case, TransientAirfoilSpec):
             write_transient_airfoil_case(case, host_path)
         elif isinstance(case, ExternalGeometrySpec):
-            write_external_geometry_case(case, host_path)
+            from aero._repo import source_checkout_root
+
+            write_external_geometry_case(
+                case, host_path, repo_root=source_checkout_root(), declared=declared
+            )
         else:
             raise TypeError(
                 f"OpenFOAMSolver cannot write a case spec of type {type(case).__name__}"

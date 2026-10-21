@@ -137,7 +137,7 @@ def _write_run(
     # The case writer chowns the tree to the participant uid, which a non-root CI runner
     # cannot do (and this test does not care about ownership).
     with mock.patch("aero.adapters.precice.solver._chown_tree"):
-        PreciceCoupledSolver()._write_case(spec, host)
+        PreciceCoupledSolver()._write_case(spec, host, declared=())
     root = host / CASE_ROOT_DIRNAME
     exchange = next(root.glob("hg2007-*-foil"))
     solid = exchange / "solid-calculix"

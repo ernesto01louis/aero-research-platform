@@ -82,6 +82,8 @@ class ShapedTurbulentAirfoil:
     """Turbulent NACA-4 airfoil (k-omega SST, Re=3e6, fixed AoA) — L/D objective (Stage-15)."""
 
     sweep_metric = "ld"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(
         self,

@@ -61,7 +61,7 @@ def test_plunging_case_renders_moving_laminar_cgrid(tmp_path: Path) -> None:
 
 
 def test_adapter_dispatches_plunging_spec(tmp_path: Path) -> None:
-    OpenFOAMSolver()._write_case(_spec(), tmp_path)
+    OpenFOAMSolver()._write_case(_spec(), tmp_path, declared=())
     assert (tmp_path / "constant" / "dynamicMeshDict").exists()
 
 

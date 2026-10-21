@@ -59,6 +59,8 @@ class T3AFlatPlate:
         "vs the Savill/ERCOFTAC data; verifies the kOmegaSSTLM (gamma-Re_theta) model."
     )
     sweep_metric = "transition_onset_rex"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: T3ASpec | None = None) -> None:
         self._spec = spec or T3ASpec(name=self.name)

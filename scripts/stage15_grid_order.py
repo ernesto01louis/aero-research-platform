@@ -153,6 +153,7 @@ def main() -> None:
             repo_root=_REPO_ROOT,
             container_sif="openfoam-esi.sif",
             resolved_config=case.case_spec().model_dump(mode="json"),
+            dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
             allow_dirty=args.allow_dirty,
         )
         measured, mesh, result = runner._drive(case)  # prepare->mesh->solve->evaluate (fail-loud)
@@ -227,6 +228,7 @@ def main() -> None:
         resolved_config=make_case(args.opt_m, "gm_optimum_fine", grid_mult["fine"])
         .case_spec()
         .model_dump(mode="json"),
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=args.allow_dirty,
     )
 

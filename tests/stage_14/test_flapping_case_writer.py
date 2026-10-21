@@ -110,7 +110,7 @@ def test_overset_variant_writes_background_and_component(tmp_path: Path) -> None
 
 
 def test_adapter_dispatches_flapping_spec(tmp_path: Path) -> None:
-    OpenFOAMSolver()._write_case(_spec(), tmp_path)
+    OpenFOAMSolver()._write_case(_spec(), tmp_path, declared=())
     assert (tmp_path / "constant" / "dynamicMeshDict").exists()
     assert (tmp_path / "constant" / "flapping_motion.dat").exists()
     assert (tmp_path / "component" / "system" / "blockMeshDict").exists()

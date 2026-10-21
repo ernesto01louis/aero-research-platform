@@ -261,6 +261,7 @@ def main() -> None:
                     repo_root=_REPO_ROOT,
                     container_sif="openfoam-esi.sif",
                     resolved_config=spec.model_dump(mode="json"),
+                    dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
                     allow_dirty=args.allow_dirty,
                 )
             row["provenance"] = prov.model_dump(mode="json")
@@ -410,6 +411,7 @@ def main() -> None:
                         "end_time_convective": args.extend_to,
                         "restart_continuation": True,
                     },
+                    dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
                     allow_dirty=args.allow_dirty,
                 )
             row["provenance"] = prov.model_dump(mode="json")
@@ -576,6 +578,7 @@ def main() -> None:
         resolved_config=make_spec(args.opt_m, "g16u_optimum_fine", mults["fine"]).model_dump(
             mode="json"
         ),
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=args.allow_dirty,
     )
     result, is_go = compose_independent_result(

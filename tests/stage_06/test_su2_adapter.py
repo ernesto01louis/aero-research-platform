@@ -167,7 +167,7 @@ def test_cfg_writer_selects_roe_for_transonic_and_jst_for_subsonic(tmp_path: Pat
 )
 def test_write_case_produces_valid_su2_mesh_and_cfg(spec: object, tmp_path: Path) -> None:
     solver = SU2Solver()
-    solver._write_case(spec, tmp_path)  # type: ignore[arg-type]
+    solver._write_case(spec, tmp_path, declared=())  # type: ignore[arg-type]
     mesh_text = (tmp_path / "mesh.su2").read_text()
     cfg_text = (tmp_path / "case.cfg").read_text()
 
@@ -184,7 +184,7 @@ def test_write_case_rejects_an_unknown_spec(tmp_path: Path) -> None:
         name = "alien"
 
     with pytest.raises(TypeError, match="cannot write a case spec"):
-        SU2Solver()._write_case(AlienSpec(), tmp_path)  # type: ignore[arg-type]
+        SU2Solver()._write_case(AlienSpec(), tmp_path, declared=())  # type: ignore[arg-type]
 
 
 def test_mesh_file_spec_without_repo_root_fails_loud(tmp_path: Path) -> None:
@@ -198,7 +198,7 @@ def test_mesh_file_spec_without_repo_root_fails_loud(tmp_path: Path) -> None:
         farfield_markers=("FARFIELD",),
     )
     with pytest.raises(ValueError, match="repo_root"):
-        SU2Solver()._write_case(spec, tmp_path)
+        SU2Solver()._write_case(spec, tmp_path, declared=())
 
 
 # --- solver run / mesh / load / wall_distribution ----------------------------
@@ -236,7 +236,7 @@ def _case_dir(tmp_path: Path) -> CaseDir:
 def test_mesh_validates_the_generated_su2_file(tmp_path: Path) -> None:
     solver = SU2Solver()
     spec = SU2AirfoilSpec(name="t", mach=0.7, aoa_deg=0.0, reynolds=9e6, n_surface=40, n_normal=20)
-    solver._write_case(spec, tmp_path)
+    solver._write_case(spec, tmp_path, declared=())
     case_dir = _case_dir(tmp_path)
     mesh = solver.mesh(case_dir, _FakeExecutor())
     assert mesh.ok

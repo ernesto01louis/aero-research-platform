@@ -34,7 +34,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
-| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21, the Invariant 3 text is ratified with PR 7 (≥72 h); code not started |
+| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21. Built and tested in PR 7 (`stage-23-o07-inputs`, stacked on PR 6) with the CONSTITUTION Invariant 3 amendment, which is ratified only by that PR's merge (≥72 h open, operator approval) |
 | 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
 | 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
@@ -244,7 +244,24 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   starts; a SIF the tuple does not name is refused before any command), the supervisor's refusal
   tests, and `tests/unit/_launch_fixtures.py` (tuples at the committed digests) for every
   `CaseDir` a test builds, including the hermetic `tests/stage_*` suites.
-- Planned: a new core module `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
+- **The declared inputs** (PR 7, ADR-052): a new core module `aero/provenance/dvc_inputs.py`
+  (stdlib + pydantic; registered in `test_core_import_isolation.py` and `import-platform-only.yml`)
+  with the strict pointer parser, `resolve_declared` (pointers read at `HEAD`; a working copy
+  that differs is refused even under `--allow-dirty`) and `read_declared_input`, the one read
+  path. Every case class (18 V&V, 2 optimizer) declares `dvc_inputs` (ADR-052's table: the
+  Turek-Hron CFD pair the STL, FSI3 the tutorial archive, `onera_m6` its mesh, the rest `()`);
+  `compute_provenance(..., dvc_inputs=...)` is required and returns both terms v1; the
+  repository-wide `dvc status` digest (`four_fold.dvc_input_hash`) is deleted. `Solver.prepare`
+  hands the run's resolved inputs to `_write_case(..., declared=...)`, and the six staging sites
+  (external-geometry STL, preCICE tutorial archive, SU2/PyFR/JAX-Fluids mesh files, NekRS case
+  directory) and the two spec-time reads (`_gated_stl`, the FSI3 archive) go through the reader.
+  The runner refuses a tuple whose inputs are not the case's declaration. CONSTITUTION Invariant 3
+  item 2, item 3's roster sentence and the Enforcement paragraph are amended; ADR-004 carries a
+  dated amendment note; CHANGELOG `[Unreleased]`. Tests: `tests/unit/test_dvc_inputs.py` (the
+  declaration table and goldens, the parser against `yaml.safe_load` on every committed pointer,
+  every refusal, the read path in a temp checkout, the AST check of every call site, and an
+  audit-hook test that no case opens an undeclared DVC output).
+- Planned: `aero/orchestration/local_container.py`.
 
 ## 5. CI/CD changes
 

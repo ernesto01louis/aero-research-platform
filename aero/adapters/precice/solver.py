@@ -116,6 +116,7 @@ from aero.adapters.precice.template import (
 from aero.adapters.precice.watchpoint import WatchpointTrace, read_watchpoint, watchpoint_path
 from aero.orchestration._base import Executor, describe_failure
 from aero.postprocess import analyse_limit_cycle
+from aero.provenance.four_fold import DeclaredInput
 
 DEFAULT_PRECICE_SIF_PATH = "/opt/aero/containers/precice-fsi.sif"
 DEFAULT_SIF_DIR = "/opt/aero/containers"
@@ -360,7 +361,7 @@ class PreciceCoupledSolver(Solver):
     # --- lifecycle seams -------------------------------------------------------
 
     def _materialize(
-        self, spec: CoupledCaseSpec, root: Path
+        self, spec: CoupledCaseSpec, root: Path, *, declared: tuple[DeclaredInput, ...]
     ) -> tuple[MaterializedTree, PreciceConfig]:
         """Lay the case's bytes down under `root` and return the tree plus its config.
 
@@ -382,14 +383,19 @@ class PreciceCoupledSolver(Solver):
         source = spec.source
         match source.kind:
             case "tutorial":
-                return self._materialize_tutorial(spec, source, root)
+                return self._materialize_tutorial(spec, source, root, declared=declared)
             case "authored":
                 return self._materialize_authored(spec, source, root)
             case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
                 assert_never(unreachable)
 
     def _materialize_tutorial(
-        self, spec: CoupledCaseSpec, source: TutorialSource, root: Path
+        self,
+        spec: CoupledCaseSpec,
+        source: TutorialSource,
+        root: Path,
+        *,
+        declared: tuple[DeclaredInput, ...],
     ) -> tuple[MaterializedTree, PreciceConfig]:
         """Extract the pinned upstream tutorial and apply the two declared mutations.
 
@@ -397,7 +403,11 @@ class PreciceCoupledSolver(Solver):
         Stage 19 and pinned byte-for-byte by
         ``tests/stage_20/test_stage19_materialization_is_byte_identical.py``.
         """
-        tree = materialize_tutorial(source, dest=root)
+        from aero._repo import source_checkout_root
+
+        tree = materialize_tutorial(
+            source, dest=root, repo_root=source_checkout_root(), declared=declared
+        )
         tree = select_fluid_mesh(
             tree,
             variant=source.fluid_mesh_dict,
@@ -522,10 +532,12 @@ class PreciceCoupledSolver(Solver):
             case _ as unreachable:  # pragma: no cover - mypy proves this unreachable
                 assert_never(unreachable)
 
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         spec = self._coupled_spec(case)
         root = host_path / CASE_ROOT_DIRNAME
-        tree, produced = self._materialize(spec, root)
+        tree, produced = self._materialize(spec, root, declared=declared)
 
         if self.expectation is not None:
             assert_config(produced, self.expectation)

@@ -18,6 +18,7 @@ from aero.provenance.four_fold import (
     ContainerRef,
     ProvenanceTupleV2,
     TermSchemes,
+    dvc_inputs_digest,
     read_sha256sums,
 )
 
@@ -26,8 +27,10 @@ REPO = Path(__file__).resolve().parents[2]
 #: The committed digests, by SIF basename.
 SUMS = read_sha256sums(REPO)
 
-V1_CONTAINER = TermSchemes(
-    dvc_input_hash="repo-sync-state/v0", container_sif_sha256="sif-sha256-verified-at-launch/v1"
+#: Both terms v1, as every tuple `compute_provenance` returns since Stage 23 (ADR-052/053).
+V1 = TermSchemes(
+    dvc_input_hash="declared-dvc-pointers-md5/v1",
+    container_sif_sha256="sif-sha256-verified-at-launch/v1",
 )
 
 
@@ -36,18 +39,25 @@ def run_tuple(
     *,
     extra: Sequence[str] = (),
     config_hash: str = "a" * 64,
+    dvc_inputs: Sequence[str] = (),
 ) -> ProvenanceTupleV2:
-    """A tuple naming `sif` (and a roster with `extra`) at its committed digest."""
+    """A tuple naming `sif` (and a roster with `extra`) at its committed digest.
+
+    `dvc_inputs` is a declaration of committed pointers, resolved at this checkout (ADR-052).
+    """
+    from aero.provenance.dvc_inputs import resolve_declared
+
     names = sorted({sif, *extra})
+    inputs = resolve_declared(REPO, tuple(dvc_inputs))
     return ProvenanceTupleV2(
         git_sha="0" * 40,
-        dvc_input_hash="b" * 64,
+        dvc_input_hash=dvc_inputs_digest(inputs),
         container_sif_sha256=SUMS[sif],
         config_hash=config_hash,
         container_sif_name=sif,
         containers=tuple(ContainerRef(name=n, sha256=SUMS[n]) for n in names) if extra else (),
-        dvc_inputs=None,
-        schemes=V1_CONTAINER,
+        dvc_inputs=inputs,
+        schemes=V1,
     )
 
 
@@ -92,3 +102,34 @@ def real_sif(directory: Path, name: str, content: bytes = b"not really a SIF\n")
     path = directory / name
     path.write_bytes(content)
     return SifPin(path=str(path), sha256=hashlib.sha256(content).hexdigest())
+
+
+def git(root: Path, *args: str) -> None:
+    """Run git in `root` with a throwaway identity."""
+    import subprocess
+
+    subprocess.run(
+        ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def committed_repo(root: Path, files: dict[str, bytes]) -> Path:
+    """A throwaway git checkout at `root` with `files` committed: a stand-in repository root."""
+    root.mkdir(parents=True, exist_ok=True)
+    git(root, "init", "-q")
+    for rel, data in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(data)
+    git(root, "add", "--", *files)
+    git(root, "commit", "-q", "-m", "fixture")
+    return root
+
+
+def dvc_pointer(md5: str, size: int, path: str, *, remote: str | None = None) -> bytes:
+    """The bytes DVC 3 writes for a single-file output (the committed pointers' layout)."""
+    lines = ["outs:", f"- md5: {md5}", f"  size: {size}", "  hash: md5", f"  path: {path}"]
+    if remote is not None:
+        lines.append(f"  remote: {remote}")
+    return ("\n".join(lines) + "\n").encode("ascii")

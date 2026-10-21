@@ -793,6 +793,7 @@ def _provenance(spec: Any, *, allow_dirty: bool) -> dict[str, Any]:
         repo_root=_REPO_ROOT,
         container_sif=spec.container_of_record,
         resolved_config=json.loads(spec.model_dump_json()),
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=allow_dirty,
         extra_container_sifs=spec.extra_container_sifs,
     )

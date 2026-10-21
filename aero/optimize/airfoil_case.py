@@ -41,6 +41,8 @@ class ShapedLaminarAirfoil:
     """Laminar NACA-4 airfoil at fixed AoA — objective = lift-to-drag ratio (Stage-15 optimizer)."""
 
     sweep_metric = "ld"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(
         self,
