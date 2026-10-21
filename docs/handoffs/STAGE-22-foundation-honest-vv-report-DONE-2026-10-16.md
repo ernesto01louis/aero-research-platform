@@ -296,6 +296,13 @@ on 2026-10-16), and what Stage 22 changed:
 
 No V&V workflow writes `$GITHUB_STEP_SUMMARY` at open.
 
+> **Erratum (2026-10-21, Stage 23).** "Already honest" for `moving-vv` was read from run
+> 38124230055 (2026-10-11), which predates the Stage-21 H-09 dispatch-input guard (`f52c5b3`,
+> #49, merged 2026-10-12). The guard piped `printf '%s'` into `grep -Eq`, which refuses an empty
+> input, so from the 2026-10-18 schedule (run 39105845993) every scheduled run exited 2 in about
+> 14 s, measured nothing and wrote no summary. Stage 23's first PR validates the input as one
+> string (see the Stage-23 handoff, §5).
+
 **Measured after the changes:**
 
 | Run | Result | What it measured |

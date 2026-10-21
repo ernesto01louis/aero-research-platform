@@ -25,7 +25,9 @@ reopening the hole:
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -325,3 +327,115 @@ def test_active_stack_selections_exclude_the_frozen_stack_and_documented_no_gos(
         assert "not su2" in text and "not unmeasurable" in text and "not moving" in text
     transonic = workflows["vv-transonic.yml"]["jobs"]["vv-transonic"]["env"]["VV_SELECTION"]
     assert transonic.startswith("su2 and ")
+
+
+# --- Stage 23: moving-vv's dispatch input is validated as one string (ADR-049 H-09) ----------
+#
+# The Stage-21 guard piped `printf '%s' "$CASE_INPUT"` into `grep -Eq`: grep saw zero lines on
+# the empty input of every scheduled run, so from 2026-10-18 the job exited 2 in 14 s having
+# measured nothing, and `grep -q` accepted a multi-line input as soon as any one line matched
+# (`$'\n-h'` reached the driver as `-h`, which printed help and recorded "-h: PASS").
+
+_VALIDATE = "Validate the dispatch input"
+_RUN_CASES = "Run the moving-mesh cases through the Stage-11 driver"
+_DEFAULT_CASES = "oscillating_cylinder_lockin plunging_airfoil_hg2007"
+
+
+def _moving_vv_step(workflows: dict[str, Any], name: str) -> dict[str, Any]:
+    steps = workflows["moving-vv.yml"]["jobs"]["moving-vv"]["steps"]
+    matches = [s for s in steps if s.get("name") == name]
+    assert len(matches) == 1, f"moving-vv has {len(matches)} steps named {name!r}"
+    return matches[0]
+
+
+def _run_step(script: str, env: dict[str, str], cwd: Path) -> tuple[int, str, str]:
+    """Run a step's script the way GitHub does (`bash -e`, no pipefail) in a scratch directory."""
+    summary, github_env = cwd / "summary.md", cwd / "github_env"
+    summary.write_text("")
+    github_env.write_text("")
+    proc = subprocess.run(
+        ["bash", "-e", "-c", script],
+        cwd=cwd,
+        env={
+            "PATH": os.environ["PATH"],
+            "GITHUB_STEP_SUMMARY": str(summary),
+            "GITHUB_ENV": str(github_env),
+            **env,
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    return proc.returncode, summary.read_text(), github_env.read_text()
+
+
+@pytest.mark.parametrize(
+    ("case_input", "expected"),
+    [
+        ("", _DEFAULT_CASES),
+        (" ", _DEFAULT_CASES),
+        ("   ", _DEFAULT_CASES),
+        ("oscillating_cylinder_lockin", "oscillating_cylinder_lockin"),
+        (
+            " plunging_airfoil_hg2007_st03  oscillating_cylinder_lockin ",
+            "plunging_airfoil_hg2007_st03 oscillating_cylinder_lockin",
+        ),
+    ],
+)
+def test_moving_vv_accepts_a_blank_or_valid_case_input(
+    case_input: str, expected: str, workflows: dict[str, Any], tmp_path: Path
+) -> None:
+    """A scheduled run (empty input) and a blank dispatch run the defaults, never zero cases."""
+    script = _moving_vv_step(workflows, _VALIDATE)["run"]
+    rc, summary, github_env = _run_step(script, {"CASE_INPUT": case_input}, tmp_path)
+    assert rc == 0, (case_input, summary)
+    assert github_env == f"MOVING_VV_CASES={expected}\n"
+
+
+@pytest.mark.parametrize(
+    "case_input",
+    ["a;b", "x;id", "$(id)", "`id`", "-h", "\n-h", "ok\n;evil", "ok\n", "Oscillating", "a\tb"],
+)
+def test_moving_vv_refuses_anything_but_one_line_of_case_keys(
+    case_input: str, workflows: dict[str, Any], tmp_path: Path
+) -> None:
+    script = _moving_vv_step(workflows, _VALIDATE)["run"]
+    rc, summary, github_env = _run_step(script, {"CASE_INPUT": case_input}, tmp_path)
+    assert rc == 2, repr(case_input)
+    assert github_env == "", "a refused input must not reach the run step"
+    assert "refused" in summary, "the step summary must say nothing was measured"
+
+
+def test_moving_vv_fails_rather_than_run_zero_cases(
+    workflows: dict[str, Any], tmp_path: Path
+) -> None:
+    script = _moving_vv_step(workflows, _RUN_CASES)["run"]
+    driver_calls = tmp_path / "driver_calls"
+    shim = tmp_path / ".venv" / "bin" / "python"
+    shim.parent.mkdir(parents=True)
+    shim.write_text(f'#!/bin/sh\necho "$@" >> {driver_calls}\n')
+    shim.chmod(0o755)
+    rc, summary, _ = _run_step(script, {"MOVING_VV_CASES": "", "AERO_SOLVE_HOST": "x"}, tmp_path)
+    assert rc == 1
+    assert "nothing to run" in summary
+    assert not driver_calls.exists(), "the driver must not run when no case is named"
+
+
+def test_moving_vv_default_cases_are_registered_unsteady_cases(workflows: dict[str, Any]) -> None:
+    from aero.vv.unsteady import UNSTEADY_CASES
+
+    script = _moving_vv_step(workflows, _VALIDATE)["run"]
+    defaults = re.search(r"words=\(([a-z0-9_ ]+)\)", script)
+    assert defaults is not None, "the validation step must name its default cases"
+    assert defaults.group(1).split() == _DEFAULT_CASES.split()
+    assert set(_DEFAULT_CASES.split()) <= set(UNSTEADY_CASES)
+
+
+def test_only_the_secretless_validation_step_reads_the_moving_vv_input(
+    workflows: dict[str, Any],
+) -> None:
+    steps = workflows["moving-vv.yml"]["jobs"]["moving-vv"]["steps"]
+    readers = [s.get("name") for s in steps if "github.event.inputs" in json.dumps(s)]
+    assert readers == [_VALIDATE]
+    assert "secrets." not in json.dumps(_moving_vv_step(workflows, _VALIDATE))
