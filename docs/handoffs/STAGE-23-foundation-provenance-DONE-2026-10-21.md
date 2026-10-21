@@ -51,8 +51,8 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 3 | ADR-052, ADR-053, ADR-050 amended (names and golden values frozen) | — | accept ADR-053 and ADR-050 |
 | 4 | migration `006_provenance_schemes` | — | `alembic upgrade head` before PR 5's first push |
 | 5 | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns | yes | — |
-| 6 | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs |
-| 7 | O-07 + the Invariant 3 item-2 amendment (open ≥72 h) | yes | approve the amendment after the window |
+| 6 (#80) | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
+| 7 (#81) | O-07 + the Invariant 3 item-2 amendment (open ≥72 h, from 2026-10-21 14:38 UTC) | yes | approve the amendment after the window |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
 | 8 | ADR-050 hosted run (`hosted-repro.yml`) | — | publish `openfoam-esi.sif` (c9d7f329…) |
 | 9 | MinIO keys only in steps that `dvc pull` | — | rotate the keys (open item) |
@@ -315,11 +315,28 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **The Turek-Hron specs embed an absolute checkout path** (`surface_source`, `archive_path`), so
   their `config_hash` differs between checkouts of one commit. The proof records the path; the fix
   (it moves `config_hash`) is ledgered.
+- **Both `vv` runners solve on the one aero-build.** PR #79's first FULL `vv-required` run lost
+  `cylinder_strouhal_re100` to the executor's 30-min ceiling (rc 124 at t = 149.7) while main's
+  `vv-smoke` shared the host. The rerun of only the failed job, with the host idle, passed: the
+  case took 27 min 45 s (run 39601984722, attempt 2; 3 passed, 1 xfailed). PR 6 raises the V&V
+  ceiling to 45 min. Until the shared host is fixed, start a FULL run only when no other
+  self-hosted job is running.
+- **The self-hosted workflows run only for pull requests into `main`** (`vv-required`, `vv-smoke`,
+  `provenance-completeness`), so a PR stacked on a feature branch costs no cluster time. That is
+  why PR 6 (#80) and PR 7 (#81) were opened stacked: #81's 72 h window runs while its CI waits.
+- **The auto-mode classifier denied the agent's `gh pr merge 79 --squash`** on 2026-10-21, after all
+  12 required contexts were green (#76 to #78 had merged earlier the same day). The operator
+  merges, or allows the action.
 - **The hermetic provenance suites (`tests/stage_04`, `tests/stage_20`) run in no CI job**;
   `tests/stage_04/test_provenance_logging.py:87` is stale (5 insert parameters, `db.py` sends 6).
 
 ## 7. Open items for the next stage (and beyond)
 
+- **Operator, now:** squash-merge #79 (PR 5; all 12 required contexts green at `2dafee3`, FULL
+  rerun passed). Then the agent merges `main` into #80 and moves its base to `main`, and #80's
+  FULL run starts on an idle host.
+- **Operator, from 2026-10-24 14:38 UTC:** approve the CONSTITUTION Invariant 3 amendment in #81
+  (opened 2026-10-21 14:38 UTC), after #80 merges and #81's 12 contexts are green.
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
   `.dvc/config.local` and the `AERO_DVC_*` repo secrets; verify with `ls` and one targeted
   `dvc status -c data/meshes/su2/onera_m6.su2.dvc`. After O-07 the four-tuple no longer touches the
