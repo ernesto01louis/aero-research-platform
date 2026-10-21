@@ -439,3 +439,43 @@ def test_only_the_secretless_validation_step_reads_the_moving_vv_input(
     readers = [s.get("name") for s in steps if "github.event.inputs" in json.dumps(s)]
     assert readers == [_VALIDATE]
     assert "secrets." not in json.dumps(_moving_vv_step(workflows, _VALIDATE))
+
+
+# --- Stage 23: the V&V jobs install the lock; one dated pip-audit waiver ----------------------
+#
+# The self-hosted V&V jobs used `uv pip install -e`, which re-resolves and ignores uv.lock (the
+# 2026-10-16 FULL run used mlflow 3.17.1 against 3.12.0 locked), so a green V&V run said nothing
+# about the lock the release ships. ADR-049 H-15 now covers them (operator decision 2026-10-21).
+
+
+@pytest.mark.parametrize("path", WORKFLOW_FILES, ids=lambda p: p.name)
+def test_self_hosted_jobs_install_exactly_the_lock(path: Path, workflows: dict[str, Any]) -> None:
+    for job_name, job in workflows[path.name].get("jobs", {}).items():
+        if not _self_hosted(job):
+            continue
+        for step in job.get("steps", []):
+            run = step.get("run", "")
+            assert "uv pip install" not in run, f"{path.name}:{job_name}: unlocked install"
+            assert "uv venv" not in run, f"{path.name}:{job_name}: unlocked environment"
+
+
+def test_a_lock_change_triggers_the_full_vv_required_run(workflows: dict[str, Any]) -> None:
+    steps = workflows["vv-required.yml"]["jobs"]["vv-required"]["steps"]
+    (filter_step,) = [s for s in steps if s.get("id") == "filter"]
+    relevant = yaml.safe_load(filter_step["with"]["filters"])["relevant"]
+    assert "uv.lock" in relevant and "pyproject.toml" in relevant
+
+
+def test_pip_audit_waives_exactly_one_advisory_until_its_review_date(
+    workflows: dict[str, Any],
+) -> None:
+    import datetime as dt
+
+    steps = workflows["dependency-licences.yml"]["jobs"]["audit"]["steps"]
+    (audit,) = [s for s in steps if "pip-audit" in s.get("run", "")]
+    assert re.findall(r"--ignore-vuln\s+(\S+)", audit["run"]) == ["PYSEC-2026-2447"]
+    review_by = dt.date.fromisoformat(audit["env"]["PIP_AUDIT_WAIVER_REVIEW_BY"])
+    assert dt.datetime.now(dt.UTC).date() <= review_by, (
+        "the diskcache waiver (PYSEC-2026-2447) is past its review date: re-check whether a "
+        "fixed release exists, then renew the waiver with a new date or drop it"
+    )

@@ -71,8 +71,9 @@ jobs:
           persist-credentials: false
       - name: Install aero with pyfr + nekrs + provenance + vv extras
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[pyfr,nekrs,provenance,vv,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra pyfr --extra nekrs --extra provenance --extra vv --extra dev
 
       # Stage 22: the `dvc pull --quiet || echo "dvc pull skipped"` step that stood here is gone.
       # No scale-resolving case reads a DVC-tracked file, and a bare pull cannot succeed in this
@@ -131,8 +132,9 @@ jobs:
           persist-credentials: false
       - name: Install aero with physicsnemo + provenance + vv extras
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[physicsnemo-cu12,provenance,vv,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra physicsnemo-cu12 --extra provenance --extra vv --extra dev
 
       - name: DoMINO inference smoke + surrogate V&V cross-check
         env:

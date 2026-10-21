@@ -73,8 +73,9 @@ jobs:
         # configured)"`: it failed on every run (a bare pull also targets the DrivAerML dataset,
         # which lives on the aero-nfs remote) and the echo relabelled that as a skip.
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,provenance,vv,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra openfoam --extra provenance --extra vv --extra dev
 
       - name: Choose the selection
         # The ACTIVE (OpenFOAM) stack only. `su2` = the frozen-optional SU2 stack; `unmeasurable`

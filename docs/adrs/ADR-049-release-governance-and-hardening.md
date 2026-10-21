@@ -186,7 +186,7 @@ Anything newly found during the stage goes to `docs/operator/deferred-work-ledge
 |---|---|
 | H-13 | Structural `extra='forbid'` test over all aero models |
 | H-14 | Wheel built from the sdist and installed on clean runners (crate round-trip) |
-| H-15 | Locked installs in CI; `uv lock --check` |
+| H-15 | Locked installs in CI; `uv lock --check`. (Dated scope note, 2026-10-21, Stage 23: the self-hosted V&V jobs, which still re-resolved with `uv pip install -e`, now install with `uv sync --locked` too, and `uv.lock` triggers a FULL `vv-required` run; operator decision.) |
 | H-16 | `Path(__file__).parents[N]` repo-root lookups fail loudly outside a source checkout |
 | H-17 | Hosted, non-required run of `tests/stage_*` with a triage table (time-boxed) |
 | H-18 | A real certificate-watermark check in `license-audit` |

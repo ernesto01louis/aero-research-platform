@@ -121,8 +121,9 @@ jobs:
           echo "moving-vv will run: ${words[*]}"
       - name: Install aero with the openfoam + provenance + vv extras
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,provenance,vv,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra openfoam --extra provenance --extra vv --extra dev
 
       # Stage 22: the `dvc pull --quiet || echo "dvc pull skipped ..."` step that stood here is
       # gone. Neither moving case reads a DVC-tracked file, and the bare pull failed on every
