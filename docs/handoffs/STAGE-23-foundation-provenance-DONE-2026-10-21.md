@@ -190,9 +190,13 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   mlflow-skinny, mlflow-tracing, packaging, python-discovery, s3fs and yarl moved. None of the four
   packages with reviewed licence exceptions moved. `ci/licence/metadata-snapshot.json` refreshed. The
   `stage_23` pytest marker is registered in `pyproject.toml`.
-- Planned: migration `006_provenance_schemes` on `aero_provenance` (LXC 202; additive,
-  nullable, no backfill, applied by the operator), the targeted lock refresh, a new core module
-  `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
+- **Migration `006_provenance_schemes`** (PR 4; `db/migrations/006_provenance_schemes.{sql,py}`, the
+  005 pattern): nullable `TEXT` columns `dvc_input_hash_scheme`, `container_sif_sha256_scheme` and
+  `dvc_inputs`, and the CHECK `provenance_schemes_consistent` (the scheme columns both-or-neither;
+  `dvc_inputs` set exactly under `declared-dvc-pointers-md5/v1`); no DEFAULT, UPDATE or INSERT.
+  `tests/unit/test_migration_006_additive.py` pins it; `alembic upgrade head --sql` renders 004→006.
+  **Not applied yet**: the operator applies it on LXC 202 before PR 5's first push.
+- Planned: a new core module `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
 
 ## 5. CI/CD changes
 
