@@ -49,13 +49,20 @@ Every CFD solve and every ML training run logs four tags to MLflow:
 
 1. `git_sha` — `git rev-parse HEAD` at submission time (suffix `-dirty`
    only with `--allow-dirty` and a prominent warning)
-2. `dvc_input_hash` — sha256 over the sorted list of `dvc status -c`
-   outputs for all `.dvc`-tracked inputs the case touches
+2. `dvc_input_hash` — sha256 of the line `aero.dvc-inputs/v1` (with its line feed) followed by the
+   canonical JSON `{"inputs":[{"hash":"md5","md5":…,"path":…,"size":…},…]}`, sorted by `path`, of
+   the `.dvc`-tracked inputs the case **declares**: each output's repo-relative path, md5 and size,
+   read from its git-tracked pointer at `git_sha` (scheme `declared-dvc-pointers-md5/v1`; the
+   byte-exact definition and golden values are in ADR-052). Every platform read of a DVC-tracked
+   file goes through one reader, which checks the bytes against the declared pointer and refuses a
+   file the run did not declare. A case with no DVC-tracked input records the canonical empty set.
+   A run whose `dvc_input_hash_scheme` tag is absent or is `repo-sync-state/v0` carries the
+   repository-wide `dvc status -c` digest (ADR-004); such runs are never relabelled.
 3. `container_sif_sha256` — SHA256 of the Apptainer SIF that ran the job,
    pulled from `containers/SHA256SUMS`. A run spanning more than one
    container (a partitioned FSI coupling runs its fluid and solid
    participants out of different SIFs) records the **container of record**
-   here and the full roster in `ProvenanceTuple.containers`, logged as the
+   here and the full roster in `ProvenanceTupleV2.containers`, logged as the
    additional `container_sif_set` tag — see ADR-038. The rule below is
    unchanged: the four tags are always present, always in this shape.
 4. `config_hash` — sha256 of the resolved Hydra config serialized as
@@ -65,16 +72,29 @@ Postgres mirror table `aero_provenance.mlflow_artifact_provenance` (Stage
 04+) indexes these for fast cross-run queries.
 
 **Enforcement:**
-- **Structural.** `aero.provenance.four_fold.ProvenanceTuple` validates all four fields, and the
-  CLI fails loud before logging a run with fewer. Every `ReportableResult` and every result crate
-  (Invariant 13) carries a `ProvenanceTuple`.
+- **Structural.** `aero.provenance.four_fold.ProvenanceTupleV2` validates all four fields and
+  names each term's semantics: the scheme tags `dvc_input_hash_scheme` and
+  `container_sif_sha256_scheme`, logged with `container_sif_name` and, under
+  `declared-dvc-pointers-md5/v1`, `dvc_inputs`, and mirrored in the Postgres columns of the same
+  names (ADR-052). The CLI fails loud before logging a run with fewer, and
+  `start_provenance_run` logs only a `ProvenanceTupleV2`. Every launch is guarded (ADR-053):
+  `build_apptainer_exec` takes the digest the run's tuple names and the SIF is re-hashed on the
+  solve host before apptainer starts; a mismatch exits 86, which is a `ProvenanceError`, never a
+  solver failure. `ReportableResult` and every format-v1 result crate (Invariant 13) carry the
+  legacy `ProvenanceTuple` until a crate-format-v2 ADR.
 - **CI job `provenance-completeness`** (live since Stage 04) runs the walking-skeleton case on the
-  self-hosted `vv` runner. It asserts that all four tags are populated on the resulting MLflow
-  run and that the Postgres mirror row exists. It is **not** a required check: a required check
-  on a self-hosted runner blocks every PR while that runner is offline. Promoting it is ledgered.
+  self-hosted `vv` runner. It asserts that all four tags and both schemes are populated on the
+  resulting MLflow run, that the container digest is a committed `containers/SHA256SUMS` entry,
+  and that the Postgres mirror row matches the tags byte for byte; with
+  `AERO_PROVENANCE_REQUIRE_CLUSTER=1` an unreachable cluster fails it instead of skipping. It is
+  **not** a required check: a required check on a self-hosted runner blocks every PR while that
+  runner is offline. Promoting it is ledgered.
 
 **Why:** A peer-review-grade platform must produce citable results; the
 four-tuple is the citation. Without it, a published number is a guess.
+
+Amended at Stage 23 by ADR-052 (item 2, the roster sentence of item 3 and the Enforcement
+paragraph); ADR-053's launch guard implements item 3 as written.
 
 ## Invariant 4 — HEAVY-DEPS-IN-OPTIONAL-EXTRAS-ONLY
 
