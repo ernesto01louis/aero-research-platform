@@ -177,7 +177,12 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
     else:
         raise ValueError(f"unknown solver {solver_name!r}")
 
-    executor = LocalSSHExecutor(host="aero-build", ssh_user="root", repo_root=repo_root)
+    # A wall-clock ceiling, never a tolerance: `cylinder_strouhal_re100` solves in ~29 min on an
+    # idle aero-build, against the executor's 30-min default, and timed out (rc 124) while another
+    # V&V job shared the host. 45 min keeps the whole FULL job inside its 60-min limit.
+    executor = LocalSSHExecutor(
+        host="aero-build", ssh_user="root", repo_root=repo_root, long_timeout_s=2700
+    )
     runner = BenchmarkRunner(
         solver=solver,  # type: ignore[arg-type]
         executor=executor,
