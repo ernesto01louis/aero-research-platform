@@ -27,6 +27,8 @@ from aero.adapters.openfoam.solver import (
     _read_force_decomposition,
 )
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_10
 
 
@@ -95,6 +97,7 @@ def _result_with_force(tmp_path: Path, body: str) -> ResultHandle:
         spec=_spec(),  # chord=span=1 -> q_aref = 0.5
         host_path=tmp_path,
         remote_path=Path("/case"),
+        provenance=run_tuple(),
     )
     return ResultHandle(case_dir=case_dir, returncode=0, output_host_path=post)
 
@@ -118,7 +121,13 @@ def test_decomposition_fails_loud_on_layout_mismatch(tmp_path: Path) -> None:
 def test_decomposition_none_when_no_force_file(tmp_path: Path) -> None:
     post = tmp_path / "postProcessing"
     post.mkdir()
-    case_dir = CaseDir(run_id="r1", spec=_spec(), host_path=tmp_path, remote_path=Path("/case"))
+    case_dir = CaseDir(
+        run_id="r1",
+        spec=_spec(),
+        host_path=tmp_path,
+        remote_path=Path("/case"),
+        provenance=run_tuple(),
+    )
     rh = ResultHandle(case_dir=case_dir, returncode=0, output_host_path=post)
     assert OpenFOAMSolver()._drag_decomposition(rh, cd_total=0.0096) == (None, None)
 

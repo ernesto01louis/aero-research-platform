@@ -231,16 +231,25 @@ def test_legacy_records_reload_as_legacy_and_v2_keeps_its_schemes() -> None:
     assert isinstance(v2, ProvenanceTupleV2) and v2.schemes == V0
 
 
-def test_compute_provenance_labels_both_terms_v0(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compute_provenance_labels_its_terms(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DVC term v0 until ADR-052 lands; the container term v1 since ADR-053 (PR 6)."""
+    checked: list[Path] = []
     monkeypatch.setattr(four_fold, "git_sha", lambda repo_root, allow_dirty=False: GIT)
     monkeypatch.setattr(four_fold, "dvc_input_hash", lambda repo_root: SHA_B)
     monkeypatch.setattr(four_fold, "container_sif_sha256", lambda repo_root, sif: SHA_C)
+    monkeypatch.setattr(four_fold, "sha256sums_at_head", checked.append)
     prov = four_fold.compute_provenance(
         repo_root=REPO, container_sif="/opt/aero/containers/openfoam-esi.sif", resolved_config={}
     )
     assert isinstance(prov, ProvenanceTupleV2)
-    assert prov.schemes == V0 and prov.dvc_inputs is None
+    assert prov.schemes == TermSchemes(
+        dvc_input_hash="repo-sync-state/v0",
+        container_sif_sha256="sif-sha256-verified-at-launch/v1",
+    )
+    assert prov.dvc_inputs is None
     assert prov.container_sif_name == "openfoam-esi.sif"
+    # SHA256SUMS must equal HEAD's, even for an --allow-dirty run (ADR-053).
+    assert checked == [REPO]
 
 
 def test_the_v0_dvc_term_refuses_an_empty_stdout(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -20,6 +20,8 @@ from aero.adapters.openfoam.motion import FlappingMotionSpec
 from aero.adapters.openfoam.solver import OpenFOAMSolver
 from aero.postprocess.flapping_forces import wbd_quasi_steady_normalisers
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_14
 
 
@@ -62,7 +64,13 @@ def _write_forces(
         for ti, fxi, fyi in zip(t, fx, fy, strict=True)
     ]
     (fd / "force.dat").write_text("\n".join(rows) + "\n")
-    case_dir = CaseDir(run_id="flap1", spec=spec, host_path=tmp_path, remote_path=Path("/case"))
+    case_dir = CaseDir(
+        run_id="flap1",
+        spec=spec,
+        host_path=tmp_path,
+        remote_path=Path("/case"),
+        provenance=run_tuple(),
+    )
     return ResultHandle(case_dir=case_dir, returncode=0, output_host_path=post)
 
 

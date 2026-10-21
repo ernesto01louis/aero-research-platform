@@ -38,6 +38,7 @@ from aero.adapters._base import (
     TimeHistory,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters._base import (
     CaseDir as CaseDir,  # re-exported for backward-compatible imports
@@ -163,7 +164,7 @@ class OpenFOAMSolver(Solver):
         else:
             mesh_command = "blockMesh"
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=mesh_command,
         )
@@ -173,8 +174,10 @@ class OpenFOAMSolver(Solver):
             # detached through run_long.sh; the executor's long_timeout_s (driver
             # `--timeout`) is the ceiling.
             result = executor.run(command, long_running=True, session=f"mesh-{case_dir.run_id}")
+            raise_if_container_refused(result)
         else:
             result = executor.run(command, timeout_s=900)
+            raise_if_container_refused(result)
         polymesh = case_dir.host_path / "constant" / "polyMesh" / "points"
         ok = result.ok and polymesh.is_file()
         failure = ""
@@ -215,11 +218,12 @@ class OpenFOAMSolver(Solver):
         else:
             app = "simpleFoam"
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=app,
         )
         result = executor.run(command, long_running=True, session=f"sf-{case_dir.run_id}")
+        raise_if_container_refused(result)
         if not result.ok:
             logger.error("{}", describe_failure(result, what=app))
         return ResultHandle(

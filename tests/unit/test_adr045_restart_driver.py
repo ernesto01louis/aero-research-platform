@@ -29,6 +29,8 @@ from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.vv.fsi.hg2007_flexible_foil import hg2007_case_spec
 from pydantic import ValidationError
 
+from tests.unit._launch_fixtures import case_dir, fake_pin, run_tuple
+
 pytestmark = pytest.mark.stage_20
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -62,18 +64,23 @@ _KNOBS = {
 
 
 def _case_dir(spec: Any, host: Path) -> Any:
-    from aero.adapters._base import CaseDir
-
-    return CaseDir(run_id="hg2007_flexible_foil-fake", spec=spec, host_path=host, remote_path=host)
+    # The run's tuple names both containers, since every launch is pinned from it (ADR-053).
+    return case_dir(
+        spec,
+        host,
+        run_id="hg2007_flexible_foil-fake",
+        sif=spec.container_of_record,
+        extra=spec.extra_container_sifs,
+    )
 
 
 def test_inert_checkpoint_options_leave_the_command_bytes_alone() -> None:
     spec = hg2007_case_spec(**_KNOBS)  # type: ignore[arg-type]
     plan = PreciceCoupledSolver().launch_plan(_case_dir(spec, Path("/tmp/x")))
     solid = next(p for p in plan.participants if p.name == "Solid")
-    bare = build_participant_command(solid, case_root_remote="/case", sif_path="/s.sif")
+    bare = build_participant_command(solid, case_root_remote="/case", expected=fake_pin("/s.sif"))
     inert = build_participant_command(
-        solid, case_root_remote="/case", sif_path="/s.sif", checkpoint=CheckpointOptions()
+        solid, case_root_remote="/case", expected=fake_pin("/s.sif"), checkpoint=CheckpointOptions()
     )
     assert inert == bare and "AERO_" not in bare
 
@@ -89,7 +96,7 @@ def test_the_solid_and_only_the_solid_gets_the_checkpoint_exports() -> None:
     assert "AERO_CKPT_AT=400 AERO_CKPT_KEEP=2" in script
     fluid = next(p for p in plan.participants if p.name == "Fluid")
     assert "AERO_" not in build_participant_command(
-        fluid, case_root_remote="/case", sif_path="/s.sif", checkpoint=plan.checkpoint
+        fluid, case_root_remote="/case", expected=fake_pin("/s.sif"), checkpoint=plan.checkpoint
     )
 
 
@@ -248,6 +255,17 @@ def _args(driver: Any, **kw: Any) -> Any:
     return driver.argparse.Namespace(**base)
 
 
+def _past_the_stage_23_refusal(driver: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A restart is refused since Stage 23 (no V2 tuple to pin its SIFs from); the seam is
+    replaced so ADR-045's driver behaviour stays pinned, with a tuple naming both containers."""
+    spec = hg2007_case_spec(**_KNOBS)  # type: ignore[arg-type]
+    monkeypatch.setattr(
+        driver,
+        "_launch_tuple",
+        lambda: run_tuple(spec.container_of_record, extra=spec.extra_container_sifs),
+    )
+
+
 def test_a_restart_rotates_patches_the_clocks_and_records_the_segment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -257,6 +275,8 @@ def test_a_restart_rotates_patches_the_clocks_and_records_the_segment(
     executor = _Executor()
     monkeypatch.setattr(driver, "_run_long", lambda *a, **k: _Status(1, "session: failed"))
     monkeypatch.setattr(driver, "_executor", lambda *a, **k: executor)
+
+    _past_the_stage_23_refusal(driver, monkeypatch)
 
     rc = driver._restart(_args(driver, restart=sub, restart_reference=ref))
 
@@ -305,10 +325,23 @@ def test_a_restart_rotates_patches_the_clocks_and_records_the_segment(
     assert record["session"] == session
 
 
+def test_a_restart_is_refused_before_it_touches_the_case(tmp_path: Path) -> None:
+    """Stage 23 (ADR-053): no relaunch of a historical run, whose tuple is the legacy one."""
+    driver = _driver()
+    sub, _ = _write_run(tmp_path, "hg2007_flexible_foil-treat")
+    ref, _ = _write_run(tmp_path, "hg2007_flexible_foil-ref")
+    before = sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*"))
+    with pytest.raises(SystemExit) as exc:
+        driver._restart(_args(driver, restart=sub, restart_reference=ref))
+    assert exc.value.code == 4
+    assert sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*")) == before
+
+
 def test_a_restart_refuses_a_missing_checkpoint_or_a_purged_fluid_dump(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     driver = _driver()
+    _past_the_stage_23_refusal(driver, monkeypatch)
     monkeypatch.setattr(driver, "_run_long", lambda *a, **k: _Status(1, "session: failed"))
     monkeypatch.setattr(driver, "_executor", lambda *a, **k: _Executor())
     ref, _ = _write_run(tmp_path, "hg2007_flexible_foil-ref")
@@ -326,6 +359,7 @@ def test_a_running_job_is_not_relaunched_into(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     driver = _driver()
+    _past_the_stage_23_refusal(driver, monkeypatch)
     sub, _ = _write_run(tmp_path, "hg2007_flexible_foil-live")
     monkeypatch.setattr(driver, "_run_long", lambda *a, **k: _Status(2, "session: running"))
     with pytest.raises(SystemExit, match="still running"):

@@ -24,6 +24,8 @@ from aero.adapters._base import (
     build_apptainer_exec,
 )
 
+from tests.unit._launch_fixtures import fake_pin
+
 pytestmark = pytest.mark.stage_07
 
 
@@ -124,7 +126,7 @@ def test_solve_result_discriminator_round_trips() -> None:
 # --- build_apptainer_exec extensions ------------------------------------------
 def test_build_apptainer_exec_gpu_appends_nv() -> None:
     cmd = build_apptainer_exec(
-        sif_path="/x.sif",
+        expected=fake_pin("/x.sif"),
         case_bind_source="/case",
         command="pyfr run -b cuda solver.ini mesh.pyfrm",
         gpu=True,
@@ -135,7 +137,7 @@ def test_build_apptainer_exec_gpu_appends_nv() -> None:
 
 def test_build_apptainer_exec_mpi_n_wraps_in_mpirun() -> None:
     cmd = build_apptainer_exec(
-        sif_path="/x.sif",
+        expected=fake_pin("/x.sif"),
         case_bind_source="/case",
         command="nekrs --setup tg --backend CUDA",
         mpi_n=4,
@@ -145,12 +147,16 @@ def test_build_apptainer_exec_mpi_n_wraps_in_mpirun() -> None:
 
 def test_build_apptainer_exec_mpi_n_rejects_zero() -> None:
     with pytest.raises(ValueError, match="mpi_n must be >= 1"):
-        build_apptainer_exec(sif_path="/x.sif", case_bind_source="/c", command="x", mpi_n=0)
+        build_apptainer_exec(
+            expected=fake_pin("/x.sif"), case_bind_source="/c", command="x", mpi_n=0
+        )
 
 
 def test_build_apptainer_exec_defaults_byte_compatible_with_stage06() -> None:
     """OpenFOAM/SU2 call sites — no gpu, no mpi_n — produce the Stage-06 form."""
-    cmd = build_apptainer_exec(sif_path="/x.sif", case_bind_source="/case", command="blockMesh")
+    cmd = build_apptainer_exec(
+        expected=fake_pin("/x.sif"), case_bind_source="/case", command="blockMesh"
+    )
     # No --nv, no mpirun, no --writable-tmpfs
     assert "--nv" not in cmd
     assert "mpirun" not in cmd
@@ -164,6 +170,8 @@ def _fake_case_dir() -> object:
 
     from aero.adapters._base import CaseDir
 
+    from tests.unit._launch_fixtures import run_tuple
+
     class _MinSpec:
         name = "t"
 
@@ -172,4 +180,5 @@ def _fake_case_dir() -> object:
         spec=_MinSpec(),
         host_path=Path("/tmp/aero-test"),
         remote_path=Path("/mnt/aero/test"),
+        provenance=run_tuple(),
     )

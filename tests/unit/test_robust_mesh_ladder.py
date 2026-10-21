@@ -22,7 +22,9 @@ from aero.adapters.openfoam.robust_mesh import (
 )
 from aero.geometry import GeometryError, write_stl
 from aero.orchestration._base import ExecResult
+from aero.provenance.four_fold import ProvenanceError, ProvenanceTupleV2, config_hash
 
+from tests.unit._launch_fixtures import SUMS, run_tuple
 from tests.unit.geometry_fixtures import cube
 
 _CHECKMESH_PASS = """
@@ -69,7 +71,7 @@ class _FakeSolver:
         self._calls = 0
         self.prepared_specs: list[ExternalGeometrySpec] = []
 
-    def prepare(self, case: Any) -> CaseDir:
+    def prepare(self, case: Any, *, provenance: ProvenanceTupleV2) -> CaseDir:
         self.prepared_specs.append(case)
         run_id = f"{case.name}-{len(self.prepared_specs):04d}"
         return CaseDir(
@@ -77,6 +79,7 @@ class _FakeSolver:
             spec=case,
             host_path=self._tmp / run_id,
             remote_path=Path("/mnt/aero/runs") / run_id,
+            provenance=provenance,
         )
 
     def mesh(self, case_dir: CaseDir, executor: Any) -> MeshHandle:
@@ -100,11 +103,18 @@ class _FakeExecutor:
     def __init__(self, outputs: list[str]) -> None:
         self._outputs = outputs
         self._calls = 0
+        self.commands: list[str] = []
 
     def run(self, command: str, **kwargs: Any) -> ExecResult:
+        self.commands.append(command)
         out = self._outputs[self._calls]
         self._calls += 1
         return ExecResult(command=command, returncode=0, stdout=out, duration_s=1.0, host="fake")
+
+
+def _tuple_of(spec: ExternalGeometrySpec) -> ProvenanceTupleV2:
+    """Each rung is its own configuration, so its own tuple (ADR-053)."""
+    return run_tuple(config_hash=config_hash(spec.model_dump(mode="json")))
 
 
 def test_first_passing_rung_wins_and_all_attempts_recorded(tmp_path: Path) -> None:
@@ -115,6 +125,7 @@ def test_first_passing_rung_wins_and_all_attempts_recorded(tmp_path: Path) -> No
         executor=executor,  # type: ignore[arg-type]
         spec=_spec(tmp_path),
         sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+        provenance_of=_tuple_of,
     )
     # R0 mesh died, R1 meshed but failed the gate, R2 passed.
     assert report.passed_rung == "R2"
@@ -135,6 +146,7 @@ def test_rung_specs_degrade_cost_never_thresholds(tmp_path: Path) -> None:
         executor=executor,  # type: ignore[arg-type]
         spec=spec,
         sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+        provenance_of=_tuple_of,
     )
     r0 = solver.prepared_specs[0]
     assert r0.base_cell_size == spec.base_cell_size  # R0 = target resolution
@@ -150,6 +162,7 @@ def test_exhausted_ladder_raises_with_full_report(tmp_path: Path) -> None:
             executor=executor,  # type: ignore[arg-type]
             spec=_spec(tmp_path),
             sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+            provenance_of=_tuple_of,
         )
     report = excinfo.value.ladder_report  # type: ignore[attr-defined]
     assert report.passed_rung is None
@@ -166,7 +179,58 @@ def test_custom_single_rung_ladder(tmp_path: Path) -> None:
         executor=executor,  # type: ignore[arg-type]
         spec=_spec(tmp_path),
         sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+        provenance_of=_tuple_of,
         rungs=(rung,),
     )
     assert report.passed_rung == "only"
     assert solver.prepared_specs[0].base_cell_size == pytest.approx(0.01)
+
+
+def test_each_rung_is_prepared_under_its_own_tuple_and_checkmesh_is_guarded(
+    tmp_path: Path,
+) -> None:
+    solver = _FakeSolver(tmp_path, mesh_ok_plan=[True, True, True])
+    executor = _FakeExecutor([_CHECKMESH_FAIL, _CHECKMESH_PASS])
+    case_dir, _, _ = mesh_with_ladder(
+        solver=solver,  # type: ignore[arg-type]
+        executor=executor,  # type: ignore[arg-type]
+        spec=_spec(tmp_path),
+        sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+        provenance_of=_tuple_of,
+    )
+    # The winning case carries ITS rung's tuple, the one the run must record.
+    assert case_dir.provenance == _tuple_of(case_dir.spec)  # type: ignore[arg-type]
+    assert len({config_hash(s.model_dump(mode="json")) for s in solver.prepared_specs}) == 2
+    assert all(
+        c.startswith(f"{{ printf '%s  %s\\n' {SUMS['openfoam-esi.sif']} ")
+        for c in executor.commands
+    )
+    assert case_dir.guarded_launches == 1
+
+
+def test_a_refused_checkmesh_stops_the_ladder_instead_of_failing_the_rung(tmp_path: Path) -> None:
+    """A refusal is not a mesh-quality verdict: no next rung, no report, ProvenanceError."""
+
+    class _Refusing(_FakeExecutor):
+        def run(self, command: str, **kwargs: Any) -> ExecResult:
+            self.commands.append(command)
+            return ExecResult(
+                command=command,
+                returncode=86,
+                stdout="",
+                stderr="AERO-SIF-REFUSED expected=abc path=/opt/aero/containers/openfoam-esi.sif",
+                duration_s=0.1,
+                host="fake",
+            )
+
+    solver = _FakeSolver(tmp_path, mesh_ok_plan=[True, True, True])
+    executor = _Refusing([])
+    with pytest.raises(ProvenanceError, match="AERO-SIF-REFUSED"):
+        mesh_with_ladder(
+            solver=solver,  # type: ignore[arg-type]
+            executor=executor,  # type: ignore[arg-type]
+            spec=_spec(tmp_path),
+            sif_path=Path("/opt/aero/containers/openfoam-esi.sif"),
+            provenance_of=_tuple_of,
+        )
+    assert len(solver.prepared_specs) == 1 and len(executor.commands) == 1

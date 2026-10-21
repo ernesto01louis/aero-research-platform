@@ -22,6 +22,8 @@ from aero.adapters.openfoam.plunging_airfoil import (
 )
 from aero.adapters.openfoam.solver import OpenFOAMSolver
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_11
 
 _H0 = 0.175  # heave amplitude (chords) — Heathcote-Gursul rigid foil
@@ -85,7 +87,13 @@ def _write_post(tmp_path: Path, *, thrust: float = 0.2, damping: float = 1.2) ->
         for ti, fxi, fyi in zip(t, fx, fy, strict=True)
     ]
     (fd / "force.dat").write_text("\n".join(frows) + "\n")
-    case_dir = CaseDir(run_id="foil1", spec=_spec(), host_path=tmp_path, remote_path=Path("/case"))
+    case_dir = CaseDir(
+        run_id="foil1",
+        spec=_spec(),
+        host_path=tmp_path,
+        remote_path=Path("/case"),
+        provenance=run_tuple(),
+    )
     return ResultHandle(case_dir=case_dir, returncode=0, output_host_path=post)
 
 

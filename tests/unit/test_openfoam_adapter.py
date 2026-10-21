@@ -16,6 +16,8 @@ from aero.adapters.openfoam.schemas import CaseSpec
 from aero.adapters.openfoam.solver import OpenFOAMSolver, build_apptainer_exec
 from aero.orchestration import ExecResult
 
+from tests.unit._launch_fixtures import pin, run_tuple
+
 
 def _spec(**overrides: object) -> CaseSpec:
     base = {"name": "naca0012", "reynolds": 6.0e6, "mach": 0.15, "aoa_deg": 0.0}
@@ -24,12 +26,18 @@ def _spec(**overrides: object) -> CaseSpec:
 
 # --- build_apptainer_exec -----------------------------------------------------
 def test_build_apptainer_exec_exact_command() -> None:
+    """The whole line, guard included (ADR-053): HEX and PATH are printf arguments."""
     cmd = build_apptainer_exec(
-        sif_path="/opt/aero/containers/openfoam-esi.sif",
+        expected=pin("/opt/aero/containers/openfoam-esi.sif"),
         case_bind_source="/mnt/aero/runs/r1",
         command="blockMesh",
     )
+    hex_ = "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c"
+    sif = "/opt/aero/containers/openfoam-esi.sif"
     assert cmd == (
+        f"{{ printf '%s  %s\\n' {hex_} {sif} | sha256sum --check --status - "
+        f"|| {{ printf 'AERO-SIF-REFUSED expected=%s path=%s\\n' {hex_} {sif} >&2; exit 86; }}; }} "
+        f"&& printf 'AERO-SIF-VERIFIED sha256=%s path=%s\\n' {hex_} {sif} >&2 && "
         "apptainer exec --bind /mnt/aero/runs/r1:/case "
         "/opt/aero/containers/openfoam-esi.sif bash -lc 'cd /case && blockMesh'"
     )
@@ -37,7 +45,7 @@ def test_build_apptainer_exec_exact_command() -> None:
 
 def test_build_apptainer_exec_quotes_paths_with_spaces() -> None:
     cmd = build_apptainer_exec(
-        sif_path="/opt/aero/containers/openfoam-esi.sif",
+        expected=pin("/opt/aero/containers/openfoam-esi.sif"),
         case_bind_source="/mnt/aero/runs/r 1",
         command="simpleFoam",
     )
@@ -203,13 +211,14 @@ def test_solver_mesh_builds_blockmesh_command(tmp_path: Path) -> None:
         host_nfs_root=tmp_path,
         remote_nfs_root=Path("/mnt/aero"),
     )
-    case_dir = solver.prepare(_spec())
+    case_dir = solver.prepare(_spec(), provenance=run_tuple())
     fake = _FakeExecutor(stdout="  nCells: 4242")
     mesh = solver.mesh(case_dir, fake)
 
     assert len(fake.commands) == 1
     command = fake.commands[0]
-    assert command.startswith("apptainer exec --bind ")
+    assert command.count("apptainer exec --bind ") == 1
+    assert command.startswith("{ printf '%s  %s\\n' c9d7f32974c66bfb")
     assert "blockMesh" in command
     assert str(case_dir.remote_path) in command
     assert mesh.n_elements == 4242
@@ -217,7 +226,7 @@ def test_solver_mesh_builds_blockmesh_command(tmp_path: Path) -> None:
 
 def test_solver_prepare_writes_case_under_runs(tmp_path: Path) -> None:
     solver = OpenFOAMSolver(host_nfs_root=tmp_path, remote_nfs_root=Path("/mnt/aero"))
-    case_dir = solver.prepare(_spec())
+    case_dir = solver.prepare(_spec(), provenance=run_tuple())
     assert case_dir.host_path.parent == tmp_path / "runs"
     assert (case_dir.host_path / "system" / "blockMeshDict").is_file()
     assert case_dir.remote_path == Path("/mnt/aero/runs") / case_dir.run_id

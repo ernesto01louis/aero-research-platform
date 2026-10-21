@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 
 import pytest
+from tests.unit._launch_fixtures import run_tuple
 
 REFERENCE_CD = 0.0079  # Ladson, NASA TM-4074
 TOLERANCE = 0.25
@@ -55,7 +56,8 @@ def test_naca0012_smoke(
     solver = OpenFOAMSolver(host_nfs_root=host_root, remote_nfs_root=remote_root)
     executor = LocalSSHExecutor(host="aero-build", ssh_user="root", repo_root=repo_root)
 
-    case_dir = solver.prepare(spec)
+    # The committed SHA256SUMS digest: the guard checks the real SIF on aero-build (ADR-053).
+    case_dir = solver.prepare(spec, provenance=run_tuple("openfoam-esi.sif"))
     mesh = solver.mesh(case_dir, executor)
     assert mesh.ok, "blockMesh did not produce a polyMesh"
 

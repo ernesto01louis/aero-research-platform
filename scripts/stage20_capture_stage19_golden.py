@@ -66,6 +66,7 @@ from aero.adapters.precice.case import (  # noqa: E402
     TutorialSource,
 )
 from aero.adapters.precice.solver import PreciceCoupledSolver  # noqa: E402
+from aero.provenance.four_fold import ProvenanceTupleV2, TermSchemes  # noqa: E402
 
 FIXTURE_ROOT = _REPO_ROOT / "tests" / "stage_20" / "fixtures" / "stage19_load_path"
 MATERIALIZATION_ROOT = _REPO_ROOT / "tests" / "stage_20" / "fixtures" / "materialization"
@@ -404,6 +405,28 @@ def stage_fixture_tree(destination: Path, *, status: str, config: str | None = N
     return tutorial
 
 
+def _fixture_tuple() -> ProvenanceTupleV2:
+    """The tuple a fixture `CaseDir` must carry since Stage 23 (ADR-053) — never a record.
+
+    A `CaseDir` is bound to its run's tuple because every launch pins its SIF from it. This
+    one is only read by `load()`: it launches nothing and is logged nowhere, so every term is
+    zeros, which no real run can carry.
+    """
+    spec = fixture_spec()
+    return ProvenanceTupleV2(
+        git_sha="0" * 40,
+        dvc_input_hash="0" * 64,
+        container_sif_sha256="0" * 64,
+        config_hash="0" * 64,
+        container_sif_name=spec.container_of_record,
+        dvc_inputs=None,
+        schemes=TermSchemes(
+            dvc_input_hash="repo-sync-state/v0",
+            container_sif_sha256="sif-sha256-verified-at-launch/v1",
+        ),
+    )
+
+
 def fake_result(tutorial: Path, *, run_id: str = "turek_hron_fsi3-fixture") -> ResultHandle:
     """A `ResultHandle` over a staged fixture tree — no cluster, no solve."""
     return ResultHandle(
@@ -412,6 +435,7 @@ def fake_result(tutorial: Path, *, run_id: str = "turek_hron_fsi3-fixture") -> R
             spec=fixture_spec(),
             host_path=tutorial.parent,
             remote_path=Path("/mnt/aero/runs") / run_id,
+            provenance=_fixture_tuple(),
         ),
         returncode=0,
         output_host_path=tutorial,

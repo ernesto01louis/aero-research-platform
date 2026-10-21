@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aero.adapters._base import build_apptainer_exec
+from aero.adapters._base import build_apptainer_exec, raise_if_container_refused
 from aero.adapters.openfoam.external_geometry import ExternalGeometrySpec
 from aero.adapters.openfoam.mesh_quality import (
     MeshGateResult,
@@ -28,10 +28,12 @@ from aero.adapters.openfoam.mesh_quality import (
 from aero.geometry import GeometryError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from aero.adapters._base import CaseDir, MeshHandle, SolverProtocol
     from aero.orchestration._base import Executor
+    from aero.provenance.four_fold import ProvenanceTupleV2
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -113,6 +115,7 @@ def mesh_with_ladder(
     executor: Executor,
     spec: ExternalGeometrySpec,
     sif_path: Path | str,
+    provenance_of: Callable[[ExternalGeometrySpec], ProvenanceTupleV2],
     gate: MeshQualityGate | None = None,
     rungs: tuple[MeshLadderRung, ...] = DEFAULT_LADDER,
     checkmesh_timeout_s: int = 900,
@@ -122,12 +125,16 @@ def mesh_with_ladder(
     Returns `(case_dir, mesh_handle, report)` for the winning rung. Raises
     `GeometryError` (with `.ladder_report`) when every rung fails — never ships a
     mesh that did not pass the pre-registered gate.
+
+    Each rung is its own configuration, so `provenance_of(rung_spec)` gives it its own tuple;
+    the winning case directory carries the tuple the run must record (ADR-053). A refused
+    launch raises `ProvenanceError` before the rung is judged — it is never a failed rung.
     """
     the_gate = gate or MeshQualityGate()
     attempts: list[MeshRungAttempt] = []
     for rung in rungs:
         rung_spec = _rung_spec(spec, rung)
-        case_dir = solver.prepare(rung_spec)
+        case_dir = solver.prepare(rung_spec, provenance=provenance_of(rung_spec))
         handle = solver.mesh(case_dir, executor)
         if not handle.ok:
             attempts.append(
@@ -143,12 +150,13 @@ def mesh_with_ladder(
             continue
         check = executor.run(
             build_apptainer_exec(
-                sif_path=str(sif_path),
+                expected=case_dir.pin(str(sif_path)),
                 case_bind_source=str(case_dir.remote_path),
                 command="checkMesh",
             ),
             timeout_s=checkmesh_timeout_s,
         )
+        raise_if_container_refused(check)
         # Parse whatever checkMesh printed even on rc!=0 — the gate fails loud on
         # missing metrics, so a crashed checkMesh can never read as a pass.
         gate_result = the_gate.evaluate(parse_checkmesh(check.stdout))

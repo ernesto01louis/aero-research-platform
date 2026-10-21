@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 from aero.adapters._base import build_apptainer_exec
 
+from tests.unit._launch_fixtures import pin
+
 pytestmark = pytest.mark.stage_23
 
 
@@ -17,7 +19,7 @@ pytestmark = pytest.mark.stage_23
 @pytest.mark.parametrize("gpu", [False, True])
 def test_the_flag_reproduces_the_old_splice_byte_for_byte(writable_tmpfs: bool, gpu: bool) -> None:
     kwargs = {
-        "sif_path": "/opt/aero/containers/precice-fsi.sif",
+        "expected": pin("/opt/aero/containers/precice-fsi.sif"),
         "case_bind_source": "/mnt/aero/runs/x",
         "command": "blockMesh",
         "writable_tmpfs": writable_tmpfs,
@@ -28,3 +30,5 @@ def test_the_flag_reproduces_the_old_splice_byte_for_byte(writable_tmpfs: bool, 
     )
     assert build_apptainer_exec(**kwargs, no_home=True) == spliced  # type: ignore[arg-type]
     assert build_apptainer_exec(**kwargs).count("--no-home") == 0  # type: ignore[arg-type]
+    # The guard prefix never contains the literal, so the splice still lands on the real one.
+    assert build_apptainer_exec(**kwargs).count("apptainer exec ") == 1  # type: ignore[arg-type]

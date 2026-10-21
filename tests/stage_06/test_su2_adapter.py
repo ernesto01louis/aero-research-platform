@@ -26,6 +26,8 @@ from aero.adapters.su2.schemas import SU2AirfoilSpec, SU2MeshFileSpec
 from aero.adapters.su2.solver import SU2Solver
 from aero.orchestration import ExecResult
 
+from tests.unit._launch_fixtures import guard, run_tuple
+
 pytestmark = pytest.mark.stage_06
 
 _NELEM_RE = re.compile(r"^NELEM=\s*(\d+)", re.MULTILINE)
@@ -227,6 +229,7 @@ def _case_dir(tmp_path: Path) -> CaseDir:
         spec=spec,
         host_path=tmp_path,
         remote_path=Path("/mnt/aero/runs/naca0012_transonic-test"),
+        provenance=run_tuple("su2-v8.sif"),
     )
 
 
@@ -252,7 +255,9 @@ def test_run_builds_the_su2_cfd_command(tmp_path: Path) -> None:
     # overrides that force the solver onto self+shared-memory transports —
     # the only single-node config that survives the unprivileged-LXC nested
     # user-namespace socket restriction (handoff §1d).
-    assert cmd.startswith("apptainer exec --writable-tmpfs --bind ")
+    # After the launch guard (ADR-053), pinned to the digest the run's tuple names.
+    assert cmd.startswith(guard("/opt/aero/containers/su2-v8.sif"))
+    assert cmd.count("apptainer exec --writable-tmpfs --bind ") == 1
     assert "OMPI_MCA_btl=self,sm" in cmd
     assert "OMPI_MCA_oob=" in cmd  # value is shlex-quoted, so just check the key
     assert "SU2_CFD case.cfg" in cmd

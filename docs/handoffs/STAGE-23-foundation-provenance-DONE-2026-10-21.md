@@ -35,7 +35,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
 | 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21, the Invariant 3 text is ratified with PR 7 (≥72 h); code not started |
-| 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard (PR 6) not started |
+| 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
 | 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
@@ -179,6 +179,16 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   carry the two old limitation ids (`aero/crate/rules.py:42-43`), and the hosted number has no U95.
 - **The FULL run for the lock** is evidence only because the V&V jobs install from the lock and
   `uv.lock` joins the FULL filter (PR 2).
+- **O-08 as built (PR 6), against ADR-053's text.** The binding is the `CaseDir` itself: it carries
+  the run's `ProvenanceTupleV2`, and `CaseDir.pin(sif_path)` returns the `SifPin` (refusing a basename
+  the tuple does not name) and counts the launch; there is no separate `ContainerBinding` class. The
+  preCICE plan's `sif_paths` became `sif_pins`, one pin per SIF, each filed under its own basename.
+  A coupled refusal is read from the participant log's first 4 KiB: rc 86 without the
+  `AERO-SIF-REFUSED` line is a solver's own exit, not a refusal. `JaxFluidsSolver.differentiable_run`
+  is "refused" structurally: it records no tuple, so it claims no container (a test pins that
+  `JaxGradientResult` has no such field). Two refusals the ADR did not list:
+  `scripts/stage20_numerics_screen.py` (launches with no tuple) and the hg2007 driver's ADR-045
+  restart (`_launch_tuple`, refused before anything is rotated; its rotation tests replace the seam).
 - **"Ride-alongs only if 1–6 are done"** cannot hold literally: H-34/H-35 change code paths the tag
   gate compares, so any ride-along merges before the release PR's bump commit.
 
@@ -215,6 +225,25 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **19 historical drivers refuse** (PR 5; ledger, Stage 23): they predate the typed tuple and call
   `refuse_unported_driver` (exit 4) before recording anything. Ported: `stage11_moving_vv`,
   `stage18_turek_hron`.
+- **The launch guard** (PR 6, ADR-053): `aero/adapters/_base.py` gains `SifPin`, `sif_guard`,
+  `raise_if_container_refused`, `assert_launches_guarded` and the sentinel (exit 86,
+  `AERO-SIF-REFUSED` / `AERO-SIF-VERIFIED`); `build_apptainer_exec` takes a required
+  `expected: SifPin` (no `sif_path`) and a structural `no_home` flag (commit 1, byte-identical to the
+  three old `.replace` splices); `Solver.prepare(spec, *, provenance)` binds the tuple to the
+  `CaseDir`. Every adapter launch (OpenFOAM, SU2, PyFR, NekRS, JAX-Fluids, the preCICE fluid mesh,
+  decompose and participants) is pinned from the tuple and checked; the robust-mesh ladder takes
+  `provenance_of(rung_spec)` (each rung its own tuple) and pins `checkMesh`; the preCICE supervisor
+  exits 86 ahead of its other exit rules and `read_coupled_status` raises `ProvenanceError`; the V&V
+  runner and `aero run` refuse a record whose launches were not guarded or were pinned from another
+  tuple. `containers/SHA256SUMS` is parsed strictly (`read_sha256sums`: `#`/blank skipped, 64-hex,
+  no duplicate name) and must equal HEAD's (`sha256sums_at_head`), even under `--allow-dirty`.
+  `compute_provenance` labels the container term `sif-sha256-verified-at-launch/v1`. Refused, exit 4
+  (ledger, Stage 23): `aero run|vv run --executor runpod`, `aero surrogate train`, the numerics screen,
+  the hg2007 restart. Tests: `tests/unit/test_sif_launch_guard.py` (local bash + fake `apptainer` +
+  temp SIF: a match launches once; a same-name swap or a missing file exits 86 and apptainer never
+  starts; a SIF the tuple does not name is refused before any command), the supervisor's refusal
+  tests, and `tests/unit/_launch_fixtures.py` (tuples at the committed digests) for every
+  `CaseDir` a test builds, including the hermetic `tests/stage_*` suites.
 - Planned: a new core module `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
 
 ## 5. CI/CD changes

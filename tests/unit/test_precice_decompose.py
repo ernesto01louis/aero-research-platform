@@ -26,6 +26,8 @@ from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.orchestration._base import ExecResult
 from aero.vv.fsi.hg2007_flexible_foil import hg2007_case_spec
 
+from tests.unit._launch_fixtures import SUMS, case_dir
+
 pytestmark = pytest.mark.stage_20
 
 _DT = 2.0e-5
@@ -59,11 +61,14 @@ def _case_dir(tmp_path: Path) -> CaseDir:
         max_time=_MAX_TIME,
         wall_clock_ceiling_s=3600,
     )
-    return CaseDir(
+    # The run's tuple names both containers, since every launch is pinned from it (ADR-053).
+    return case_dir(
+        spec,
+        tmp_path / "run",
         run_id="hg2007_flexible_foil-decompose-test",
-        spec=spec,
-        host_path=tmp_path / "run",
-        remote_path=Path("/mnt/aero/runs/hg2007_flexible_foil-decompose-test"),
+        remote=Path("/mnt/aero/runs/hg2007_flexible_foil-decompose-test"),
+        sif=spec.container_of_record,
+        extra=spec.extra_container_sifs,
     )
 
 
@@ -98,6 +103,9 @@ def test_decompose_runs_under_the_participant_uid_and_not_under_mpirun(tmp_path:
     assert "decomposePar -force" in command
     # In the fluid participant's own directory, prefixed the way launch_plan prefixes it.
     assert "cd hg2007-flexible-foil/fluid-openfoam && decomposePar -force" in command
+    # Guarded against the fluid container the run's tuple names (ADR-053).
+    assert command.startswith(f"{{ printf '%s  %s\\n' {SUMS['precice-fsi.sif']} ")
+    assert case_dir.guarded_launches == 1
     assert report.ok
     assert (report.ranks_requested, report.n_processor_dirs) == (4, 4)
 
@@ -134,6 +142,27 @@ def test_a_nonzero_decompose_is_a_failure_even_with_the_right_directory_count(
 
     assert not report.ok
     assert report.n_processor_dirs == 4
+
+
+def test_a_refused_decompose_is_a_provenance_error_not_a_failed_decomposition(
+    tmp_path: Path,
+) -> None:
+    from aero.provenance.four_fold import ProvenanceError
+
+    class _Refusing(_FakeExecutor):
+        def run(self, command: str, **kwargs: Any) -> ExecResult:
+            self.commands.append(command)
+            return ExecResult(
+                command=command,
+                returncode=86,
+                stdout="",
+                stderr="AERO-SIF-REFUSED expected=abc path=/opt/aero/containers/precice-fsi.sif",
+                duration_s=0.1,
+                host="fake",
+            )
+
+    with pytest.raises(ProvenanceError, match="AERO-SIF-REFUSED"):
+        PreciceCoupledSolver().decompose(_case_dir(tmp_path), _Refusing(), ranks=4)  # type: ignore[arg-type]
 
 
 def test_decompose_refuses_a_rank_count_below_one(tmp_path: Path) -> None:
