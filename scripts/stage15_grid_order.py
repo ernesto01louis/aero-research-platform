@@ -35,6 +35,9 @@ _OPT_P = 0.592640974765251
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage15_grid_order.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
     ap.add_argument("--case", choices=("laminar", "turbulent"), default="laminar")

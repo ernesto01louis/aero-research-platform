@@ -79,6 +79,9 @@ def _build_vv_cases(surrogate: Any, loader: Any, cases_root: Path, n: int) -> li
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage09_domino_train.py")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="conf/surrogate/domino.yaml")
     parser.add_argument("--allow-dirty", action="store_true")

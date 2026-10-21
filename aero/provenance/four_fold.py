@@ -9,6 +9,11 @@ that produced it:
 3. ``container_sif_sha256`` — SHA256 of the Apptainer SIF that ran the job.
 4. ``config_hash``          — sha256 of the resolved config as canonical JSON.
 
+Since Stage 23 (ADR-052, ADR-053) `compute_provenance` returns a `ProvenanceTupleV2`, which names
+the semantics of each term in its required `schemes`. `ProvenanceTuple` is the legacy type: it is
+unchanged, byte for byte, because committed result crates and `data/vv` records embed it, and it is
+the only tuple that crate format v1 and the payload models accept.
+
 This module is part of the `aero/` core: it imports stdlib + pydantic only.
 The resolved config is passed in as a plain dict (the CLI calls
 `OmegaConf.to_container(cfg, resolve=True)` at the Hydra->pydantic boundary),
@@ -24,14 +29,33 @@ import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Literal, NoReturn
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, model_validator
 
 # A 64-hex sha256 digest; git short/long SHAs are 40 hex, optionally `-dirty`.
 _HASH_RE = r"^[0-9a-f]{64}$"
 _GIT_SHA_RE = r"^[0-9a-f]{40}(-dirty)?$"
 _SIF_NAME_RE = r"^[A-Za-z0-9._-]+\.sif$"
+# A repo-relative POSIX path: no leading slash, no backslash, no empty segment (the `.` and `..`
+# segments are refused by DeclaredInput's validator; the pattern engine has no look-ahead).
+_REPO_PATH_RE = r"^[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)*$"
+
+# The per-term schemes (ADR-052 D4). The names are frozen: a change to any computation mints a new
+# name, never a new meaning for an old one.
+DvcInputHashScheme = Literal["repo-sync-state/v0", "declared-dvc-pointers-md5/v1"]
+ContainerDigestScheme = Literal["sha256sums-lookup/v0", "sif-sha256-verified-at-launch/v1"]
+DVC_SYNC_STATE_V0: DvcInputHashScheme = "repo-sync-state/v0"
+DVC_DECLARED_POINTERS_V1: DvcInputHashScheme = "declared-dvc-pointers-md5/v1"
+SIF_SHA256SUMS_LOOKUP_V0: ContainerDigestScheme = "sha256sums-lookup/v0"
+SIF_VERIFIED_AT_LAUNCH_V1: ContainerDigestScheme = "sif-sha256-verified-at-launch/v1"
+
+#: The domain separator of the ADR-052 preimage. Every legacy preimage is a JSON object and begins
+#: with `{`, so no new value can equal an old one (short of a sha256 collision).
+DVC_INPUTS_PREFIX = b"aero.dvc-inputs/v1\n"
+
+#: MLflow refuses longer tag values; a longer `dvc_inputs` is refused here, never truncated.
+MLFLOW_TAG_VALUE_LIMIT = 8000
 
 
 class ProvenanceError(RuntimeError):
@@ -59,6 +83,28 @@ class ContainerRef(BaseModel):
         description="SIF basename as recorded in containers/SHA256SUMS.",
     )
     sha256: str = Field(..., pattern=_HASH_RE, description="SHA256 of that SIF.")
+
+
+def _check_roster(containers: tuple[ContainerRef, ...], container_sif_sha256: str) -> None:
+    """The roster rules shared by the legacy and the typed tuple (ADR-038)."""
+    if not containers:
+        return
+    names = [c.name for c in containers]
+    if len(names) < 2:
+        raise ValueError(
+            "ProvenanceTuple.containers describes a MULTI-container run and needs at "
+            "least two entries; leave it empty for a single-container run, whose "
+            "container_sif_sha256 already says everything there is to say"
+        )
+    if len(set(names)) != len(names):
+        raise ValueError(f"duplicate container names in the roster: {names}")
+    if names != sorted(names):
+        raise ValueError(f"containers must be name-sorted so the roster is canonical, got {names}")
+    if container_sif_sha256 not in {c.sha256 for c in containers}:
+        raise ValueError(
+            "container_sif_sha256 is not among the roster's digests — the container "
+            "of record must be one of the containers that actually ran"
+        )
 
 
 class ProvenanceTuple(BaseModel):
@@ -121,26 +167,7 @@ class ProvenanceTuple(BaseModel):
         of the same set compare equal), and a roster that omits the container of
         record (the tuple would then describe less than what actually ran).
         """
-        if not self.containers:
-            return self
-        names = [c.name for c in self.containers]
-        if len(names) < 2:
-            raise ValueError(
-                "ProvenanceTuple.containers describes a MULTI-container run and needs at "
-                "least two entries; leave it empty for a single-container run, whose "
-                "container_sif_sha256 already says everything there is to say"
-            )
-        if len(set(names)) != len(names):
-            raise ValueError(f"duplicate container names in the roster: {names}")
-        if names != sorted(names):
-            raise ValueError(
-                f"containers must be name-sorted so the roster is canonical, got {names}"
-            )
-        if self.container_sif_sha256 not in {c.sha256 for c in self.containers}:
-            raise ValueError(
-                "container_sif_sha256 is not among the roster's digests — the container "
-                "of record must be one of the containers that actually ran"
-            )
+        _check_roster(self.containers, self.container_sif_sha256)
         return self
 
     @property
@@ -175,6 +202,201 @@ class ProvenanceTuple(BaseModel):
         if self.containers:
             tags["container_sif_set"] = self.container_set_tag()
         return tags
+
+
+_STRICT_FROZEN = ConfigDict(
+    extra="forbid",
+    frozen=True,
+    str_strip_whitespace=True,
+    validate_default=True,
+)
+
+
+class TermSchemes(BaseModel):
+    """Which definition produced each non-trivial term of a tuple (ADR-052 D4).
+
+    `git_sha` and `config_hash` have one meaning since Stage 04 and carry no scheme.
+    """
+
+    model_config = _STRICT_FROZEN
+
+    dvc_input_hash: DvcInputHashScheme
+    container_sif_sha256: ContainerDigestScheme
+
+
+class DeclaredInput(BaseModel):
+    """One declared DVC-tracked input: the content address its git-tracked pointer records.
+
+    `path` is the output's repo-relative POSIX path, never the pointer's own `outs[].path` (which
+    is relative to the pointer's directory) nor the `.dvc` path (ADR-052 D2).
+    """
+
+    model_config = _STRICT_FROZEN
+
+    hash: Literal["md5"] = Field(..., description="DVC-3 plain-byte md5; md5-dos2unix is refused.")
+    md5: str = Field(..., pattern=r"^[0-9a-f]{32}$", description="The pointer's `outs[].md5`.")
+    path: str = Field(..., pattern=_REPO_PATH_RE, description="Repo-relative POSIX output path.")
+    size: int = Field(..., ge=0, description="The pointer's `outs[].size`, in bytes.")
+
+    @model_validator(mode="after")
+    def _path_stays_in_the_repository(self) -> DeclaredInput:
+        if any(part in {".", ".."} for part in self.path.split("/")):
+            raise ValueError(f"declared input path {self.path!r} has a '.' or '..' segment")
+        return self
+
+
+def canonical_dvc_inputs(inputs: Sequence[DeclaredInput]) -> bytes:
+    """The canonical JSON `{"inputs": [...]}` of a declared set, sorted by path (ADR-052 D2).
+
+    The same convention as `config_hash` (sorted keys, no whitespace), ASCII only. A path that
+    appears twice is refused: it would make two different declarations hash alike.
+    """
+    entries = sorted((i.model_dump(mode="json") for i in inputs), key=lambda e: e["path"])
+    paths = [e["path"] for e in entries]
+    if len(set(paths)) != len(paths):
+        raise ProvenanceError(f"a declared DVC input is listed more than once: {paths}")
+    return json.dumps(
+        {"inputs": entries}, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("ascii")
+
+
+def dvc_inputs_digest(inputs: Sequence[DeclaredInput]) -> str:
+    """`dvc_input_hash` under `declared-dvc-pointers-md5/v1`: sha256(prefix + canonical JSON)."""
+    return hashlib.sha256(DVC_INPUTS_PREFIX + canonical_dvc_inputs(inputs)).hexdigest()
+
+
+#: The canonical empty set, `1ef5b7d9…` (ADR-052's golden value; never sha256("{}")).
+EMPTY_DVC_INPUTS_DIGEST = dvc_inputs_digest(())
+
+
+class ProvenanceTupleV2(BaseModel):
+    """The four-fold tuple that names the semantics of each term (ADR-052 D4, ADR-053).
+
+    Deliberately NOT a subclass of `ProvenanceTuple`: pydantic accepts a subclass in a field
+    typed with its parent and silently drops the extra fields on serialisation, which would strip
+    the schemes off a record. An unrelated class is refused there instead, so a v2 tuple can never
+    land in a format-v1 crate or a legacy payload model.
+    """
+
+    model_config = _STRICT_FROZEN
+
+    git_sha: str = Field(
+        ...,
+        pattern=_GIT_SHA_RE,
+        description="`git rev-parse HEAD`; a `-dirty` suffix marks an --allow-dirty run.",
+    )
+    dvc_input_hash: str = Field(..., pattern=_HASH_RE, description="See `schemes.dvc_input_hash`.")
+    container_sif_sha256: str = Field(
+        ..., pattern=_HASH_RE, description="See `schemes.container_sif_sha256`."
+    )
+    config_hash: str = Field(
+        ..., pattern=_HASH_RE, description="sha256 of the resolved config as canonical JSON."
+    )
+    container_sif_name: str = Field(
+        ..., pattern=_SIF_NAME_RE, description="Basename of the container of record."
+    )
+    containers: tuple[ContainerRef, ...] = Field(
+        default=(),
+        description="The multi-container roster (ADR-038); empty for a single-container run.",
+    )
+    dvc_inputs: tuple[DeclaredInput, ...] | None = Field(
+        ...,
+        description=(
+            "The declared inputs the DVC term digests: required (possibly empty) under "
+            "declared-dvc-pointers-md5/v1, None under repo-sync-state/v0, which uses no declaration."
+        ),
+    )
+    schemes: TermSchemes
+
+    @model_validator(mode="after")
+    def _terms_match_their_schemes(self) -> ProvenanceTupleV2:
+        _check_roster(self.containers, self.container_sif_sha256)
+        if self.containers:
+            named = {c.name: c.sha256 for c in self.containers}
+            if named.get(self.container_sif_name) != self.container_sif_sha256:
+                raise ValueError(
+                    f"container of record {self.container_sif_name!r} is not the roster entry "
+                    "carrying container_sif_sha256"
+                )
+        if self.schemes.dvc_input_hash == DVC_DECLARED_POINTERS_V1:
+            if self.dvc_inputs is None:
+                raise ValueError(f"{DVC_DECLARED_POINTERS_V1} needs dvc_inputs (possibly empty)")
+            if self.dvc_input_hash != dvc_inputs_digest(self.dvc_inputs):
+                raise ValueError(
+                    "dvc_input_hash is not the ADR-052 digest of dvc_inputs — the hashed set and "
+                    "the declared set must be one object"
+                )
+        elif self.dvc_inputs is not None:
+            raise ValueError(
+                f"{self.schemes.dvc_input_hash} uses no declaration; dvc_inputs must be None so "
+                "the run never reads as 'declared no inputs'"
+            )
+        return self
+
+    @property
+    def multi_container(self) -> bool:
+        """True iff this run spanned more than one SIF."""
+        return bool(self.containers)
+
+    def container_set_tag(self) -> str:
+        """The roster as one canonical line, ``name=sha,name=sha`` (as `ProvenanceTuple`)."""
+        return ",".join(f"{c.name}={c.sha256}" for c in self.containers)
+
+    def dvc_inputs_tag(self) -> str | None:
+        """The canonical inputs JSON logged as the `dvc_inputs` tag; None under the v0 scheme."""
+        if self.dvc_inputs is None:
+            return None
+        tag = canonical_dvc_inputs(self.dvc_inputs).decode("ascii")
+        if len(tag) > MLFLOW_TAG_VALUE_LIMIT:
+            raise ProvenanceError(
+                f"the dvc_inputs tag is {len(tag)} characters, above MLflow's "
+                f"{MLFLOW_TAG_VALUE_LIMIT}; refusing rather than truncating the record"
+            )
+        return tag
+
+    def as_mlflow_tags(self) -> dict[str, str]:
+        """The provenance tags of a run: the four keys in their Stage-04 shapes, plus the schemes.
+
+        Every MLflow path takes its tags from here, including the surrogate paths that bypass
+        `start_provenance_run`, so no run can be logged without saying which semantics it has.
+        """
+        tags = {
+            "git_sha": self.git_sha,
+            "dvc_input_hash": self.dvc_input_hash,
+            "container_sif_sha256": self.container_sif_sha256,
+            "config_hash": self.config_hash,
+            "container_sif_name": self.container_sif_name,
+            "dvc_input_hash_scheme": self.schemes.dvc_input_hash,
+            "container_sif_sha256_scheme": self.schemes.container_sif_sha256,
+        }
+        if self.containers:
+            tags["container_sif_set"] = self.container_set_tag()
+        inputs_tag = self.dvc_inputs_tag()
+        if inputs_tag is not None:
+            tags["dvc_inputs"] = inputs_tag
+        return tags
+
+
+#: The scheme tags a typed run always carries, besides the four canonical keys.
+SCHEME_TAG_KEYS = ("container_sif_name", "dvc_input_hash_scheme", "container_sif_sha256_scheme")
+
+
+def _tuple_kind(value: Any) -> str | None:
+    if isinstance(value, ProvenanceTupleV2):
+        return "v2"
+    if isinstance(value, ProvenanceTuple):
+        return "legacy"
+    if isinstance(value, Mapping):
+        return "v2" if "schemes" in value else "legacy"
+    return None
+
+
+#: A tuple of either kind, for in-memory consumers and records that predate Stage 23. Persisted
+#: legacy records (no `schemes` key) reload as `ProvenanceTuple`; a v2 tuple keeps its schemes.
+AnyProvenanceTuple = Annotated[
+    Annotated[ProvenanceTupleV2, Tag("v2")] | Annotated[ProvenanceTuple, Tag("legacy")],
+    Discriminator(_tuple_kind),
+]
 
 
 def _run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -227,20 +449,23 @@ def git_sha(repo_root: Path, *, allow_dirty: bool = False) -> str:
 
 
 def dvc_input_hash(repo_root: Path) -> str:
-    """sha256 over the `dvc status -c` of all DVC-tracked inputs.
+    """The `repo-sync-state/v0` DVC term: sha256 of the repo-wide `dvc status -c` (ADR-004).
 
-    `dvc status -c` compares tracked inputs against the configured remote; its
-    JSON output is hashed canonically. An empty status (`{}`) — every input in
-    sync with the remote — yields a stable constant, which is correct: it means
-    the inputs are exactly the published versions. See ADR-004.
+    It compares the repository's whole DVC cache against the configured remote, on whichever
+    machine computes it, and hashes the JSON canonically. It takes no case: it is a sync-state
+    digest, not a content address of any input (ADR-052 replaces it). `{}` (sha256 `44136fa3…`)
+    is an empty status. Since Stage 23 an empty stdout is refused instead of being read as `{}`:
+    with `--json`, dvc always prints the status, so an empty stdout is not a status at all.
     """
     proc = _run([_dvc_executable(), "status", "-c", "--json"], cwd=repo_root)
     if proc.returncode != 0:
         raise ProvenanceError(
             f"`dvc status -c` failed (rc={proc.returncode}): {proc.stderr.strip()}"
         )
+    if not proc.stdout.strip():
+        raise ProvenanceError("`dvc status -c --json` printed nothing — no status to hash")
     try:
-        status = json.loads(proc.stdout or "{}")
+        status = json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise ProvenanceError(f"could not parse `dvc status -c` output: {exc}") from exc
     canonical = json.dumps(status, sort_keys=True, separators=(",", ":"))
@@ -321,6 +546,26 @@ def container_roster(
     )
 
 
+def refuse_unported_driver(driver: str) -> NoReturn:
+    """Stop a historical stage driver before it records anything (Stage 23, ledgered).
+
+    The Stage 9-20 campaign drivers were written against the legacy tuple. Since ADR-052/053 a
+    recorded run needs a declared input set and a launch-checked container, which they do not
+    provide, and a run recorded halfway between the two semantics is worse than none. Each one
+    calls this first in `main()`; port it (declare its inputs, take the tuple from
+    `compute_provenance`) before running it again.
+    """
+    import sys
+
+    print(
+        f"{driver}: refused. This historical stage driver predates the Stage-23 provenance "
+        "semantics (ADR-052, ADR-053) and has not been ported; it would record runs whose terms "
+        "it cannot state. Port it first (docs/operator/deferred-work-ledger.md, Stage 23).",
+        file=sys.stderr,
+    )
+    raise SystemExit(4)
+
+
 def compute_provenance(
     *,
     repo_root: Path,
@@ -328,8 +573,12 @@ def compute_provenance(
     resolved_config: Mapping[str, Any],
     allow_dirty: bool = False,
     extra_container_sifs: Sequence[Path | str] = (),
-) -> ProvenanceTuple:
+) -> ProvenanceTupleV2:
     """Compute the full four-fold provenance tuple, or raise ProvenanceError.
+
+    Since Stage 23 the result is a `ProvenanceTupleV2` that names each term's scheme. This
+    computes both terms under their v0 schemes (`repo-sync-state/v0`, `sha256sums-lookup/v0`);
+    ADR-053 and ADR-052 move them to v1.
 
     Called by the CLI *before* the MLflow run is started, so a provenance
     failure aborts before any partially-tagged run exists.
@@ -346,14 +595,19 @@ def compute_provenance(
     OpenFOAM fluid one. Omitting it yields exactly the tuple this function has
     always returned.
     """
-    return ProvenanceTuple(
+    return ProvenanceTupleV2(
         git_sha=git_sha(repo_root, allow_dirty=allow_dirty),
         dvc_input_hash=dvc_input_hash(repo_root),
         container_sif_sha256=container_sif_sha256(repo_root, container_sif),
         config_hash=config_hash(resolved_config),
+        container_sif_name=Path(container_sif).name,
         containers=container_roster(
             repo_root,
             container_of_record=container_sif,
             extra_container_sifs=extra_container_sifs,
+        ),
+        dvc_inputs=None,
+        schemes=TermSchemes(
+            dvc_input_hash=DVC_SYNC_STATE_V0, container_sif_sha256=SIF_SHA256SUMS_LOOKUP_V0
         ),
     )

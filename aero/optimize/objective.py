@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aero.optimize.design_space import DesignSpace
 from aero.provenance import compute_provenance
-from aero.provenance.four_fold import ProvenanceTuple
+from aero.provenance.four_fold import AnyProvenanceTuple, ProvenanceTupleV2
 from aero.vv._base import BenchmarkRunner
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, validate_assignment=True, validate_default=True)
@@ -33,7 +33,7 @@ class ObjectiveEval(BaseModel):
     design: tuple[float, ...]
     value: float = Field(..., description="The optimized scalar (e.g. lift-to-drag ratio).")
     mlflow_run_id: str | None = None
-    provenance: ProvenanceTuple
+    provenance: AnyProvenanceTuple
 
 
 class CFDObjective:
@@ -60,7 +60,7 @@ class CFDObjective:
         self.allow_dirty = allow_dirty
         self.log_mlflow = log_mlflow
 
-    def provenance_for(self, x: np.ndarray) -> ProvenanceTuple:
+    def provenance_for(self, x: np.ndarray) -> ProvenanceTupleV2:
         """The four-fold provenance of the design ``x`` (config_hash reflects the shape DVs)."""
         case = self.make_case(self.space.as_named(x))
         return compute_provenance(

@@ -23,7 +23,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from aero.adapters._base import SolverProtocol
 from aero.orchestration._base import Executor
-from aero.provenance.four_fold import ProvenanceTuple
+from aero.provenance.four_fold import (
+    AnyProvenanceTuple,
+    ProvenanceError,
+    ProvenanceTupleV2,
+    config_hash,
+)
 
 # `SolverLike` is the structural solver contract — defined next to the `Solver`
 # ABC in `aero.adapters._base` (ADR-006) and aliased here so the V&V cases and
@@ -124,7 +129,13 @@ class BenchmarkResult(BaseModel):
     case_name: str = Field(..., min_length=1)
     status: Literal["pass", "fail", "regress"] = Field(..., description="Overall verdict.")
     metrics: tuple[MetricResult, ...] = Field(..., description="Per-metric compared outcomes.")
-    provenance: ProvenanceTuple = Field(..., description="The four-fold provenance tuple.")
+    provenance: AnyProvenanceTuple = Field(
+        ...,
+        description=(
+            "The four-fold provenance tuple: a ProvenanceTupleV2 for a Stage-23+ run; committed "
+            "records that predate it reload as the legacy ProvenanceTuple."
+        ),
+    )
     solver_version: str = Field(..., min_length=1)
     validation_tag: str = Field(..., min_length=1, description="MLflow `validation_tag` value.")
     mlflow_run_id: str | None = Field(default=None)
@@ -323,6 +334,31 @@ class ScalarObservation(BaseModel):
 
 
 # --- runner -------------------------------------------------------------------
+def _loggable(provenance: AnyProvenanceTuple) -> ProvenanceTupleV2:
+    """A tuple that may be logged: only a v2 tuple names its schemes (ADR-052 D4)."""
+    if not isinstance(provenance, ProvenanceTupleV2):
+        raise ProvenanceError(
+            "a legacy ProvenanceTuple cannot be logged to MLflow: since Stage 23 every logged run "
+            "names its per-term schemes (compute it with compute_provenance)"
+        )
+    return provenance
+
+
+def _check_tuple_describes(case: BenchmarkCase, provenance: AnyProvenanceTuple) -> None:
+    """Refuse a tuple whose `config_hash` is not this case's spec (Stage 23).
+
+    A mesh sweep used to log its refined grids under the base grid's tuple, so grids 2 and 3
+    carried the finest grid's `config_hash`. The runner now refuses any tuple that does not hash
+    the spec it is about to solve, so each grid needs its own.
+    """
+    expected = config_hash(case.case_spec().model_dump(mode="json"))
+    if provenance.config_hash != expected:
+        raise ProvenanceError(
+            f"{case.name}: the provenance tuple's config_hash {provenance.config_hash[:12]}... is "
+            f"not this case's spec ({expected[:12]}...) — compute one tuple per solved spec"
+        )
+
+
 class BenchmarkRunner:
     """Drives a `BenchmarkCase` through a `SolverLike` and records the result."""
 
@@ -371,7 +407,7 @@ class BenchmarkRunner:
         self,
         case: BenchmarkCase,
         *,
-        provenance: ProvenanceTuple,
+        provenance: AnyProvenanceTuple,
         repo_root: Path,
         log_mlflow: bool = True,
     ) -> BenchmarkResult:
@@ -382,6 +418,7 @@ class BenchmarkRunner:
         the four-fold tuple and per-metric errors are logged to MLflow with a
         `validation_tag` tag.
         """
+        _check_tuple_describes(case, provenance)
         measured, mesh, result = self._drive(case)
         reference = case.reference(repo_root)
         metric_results = tuple(compare(m, measured[m.name], reference) for m in case.metrics())
@@ -410,7 +447,7 @@ class BenchmarkRunner:
         case: BenchmarkCase,
         metric: str,
         *,
-        provenance: ProvenanceTuple,
+        provenance: AnyProvenanceTuple,
         repo_root: Path,
         log_mlflow: bool = True,
     ) -> ScalarObservation:
@@ -420,6 +457,7 @@ class BenchmarkRunner:
         Index compares a solution against itself at three resolutions, so it
         needs the measured scalar but not the (validation) reference data.
         """
+        _check_tuple_describes(case, provenance)
         measured, mesh, result = self._drive(case)
         if metric not in measured:
             raise BenchmarkError(f"{case.name}: evaluate() produced no metric {metric!r}")
@@ -440,7 +478,7 @@ class BenchmarkRunner:
     def _log(
         self,
         case: BenchmarkCase,
-        provenance: ProvenanceTuple,
+        provenance: AnyProvenanceTuple,
         metric_results: tuple[MetricResult, ...],
         result: Any,
         status: str,
@@ -452,7 +490,7 @@ class BenchmarkRunner:
         with start_provenance_run(
             tracking_uri=self.tracking_uri,
             experiment=self.experiment,
-            provenance=provenance,
+            provenance=_loggable(provenance),
             case_name=case.name,
             db_dsn=self.db_dsn,
             stage=self.stage,
@@ -474,7 +512,7 @@ class BenchmarkRunner:
     def _log_scalar(
         self,
         case: BenchmarkCase,
-        provenance: ProvenanceTuple,
+        provenance: AnyProvenanceTuple,
         metric: str,
         value: float,
         result: Any,
@@ -485,7 +523,7 @@ class BenchmarkRunner:
         with start_provenance_run(
             tracking_uri=self.tracking_uri,
             experiment=self.experiment,
-            provenance=provenance,
+            provenance=_loggable(provenance),
             case_name=case.name,
             db_dsn=self.db_dsn,
             stage=self.stage,

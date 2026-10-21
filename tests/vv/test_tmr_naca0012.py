@@ -68,7 +68,7 @@ def test_naca0012_cd_within_tolerance(
         pytest.skip("V&V cluster not ready")
     runner, provenance_of = vv_runner
     case = NACA0012Verification()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     cd = result.metric("cd")
     assert result.status == "pass", f"NACA 0012 Cd error {cd.error:.2%} exceeds {cd.tolerance:.0%}"
 
@@ -85,7 +85,7 @@ def test_naca0012_grid_converged_cd(
     runner, provenance_of = vv_runner
     case = NACA0012Verification()
     report = MeshSweep(case, metric="cd").run(
-        runner, provenance=provenance_of(case.case_spec()), repo_root=repo_root
+        runner, provenance_of=provenance_of, repo_root=repo_root
     )
     assert report.monotonic, "NACA 0012 Cd sweep is non-monotone — grid convergence not shown"
     error = abs(report.extrapolated_value - _CD_REFERENCE) / _CD_REFERENCE

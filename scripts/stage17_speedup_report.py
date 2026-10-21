@@ -416,6 +416,9 @@ def finalize(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage17_speedup_report.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--assemble-v2", action="store_true")
     ap.add_argument("--host", default="aero-dev")

@@ -50,6 +50,9 @@ def _load_cd(run_dir: Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage13_reportable.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("case", help="UNSTEADY_CASES key (a plunging variant)")
     ap.add_argument("--run-dir", required=True, type=Path)

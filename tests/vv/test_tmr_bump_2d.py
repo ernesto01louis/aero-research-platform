@@ -53,7 +53,7 @@ def test_bump_gci_mesh_sweep(vv_cluster_ready: bool, vv_runner: Any, repo_root: 
     runner, provenance_of = vv_runner
     case = Bump2D()
     sweep = MeshSweep(case, metric=case.sweep_metric)
-    report = sweep.run(runner, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    report = sweep.run(runner, provenance_of=provenance_of, repo_root=repo_root)
     assert report.monotonic, "bump GCI sweep is non-monotone — convergence not established"
     assert report.observed_order_p > 0.0
     assert report.gci_fine_pct >= 0.0

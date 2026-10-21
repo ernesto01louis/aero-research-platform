@@ -32,7 +32,7 @@ def test_flat_plate_cf_within_tolerance_su2(
         pytest.skip("SU2 V&V cluster not ready")
     runner, provenance_of = vv_runner_su2
     case = FlatPlateTE()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     cf = result.metric("cf")
     assert result.status == "pass", (
         f"SU2 flat-plate Cf error {cf.error:.2%} exceeds {cf.tolerance:.0%}"

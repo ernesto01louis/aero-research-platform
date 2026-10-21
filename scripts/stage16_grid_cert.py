@@ -43,6 +43,9 @@ _GRID_LABELS = ("fine", "medium", "coarse", "coarsest")
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage16_grid_cert.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
     ap.add_argument("--case", choices=("laminar", "turbulent"), default="turbulent")

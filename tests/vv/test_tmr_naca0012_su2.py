@@ -38,7 +38,7 @@ def test_naca0012_cd_within_tolerance_su2(
         pytest.skip("SU2 V&V cluster not ready")
     runner, provenance_of = vv_runner_su2
     case = NACA0012Verification()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     cd = result.metric("cd")
     assert result.status == "pass", (
         f"SU2 NACA 0012 Cd error {cd.error:.2%} exceeds {cd.tolerance:.0%}"

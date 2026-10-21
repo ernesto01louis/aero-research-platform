@@ -24,7 +24,7 @@ def test_plunging_airfoil_thrust_within_band(
         pytest.skip("V&V cluster not ready (SSH / SIF / extras / AERO_PROVENANCE_DSN)")
     runner, provenance_of = vv_runner
     case = PlungingAirfoilHG2007()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     ct = result.metric("thrust_coefficient")
     assert result.status == "pass", (
         f"plunging-foil C_T error {ct.error:.2%} exceeds {ct.tolerance:.0%} "

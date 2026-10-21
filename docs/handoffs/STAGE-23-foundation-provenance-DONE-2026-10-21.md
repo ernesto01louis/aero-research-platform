@@ -196,6 +196,22 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   `dvc_inputs` set exactly under `declared-dvc-pointers-md5/v1`); no DEFAULT, UPDATE or INSERT.
   `tests/unit/test_migration_006_additive.py` pins it; `alembic upgrade head --sql` renders 004→006.
   **Not applied yet**: the operator applies it on LXC 202 before PR 5's first push.
+- **The typed tuple** (PR 5): `aero/provenance/four_fold.py` gains `TermSchemes`, `DeclaredInput`, the
+  ADR-052 digest (`dvc_inputs_digest`, `EMPTY_DVC_INPUTS_DIGEST`), `ProvenanceTupleV2` (not a subclass
+  of `ProvenanceTuple`) and the `AnyProvenanceTuple` union; `compute_provenance` returns a V2 tuple
+  labelled `repo-sync-state/v0` / `sha256sums-lookup/v0`; the v0 DVC term refuses an empty stdout.
+  `start_provenance_run` takes only a V2 tuple; the mirror insert writes 9 columns. In-memory
+  consumers (`BenchmarkResult`, the runner, `MeshSweep`, the optimizer objective, the preCICE check,
+  `SurrogateProvenanceTags`) take the union; `ReportableResult`, `OptimizationResult`, the corpus and
+  the crate model stay legacy-only. `SurrogateProvenanceTags.log_to_mlflow(run_id)`, which had no
+  caller and could set tags on any existing run, is deleted.
+- **The runner refuses a tuple of another spec** (PR 5): `BenchmarkRunner.run`/`measure_scalar` check
+  `config_hash` against the case's spec, and `MeshSweep.run` takes `provenance_of(case)` and builds one
+  tuple per grid; until now a sweep logged its refined grids under the finest grid's `config_hash`.
+  `tests/vv/conftest.py` and `aero vv run --mesh-sweep` pass the case.
+- **19 historical drivers refuse** (PR 5; ledger, Stage 23): they predate the typed tuple and call
+  `refuse_unported_driver` (exit 4) before recording anything. Ported: `stage11_moving_vv`,
+  `stage18_turek_hron`.
 - Planned: a new core module `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
 
 ## 5. CI/CD changes
@@ -216,7 +232,11 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   waives exactly PYSEC-2026-2447 until 2027-01-31 (`PIP_AUDIT_WAIVER_REVIEW_BY`). Hygiene tests pin
   all three: no `uv pip install`/`uv venv` in a self-hosted job, `uv.lock` in the filter, one waiver id
   that fails the test after its review date.
-- Planned: provenance-completeness fails instead of skipping; `hosted-repro.yml`; MinIO keys only in
+- **provenance-completeness** (PR 5) reads back the scheme tags, `container_sif_name`, the digest's
+  membership in `containers/SHA256SUMS` and the mirror's eight columns byte for byte, and with
+  `AERO_PROVENANCE_REQUIRE_CLUSTER=1` fails instead of skipping when MLflow or the mirror is
+  unreachable. The provenance contract now has a gated home: `tests/unit/test_provenance_v2.py`.
+- Planned: `hosted-repro.yml`; MinIO keys only in
   the steps that pull.
 
 ## 6. Gotchas discovered

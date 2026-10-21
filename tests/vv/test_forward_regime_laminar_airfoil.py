@@ -25,7 +25,7 @@ def test_laminar_airfoil_within_tolerance(
         pytest.skip("V&V cluster not ready (SSH / SIF / extras / AERO_PROVENANCE_DSN)")
     runner, provenance_of = vv_runner
     case = LaminarAirfoil()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     assert result.status == "pass", (
         f"laminar airfoil: cl error {result.metric('cl').error:.2%}, "
         f"cd error {result.metric('cd').error:.2%}"

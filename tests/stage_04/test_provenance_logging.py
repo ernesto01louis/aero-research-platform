@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import psycopg2
 import pytest
-from aero.provenance import ProvenanceError, ProvenanceTuple
+from aero.provenance import ProvenanceError, ProvenanceTupleV2, TermSchemes
 from aero.provenance.db import mirror_provenance_row, resolve_dsn
 from aero.provenance.mlflow import start_provenance_run
 
@@ -18,9 +18,18 @@ _SHA = "a" * 64
 _GITSHA = "0123456789abcdef0123456789abcdef01234567"
 
 
-def _tuple() -> ProvenanceTuple:
-    return ProvenanceTuple(
-        git_sha=_GITSHA, dvc_input_hash="b" * 64, container_sif_sha256="c" * 64, config_hash=_SHA
+def _tuple() -> ProvenanceTupleV2:
+    # Stage 23: the logger takes only the typed tuple (ADR-052 D4).
+    return ProvenanceTupleV2(
+        git_sha=_GITSHA,
+        dvc_input_hash="b" * 64,
+        container_sif_sha256="c" * 64,
+        config_hash=_SHA,
+        container_sif_name="openfoam-esi.sif",
+        dvc_inputs=None,
+        schemes=TermSchemes(
+            dvc_input_hash="repo-sync-state/v0", container_sif_sha256="sha256sums-lookup/v0"
+        ),
     )
 
 
@@ -84,7 +93,19 @@ def test_mirror_provenance_row_inserts(monkeypatch) -> None:
     assert len(conn.calls) == 1
     sql, params = conn.calls[0]
     assert "INSERT INTO mlflow_artifact_provenance" in sql
-    assert params == ("run-1", _GITSHA, "b" * 64, "c" * 64, _SHA)
+    # Nine positional columns since migration 006 (this assertion had stayed at five since
+    # Stage 20 added the roster column: the suite ran in no CI job).
+    assert params == (
+        "run-1",
+        _GITSHA,
+        "b" * 64,
+        "c" * 64,
+        _SHA,
+        None,
+        "repo-sync-state/v0",
+        "sha256sums-lookup/v0",
+        None,
+    )
     assert conn.committed is True
     assert conn.closed is True
 
@@ -146,6 +167,10 @@ def test_start_provenance_run_tags_all_four(monkeypatch) -> None:
     tags = recorded["tags"]
     for key in ("git_sha", "dvc_input_hash", "container_sif_sha256", "config_hash"):
         assert tags[key]
+    assert tags["dvc_input_hash_scheme"] == "repo-sync-state/v0"
+    assert tags["container_sif_sha256_scheme"] == "sha256sums-lookup/v0"
+    assert tags["container_sif_name"] == "openfoam-esi.sif"
+    assert "dvc_inputs" not in tags  # the v0 DVC term uses no declaration
     assert tags["case_name"] == "naca0012"
     assert tags["stage"] == "04"
     assert tags["solver_version"] == "OpenFOAM-ESI v2412"

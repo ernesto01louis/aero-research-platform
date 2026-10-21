@@ -160,6 +160,9 @@ def smoke_case_spec(*, max_time: float, wall_clock_ceiling_s: int) -> CoupledCas
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage20_calculix_smoke.py")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="aero-dev", help="LXC to run on (default aero-dev)")
     parser.add_argument(

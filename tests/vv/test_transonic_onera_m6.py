@@ -37,7 +37,7 @@ def test_onera_m6_cp_at_eta_044(
     # misread. The mesh is fetched by a targeted, fail-loud `dvc pull` in vv-transonic; a
     # missing mesh, a solver failure, or the unimplemented eta=0.44 slice
     # (`OneraM6.evaluate`) all FAIL here, which is the truth about this case today.
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     cp = result.metric("cp")
     assert result.status == "pass", (
         f"SU2 ONERA M6 Cp error {cp.error:.2%} exceeds {cp.tolerance:.0%}"

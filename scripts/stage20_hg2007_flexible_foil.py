@@ -784,6 +784,11 @@ def _write_bundle(record: dict[str, Any], out: Path) -> None:
 
 def _provenance(spec: Any, *, allow_dirty: bool) -> dict[str, Any]:
     """P2/P3: the four-fold tuple with the full roster, BEFORE anything runs."""
+    # Stage 23: refused at the point it would compute provenance, so the offline modes and the
+    # pinned Stage-20 refusals (the None sentinels, ADR-039/040) still run first and unchanged.
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage20_hg2007_flexible_foil.py")
     provenance = compute_provenance(
         repo_root=_REPO_ROOT,
         container_sif=spec.container_of_record,

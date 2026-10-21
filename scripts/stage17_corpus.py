@@ -42,6 +42,9 @@ OPTIMUM_ANCHOR = {
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage17_corpus.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
     ap.add_argument("--n-lhs", type=int, default=40)

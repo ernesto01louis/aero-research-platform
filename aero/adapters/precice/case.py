@@ -52,7 +52,7 @@ from aero.adapters.openfoam.flexible_foil import FlexibleFoilSpec
 from aero.adapters.openfoam.geometry import hg2007_coordinates
 from aero.adapters.precice.calculix import CalculiXDeck, CalculiXSolidSpec, watch_points
 from aero.adapters.precice.template import PreciceConfigValues
-from aero.provenance.four_fold import ProvenanceTuple, config_hash
+from aero.provenance.four_fold import AnyProvenanceTuple, config_hash
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -606,7 +606,7 @@ def spec_config_digest(spec: CoupledCaseSpec) -> str:
     return config_hash(resolved_spec_config(spec))
 
 
-def assert_provenance_describes(spec: CoupledCaseSpec, provenance: ProvenanceTuple) -> None:
+def assert_provenance_describes(spec: CoupledCaseSpec, provenance: AnyProvenanceTuple) -> None:
     """Refuse a provenance tuple that describes less than the case actually runs.
 
     This is the structural guarantee that replaced Stage 19's blanket refusal of
