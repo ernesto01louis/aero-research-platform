@@ -34,9 +34,9 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
-| 2 | O-07, a content-addressed `dvc_input_hash` | ❌ | not started — ADR-052 (D1, D2, D4), `aero/provenance/dvc_inputs.py`, tests; amends Invariant 3 item 2 (≥72 h) |
-| 3 | O-08, the SIF re-hashed at launch | ❌ | not started — ADR-053 (D3), the launch guard in `build_apptainer_exec`, fake-executor tests |
-| 4 | The end-to-end proof | ❌ | not started — ADR-050 as amended (D5) on a hosted runner, plus `blasius_flat_plate` and `turek_hron_cfd2` on the cluster, read back |
+| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21, the Invariant 3 text is ratified with PR 7 (≥72 h); code not started |
+| 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard (PR 6) not started |
+| 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
 
@@ -134,6 +134,15 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   semantics needs format v2 (ledgered). Rejected: building the SIF from the def (a third container
   meaning plus an Invariant 3 item-3 amendment), crate v2 now (the largest risk to the tag deadline),
   deferring (leaves ADR-051 row 23's proof unmet).
+- **ADR acceptances (2026-10-21, after the adversarial review of the drafts):** ADR-053 "Accept as
+  written"; ADR-050 "Accept as amended"; ADR-052 "Two-step" — its definitions (frozen names,
+  preimage bytes, golden values) are accepted now, and only the CONSTITUTION Invariant 3 text waits
+  for PR 7's ≥72 h window. Any later change to a frozen computation mints a new scheme name.
+- **Taken while writing the ADRs** (no operator decision needed): under `repo-sync-state/v0` the
+  tuple carries no `dvc_inputs` (NULL in the mirror), so a v0 run never reads as "declared no
+  inputs"; the Invariant 3 amendment also brings item 3's roster sentence and the Enforcement
+  paragraph up to date, so the window never has to reopen; `sha256sums-lookup/v0` is the unchanged
+  lookup (the strict `SHA256SUMS` parser rides with O-08).
 - **D6 — the 23↔24 reorder clause lapsed unused.** If the provenance work blocks, Stage 23 closes
   `partial` and Stage 24 waits; no campaign is recorded under the old semantics.
 - **Deliverable 5:** targeted `uv lock -P` for the 19 packages with a fix; an explicit, dated
@@ -223,6 +232,12 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **The licence scanner refuses a forked resolution** (one package locked at two versions for
   different Python markers), and `uv lock -P <pkg>` can create one; pin the package
   (`-P anyio==4.14.2`) instead.
+- **No cluster run has ever logged `cf_mid`.** A standard `aero vv run` logs `<metric>_error` and
+  measured scalars only (`aero/vv/_base.py:451-468`), and Blasius' only metric is the pointwise `cf`.
+  The hosted band's reference is therefore a cluster run of the hosted driver itself.
+- **The Turek-Hron specs embed an absolute checkout path** (`surface_source`, `archive_path`), so
+  their `config_hash` differs between checkouts of one commit. The proof records the path; the fix
+  (it moves `config_hash`) is ledgered.
 - **The hermetic provenance suites (`tests/stage_04`, `tests/stage_20`) run in no CI job**;
   `tests/stage_04/test_provenance_logging.py:87` is stale (5 insert parameters, `db.py` sends 6).
 
@@ -245,6 +260,7 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 ## 9. Artifacts produced
 
 - This handoff.
+- ADR-052, ADR-053 and the amended ADR-050 (PR 3).
 
 ## 10. Confidence / risk
 
