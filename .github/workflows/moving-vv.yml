@@ -92,6 +92,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Validate the dispatch input
+        # The dispatch input is untrusted text: it reaches the shell only through env, and only
+        # this step reads it (Stage 21, ADR-049 H-09). Stage 23: it is validated as ONE string.
+        # The Stage-21 check piped `printf '%s'` into `grep -Eq`, which refused the empty input
+        # of every scheduled run (grep saw zero lines; nothing measured since 2026-10-18) and
+        # accepted a multi-line input whenever any one line matched. No words means the two
+        # default cases, never zero cases. tests/unit/test_workflow_hygiene.py runs this script.
+        env:
+          CASE_INPUT: ${{ github.event.inputs.case }}
+        run: |
+          set -u
+          re='^[a-z0-9_ ]*$'
+          if ! [[ "$CASE_INPUT" =~ $re ]]; then
+            echo "::error::workflow_dispatch input 'case' must be space-separated case keys on one line, matching $re"
+            {
+              echo "## moving-vv: the dispatch input was refused"
+              echo ""
+              echo "Nothing was measured. The 'case' input must be space-separated UNSTEADY_CASES keys."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 2
+          fi
+          read -r -a words <<< "$CASE_INPUT"
+          if [ "${#words[@]}" -eq 0 ]; then
+            words=(oscillating_cylinder_lockin plunging_airfoil_hg2007)
+          fi
+          echo "MOVING_VV_CASES=${words[*]}" >> "$GITHUB_ENV"
+          echo "moving-vv will run: ${words[*]}"
       - name: Install aero with the openfoam + provenance + vv extras
         run: |
           uv venv --python 3.12 --clear
@@ -110,18 +137,15 @@ jobs:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
-          # The dispatch input is untrusted text: it reaches the shell only through env
-          # and is validated before use (Stage 21, ADR-049 H-09).
-          CASE_INPUT: ${{ github.event.inputs.case }}
         run: |
           set -u
-          if ! printf '%s' "$CASE_INPUT" | grep -Eq '^[a-z0-9_ ]*$'; then
-            echo "::error::workflow_dispatch input 'case' must match ^[a-z0-9_ ]*\$"
-            exit 2
-          fi
-          CASES="$CASE_INPUT"
-          if [ -z "$CASES" ]; then
-            CASES="oscillating_cylinder_lockin plunging_airfoil_hg2007"
+          # MOVING_VV_CASES comes from the validation step (whole-string checked, defaults filled
+          # in). A job that would run zero cases fails here instead of reporting green.
+          read -r -a cases <<< "${MOVING_VV_CASES:-}"
+          if [ "${#cases[@]}" -eq 0 ]; then
+            echo "::error::no moving-mesh case to run: the validation step named none"
+            echo "## moving-vv: nothing to run, so the job fails instead of reporting green" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
           rc=0
           {
@@ -131,7 +155,7 @@ jobs:
             echo "failure or a timeout (the run log has the reason)."
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
-          for c in $CASES; do
+          for c in "${cases[@]}"; do
             echo "::group::moving-vv $c"
             if .venv/bin/python scripts/stage11_moving_vv.py "$c" --host "$AERO_SOLVE_HOST"; then
               echo "$c: PASS"

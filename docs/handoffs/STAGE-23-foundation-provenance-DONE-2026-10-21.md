@@ -176,7 +176,16 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 
 ## 5. CI/CD changes
 
-- None yet. PR 1's second commit fixes moving-vv's dispatch-input guard.
+- **moving-vv** (PR 1): the dispatch input is read only by a new, secret-less step, "Validate the
+  dispatch input", which checks it as one string (`[[ "$CASE_INPUT" =~ ^[a-z0-9_ ]*$ ]]`, the
+  `release-readiness.yml` precedent), splits it into words, runs the two default cases when there
+  are none, writes a summary line before any `exit 2`, and hands the validated list to the run step
+  through `GITHUB_ENV`. The run step fails when that list is empty. `tests/unit/test_workflow_hygiene.py`
+  runs both scripts under `bash -e`: `''`, `' '` and valid keys are accepted; `a;b`, `x;id`,
+  `$(id)`, `` `id` ``, `-h`, `$'\n-h'`, `$'ok\n;evil'`, a trailing newline, upper case and a tab are
+  refused with exit 2 and nothing passed on; zero cases exits 1 without calling the driver; the
+  defaults are registered `UNSTEADY_CASES`; only the validation step reads the input, and it holds
+  no secret. Proof on the cluster: the Sunday 2026-10-25 schedule.
 - Planned: locked installs in the self-hosted V&V jobs; `uv.lock` in the FULL filter; the pip-audit
   ignore; provenance-completeness fails instead of skipping; `hosted-repro.yml`; MinIO keys only in
   the steps that pull.

@@ -255,6 +255,11 @@ explicitly-deferred remainders, each with its unblocking condition:
   2026-10-11) failed. The latest is `plunging_airfoil_hg2007` timing out at the 14 400 s
   `run_long.sh` ceiling (`pimpleFoam` rc=124). Raising the ceiling, or a compute fix, is the
   operator's decision (O-16). Only read-only triage of the run logs is in scope.
+  **Stage 23 (2026-10-21):** from 2026-10-18 the job stopped measuring at all. The Stage-21 H-09
+  dispatch-input guard (`f52c5b3`, #49) refused the empty input of every scheduled run in ~14 s
+  (run 39105845993). Stage 23's first PR validates the input as one string; the job is expected
+  to fail honestly again on `plunging_airfoil_hg2007`'s 14 400 s ceiling, with the cylinder
+  measured (operator, 2026-10-21: keep both default cases).
 - **Stage 18–20 records are not crated at v0.1.0** (O-22). A later ADR can crate them additively.
 
 ## Stage 21 (release) — OUT list and findings

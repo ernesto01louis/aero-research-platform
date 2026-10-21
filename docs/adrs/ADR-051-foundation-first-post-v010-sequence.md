@@ -105,7 +105,9 @@ validation evidence should be recorded under correct provenance.
 - pip-audit reports 161 advisories across 20 locked packages (2026-10-12).
 - H-34 and H-35 (ADR-049 P2) are open.
 - `regenerate_status.sh` has no unit test.
-- The weekly `moving-vv` job times out at its ceiling.
+- The weekly `moving-vv` job times out at its ceiling. (Dated note, 2026-10-21: from 2026-10-18 it
+  failed earlier, at the Stage-21 dispatch-input guard, measuring nothing; Stage 23's first PR
+  fixes the guard.)
 - The Stage-17 surrogate certificate expires 2027-01-20.
 
 ## Decision drivers
