@@ -59,8 +59,9 @@ jobs:
           persist-credentials: false
       - name: Install aero with the openfoam + provenance extras
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,provenance,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra openfoam --extra provenance --extra dev
 
       - name: Run the provenance-completeness end-to-end check
         # The DSN reaches the aero_provenance DB on Postgres LXC 202 (masked; never

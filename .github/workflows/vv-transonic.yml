@@ -56,8 +56,9 @@ jobs:
         # OpenFOAM stays installed so a future cross-solver compare against
         # `rhoCentralFoam` can run from this workflow without a re-provision.
         run: |
-          uv venv --python 3.12 --clear
-          uv pip install -e ".[openfoam,su2,provenance,vv,dev]"
+          # Locked install (Stage 23; extends ADR-049 H-15 to the self-hosted V&V jobs): exactly
+          # the versions in uv.lock, so a V&V run is evidence about the lock that the release ships.
+          uv sync --locked --python 3.12 --extra openfoam --extra su2 --extra provenance --extra vv --extra dev
 
       - name: Fetch the ONERA M6 mesh (DVC, fail-loud)
         # Exactly the one DVC-tracked file an SU2 test reads (the Cp reference CSVs are in git).

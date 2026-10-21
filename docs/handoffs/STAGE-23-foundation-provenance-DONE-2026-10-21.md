@@ -37,7 +37,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 2 | O-07, a content-addressed `dvc_input_hash` | ❌ | not started — ADR-052 (D1, D2, D4), `aero/provenance/dvc_inputs.py`, tests; amends Invariant 3 item 2 (≥72 h) |
 | 3 | O-08, the SIF re-hashed at launch | ❌ | not started — ADR-053 (D3), the launch guard in `build_apptainer_exec`, fake-executor tests |
 | 4 | The end-to-end proof | ❌ | not started — ADR-050 as amended (D5) on a hosted runner, plus `blasius_flat_plate` and `turek_hron_cfd2` on the cluster, read back |
-| 5 | The lock refresh for the pip-audit advisories | ❌ | not started — targeted `uv lock -P`, licence refresh, one ignore, locked V&V installs, FULL run |
+| 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
 
 (✅ = done, ⚠️ = partial, ❌ = not done / blocked)
@@ -158,6 +158,11 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   evidence-only); there are 33 `compute_provenance` call sites (`tests/vv/conftest.py` is the 33rd);
   hashing a multi-GB SIF is not "seconds" (19.1 s for 4.25 GB over NFS; the active stack is < 1 GB);
   "inputs were in sync" was never shown (§1).
+- **The lock refresh upgrades 20 packages, not 19.** `certifi` 2026.4.22 gained an advisory
+  (PYSEC-2026-4320) after the 2026-10-19 schedule. `uv lock -P` takes the newest compatible release,
+  not the minimum fix (mlflow 3.12.0 → 3.17.2, which is what the unlocked V&V jobs already ran), and
+  `anyio` is pinned to 4.14.2 because `-P anyio` forked it (4.15.1 only for Python ≥ 3.15) and the
+  licence scanner refuses a package locked twice.
 - **Invariant 3 item 2 must be amended.** Its text names `dvc status -c` outputs, so O-07 is a
   redefinition: the O-07 PR carries the CONSTITUTION change and stays open ≥72 h for the operator's
   approval. O-08 fits item 3 as written.
@@ -170,7 +175,13 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 
 ## 4. Environment / dependency / schema changes
 
-- None yet. Planned: migration `006_provenance_schemes` on `aero_provenance` (LXC 202; additive,
+- **The lock** (PR 2): `uv lock -P` for aiohttp, anyio (=4.14.2), asyncssh, certifi, cryptography,
+  dulwich, fsspec, gitpython, hydra-core, mlflow, multidict, pillow, pyasn1, pydantic-settings,
+  setuptools, sqlparse, starlette, urllib3, virtualenv and werkzeug; transitively distlib,
+  mlflow-skinny, mlflow-tracing, packaging, python-discovery, s3fs and yarl moved. None of the four
+  packages with reviewed licence exceptions moved. `ci/licence/metadata-snapshot.json` refreshed. The
+  `stage_23` pytest marker is registered in `pyproject.toml`.
+- Planned: migration `006_provenance_schemes` on `aero_provenance` (LXC 202; additive,
   nullable, no backfill, applied by the operator), the targeted lock refresh, a new core module
   `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
 
@@ -186,8 +197,13 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   refused with exit 2 and nothing passed on; zero cases exits 1 without calling the driver; the
   defaults are registered `UNSTEADY_CASES`; only the validation step reads the input, and it holds
   no secret. Proof on the cluster: the Sunday 2026-10-25 schedule.
-- Planned: locked installs in the self-hosted V&V jobs; `uv.lock` in the FULL filter; the pip-audit
-  ignore; provenance-completeness fails instead of skipping; `hosted-repro.yml`; MinIO keys only in
+- **Locked V&V installs** (PR 2): vv-required, vv-smoke, vv-transonic, vv-scale-resolving (both jobs),
+  moving-vv and provenance-completeness install with `uv sync --locked --python 3.12 --extra …`
+  (ADR-049 H-15, dated scope note); `uv.lock` triggers a FULL `vv-required` run; the pip-audit job
+  waives exactly PYSEC-2026-2447 until 2027-01-31 (`PIP_AUDIT_WAIVER_REVIEW_BY`). Hygiene tests pin
+  all three: no `uv pip install`/`uv venv` in a self-hosted job, `uv.lock` in the filter, one waiver id
+  that fails the test after its review date.
+- Planned: provenance-completeness fails instead of skipping; `hosted-repro.yml`; MinIO keys only in
   the steps that pull.
 
 ## 6. Gotchas discovered
@@ -204,6 +220,9 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **The three `--no-home` sites rewrite the first `apptainer exec `** with `str.replace(..., 1)`
   (`precice/launcher.py:369`, `precice/solver.py:564`, `scripts/stage20_numerics_screen.py:310`); a
   guard prefix must not contain that literal.
+- **The licence scanner refuses a forked resolution** (one package locked at two versions for
+  different Python markers), and `uv lock -P <pkg>` can create one; pin the package
+  (`-P anyio==4.14.2`) instead.
 - **The hermetic provenance suites (`tests/stage_04`, `tests/stage_20`) run in no CI job**;
   `tests/stage_04/test_provenance_logging.py:87` is stale (5 insert parameters, `db.py` sends 6).
 
