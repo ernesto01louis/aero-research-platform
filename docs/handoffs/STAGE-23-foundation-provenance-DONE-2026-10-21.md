@@ -195,7 +195,10 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   `dvc_inputs`, and the CHECK `provenance_schemes_consistent` (the scheme columns both-or-neither;
   `dvc_inputs` set exactly under `declared-dvc-pointers-md5/v1`); no DEFAULT, UPDATE or INSERT.
   `tests/unit/test_migration_006_additive.py` pins it; `alembic upgrade head --sql` renders 004→006.
-  **Not applied yet**: the operator applies it on LXC 202 before PR 5's first push.
+  **Applied 2026-10-21** on `aero_provenance` (LXC 202) by the agent with the operator's approval
+  ("Run it for me (approved)"), after #78 merged: `alembic upgrade head` 005 → 006, `alembic current`
+  = `006_provenance_schemes (head)`; the three columns are nullable with no default, the CHECK
+  `provenance_schemes_consistent` exists, and all 2527 historical rows have NULL in every new column.
 - **The typed tuple** (PR 5): `aero/provenance/four_fold.py` gains `TermSchemes`, `DeclaredInput`, the
   ADR-052 digest (`dvc_inputs_digest`, `EMPTY_DVC_INPUTS_DIGEST`), `ProvenanceTupleV2` (not a subclass
   of `ProvenanceTuple`) and the `AnyProvenanceTuple` union; `compute_provenance` returns a V2 tuple
