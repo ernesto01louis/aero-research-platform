@@ -306,8 +306,9 @@ def _in_sif(inner: str, *, remote_case: str, uid: int | None = None) -> str:
             f"env HOME={home} WM_PROJECT_USER_DIR={home}/OpenFOAM "
             f"bash -lc {json.dumps(inner)}"
         )
-    command = build_apptainer_exec(sif_path=FLUID_SIF, case_bind_source=remote_case, command=inner)
-    return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)
+    return build_apptainer_exec(
+        sif_path=FLUID_SIF, case_bind_source=remote_case, command=inner, no_home=True
+    )
 
 
 def prepare() -> int:

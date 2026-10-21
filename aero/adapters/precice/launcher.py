@@ -360,13 +360,13 @@ def build_participant_command(
             f"--clear-groups env HOME={home} WM_PROJECT_USER_DIR={home}/OpenFOAM "
             f"bash -lc {shlex.quote(inner)}"
         )
-    command = build_apptainer_exec(
+    return build_apptainer_exec(
         sif_path=sif_path,
         case_bind_source=case_root_remote,
         command=inner,
         writable_tmpfs=participant.writable_tmpfs,
+        no_home=True,
     )
-    return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)
 
 
 def render_supervisor_script(plan: CoupledLaunchPlan) -> str:

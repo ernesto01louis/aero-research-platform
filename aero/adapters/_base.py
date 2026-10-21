@@ -70,6 +70,7 @@ def build_apptainer_exec(
     env: Mapping[str, str] | None = None,
     gpu: bool = False,
     mpi_n: int | None = None,
+    no_home: bool = False,
 ) -> str:
     """Compose the `apptainer exec` command line that runs one solver command.
 
@@ -93,13 +94,17 @@ def build_apptainer_exec(
     multi-rank GPU runs (NekRS multi-GPU, PyFR multi-rank). Defaults preserve
     the Stage-03/Stage-06 command-strings byte-for-byte: existing
     OpenFOAM/SU2 callers pass neither and get identical output.
+
+    `no_home=True` puts `--no-home` first among the flags, exactly where the preCICE
+    callers used to splice it in with `str.replace("apptainer exec ", …, 1)` (Stage 23
+    made it structural, so no prefix can ever move the splice point).
     """
     if mpi_n is not None and mpi_n < 1:
         raise ValueError(f"mpi_n must be >= 1, got {mpi_n}")
     inner_cmd = f"mpirun -n {mpi_n} {command}" if mpi_n is not None else command
     env_prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in (env or {}).items())
     inner = f"cd {shlex.quote(case_bind_target)} && {env_prefix}{inner_cmd}"
-    flags = ""
+    flags = "--no-home " if no_home else ""
     if writable_tmpfs:
         flags += "--writable-tmpfs "
     if gpu:

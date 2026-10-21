@@ -561,7 +561,8 @@ class PreciceCoupledSolver(Solver):
             sif_path=self.sif_path,
             case_bind_source=remote_root,
             command=f"cd {spec.case_subdir}/{spec.fluid_participant_dir} && blockMesh",
-        ).replace("apptainer exec ", "apptainer exec --no-home ", 1)
+            no_home=True,
+        )
 
         result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
         polymesh = (
