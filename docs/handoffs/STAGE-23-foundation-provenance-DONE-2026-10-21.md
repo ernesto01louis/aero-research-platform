@@ -243,7 +243,11 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   temp SIF: a match launches once; a same-name swap or a missing file exits 86 and apptainer never
   starts; a SIF the tuple does not name is refused before any command), the supervisor's refusal
   tests, and `tests/unit/_launch_fixtures.py` (tuples at the committed digests) for every
-  `CaseDir` a test builds, including the hermetic `tests/stage_*` suites.
+  `CaseDir` a test builds, including the hermetic `tests/stage_*` suites. **Read-only digest check
+  before PR 6 (2026-10-21, on aero-build):** `sha256sum` of the five active-stack SIFs in
+  `/opt/aero/containers/` (2.45 GB, 13 s over NFS) equals `containers/SHA256SUMS` for every one:
+  `openfoam-esi.sif` `c9d7f329…`, `precice-fsi.sif` `ce795873…`, `calculix-precice.sif`
+  `ac0805d6…`, `calculix-precice-adr045.sif` `ca1937f7…`, `su2-v8.sif` `7b0dc25c…`.
 - **The declared inputs** (PR 7, ADR-052): a new core module `aero/provenance/dvc_inputs.py`
   (stdlib + pydantic; registered in `test_core_import_isolation.py` and `import-platform-only.yml`)
   with the strict pointer parser, `resolve_declared` (pointers read at `HEAD`; a working copy
