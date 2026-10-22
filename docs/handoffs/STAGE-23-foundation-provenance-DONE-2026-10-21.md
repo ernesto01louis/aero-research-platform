@@ -51,7 +51,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 3 | ADR-052, ADR-053, ADR-050 amended (names and golden values frozen) | — | accept ADR-053 and ADR-050 |
 | 4 | migration `006_provenance_schemes` | — | `alembic upgrade head` before PR 5's first push |
 | 5 (#79) | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns — **merged 2026-10-22 09:04 UTC by the operator, squash `6cfa401`** (ADR-052 D4's first boundary) | yes | — |
-| 6 (#80) | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
+| 6 (#80) | O-08: the SIF re-hashed before every launch — **merged 2026-10-22 16:02 UTC by the operator, squash `07937a4`** (ADR-053's boundary; FULL run on `ef8f81c`: 3 passed, 1 xfailed) | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
 | 7 (#81) | O-07 + the Invariant 3 item-2 amendment (open ≥72 h, from 2026-10-21 14:38 UTC) | yes | approve the amendment after the window |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
 | 8 | ADR-050 hosted run (`hosted-repro.yml`) | — | publish `openfoam-esi.sif` (c9d7f329…) |
@@ -339,9 +339,6 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 
 ## 7. Open items for the next stage (and beyond)
 
-- **Operator, now:** squash-merge #79 (PR 5; all 12 required contexts green at `2dafee3`, FULL
-  rerun passed). Then the agent merges `main` into #80 and moves its base to `main`, and #80's
-  FULL run starts on an idle host.
 - **Operator, from 2026-10-24 14:38 UTC:** approve the CONSTITUTION Invariant 3 amendment in #81
   (opened 2026-10-21 14:38 UTC), after #80 merges and #81's 12 contexts are green.
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
