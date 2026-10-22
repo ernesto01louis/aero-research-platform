@@ -540,7 +540,7 @@ def test_no_launch_line_is_built_by_hand() -> None:
 
 
 #: Drivers that launch through the adapters and are ported to the guarded path.
-PORTED_LAUNCHERS = {"stage11_moving_vv.py", "stage18_turek_hron.py"}
+PORTED_LAUNCHERS = {"hosted_repro.py", "stage11_moving_vv.py", "stage18_turek_hron.py"}
 _LAUNCH_SEAMS = (
     "build_apptainer_exec",
     "build_participant_command",

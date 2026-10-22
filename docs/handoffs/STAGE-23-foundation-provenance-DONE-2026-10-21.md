@@ -54,7 +54,9 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 6 (#80) | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
 | 7 (#81) | O-07 + the Invariant 3 item-2 amendment (open ≥72 h, from 2026-10-21 14:38 UTC) | yes | approve the amendment after the window |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
-| 8 | ADR-050 hosted run (`hosted-repro.yml`) | — | publish `openfoam-esi.sif` (c9d7f329…) |
+| 8a | ADR-050's executor and driver: `LocalContainerExecutor`, `scripts/hosted_repro.py`, the runner's `log_scalars` | yes | — |
+| — | the cluster reference: `hosted_repro.py run --executor local-ssh` on clean `main` after 8a, then `reference` | — | — |
+| 8b | `ci/hosted-repro/reference.json` and `hosted-repro.yml`; its PR run is the first execution | — | publish `openfoam-esi.sif` as `sif-openfoam-esi-c9d7f329` (pre-release) |
 | 9 | MinIO keys only in steps that `dvc pull` | — | rotate the keys (open item) |
 | 10 | SECURITY.md erratum, ledger, proof record | — | — |
 | 11 | release `v0.1.2` and the Stage-24 prompt | yes | cut the tag |
@@ -189,6 +191,11 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   `JaxGradientResult` has no such field). Two refusals the ADR did not list:
   `scripts/stage20_numerics_screen.py` (launches with no tuple) and the hg2007 driver's ADR-045
   restart (`_launch_tuple`, refused before anything is rotated; its rotation tests replace the seam).
+- **PR 8 is two PRs.** ADR-050 D5 needs the cluster reference committed **before the workflow's
+  first execution**, and that reference is a run of the same driver on a clean, reachable commit.
+  So 8a lands the executor and driver on `main`, the cluster reference runs there, and 8b adds the
+  reference and the workflow, whose PR run is its first execution. The SIF's release tag is
+  `sif-openfoam-esi-c9d7f329`, published as a pre-release, which mints no Zenodo version.
 - **"Ride-alongs only if 1–6 are done"** cannot hold literally: H-34/H-35 change code paths the tag
   gate compares, so any ride-along merges before the release PR's bump commit.
 
@@ -265,7 +272,23 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   declaration table and goldens, the parser against `yaml.safe_load` on every committed pointer,
   every refusal, the read path in a temp checkout, the AST check of every call site, and an
   audit-hook test that no case opens an undeclared DVC output).
-- Planned: `aero/orchestration/local_container.py`.
+- **The hosted check's executor and driver** (PR 8a, ADR-050):
+  - `aero/orchestration/local_container.py`: `LocalContainerExecutor` runs each command in a local
+    `bash`, with no SSH, under the `Executor` contract. Long jobs merge stderr into stdout, as a
+    detached job's `output.log` does. A timeout is rc 124 and kills the whole process group, and a
+    shell that can't start is a `transport_error`.
+  - `BenchmarkRunner.run(..., log_scalars=("cf_mid",))` logs named scalars of the solve in the same
+    MLflow run, and refuses a name the solve did not produce before logging anything.
+  - `scripts/hosted_repro.py` has four subcommands:
+    - `run`: one Blasius solve through the platform's runner and `start_provenance_run`. A
+      `local-container` run may only log to a run-local sqlite or file store. The record's number
+      and tags are read back from the logged run, and it writes the config preimage.
+    - `band`: the gated 1 % comparison on `float.hex`, with the same terms and v1 schemes on both
+      sides and clean commits.
+    - `reference`: accepts only a clean `local-ssh` record.
+    - `negative`: a one-byte-flipped copy of the SIF exits 86 and apptainer never starts, proved
+      with a `PATH` shim. It passed on the real 455.6 MB SIF on 2026-10-22, in 2.5 s.
+  - The Blasius `config_hash` is `d1d264c5…`, as ADR-050 D3 states.
 
 ## 5. CI/CD changes
 
