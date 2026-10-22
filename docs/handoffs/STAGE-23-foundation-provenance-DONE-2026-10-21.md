@@ -50,7 +50,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 2 | lock refresh (deliverable 5); self-hosted V&V jobs install from the lock | yes | review any licence-exception move |
 | 3 | ADR-052, ADR-053, ADR-050 amended (names and golden values frozen) | — | accept ADR-053 and ADR-050 |
 | 4 | migration `006_provenance_schemes` | — | `alembic upgrade head` before PR 5's first push |
-| 5 | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns | yes | — |
+| 5 (#79) | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns — **merged 2026-10-22 09:04 UTC by the operator, squash `6cfa401`** (ADR-052 D4's first boundary) | yes | — |
 | 6 | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs |
 | 7 | O-07 + the Invariant 3 item-2 amendment (open ≥72 h) | yes | approve the amendment after the window |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
