@@ -35,7 +35,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from aero.adapters._base import CaseDir, ResultHandle
+from aero.adapters._base import ResultHandle
 from aero.adapters.precice.case import CASE_ROOT_DIRNAME, CoupledCaseSpec
 from aero.adapters.precice.solver import PreciceCoupledSolver
 from aero.postprocess.flapping_kinematics import FlappingKinematics
@@ -48,6 +48,7 @@ from tests.stage_20._hg2007 import (
     section,
     solid,
 )
+from tests.unit._launch_fixtures import case_dir as case_dir_for
 
 DT = 1.0e-3
 N_WINDOWS = 500
@@ -263,7 +264,12 @@ def build(
     )
     (case_root / "Solid.log").write_text("CalculiX Version 2.20\n", encoding="utf-8")
 
-    case_dir = CaseDir(
-        run_id="hg2007-synthetic", spec=spec, host_path=root, remote_path=Path("/remote")
+    case_dir = case_dir_for(
+        spec,
+        root,
+        run_id="hg2007-synthetic",
+        remote=Path("/remote"),
+        sif=spec.container_of_record,
+        extra=spec.extra_container_sifs,
     )
     return solver, solver.reattach(case_dir, executor_returncode=0), spec

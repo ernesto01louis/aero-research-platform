@@ -22,6 +22,8 @@ from aero.adapters._meshing.gmsh_high_order import (
 from aero.adapters.pyfr import PyFRSolver, PyFRTaylorGreenSpec
 from aero.adapters.pyfr.case_writer import write_taylor_green_ini
 
+from tests.unit._launch_fixtures import pin, run_tuple
+
 pytestmark = pytest.mark.stage_07
 
 
@@ -95,7 +97,7 @@ def test_pyfr_solver_write_case_creates_msh_and_ini(tmp_path: Path) -> None:
     solver = PyFRSolver(sif_path="/dev/null", host_nfs_root=tmp_path)
     # Use the smallest valid n_elements_per_dir (Field ge=8) to keep the test fast.
     spec = PyFRTaylorGreenSpec(name="tg-tw", n_elements_per_dir=8)
-    case_dir = solver.prepare(spec)
+    case_dir = solver.prepare(spec, provenance=run_tuple("pyfr.sif"))
     assert (case_dir.host_path / "mesh.msh2").is_file()
     assert (case_dir.host_path / "solver.ini").is_file()
     assert (case_dir.host_path / "out").is_dir()
@@ -122,6 +124,7 @@ def test_pyfr_wall_distribution_raises_for_periodic_case(tmp_path: Path) -> None
         spec=PyFRTaylorGreenSpec(name="tg"),
         host_path=tmp_path,
         remote_path=Path("/mnt/aero/test"),
+        provenance=run_tuple("pyfr.sif"),
     )
     result = ResultHandle(case_dir=case_dir, returncode=0, output_host_path=tmp_path)
     with pytest.raises(NotImplementedError, match="periodic"):
@@ -131,7 +134,7 @@ def test_pyfr_wall_distribution_raises_for_periodic_case(tmp_path: Path) -> None
 def test_pyfr_apptainer_command_carries_gpu_and_backend(tmp_path: Path) -> None:
     """The compose path emits `apptainer exec --nv ... pyfr run -b cuda ...`."""
     cmd = build_apptainer_exec(
-        sif_path="/opt/aero/containers/pyfr.sif",
+        expected=pin("/opt/aero/containers/pyfr.sif"),
         case_bind_source="/mnt/aero/runs/tg-test",
         command="pyfr run -b cuda -p solver.ini mesh.pyfrm",
         gpu=True,

@@ -187,6 +187,17 @@ def _precice_expectation(case_name: str | None) -> PreciceConfigExpectation | No
     return TUREK_HRON_FSI3_EXPECTATION
 
 
+def _refuse_unguarded_path(command: str, why: str) -> None:
+    """Refuse a path that would record a SIF digest no launch was checked against (ADR-053)."""
+    typer.echo(
+        f"{command}: refused. {why} Since Stage 23 a recorded run's container digest is checked "
+        "against the SIF on the solve host at every launch (ADR-053), and this path cannot do "
+        "that (docs/operator/deferred-work-ledger.md, Stage 23).",
+        err=True,
+    )
+    raise typer.Exit(code=4)
+
+
 def _build_executor(
     name: str,
     *,
@@ -414,6 +425,11 @@ def run(
             err=True,
         )
         raise typer.Exit(code=2)
+    if executor == "runpod":
+        _refuse_unguarded_path(
+            "aero run --executor runpod",
+            "No SIF exists on the pod (it runs the OCI image), so there is no file to hash.",
+        )
     if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
         known = ", ".join(_REQUIRED_MODULES_BY_SOLVER)
         typer.echo(f"unknown solver '{solver_name}' — choose one of: {known}", err=True)
@@ -476,19 +492,29 @@ def run(
         projected_hours=projected_hours,
     )
 
-    case_dir = solver.prepare(spec)
-    typer.echo(f"prepared case {case_dir.run_id} at {case_dir.host_path}")
+    # The case carries the tuple, and every launch is pinned from it (ADR-053): a solver whose
+    # SIF the tuple does not name (`--solver su2` with the OpenFOAM SIF configured) is refused at
+    # its first launch, and a SIF that does not hash to the recorded digest never starts.
+    from aero.adapters._base import assert_launches_guarded
 
-    mesh = solver.mesh(case_dir, ssh)
-    if not mesh.ok:
-        typer.echo(f"{solver_name} meshing failed — case did not mesh", err=True)
-        raise typer.Exit(code=1)
-    typer.echo(f"meshed ({mesh.n_elements} elements); running {solver_name} on {host} ...")
+    try:
+        case_dir = solver.prepare(spec, provenance=provenance)
+        typer.echo(f"prepared case {case_dir.run_id} at {case_dir.host_path}")
 
-    result = solver.run(case_dir, ssh)
-    if result.returncode != 0:
-        typer.echo(f"{solver_name} solver failed (rc={result.returncode})", err=True)
-        raise typer.Exit(code=1)
+        mesh = solver.mesh(case_dir, ssh)
+        if not mesh.ok:
+            typer.echo(f"{solver_name} meshing failed — case did not mesh", err=True)
+            raise typer.Exit(code=1)
+        typer.echo(f"meshed ({mesh.n_elements} elements); running {solver_name} on {host} ...")
+
+        result = solver.run(case_dir, ssh)
+        if result.returncode != 0:
+            typer.echo(f"{solver_name} solver failed (rc={result.returncode})", err=True)
+            raise typer.Exit(code=1)
+        assert_launches_guarded(case_dir, provenance)
+    except ProvenanceError as exc:
+        typer.echo(f"provenance error: {exc}", err=True)
+        raise typer.Exit(code=4) from exc
 
     solve = solver.load(result)
     iterations = solve.iterations_to_convergence
@@ -637,6 +663,11 @@ def vv_run(
     if executor not in {"local-ssh", "runpod"}:
         typer.echo(f"unknown executor '{executor}' — choose 'local-ssh' or 'runpod'", err=True)
         raise typer.Exit(code=2)
+    if executor == "runpod":
+        _refuse_unguarded_path(
+            "aero vv run --executor runpod",
+            "No SIF exists on the pod (it runs the OCI image), so there is no file to hash.",
+        )
     if solver_name not in _REQUIRED_MODULES_BY_SOLVER:
         known = ", ".join(_REQUIRED_MODULES_BY_SOLVER)
         typer.echo(f"unknown solver '{solver_name}' — choose one of: {known}", err=True)
@@ -1095,6 +1126,10 @@ def surrogate_train(
 ) -> None:
     """Train a surrogate baseline and log the eight Stage-08 provenance tags.
 
+    REFUSED since Stage 23 (ADR-053, exit 4): neither path launches a SIF through the guard, so
+    the container digest it would record is one no launch checked. The flow below is kept for
+    the port (docs/operator/deferred-work-ledger.md, Stage 23).
+
     The flow (Stage 08, ADR-008):
 
     1. Resolve the four-fold provenance tuple
@@ -1130,6 +1165,14 @@ def surrogate_train(
     if executor not in {"local-ssh", "runpod"}:
         typer.echo(f"unknown executor {executor!r}", err=True)
         raise typer.Exit(code=2)
+    # Stage 23 (ADR-053): neither path launches a SIF through the guard. The smoke baselines
+    # train in-process and would record `surrogate-smoke.sif` without running it; the DoMINO
+    # launch is frozen (ADR-013) and runs the pod's OCI image or a hand-built apptainer line.
+    _refuse_unguarded_path(
+        f"aero surrogate train --baseline {baseline}",
+        "It records a container digest that no guarded launch checked: the smoke baselines "
+        "train in-process, and the frozen DoMINO launch has no guarded path.",
+    )
 
     # Stage 09 — DoMINO is the production surrogate. It does NOT train in-process;
     # the run is submitted to physicsnemo.sif on the executor target. Route early.

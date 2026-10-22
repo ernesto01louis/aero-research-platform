@@ -21,7 +21,11 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from aero.adapters._base import SolverProtocol
+from aero.adapters._base import (
+    SolverProtocol,
+    assert_launches_guarded,
+    raise_if_container_refused,
+)
 from aero.orchestration._base import Executor
 from aero.provenance.four_fold import (
     AnyProvenanceTuple,
@@ -381,10 +385,22 @@ class BenchmarkRunner:
         self.solver_version = solver_version
         self.stage = stage
 
-    def _drive(self, case: BenchmarkCase) -> tuple[dict[str, float | Series], Any, Any]:
-        """prepare -> mesh -> solve -> evaluate; fail-loud on a mesh/solve failure."""
+    def _drive(
+        self, case: BenchmarkCase, provenance: AnyProvenanceTuple
+    ) -> tuple[dict[str, float | Series], Any, Any]:
+        """prepare -> mesh -> solve -> evaluate; fail-loud on a mesh/solve failure.
+
+        The case is prepared with the run's tuple, so every launch is pinned from it (ADR-053);
+        a refused launch raises `ProvenanceError` before any return code is read, and a tuple
+        whose launches were not guarded is refused before anything is evaluated.
+        """
+        if not isinstance(provenance, ProvenanceTupleV2):
+            raise ProvenanceError(
+                f"{case.name}: a solve needs the run's ProvenanceTupleV2 — its launches are "
+                "pinned from it (ADR-053); compute it with compute_provenance"
+            )
         spec = case.case_spec()
-        case_dir = self.solver.prepare(spec)
+        case_dir = self.solver.prepare(spec, provenance=provenance)
         mesh = self.solver.mesh(case_dir, self.executor)
         if not getattr(mesh, "ok", False):
             # Report the reason the adapter recorded rather than re-inventing one.
@@ -393,6 +409,7 @@ class BenchmarkRunner:
             detail = getattr(mesh, "failure", "") or "the adapter recorded no reason"
             raise BenchmarkError(f"{case.name}: case did not mesh — {detail}")
         result = self.solver.run(case_dir, self.executor)
+        raise_if_container_refused(result)
         if getattr(result, "returncode", 1) != 0:
             # Carry the tail of the captured solver output: without it a crash reaches the CI
             # log as a bare return code and its cause is invisible (Stage 22, ADR-051).
@@ -400,6 +417,7 @@ class BenchmarkRunner:
                 f"{case.name}: solver failed (rc={result.returncode})"
                 + _log_tail(getattr(result, "solver_log", ""))
             )
+        assert_launches_guarded(case_dir, provenance)
         measured = case.evaluate(self.solver, result)
         return measured, mesh, result
 
@@ -419,7 +437,7 @@ class BenchmarkRunner:
         `validation_tag` tag.
         """
         _check_tuple_describes(case, provenance)
-        measured, mesh, result = self._drive(case)
+        measured, mesh, result = self._drive(case, provenance)
         reference = case.reference(repo_root)
         metric_results = tuple(compare(m, measured[m.name], reference) for m in case.metrics())
         status: Literal["pass", "fail"] = (
@@ -458,7 +476,7 @@ class BenchmarkRunner:
         needs the measured scalar but not the (validation) reference data.
         """
         _check_tuple_describes(case, provenance)
-        measured, mesh, result = self._drive(case)
+        measured, mesh, result = self._drive(case, provenance)
         if metric not in measured:
             raise BenchmarkError(f"{case.name}: evaluate() produced no metric {metric!r}")
         value = measured[metric]

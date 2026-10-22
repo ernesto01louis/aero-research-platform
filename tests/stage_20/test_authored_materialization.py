@@ -63,6 +63,7 @@ from tests.stage_20._hg2007 import (
     surface_x,
 )
 from tests.stage_20._hg2007 import authored_spec as _spec
+from tests.unit._launch_fixtures import run_tuple
 
 pytestmark = pytest.mark.stage_20
 
@@ -119,7 +120,11 @@ def test_config_for_resolves_the_rendered_configuration(tmp_path: Path) -> None:
     solver = PreciceCoupledSolver()
     solver._write_case(spec, tmp_path)
     case_dir = CaseDir(
-        run_id="authored-test", host_path=tmp_path, remote_path=Path("/remote"), spec=spec
+        run_id="authored-test",
+        host_path=tmp_path,
+        remote_path=Path("/remote"),
+        spec=spec,
+        provenance=run_tuple(spec.container_of_record, extra=spec.extra_container_sifs),
     )
     config = solver.config_for(case_dir)
     assert config.coupling_scheme.time_window_size == DT

@@ -801,6 +801,18 @@ def _provenance(spec: Any, *, allow_dirty: bool) -> dict[str, Any]:
     return dumped
 
 
+def _launch_tuple() -> Any:
+    """The tuple a relaunch's SIFs are pinned from (ADR-053). Refused: a historical run has none.
+
+    Every launch since Stage 23 is pinned from the run's `ProvenanceTupleV2`, and a Stage-20 run
+    recorded the legacy tuple, which would have to be relabelled to pin from. So a restart is
+    refused before it touches the case. The one seam a test replaces to pin ADR-045's rotation.
+    """
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage20_hg2007_flexible_foil.py")
+
+
 def _solver(args: argparse.Namespace) -> PreciceCoupledSolver:
     kwargs: dict[str, Any] = {}
     if args.host_nfs_root:
@@ -1978,6 +1990,7 @@ def _restart(args: argparse.Namespace) -> int:
     leave a field-less stub directory at every step), and preCICE, which has no restart
     and starts at zero, gets the REMAINING time through the one sanctioned mutation.
     """
+    launch_tuple = _launch_tuple()  # Stage 23: refused before anything is rotated
     path = Path(args.restart)
     submission = _submission(path)
     window = int(args.restart_window)
@@ -2107,6 +2120,7 @@ def _restart(args: argparse.Namespace) -> int:
         spec=spec,
         host_path=case_host,
         remote_path=Path(submission["case_remote_path"]),
+        provenance=launch_tuple,
     )
     plan = solver.launch_plan(case_dir)
     observability = ObservabilityOptions.model_validate(submission.get("observability") or {})

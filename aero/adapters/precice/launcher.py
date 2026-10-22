@@ -30,9 +30,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from aero.adapters._base import build_apptainer_exec
+from aero.adapters._base import (
+    SIF_REFUSED_EXIT,
+    SIF_REFUSED_MARK,
+    SifPin,
+    build_apptainer_exec,
+)
 from aero.adapters.precice.case import ParticipantSpec
 from aero.orchestration._base import Executor
+from aero.provenance.four_fold import ProvenanceError
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -187,7 +193,13 @@ class CoupledLaunchPlan(BaseModel):
 
     case_root_remote: str = Field(..., min_length=1)
     participants: tuple[ParticipantSpec, ...] = Field(..., min_length=1)
-    sif_paths: Mapping[str, str] = Field(..., description="SIF basename -> absolute remote path.")
+    sif_pins: Mapping[str, SifPin] = Field(
+        ...,
+        description=(
+            "SIF basename -> its pin: the absolute remote path and the digest the run's tuple "
+            "names for it (ADR-053). Every participant's launch is guarded by it."
+        ),
+    )
     # No lower bound worth defending here: the plan is a mechanical object. A campaign
     # budget that makes no sense is caught on CoupledCaseSpec (ge=60), which is where the
     # pre-declared ceiling actually lives.
@@ -222,9 +234,12 @@ class CoupledLaunchPlan(BaseModel):
 
     @model_validator(mode="after")
     def _sifs_resolved(self) -> CoupledLaunchPlan:
-        missing = sorted({p.sif for p in self.participants} - set(self.sif_paths))
+        missing = sorted({p.sif for p in self.participants} - set(self.sif_pins))
         if missing:
-            raise ValueError(f"no remote path given for SIF(s): {', '.join(missing)}")
+            raise ValueError(f"no pin given for SIF(s): {', '.join(missing)}")
+        misfiled = sorted(k for k, pin in self.sif_pins.items() if Path(pin.path).name != k)
+        if misfiled:
+            raise ValueError(f"a SIF pin's path must end in its own basename: {misfiled}")
         names = [p.name for p in self.participants]
         if len(set(names)) != len(names):
             raise ValueError(f"participant names must be unique, got {names}")
@@ -283,7 +298,7 @@ def build_participant_command(
     participant: ParticipantSpec,
     *,
     case_root_remote: str,
-    sif_path: str,
+    expected: SifPin,
     observability: ObservabilityOptions | None = None,
     checkpoint: CheckpointOptions | None = None,
 ) -> str:
@@ -360,13 +375,13 @@ def build_participant_command(
             f"--clear-groups env HOME={home} WM_PROJECT_USER_DIR={home}/OpenFOAM "
             f"bash -lc {shlex.quote(inner)}"
         )
-    command = build_apptainer_exec(
-        sif_path=sif_path,
+    return build_apptainer_exec(
+        expected=expected,
         case_bind_source=case_root_remote,
         command=inner,
         writable_tmpfs=participant.writable_tmpfs,
+        no_home=True,
     )
-    return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)
 
 
 def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
@@ -397,7 +412,7 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
         command = build_participant_command(
             participant,
             case_root_remote=plan.case_root_remote,
-            sif_path=plan.sif_paths[participant.sif],
+            expected=plan.sif_pins[participant.sif],
             observability=plan.observability,
             checkpoint=plan.checkpoint,
         )
@@ -518,7 +533,12 @@ def render_supervisor_script(plan: CoupledLaunchPlan) -> str:
         '} > "$STATUS"',
         'echo "[supervisor] wrote $STATUS (stopped_by=$STOPPED_BY)"',
         "",
-        "# Exit code mirrors the outcome so run_long.sh's sentinel is meaningful.",
+        "# Exit code mirrors the outcome so run_long.sh's sentinel is meaningful. A refused",
+        "# launch (ADR-053: the SIF did not hash to the recorded digest) wins over every",
+        "# other outcome, so it is never read as a timeout or a solver failure.",
+        "for i in $(seq 0 $((N-1))); do",
+        f'  if [ "${{RCS[$i]:-1}}" -eq {SIF_REFUSED_EXIT} ]; then exit {SIF_REFUSED_EXIT}; fi',
+        "done",
         'if [ "$STOPPED_BY" = "ceiling" ]; then exit 124; fi',
         "for i in $(seq 0 $((N-1))); do",
         '  if [ "${RCS[$i]:-1}" -ne 0 ]; then exit "${RCS[$i]}"; fi',
@@ -539,10 +559,23 @@ def _tail(path: Path, *, lines: int = 40) -> str:
     return "\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
 
 
+def _head(path: Path, *, nbytes: int = 4096) -> str:
+    """The first bytes of a participant log: the guard writes its line before apptainer starts."""
+    if not path.is_file():
+        return ""
+    with path.open("rb") as handle:
+        return handle.read(nbytes).decode("utf-8", errors="replace")
+
+
 def read_coupled_status(
     status_json: Path, *, case_root_host: Path, executor_returncode: int
 ) -> CoupledRunResult:
-    """Parse the supervisor's ``coupled-status.json``. A missing file is a loud failure."""
+    """Parse the supervisor's ``coupled-status.json``. A missing file is a loud failure.
+
+    A participant whose launch the guard refused (ADR-053: exit 86, and the
+    ``AERO-SIF-REFUSED`` line at the head of its log) raises ``ProvenanceError`` here, before
+    any outcome is classified, so a refusal is never read as a solver failure.
+    """
     if not status_json.is_file():
         raise CoupledLaunchError(
             f"{status_json}: the supervisor wrote no status file. The coupled run's outcome "
@@ -552,6 +585,17 @@ def read_coupled_status(
         payload = json.loads(status_json.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise CoupledLaunchError(f"{status_json}: unparseable supervisor status — {exc}") from exc
+
+    for entry in payload["participants"]:
+        if entry["returncode"] == SIF_REFUSED_EXIT:
+            head = _head(case_root_host / Path(entry["log_path"]).name)
+            refused = [line for line in head.splitlines() if SIF_REFUSED_MARK in line]
+            if refused:
+                raise ProvenanceError(
+                    f"participant {entry['name']!r}: the SIF did not hash to the digest this "
+                    f"run records, so its launch was refused before apptainer started "
+                    f"(ADR-053): {refused[0].strip()}"
+                )
 
     outcomes: list[ParticipantOutcome] = []
     for entry in payload["participants"]:

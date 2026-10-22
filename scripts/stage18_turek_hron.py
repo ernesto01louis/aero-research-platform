@@ -111,7 +111,7 @@ class _PreMeshedSolver:
         self._case_dir = case_dir
         self._handle = handle
 
-    def prepare(self, case: Any) -> CaseDir:
+    def prepare(self, case: Any, *, provenance: Any) -> CaseDir:
         return self._case_dir
 
     def mesh(self, case_dir: CaseDir, executor: Any) -> MeshHandle:
@@ -160,6 +160,14 @@ def _run_test(
             executor=executor,
             spec=spec,
             sif_path=solver.sif_path,
+            # Each rung is its own configuration, so each gets its own tuple (ADR-053): the
+            # winning case directory carries the one this run records.
+            provenance_of=lambda rung_spec: compute_provenance(
+                repo_root=_REPO_ROOT,
+                container_sif="openfoam-esi.sif",
+                resolved_config=rung_spec.model_dump(mode="json"),
+                allow_dirty=allow_dirty,
+            ),
         )
     except GeometryError as exc:
         report: MeshLadderReport | None = getattr(exc, "ladder_report", None)
@@ -176,12 +184,7 @@ def _run_test(
         f"(h={winning_spec.base_cell_size:.4g}, run={case_dir.run_id})"
     )
 
-    provenance = compute_provenance(
-        repo_root=_REPO_ROOT,
-        container_sif="openfoam-esi.sif",
-        resolved_config=winning_spec.model_dump(mode="json"),
-        allow_dirty=allow_dirty,
-    )
+    provenance = case_dir.provenance
     if log_mlflow:
         from aero.provenance.db import resolve_dsn
 
@@ -286,6 +289,13 @@ def _preflight(host: str, timeout: int, inlet_bc: str) -> int:
                 executor=executor,
                 spec=spec,
                 sif_path=solver.sif_path,
+                # The pre-flight records nothing; the tuple is only the pin source (ADR-053).
+                provenance_of=lambda rung_spec: compute_provenance(
+                    repo_root=_REPO_ROOT,
+                    container_sif="openfoam-esi.sif",
+                    resolved_config=rung_spec.model_dump(mode="json"),
+                    allow_dirty=True,
+                ),
                 gate=MeshQualityGate(),
                 rungs=(MeshLadderRung(name="PF", cell_size_factor=1.0, n_surface_layers=0),),
             )

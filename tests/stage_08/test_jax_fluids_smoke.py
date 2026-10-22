@@ -12,6 +12,8 @@ from pathlib import Path
 import pytest
 from aero.adapters.jax_fluids import JaxFluidsShockTubeSpec, JaxFluidsSolver
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = [pytest.mark.stage_08, pytest.mark.slow]
 
 # Analytic shock-front position at t = 0.2 for Sod's 1-D Riemann problem.
@@ -37,7 +39,8 @@ def test_jax_fluids_shock_tube_smoke(
     solver = JaxFluidsSolver(host_nfs_root=tmp_path, remote_nfs_root=tmp_path)
     executor = LocalSSHExecutor(host="aero-build", ssh_user="root", repo_root=tmp_path)
 
-    case_dir = solver.prepare(spec)
+    # The committed SHA256SUMS digest: the guard checks the real SIF on aero-build (ADR-053).
+    case_dir = solver.prepare(spec, provenance=run_tuple("jax-fluids.sif"))
     mesh = solver.mesh(case_dir, executor)
     assert mesh.ok and mesh.n_elements == 256
     result = solver.run(case_dir, executor)

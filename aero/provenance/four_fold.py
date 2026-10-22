@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -472,21 +473,78 @@ def dvc_input_hash(repo_root: Path) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+_SHA256SUMS = Path("containers") / "SHA256SUMS"
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def read_sha256sums(repo_root: Path) -> dict[str, str]:
+    """Parse `containers/SHA256SUMS` strictly: SIF basename -> digest (Stage 23, ADR-053).
+
+    Blank lines and `#` comment lines are skipped. Every other line must be `<64-hex> <name>`, and
+    a name may appear once. The lookup used to take the first two-token line that named the SIF,
+    so a two-token comment such as `# containers/SHA256SUMS` would have returned `#` as a digest,
+    and a second entry for a rebuilt SIF would have been silently ignored.
+    """
+    sums = repo_root / _SHA256SUMS
+    if not sums.is_file():
+        raise ProvenanceError(f"containers/SHA256SUMS not found at {sums}")
+    digests: dict[str, str] = {}
+    for number, line in enumerate(sums.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        parts = stripped.split()
+        if len(parts) != 2 or not _HEX64_RE.match(parts[0]):
+            raise ProvenanceError(
+                f"{sums}:{number}: not a `<sha256> <name>` entry: {stripped[:80]!r}"
+            )
+        digest, name = parts
+        if name in digests:
+            raise ProvenanceError(
+                f"{sums}:{number}: {name!r} is listed twice; a rebuilt SIF needs a new name"
+            )
+        digests[name] = digest
+    return digests
+
+
+def sha256sums_at_head(repo_root: Path) -> None:
+    """Refuse a `containers/SHA256SUMS` that differs from `HEAD`'s, even under `--allow-dirty`.
+
+    The digest a run records must be one a committed `SHA256SUMS` contains, or the record names
+    a container no commit describes (ADR-053, as ADR-052 D1 requires of declared pointers).
+    """
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"HEAD:{_SHA256SUMS.as_posix()}"],
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise ProvenanceError("`git` not found — cannot compute provenance") from exc
+    if head.returncode != 0:
+        raise ProvenanceError(
+            f"containers/SHA256SUMS is not committed at HEAD: {head.stderr.decode().strip()}"
+        )
+    sums = repo_root / _SHA256SUMS
+    if not sums.is_file() or sums.read_bytes() != head.stdout:
+        raise ProvenanceError(
+            "containers/SHA256SUMS differs from HEAD's; commit it first — a recorded container "
+            "digest must be in a committed SHA256SUMS, even for an --allow-dirty run (ADR-053)"
+        )
+
+
 def container_sif_sha256(repo_root: Path, container_sif: Path | str) -> str:
     """Look up the SIF's SHA256 in `containers/SHA256SUMS` by basename.
 
     No `"unknown"` fallback — the Stage 03 shortcut is retired. A SIF without a
-    recorded digest is an unprovenanced container and must fail loud.
+    recorded digest is an unprovenanced container and must fail loud. Since Stage 23 the
+    lookup goes through the strict parser (`read_sha256sums`).
     """
     name = Path(container_sif).name
-    sums = repo_root / "containers" / "SHA256SUMS"
-    if not sums.is_file():
-        raise ProvenanceError(f"containers/SHA256SUMS not found at {sums}")
-    for line in sums.read_text(encoding="utf-8").splitlines():
-        parts = line.split()
-        if len(parts) == 2 and parts[1] == name:
-            return parts[0]
-    raise ProvenanceError(f"no SHA256 entry for '{name}' in {sums}")
+    digest = read_sha256sums(repo_root).get(name)
+    if digest is None:
+        raise ProvenanceError(f"no SHA256 entry for '{name}' in {repo_root / _SHA256SUMS}")
+    return digest
 
 
 def canonical_config_bytes(resolved_config: Mapping[str, Any]) -> bytes:
@@ -576,9 +634,12 @@ def compute_provenance(
 ) -> ProvenanceTupleV2:
     """Compute the full four-fold provenance tuple, or raise ProvenanceError.
 
-    Since Stage 23 the result is a `ProvenanceTupleV2` that names each term's scheme. This
-    computes both terms under their v0 schemes (`repo-sync-state/v0`, `sha256sums-lookup/v0`);
-    ADR-053 and ADR-052 move them to v1.
+    Since Stage 23 the result is a `ProvenanceTupleV2` that names each term's scheme. The DVC
+    term is still `repo-sync-state/v0` (ADR-052 moves it to v1). The container term is
+    `sif-sha256-verified-at-launch/v1` (ADR-053): the digest is the committed `SHA256SUMS` entry
+    (`containers/SHA256SUMS` must equal `HEAD`'s, even under `allow_dirty`), and every launch of
+    the run is guarded against it on the solve host. A run that logs this tuple without a guarded
+    launch is refused by the logger that holds it (`assert_launches_guarded`).
 
     Called by the CLI *before* the MLflow run is started, so a provenance
     failure aborts before any partially-tagged run exists.
@@ -595,6 +656,7 @@ def compute_provenance(
     OpenFOAM fluid one. Omitting it yields exactly the tuple this function has
     always returned.
     """
+    sha256sums_at_head(repo_root)
     return ProvenanceTupleV2(
         git_sha=git_sha(repo_root, allow_dirty=allow_dirty),
         dvc_input_hash=dvc_input_hash(repo_root),
@@ -608,6 +670,6 @@ def compute_provenance(
         ),
         dvc_inputs=None,
         schemes=TermSchemes(
-            dvc_input_hash=DVC_SYNC_STATE_V0, container_sif_sha256=SIF_SHA256SUMS_LOOKUP_V0
+            dvc_input_hash=DVC_SYNC_STATE_V0, container_sif_sha256=SIF_VERIFIED_AT_LAUNCH_V1
         ),
     )

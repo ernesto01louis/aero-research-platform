@@ -38,6 +38,7 @@ from aero.adapters._base import (
     TimeHistory,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters.jax_fluids.case_writer import write_shock_tube_case_files
 from aero.adapters.jax_fluids.schemas import (
@@ -156,7 +157,7 @@ class JaxFluidsSolver(Solver):
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle:
         """Execute the embedded ``run_case.py`` driver under JAX inside the SIF."""
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=f"python {_DRIVER_SCRIPT}",
             gpu=True,
@@ -167,6 +168,7 @@ class JaxFluidsSolver(Solver):
             long_running=True,
             session=f"jaxf-{case_dir.run_id}",
         )
+        raise_if_container_refused(result)
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,

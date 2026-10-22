@@ -15,6 +15,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from aero.adapters._base import sif_guard
 from aero.adapters.precice.case import ParticipantSpec
 from aero.adapters.precice.launcher import (
     CoupledLaunchPlan,
@@ -23,6 +24,8 @@ from aero.adapters.precice.launcher import (
     read_coupled_status,
     render_supervisor_script,
 )
+
+from tests.unit._launch_fixtures import fake_pin, guard, pin, real_sif
 
 pytestmark = pytest.mark.stage_19
 
@@ -62,7 +65,8 @@ def _plan(root: Path, fluid_cmd: str, solid_cmd: str, *, ceiling: int = 600) -> 
                 name="Solid", workdir="solid-nutils", command=solid_cmd, sif="precice-fsi.sif"
             ),
         ),
-        sif_paths={"precice-fsi.sif": "/opt/aero/containers/precice-fsi.sif"},
+        # A stand-in SIF at its true digest, so the launch guard passes on this host (ADR-053).
+        sif_pins={"precice-fsi.sif": real_sif(root / ".sifs", "precice-fsi.sif")},
         wall_clock_ceiling_s=ceiling,
         poll_interval_s=1,
         peer_grace_s=2,
@@ -102,8 +106,8 @@ def test_participant_command_is_exact() -> None:
     assert build_participant_command(
         participant,
         case_root_remote="/mnt/aero/runs/x/tutorial/turek-hron-fsi3",
-        sif_path="/opt/aero/containers/precice-fsi.sif",
-    ) == (
+        expected=pin("/opt/aero/containers/precice-fsi.sif"),
+    ) == guard("/opt/aero/containers/precice-fsi.sif") + (
         "apptainer exec --no-home --bind "
         "/mnt/aero/runs/x/tutorial/turek-hron-fsi3:/case "
         "/opt/aero/containers/precice-fsi.sif "
@@ -129,8 +133,8 @@ def test_participant_command_is_exact_in_parallel() -> None:
     assert build_participant_command(
         participant,
         case_root_remote="/mnt/aero/runs/x/tutorial/hg2007-flexible-foil",
-        sif_path="/opt/aero/containers/precice-fsi.sif",
-    ) == (
+        expected=pin("/opt/aero/containers/precice-fsi.sif"),
+    ) == guard("/opt/aero/containers/precice-fsi.sif") + (
         "apptainer exec --no-home --bind "
         "/mnt/aero/runs/x/tutorial/hg2007-flexible-foil:/case "
         "/opt/aero/containers/precice-fsi.sif "
@@ -156,8 +160,8 @@ def test_serial_is_byte_identical_when_mpi_ranks_is_none() -> None:
     assert build_participant_command(
         serial,
         case_root_remote="/mnt/aero/runs/x/tutorial/turek-hron-fsi3",
-        sif_path="/opt/aero/containers/precice-fsi.sif",
-    ) == (
+        expected=pin("/opt/aero/containers/precice-fsi.sif"),
+    ) == guard("/opt/aero/containers/precice-fsi.sif") + (
         "apptainer exec --no-home --bind "
         "/mnt/aero/runs/x/tutorial/turek-hron-fsi3:/case "
         "/opt/aero/containers/precice-fsi.sif "
@@ -183,7 +187,7 @@ def test_the_mpi_element_is_not_hoisted_out_of_the_cd_or_the_uid_drop() -> None:
         mpi_ranks=4,
     )
     command = build_participant_command(
-        participant, case_root_remote="/case/root", sif_path="/x.sif"
+        participant, case_root_remote="/case/root", expected=fake_pin("/x.sif")
     )
     assert "mpirun -n 4 pimpleFoam -parallel" in command
     # Not hoisted over the `cd`: the solver would run serial in the wrong directory.
@@ -211,7 +215,7 @@ def test_a_decompose_style_copy_clears_the_mpi_element() -> None:
     command = build_participant_command(
         fluid.model_copy(update={"command": "decomposePar -force", "mpi_ranks": None}),
         case_root_remote="/case/root",
-        sif_path="/x.sif",
+        expected=fake_pin("/x.sif"),
     )
     assert "cd fluid-openfoam && decomposePar -force" in command
     assert "mpirun" not in command
@@ -225,9 +229,10 @@ def test_no_home_is_always_passed() -> None:
         name="Fluid", workdir="f", command="blockMesh", sif="precice-fsi.sif"
     )
     command = build_participant_command(
-        participant, case_root_remote="/case/root", sif_path="/x.sif"
+        participant, case_root_remote="/case/root", expected=fake_pin("/x.sif")
     )
-    assert command.startswith("apptainer exec --no-home ")
+    # After the launch guard (ADR-053), which is the only thing allowed in front of it.
+    assert command.startswith(sif_guard(fake_pin("/x.sif")) + "apptainer exec --no-home ")
 
 
 def test_env_is_exported_not_prefixed(shim_bin: Path, tmp_path: Path) -> None:
@@ -247,7 +252,7 @@ def test_env_is_exported_not_prefixed(shim_bin: Path, tmp_path: Path) -> None:
         env={"PRECICE_TUTORIALS_NO_VENV": "1"},
     )
     command = build_participant_command(
-        participant, case_root_remote="/case/root", sif_path="/x.sif"
+        participant, case_root_remote="/case/root", expected=fake_pin("/x.sif")
     )
     assert "export PRECICE_TUTORIALS_NO_VENV=1 && ./run.sh" in command
     assert "PRECICE_TUTORIALS_NO_VENV=1 cd " not in command
@@ -263,7 +268,7 @@ def test_env_is_exported_not_prefixed(shim_bin: Path, tmp_path: Path) -> None:
     plan = CoupledLaunchPlan(
         case_root_remote=str(root),
         participants=(participant,),
-        sif_paths={"precice-fsi.sif": "/x.sif"},
+        sif_pins={"precice-fsi.sif": real_sif(tmp_path / "sifs", "precice-fsi.sif")},
         wall_clock_ceiling_s=120,
         poll_interval_s=1,
         term_grace_s=2,
@@ -296,15 +301,26 @@ def test_executor_timeout_exceeds_the_supervisor_ceiling() -> None:
     assert plan.executor_timeout_s > plan.wall_clock_ceiling_s
 
 
-def test_plan_requires_a_path_for_every_sif() -> None:
-    with pytest.raises(ValueError, match="no remote path"):
+def test_plan_requires_a_pin_for_every_sif() -> None:
+    with pytest.raises(ValueError, match="no pin given"):
         CoupledLaunchPlan(
             case_root_remote="/case",
             participants=(
                 ParticipantSpec(name="A", workdir="a", command="true", sif="a.sif"),
                 ParticipantSpec(name="B", workdir="b", command="true", sif="b.sif"),
             ),
-            sif_paths={"a.sif": "/opt/a.sif"},
+            sif_pins={"a.sif": fake_pin("/opt/a.sif")},
+            wall_clock_ceiling_s=120,
+        )
+
+
+def test_a_pin_is_filed_under_its_own_basename() -> None:
+    """A participant's SIF name selects the pin; a pin for another file under it is refused."""
+    with pytest.raises(ValueError, match="its own basename"):
+        CoupledLaunchPlan(
+            case_root_remote="/case",
+            participants=(ParticipantSpec(name="A", workdir="a", command="true", sif="a.sif"),),
+            sif_pins={"a.sif": fake_pin("/opt/b.sif")},
             wall_clock_ceiling_s=120,
         )
 
@@ -358,6 +374,107 @@ def test_status_json_is_always_written(shim_bin: Path, tmp_path: Path) -> None:
     assert {p["name"] for p in payload["participants"]} == {"Fluid", "Solid"}
 
 
+# --- ADR-053: the launch guard inside the supervisor ---------------------------------
+
+
+def _two_sif_plan(root: Path, sifs: Path, fluid_cmd: str, solid_cmd: str) -> CoupledLaunchPlan:
+    for name in ("fluid", "solid"):
+        (root / name).mkdir(parents=True, exist_ok=True)
+    return CoupledLaunchPlan(
+        case_root_remote=str(root),
+        participants=(
+            ParticipantSpec(name="Fluid", workdir="fluid", command=fluid_cmd, sif="fluid.sif"),
+            ParticipantSpec(name="Solid", workdir="solid", command=solid_cmd, sif="solid.sif"),
+        ),
+        sif_pins={
+            "fluid.sif": real_sif(sifs, "fluid.sif", b"fluid image\n"),
+            "solid.sif": real_sif(sifs, "solid.sif", b"solid image\n"),
+        },
+        wall_clock_ceiling_s=120,
+        poll_interval_s=1,
+        peer_grace_s=2,
+        term_grace_s=2,
+    )
+
+
+def _supervise(
+    plan: CoupledLaunchPlan, root: Path, shim_bin: Path
+) -> subprocess.CompletedProcess[str]:
+    script = root / "run-coupled.sh"
+    script.write_text(render_supervisor_script(plan), encoding="utf-8")
+    env = dict(
+        os.environ,
+        PATH=f"{shim_bin}:{os.environ['PATH']}",
+        AERO_TEST_CASE_ROOT=str(root),
+        AERO_RUN_ID="guard",
+    )
+    return subprocess.run(
+        ["bash", str(script)], capture_output=True, text=True, env=env, timeout=300, check=False
+    )
+
+
+def test_every_participant_launch_is_verified(shim_bin: Path, tmp_path: Path) -> None:
+    root = tmp_path / "case"
+    plan = _two_sif_plan(root, tmp_path / "sifs", "exit 0", "exit 0")
+    completed = _supervise(plan, root, shim_bin)
+    assert completed.returncode == 0
+    for name, sif in (("Fluid", "fluid.sif"), ("Solid", "solid.sif")):
+        log = (root / f"{name}.log").read_text(encoding="utf-8")
+        assert log.startswith(f"AERO-SIF-VERIFIED sha256={plan.sif_pins[sif].sha256} ")
+    assert read_coupled_status(
+        root / "coupled-status.json", case_root_host=root, executor_returncode=0
+    ).ok
+
+
+def test_a_refused_participant_wins_over_its_peers_failure(shim_bin: Path, tmp_path: Path) -> None:
+    """A same-name swap: the file at the pinned path no longer holds the recorded bytes.
+
+    The Solid is the second participant and the Fluid fails with 3, so the first-nonzero rule
+    alone would exit 3 and the refusal would read as a solver failure. It exits 86, the status
+    raises `ProvenanceError`, and the swapped SIF's command never ran.
+    """
+    from aero.provenance.four_fold import ProvenanceError
+
+    root = tmp_path / "case"
+    plan = _two_sif_plan(root, tmp_path / "sifs", "sleep 2; exit 3", "echo SOLID RAN")
+    Path(plan.sif_pins["solid.sif"].path).write_bytes(b"a rebuilt image, same name\n")
+    completed = _supervise(plan, root, shim_bin)
+    assert completed.returncode == 86
+    solid_log = (root / "Solid.log").read_text(encoding="utf-8")
+    assert solid_log.startswith("AERO-SIF-REFUSED expected=")
+    assert "SOLID RAN" not in solid_log
+    with pytest.raises(ProvenanceError, match=r"participant 'Solid'.*AERO-SIF-REFUSED"):
+        read_coupled_status(
+            root / "coupled-status.json", case_root_host=root, executor_returncode=86
+        )
+
+
+def test_a_solvers_own_exit_86_is_not_a_refusal(tmp_path: Path) -> None:
+    """Only the guard's line makes an 86 a refusal; a solver may exit 86 on its own."""
+    (tmp_path / "Solid.log").write_text("AERO-SIF-VERIFIED sha256=x path=y\nboom\n", "utf-8")
+    payload = {
+        "run_id": "r",
+        "stopped_by": "participant-died",
+        "started_epoch": 1,
+        "ended_epoch": 2,
+        "wall_clock_s": 1,
+        "participants": [
+            {
+                "name": "Solid",
+                "returncode": 86,
+                "started_epoch": 1,
+                "ended_epoch": 2,
+                "log_path": str(tmp_path / "Solid.log"),
+            }
+        ],
+    }
+    (tmp_path / "coupled-status.json").write_text(json.dumps(payload), encoding="utf-8")
+    result = read_coupled_status(
+        tmp_path / "coupled-status.json", case_root_host=tmp_path, executor_returncode=86
+    )
+    assert result.outcome("Solid").state == "exited-fail"
+
+
 def test_missing_status_is_loud(tmp_path: Path) -> None:
     from aero.adapters.precice.launcher import CoupledLaunchError
 
@@ -381,11 +498,13 @@ def test_observability_is_off_unless_asked_for() -> None:
     participant = ParticipantSpec(
         name="Solid", workdir="solid-calculix", command="./run.sh", sif="precice-fsi.sif"
     )
-    bare = build_participant_command(participant, case_root_remote="/case", sif_path="/x.sif")
+    bare = build_participant_command(
+        participant, case_root_remote="/case", expected=fake_pin("/x.sif")
+    )
     defaulted = build_participant_command(
         participant,
         case_root_remote="/case",
-        sif_path="/x.sif",
+        expected=fake_pin("/x.sif"),
         observability=ObservabilityOptions(),
     )
 
@@ -412,7 +531,7 @@ def test_observability_lands_after_the_cd_and_inside_the_uid_drop() -> None:
     command = build_participant_command(
         participant,
         case_root_remote="/case",
-        sif_path="/x.sif",
+        expected=fake_pin("/x.sif"),
         observability=ObservabilityOptions(core_dumps=True, malloc_check=True),
     )
 
@@ -447,7 +566,7 @@ def test_the_solver_still_runs_when_the_ulimit_is_refused(shim_bin: Path, tmp_pa
     plan = CoupledLaunchPlan(
         case_root_remote=str(root),
         participants=(participant,),
-        sif_paths={"p.sif": "/x.sif"},
+        sif_pins={"p.sif": real_sif(tmp_path / "sifs", "p.sif")},
         wall_clock_ceiling_s=120,
         poll_interval_s=1,
         term_grace_s=2,
@@ -476,7 +595,7 @@ def test_malloc_check_reaches_the_participant(shim_bin: Path, tmp_path: Path) ->
     plan = CoupledLaunchPlan(
         case_root_remote=str(root),
         participants=(participant,),
-        sif_paths={"p.sif": "/x.sif"},
+        sif_pins={"p.sif": real_sif(tmp_path / "sifs", "p.sif")},
         wall_clock_ceiling_s=120,
         poll_interval_s=1,
         term_grace_s=2,

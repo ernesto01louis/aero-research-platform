@@ -18,6 +18,8 @@ import pytest
 from aero.orchestration._base import ExecResult, describe_failure
 from aero.orchestration.local_ssh import _TRANSPORT_RC, _transport_error
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_20
 
 
@@ -104,7 +106,7 @@ class _StubSolver:
     def __init__(self, failure: str) -> None:
         self._failure = failure
 
-    def prepare(self, spec: object) -> object:
+    def prepare(self, spec: object, *, provenance: object) -> object:
         return object()
 
     def mesh(self, case_dir: object, executor: object) -> object:
@@ -150,7 +152,7 @@ class TestBenchmarkRunnerReportsTheRecordedReason:
             "command: apptainer exec ...\nstderr: (empty)"
         )
         with pytest.raises(BenchmarkError) as exc:
-            self._runner(reason)._drive(_StubCase())  # type: ignore[attr-defined]
+            self._runner(reason)._drive(_StubCase(), run_tuple())  # type: ignore[attr-defined]
         message = str(exc.value)
         assert "ssh exited 255 for root@aero-dev" in message
         assert "blockMesh failed" not in message
@@ -159,4 +161,4 @@ class TestBenchmarkRunnerReportsTheRecordedReason:
         from aero.vv._base import BenchmarkError
 
         with pytest.raises(BenchmarkError, match="the adapter recorded no reason"):
-            self._runner("")._drive(_StubCase())  # type: ignore[attr-defined]
+            self._runner("")._drive(_StubCase(), run_tuple())  # type: ignore[attr-defined]

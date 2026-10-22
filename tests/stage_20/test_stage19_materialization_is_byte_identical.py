@@ -45,6 +45,8 @@ from aero.adapters.precice.case import (
 from aero.adapters.precice.config import PreciceConfigExpectation
 from aero.adapters.precice.solver import PreciceCoupledSolver
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_20
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -172,7 +174,9 @@ def _materialize(
     solver = PreciceCoupledSolver(
         expectation=expectation, host_nfs_root=tmp_path, remote_nfs_root=Path("/mnt/aero")
     )
-    case_dir = solver.prepare(spec)
+    case_dir = solver.prepare(
+        spec, provenance=run_tuple(spec.container_of_record, extra=spec.extra_container_sifs)
+    )
     root = case_dir.host_path / CASE_ROOT_DIRNAME
     dropped = [call for call in calls if call[1] >= 0]
     return root, solver._trees[case_dir.host_path.name], dropped

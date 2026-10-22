@@ -38,6 +38,7 @@ from aero.adapters._base import (
     TimeHistory,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters._meshing.nekmesh_wrapper import write_taylor_green_box
 from aero.adapters.nekrs.case_writer import (
@@ -131,12 +132,13 @@ class NekRSSolver(Solver):
         if isinstance(spec, NekRSTaylorGreenSpec):
             # Pipe stdin to genbox: it asks for the .box file name + nothing else.
             genbox_cmd = build_apptainer_exec(
-                sif_path=self.sif_path,
+                expected=case_dir.pin(self.sif_path),
                 case_bind_source=str(case_dir.remote_path),
                 command=f"sh -c 'echo {case_name}.box | genbox'",
                 gpu=False,
             )
             r1 = executor.run(genbox_cmd, timeout_s=300)
+            raise_if_container_refused(r1)
             if not r1.ok:
                 logger.error("genbox failed (rc={}):\n{}", r1.returncode, r1.stdout)
                 return MeshHandle(case_dir=case_dir, ok=False)
@@ -147,12 +149,13 @@ class NekRSSolver(Solver):
 
         # genmap (interactive: case-name + tolerance). Echo both via stdin.
         genmap_cmd = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=f"sh -c 'printf \"{case_name}\\n0.01\\n\" | genmap'",
             gpu=False,
         )
         r2 = executor.run(genmap_cmd, timeout_s=300)
+        raise_if_container_refused(r2)
         if not r2.ok:
             logger.error("genmap failed (rc={}):\n{}", r2.returncode, r2.stdout)
             return MeshHandle(case_dir=case_dir, ok=False)
@@ -180,7 +183,7 @@ class NekRSSolver(Solver):
             raise ValueError(f"unsupported NekRS backend {backend!r}")
         gpu = backend in {"CUDA", "HIP"}
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=(f"nekrs --setup {case_name} --backend {backend} --device-id 0"),
             gpu=gpu,
@@ -193,6 +196,7 @@ class NekRSSolver(Solver):
             long_running=True,
             session=f"nekrs-{case_dir.run_id}",
         )
+        raise_if_container_refused(result)
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,

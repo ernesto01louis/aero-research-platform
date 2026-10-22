@@ -17,6 +17,8 @@ from aero.adapters.openfoam.cylinder import CylinderSpec, write_cylinder_case
 from aero.adapters.openfoam.motion import MotionSpec
 from aero.adapters.openfoam.solver import OpenFOAMSolver
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_11
 
 _FREQ = 0.164  # forcing frequency (D = U = 1 => St = 0.164)
@@ -71,7 +73,11 @@ def _write_post(tmp_path: Path, *, converged: bool) -> ResultHandle:
     (fd / "force.dat").write_text("\n".join(frows) + "\n")
 
     case_dir = CaseDir(
-        run_id="mov1", spec=_moving_spec(), host_path=tmp_path, remote_path=Path("/case")
+        run_id="mov1",
+        spec=_moving_spec(),
+        host_path=tmp_path,
+        remote_path=Path("/case"),
+        provenance=run_tuple(),
     )
     return ResultHandle(case_dir=case_dir, returncode=0, output_host_path=post)
 

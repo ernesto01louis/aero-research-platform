@@ -40,6 +40,7 @@ from aero.adapters._base import (
     SpecLike,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters.openfoam.schemas import CaseSpec
 from aero.adapters.openfoam.tmr_specs import Bump2DSpec, FlatPlateSpec
@@ -301,7 +302,7 @@ class SU2Solver(Solver):
         session-dir under `/tmp`.
         """
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=f"SU2_CFD {_CFG_FILENAME}",
             writable_tmpfs=True,
@@ -312,6 +313,7 @@ class SU2Solver(Solver):
             },
         )
         result = executor.run(command, long_running=True, session=f"su2-{case_dir.run_id}")
+        raise_if_container_refused(result)
         if not result.ok:
             logger.error("SU2_CFD failed (rc={})", result.returncode)
         return ResultHandle(

@@ -306,8 +306,9 @@ def _in_sif(inner: str, *, remote_case: str, uid: int | None = None) -> str:
             f"env HOME={home} WM_PROJECT_USER_DIR={home}/OpenFOAM "
             f"bash -lc {json.dumps(inner)}"
         )
-    command = build_apptainer_exec(sif_path=FLUID_SIF, case_bind_source=remote_case, command=inner)
-    return command.replace("apptainer exec ", "apptainer exec --no-home ", 1)
+    return build_apptainer_exec(
+        sif_path=FLUID_SIF, case_bind_source=remote_case, command=inner, no_home=True
+    )
 
 
 def prepare() -> int:
@@ -790,6 +791,10 @@ def record(out: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    # Stage 23 (ADR-053): every launch is pinned from a run's tuple, and this screen has none.
+    refuse_unported_driver("stage20_numerics_screen.py")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--run", choices=sorted(VARIANTS))

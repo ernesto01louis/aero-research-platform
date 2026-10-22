@@ -45,6 +45,7 @@ from aero.adapters._base import (
     TimeHistory,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters._meshing.gmsh_high_order import write_taylor_green_msh2
 from aero.adapters.pyfr.case_writer import write_taylor_green_ini
@@ -150,12 +151,13 @@ class PyFRSolver(Solver):
         spec = case_dir.spec
         # 1. pyfr import (host-side mesh -> pyfr native). CPU-only.
         import_cmd = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=f"pyfr import -t gmsh {_MESH_MSH} {_MESH_PYFRM}",
             gpu=False,
         )
         result = executor.run(import_cmd, timeout_s=900)
+        raise_if_container_refused(result)
         if not result.ok:
             logger.error("pyfr import failed (rc={}):\n{}", result.returncode, result.stdout)
             return MeshHandle(case_dir=case_dir, ok=False)
@@ -163,12 +165,13 @@ class PyFRSolver(Solver):
         # 2. pyfr partition (only when mpi_n > 1; single-GPU H100 skips).
         if self.mpi_n is not None and self.mpi_n > 1:
             partition_cmd = build_apptainer_exec(
-                sif_path=self.sif_path,
+                expected=case_dir.pin(self.sif_path),
                 case_bind_source=str(case_dir.remote_path),
                 command=f"pyfr partition {self.mpi_n} {_MESH_PYFRM} .",
                 gpu=False,
             )
             part_result = executor.run(partition_cmd, timeout_s=900)
+            raise_if_container_refused(part_result)
             if not part_result.ok:
                 logger.error(
                     "pyfr partition failed (rc={}):\n{}",
@@ -204,7 +207,7 @@ class PyFRSolver(Solver):
             raise ValueError(f"unsupported PyFR backend {backend!r}")
         gpu = backend in {"cuda", "hip"}
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=str(case_dir.remote_path),
             command=f"pyfr run -b {backend} -p {_SOLVER_INI} {_MESH_PYFRM}",
             gpu=gpu,
@@ -216,6 +219,7 @@ class PyFRSolver(Solver):
             long_running=True,
             session=f"pyfr-{case_dir.run_id}",
         )
+        raise_if_container_refused(result)
         return ResultHandle(
             case_dir=case_dir,
             returncode=result.returncode,

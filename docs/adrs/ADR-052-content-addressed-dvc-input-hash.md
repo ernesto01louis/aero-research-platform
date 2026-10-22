@@ -8,6 +8,9 @@
   frozen computation mints a new scheme name. (2) The CONSTITUTION Invariant 3 text below is ratified
   by the merge of the PR that implements O-07 and amends it, after the ≥72 h amendment window and the
   operator's recorded approval (CONSTITUTION "Amendment process").
+  - **Boundaries on `main`** (D4, "interim states are labelled, never absent"): `6cfa401` (#79,
+    2026-10-22) is the first commit whose tuples carry scheme tags, both terms v0
+    (`repo-sync-state/v0`, `sha256sums-lookup/v0`).
 - **Date:** 2026-10-21
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 23)
 - **Stage:** 23 (Foundation II, ADR-051 row 23)

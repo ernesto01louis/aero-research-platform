@@ -30,16 +30,22 @@ result-crate reader, which must load with only stdlib + numpy + pydantic.
 from __future__ import annotations
 
 import abc
+import secrets
 import shlex
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from aero.orchestration._base import Executor
+from aero.provenance.four_fold import (
+    SIF_VERIFIED_AT_LAUNCH_V1,
+    ProvenanceError,
+    ProvenanceTupleV2,
+)
 
 # --- platform paths -----------------------------------------------------------
 # The aero NFS dataset is mounted at different points on the CLI host and inside
@@ -59,10 +65,94 @@ _STRICT = ConfigDict(
 )
 
 
+# --- the launch guard (ADR-053) ------------------------------------------------
+#: The exit status of a refused launch, and the two lines the guard writes to stderr.
+SIF_REFUSED_EXIT = 86
+SIF_REFUSED_MARK = "AERO-SIF-REFUSED"
+SIF_VERIFIED_MARK = "AERO-SIF-VERIFIED"
+
+
+class SifPin(BaseModel):
+    """The SIF one command launches, and the digest the run's tuple names for it (ADR-053).
+
+    Only `CaseDir.pin` builds one, from the run's `ProvenanceTupleV2`, so the digest a command is
+    checked against is the digest the run records, never one re-derived from the path.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, str_strip_whitespace=True, validate_default=True
+    )
+
+    path: str = Field(..., min_length=1, description="The SIF path apptainer is given.")
+    sha256: str = Field(..., pattern=r"^[0-9a-f]{64}$", description="The digest it must hash to.")
+
+    @model_validator(mode="after")
+    def _one_line(self) -> SifPin:
+        if "\n" in self.path or "\r" in self.path:
+            raise ValueError(f"a SIF path may not contain a line break: {self.path!r}")
+        return self
+
+
+def sif_guard(pin: SifPin) -> str:
+    """The shell prefix that hashes the SIF on the solve host before apptainer opens it.
+
+    A mismatch, or a missing file, writes `AERO-SIF-REFUSED` and exits 86 before apptainer
+    starts; a match writes `AERO-SIF-VERIFIED` and runs the command. HEX and PATH are `printf`
+    arguments, never part of a format string, and the prefix never contains the literal
+    `apptainer exec ` (ADR-053).
+    """
+    path = shlex.quote(pin.path)
+    return (
+        f"{{ printf '%s  %s\\n' {pin.sha256} {path} | sha256sum --check --status - "
+        f"|| {{ printf '{SIF_REFUSED_MARK} expected=%s path=%s\\n' {pin.sha256} {path} >&2; "
+        f"exit {SIF_REFUSED_EXIT}; }}; }} "
+        f"&& printf '{SIF_VERIFIED_MARK} sha256=%s path=%s\\n' {pin.sha256} {path} >&2 && "
+    )
+
+
+def raise_if_container_refused(result: Any) -> None:
+    """Turn a refused launch into `ProvenanceError` — never a solver failure (ADR-053).
+
+    Call it on every `ExecResult` of a guarded command before reading its return code: the
+    refusal line is in `stderr` for a synchronous launch and in `stdout` for a detached one
+    (run_long.sh merges the streams). A `ResultHandle` is scanned through its `solver_log`, so
+    the V&V runner can check what any `SolverLike` returns.
+    """
+    text = "\n".join(
+        str(getattr(result, attr, "") or "") for attr in ("stderr", "stdout", "solver_log")
+    )
+    refused = [line.strip() for line in text.splitlines() if SIF_REFUSED_MARK in line]
+    if refused:
+        raise ProvenanceError(
+            f"the SIF did not hash to the digest this run records, so the launch was refused "
+            f"before apptainer started (ADR-053): {refused[0]}"
+        )
+
+
+def assert_launches_guarded(case_dir: CaseDir, provenance: ProvenanceTupleV2) -> None:
+    """Refuse to record a tuple the case's launches did not run under (ADR-053).
+
+    The tuple logged must be the one the case was prepared with, since every launch was pinned
+    from it; and a `sif-sha256-verified-at-launch/v1` record needs at least one guarded launch,
+    or it would claim a check that never ran.
+    """
+    if case_dir.provenance != provenance:
+        raise ProvenanceError(
+            f"{case_dir.run_id}: the tuple being recorded is not the one the case was prepared "
+            "with, so its launches were pinned from a different record (ADR-053)"
+        )
+    scheme = provenance.schemes.container_sif_sha256
+    if scheme == SIF_VERIFIED_AT_LAUNCH_V1 and case_dir.guarded_launches == 0:
+        raise ProvenanceError(
+            f"{case_dir.run_id}: no launch of this run went through the SIF guard, so it "
+            f"cannot be recorded under {scheme} (ADR-053)"
+        )
+
+
 # --- the apptainer-exec command builder ---------------------------------------
 def build_apptainer_exec(
     *,
-    sif_path: str,
+    expected: SifPin,
     case_bind_source: str,
     command: str,
     case_bind_target: str = CASE_BIND_TARGET,
@@ -70,8 +160,13 @@ def build_apptainer_exec(
     env: Mapping[str, str] | None = None,
     gpu: bool = False,
     mpi_n: int | None = None,
+    no_home: bool = False,
 ) -> str:
-    """Compose the `apptainer exec` command line that runs one solver command.
+    """Compose the guarded `apptainer exec` command line that runs one solver command.
+
+    Since Stage 23 (ADR-053) the SIF is given as a `SifPin`: the command is the launch guard
+    (`sif_guard`) followed by `apptainer exec … <pin.path> …`, so the file that is hashed and the
+    file that is executed are the same bytes by construction.
 
     The case directory is bind-mounted to `case_bind_target` inside the SIF;
     `command` runs there via a *login* shell (`bash -lc`) because solver images
@@ -90,24 +185,26 @@ def build_apptainer_exec(
     `gpu=True` appends `--nv` so the container sees the host's NVIDIA driver
     (Stage-07 PyFR `-b cuda`, NekRS OCCA CUDA backend, the Stage-08 JAX-Fluids
     GPU path). `mpi_n=N` wraps `command` in `mpirun -n N <command>` for
-    multi-rank GPU runs (NekRS multi-GPU, PyFR multi-rank). Defaults preserve
-    the Stage-03/Stage-06 command-strings byte-for-byte: existing
-    OpenFOAM/SU2 callers pass neither and get identical output.
+    multi-rank GPU runs (NekRS multi-GPU, PyFR multi-rank).
+
+    `no_home=True` puts `--no-home` first among the flags, exactly where the preCICE
+    callers used to splice it in with `str.replace("apptainer exec ", …, 1)` (Stage 23
+    made it structural, so no prefix can ever move the splice point).
     """
     if mpi_n is not None and mpi_n < 1:
         raise ValueError(f"mpi_n must be >= 1, got {mpi_n}")
     inner_cmd = f"mpirun -n {mpi_n} {command}" if mpi_n is not None else command
     env_prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in (env or {}).items())
     inner = f"cd {shlex.quote(case_bind_target)} && {env_prefix}{inner_cmd}"
-    flags = ""
+    flags = "--no-home " if no_home else ""
     if writable_tmpfs:
         flags += "--writable-tmpfs "
     if gpu:
         flags += "--nv "
     return (
-        f"apptainer exec {flags}--bind "
+        f"{sif_guard(expected)}apptainer exec {flags}--bind "
         f"{shlex.quote(case_bind_source)}:{shlex.quote(case_bind_target)} "
-        f"{shlex.quote(sif_path)} bash -lc {shlex.quote(inner)}"
+        f"{shlex.quote(expected.path)} bash -lc {shlex.quote(inner)}"
     )
 
 
@@ -146,6 +243,42 @@ class CaseDir(BaseModel):
     spec: SpecLike = Field(..., description="The spec this case was built from.")
     host_path: Path = Field(..., description="Case path as seen by the aero process.")
     remote_path: Path = Field(..., description="Case path as seen inside the LXC/SIF.")
+    provenance: ProvenanceTupleV2 = Field(
+        ...,
+        description=(
+            "The run's tuple, bound to the case (ADR-052 D1, ADR-053): every launch pins its SIF "
+            "from it, and every declared-input read checks its declaration."
+        ),
+    )
+    _guarded_launches: int = PrivateAttr(default=0)
+
+    def pin(self, sif_path: str) -> SifPin:
+        """The pin for one launch of `sif_path`; refused unless this run's tuple names the SIF.
+
+        The digest comes from the tuple — the container of record, or a roster member — never
+        from the path, so a solver configured with a different SIF than the run records (for
+        example `aero run --solver su2` with the OpenFOAM SIF configured) is refused before any
+        command is built.
+        """
+        name = Path(sif_path).name
+        prov = self.provenance
+        if prov.containers:
+            digest = {ref.name: ref.sha256 for ref in prov.containers}.get(name)
+        else:
+            digest = prov.container_sif_sha256 if name == prov.container_sif_name else None
+        if digest is None:
+            named = [r.name for r in prov.containers] or [prov.container_sif_name]
+            raise ProvenanceError(
+                f"{name!r} is not a container this run's provenance names ({', '.join(named)}); "
+                "refusing to launch a SIF the record would not describe (ADR-053)"
+            )
+        self._guarded_launches += 1
+        return SifPin(path=sif_path, sha256=digest)
+
+    @property
+    def guarded_launches(self) -> int:
+        """How many launch commands this case has pinned (the runner refuses a v1 record at 0)."""
+        return self._guarded_launches
 
 
 class MeshHandle(BaseModel):
@@ -370,26 +503,45 @@ class Solver(abc.ABC):
 
     # --- shared concrete lifecycle ---
     def _new_run_paths(self, case: SpecLike) -> tuple[str, Path, Path]:
-        """`(run_id, host_path, remote_path)` for a fresh run of `case`."""
-        run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}"
-        return (
-            run_id,
-            self.host_nfs_root / RUNS_SUBDIR / run_id,
-            self.remote_nfs_root / RUNS_SUBDIR / run_id,
-        )
+        """`(run_id, host_path, remote_path)` for a fresh run of `case`, never an existing one.
 
-    def prepare(self, case: SpecLike) -> CaseDir:
+        The run id names the case directory on the shared NFS dataset and the detached session.
+        A timestamp alone collided (Stage 23): `vv-required` and `vv-smoke` started the same case
+        in the same second, so both wrote and meshed one directory and the second submit was
+        refused as a duplicate session. A random suffix makes ids unique, and a directory that
+        already exists is refused, never reused.
+        """
+        run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
+        host_path = self.host_nfs_root / RUNS_SUBDIR / run_id
+        if host_path.exists():
+            raise FileExistsError(
+                f"{host_path}: a run directory already exists; refusing to reuse it"
+            )
+        return run_id, host_path, self.remote_nfs_root / RUNS_SUBDIR / run_id
+
+    def prepare(self, case: SpecLike, *, provenance: ProvenanceTupleV2) -> CaseDir:
         """Write the solver case onto the shared NFS dataset (template method).
 
         Computes the run id and host/remote paths, delegates the case-file
-        writing to the adapter's `_write_case`, and returns the `CaseDir`.
+        writing to the adapter's `_write_case`, and returns the `CaseDir`, which
+        carries the run's tuple: every launch pins its SIF from it (ADR-053).
         """
+        if not isinstance(provenance, ProvenanceTupleV2):
+            raise ProvenanceError(
+                "prepare needs the run's ProvenanceTupleV2: launches are pinned from it (ADR-053)"
+            )
         run_id, host_path, remote_path = self._new_run_paths(case)
         from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
 
         logger.info("preparing case {} at {}", run_id, host_path)
         self._write_case(case, host_path)
-        return CaseDir(run_id=run_id, spec=case, host_path=host_path, remote_path=remote_path)
+        return CaseDir(
+            run_id=run_id,
+            spec=case,
+            host_path=host_path,
+            remote_path=remote_path,
+            provenance=provenance,
+        )
 
     # --- solver-specific seams ---
     @abc.abstractmethod
@@ -429,7 +581,7 @@ class SolverProtocol(Protocol):
     structurally satisfies this Protocol.
     """
 
-    def prepare(self, case: SpecLike) -> CaseDir: ...
+    def prepare(self, case: SpecLike, *, provenance: ProvenanceTupleV2) -> CaseDir: ...
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle: ...
     def run(self, case_dir: CaseDir, executor: Executor) -> ResultHandle: ...
     def load(self, result: ResultHandle) -> SolveResult: ...

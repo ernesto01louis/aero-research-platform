@@ -17,6 +17,8 @@ from aero.adapters.nekrs.case_writer import (
     write_taylor_green_udf,
 )
 
+from tests.unit._launch_fixtures import run_tuple
+
 pytestmark = pytest.mark.stage_07
 
 
@@ -79,7 +81,7 @@ def test_taylor_green_udf_writer_emits_brachet_ic_and_monitor(tmp_path: Path) ->
 def test_nekrs_solver_write_case_creates_all_three_files(tmp_path: Path) -> None:
     solver = NekRSSolver(sif_path="/dev/null", host_nfs_root=tmp_path)
     spec = NekRSTaylorGreenSpec(name="tg-tw")
-    case_dir = solver.prepare(spec)
+    case_dir = solver.prepare(spec, provenance=run_tuple("nekrs.sif"))
     # case_name defaults to "taylorGreen"
     for ext in ("box", "par", "udf"):
         assert (case_dir.host_path / f"taylorGreen.{ext}").is_file()
@@ -104,6 +106,7 @@ def test_nekrs_wall_distribution_raises_for_periodic_case(tmp_path: Path) -> Non
         spec=NekRSTaylorGreenSpec(name="tg"),
         host_path=tmp_path,
         remote_path=Path("/mnt/aero/test"),
+        provenance=run_tuple("nekrs.sif"),
     )
     result = ResultHandle(case_dir=case_dir, returncode=0, output_host_path=tmp_path)
     with pytest.raises(NotImplementedError, match="periodic"):

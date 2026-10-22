@@ -374,6 +374,21 @@ visible; it fixes none of the physics or solver problems.
   demand**: declare the inputs, take the tuple from `compute_provenance`, delete the refusal, and
   move the script into `PORTED_DRIVERS` in `tests/unit/test_provenance_v2.py`. Ported:
   `stage11_moving_vv` (weekly CI) and `stage18_turek_hron` (the end-to-end proof's fallback).
+- [ ] **The paths that cannot guard a launch are refused** (ADR-053; PR 6 of Stage 23), exit 4:
+  `aero run|vv run --executor runpod` (the pod runs the OCI image, so no SIF exists to hash; reviving
+  it needs an OCI pull-by-digest scheme); `aero surrogate train` (the smoke baselines train in-process
+  and would record `surrogate-smoke.sif` unlaunched, and the frozen DoMINO launch has no guarded
+  path); `scripts/stage20_numerics_screen.py` (it launches with no run tuple); and the ADR-045
+  restart of `stage20_hg2007_flexible_foil.py` (`_launch_tuple`: a Stage-20 run has only the legacy
+  tuple, and pinning from it would relabel it). `JaxFluidsSolver.differentiable_run` records no tuple
+  at all, so it claims no container (pinned by a test). **Port on demand**, as for the drivers above.
+- [ ] **The launch guard's residual gap** (ADR-053): it proves the SIF held the recorded bytes when it
+  was hashed, not that apptainer then read the same bytes (a sub-second TOCTOU window). Complements:
+  verify the SIF signature at launch, or an execution-control list. Trigger: a solve host shared with
+  anything that could rewrite `/opt/aero/containers/` mid-launch.
+- [ ] **`aero.vv.cross_solver_compare._drive_solver` solves each case twice**: `runner.run` logs it,
+  then `runner._drive` re-solves it only to recover the raw measured values. Since Stage 23 both
+  solves are guarded, but the second costs a full solve. Return the measured values from `run`.
 - [ ] **No new-semantics payload exists yet.** `ReportableResult`, `OptimizationResult.cfd_verified`,
   `CorpusRow` and crate format v1 accept only the legacy `ProvenanceTuple`, so no run recorded under
   the Stage-23 schemes can become a reportable result, an optimization report, a corpus row or a

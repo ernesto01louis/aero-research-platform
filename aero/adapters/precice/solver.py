@@ -45,6 +45,7 @@ from aero.adapters._base import (
     TimeHistory,
     WallDistribution,
     build_apptainer_exec,
+    raise_if_container_refused,
 )
 from aero.adapters.openfoam.flexible_foil import write_flexible_foil_case
 from aero.adapters.precice.analysis import (
@@ -558,12 +559,14 @@ class PreciceCoupledSolver(Solver):
         spec = self._coupled_spec(case_dir.spec)
         remote_root = self._remote_case_root(case_dir)
         command = build_apptainer_exec(
-            sif_path=self.sif_path,
+            expected=case_dir.pin(self.sif_path),
             case_bind_source=remote_root,
             command=f"cd {spec.case_subdir}/{spec.fluid_participant_dir} && blockMesh",
-        ).replace("apptainer exec ", "apptainer exec --no-home ", 1)
+            no_home=True,
+        )
 
         result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
+        raise_if_container_refused(result)
         polymesh = (
             self._case_root(case_dir)
             / spec.case_subdir
@@ -627,9 +630,10 @@ class PreciceCoupledSolver(Solver):
                 }
             ),
             case_root_remote=self._remote_case_root(case_dir),
-            sif_path=f"{self.sif_dir}/{fluid.sif}",
+            expected=case_dir.pin(f"{self.sif_dir}/{fluid.sif}"),
         )
         result = executor.run(command, timeout_s=_MESH_TIMEOUT_S)
+        raise_if_container_refused(result)
         fluid_dir = self._case_root(case_dir) / spec.case_subdir / fluid.workdir
         processor_dirs = sorted(p for p in fluid_dir.glob("processor*") if p.is_dir())
         n_found = len(processor_dirs)
@@ -699,7 +703,12 @@ class PreciceCoupledSolver(Solver):
                 p.model_copy(update={"workdir": f"{spec.case_subdir}/{p.workdir}"})
                 for p in spec.participants
             ),
-            sif_paths={p.sif: f"{self.sif_dir}/{p.sif}" for p in spec.participants},
+            # One pin per SIF, from the run's tuple (ADR-053): a participant whose SIF the
+            # record does not name is refused here, before the supervisor is written.
+            sif_pins={
+                sif: case_dir.pin(f"{self.sif_dir}/{sif}")
+                for sif in sorted({p.sif for p in spec.participants})
+            },
             wall_clock_ceiling_s=spec.wall_clock_ceiling_s,
             # preCICE writes precice-run/ beside the config, one level in from the root.
             exchange_dir=spec.case_subdir,

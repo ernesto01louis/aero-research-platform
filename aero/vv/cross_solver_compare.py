@@ -109,7 +109,7 @@ def _drive_solver(
     # Re-evaluate to recover the measured metric values — `BenchmarkResult`
     # carries the *errors against reference*, not the raw measured values for
     # pointwise metrics. The harness has the case re-evaluate cheaply once.
-    measured, _, _ = runner._drive(case)
+    measured, _, _ = runner._drive(case, provenance)
     return measured, result.mlflow_run_id
 
 
