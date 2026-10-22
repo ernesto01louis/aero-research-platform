@@ -30,6 +30,7 @@ result-crate reader, which must load with only stdlib + numpy + pydantic.
 from __future__ import annotations
 
 import abc
+import secrets
 import shlex
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -502,13 +503,21 @@ class Solver(abc.ABC):
 
     # --- shared concrete lifecycle ---
     def _new_run_paths(self, case: SpecLike) -> tuple[str, Path, Path]:
-        """`(run_id, host_path, remote_path)` for a fresh run of `case`."""
-        run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}"
-        return (
-            run_id,
-            self.host_nfs_root / RUNS_SUBDIR / run_id,
-            self.remote_nfs_root / RUNS_SUBDIR / run_id,
-        )
+        """`(run_id, host_path, remote_path)` for a fresh run of `case`, never an existing one.
+
+        The run id names the case directory on the shared NFS dataset and the detached session.
+        A timestamp alone collided (Stage 23): `vv-required` and `vv-smoke` started the same case
+        in the same second, so both wrote and meshed one directory and the second submit was
+        refused as a duplicate session. A random suffix makes ids unique, and a directory that
+        already exists is refused, never reused.
+        """
+        run_id = f"{case.name}-{datetime.now(UTC):%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
+        host_path = self.host_nfs_root / RUNS_SUBDIR / run_id
+        if host_path.exists():
+            raise FileExistsError(
+                f"{host_path}: a run directory already exists; refusing to reuse it"
+            )
+        return run_id, host_path, self.remote_nfs_root / RUNS_SUBDIR / run_id
 
     def prepare(self, case: SpecLike, *, provenance: ProvenanceTupleV2) -> CaseDir:
         """Write the solver case onto the shared NFS dataset (template method).

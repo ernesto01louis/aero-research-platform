@@ -298,6 +298,12 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **The Turek-Hron specs embed an absolute checkout path** (`surface_source`, `archive_path`), so
   their `config_hash` differs between checkouts of one commit. The proof records the path; the fix
   (it moves `config_hash`) is ledgered.
+- **Run ids collided across concurrent jobs.** A run id was `<case>-<UTC second>`. On #80's first run,
+  `vv-required` and `vv-smoke` started `blasius_flat_plate` in the same second (09:42:41), so both
+  wrote and meshed the one NFS case directory, and the second `simpleFoam` submit was refused as
+  a duplicate `run_long.sh` session (rc 1, run 39757494577). The bytes were identical (same spec,
+  deterministic `blockMesh`), but two runs shared one directory. Fixed in PR 6: the id carries a
+  random 6-hex suffix, and an existing run directory is refused, never reused.
 - **The hermetic provenance suites (`tests/stage_04`, `tests/stage_20`) run in no CI job**;
   `tests/stage_04/test_provenance_logging.py:87` is stale (5 insert parameters, `db.py` sends 6).
 
