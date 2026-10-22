@@ -521,6 +521,31 @@ Subsequent stages append topic-specific guidance here. As of Stage 01:
   `unmeasurable(reason=...)` and are deselected with words; every V&V job writes a step summary
   (`scripts/vv_ci_summary.py`). `tests/unit/test_workflow_hygiene.py` pins these rules.
 
+- **Provenance you can trust** (Stage 23, ADR-052/053/050; v0.1.2). Every tuple is a
+  `ProvenanceTupleV2` that names each term's semantics: the tags `dvc_input_hash_scheme`,
+  `container_sif_sha256_scheme`, `container_sif_name` and `dvc_inputs`, with mirror columns of the
+  same names (migration 006). A run without scheme tags is pre-Stage-23: it keeps the ADR-004
+  meanings and is never relabelled.
+  - **The DVC term** (`declared-dvc-pointers-md5/v1`) is the digest of the `.dvc` pointers the case
+    declares. Both `BenchmarkCase.dvc_inputs` and `compute_provenance(..., dvc_inputs=...)` are
+    required, with `()` for none. Read every DVC-tracked file through
+    `aero.provenance.dvc_inputs.read_declared_input`, never directly. A declared pointer must equal
+    `HEAD`'s, even for an `--allow-dirty` run.
+  - **The container term** (`sif-sha256-verified-at-launch/v1`): every launch is
+    `build_apptainer_exec(expected=case_dir.pin(sif), ...)`, so the SIF is re-hashed on the solve
+    host first. A mismatch exits 86, and `raise_if_container_refused` after each `executor.run`
+    turns that into a `ProvenanceError`. `Solver.prepare(spec, *, provenance)` binds the tuple to
+    the `CaseDir`, and `containers/SHA256SUMS` must equal `HEAD`'s.
+  - **Still legacy:** the payload models and crate format v1 take only the old `ProvenanceTuple`
+    until a crate-v2 ADR.
+  - **Refused, exit 4 (ledgered):** RunPod solver runs, `aero surrogate train`, and the historical
+    stage drivers, which must be ported first.
+  - **The hosted check** (ADR-050): `hosted-repro.yml` and `scripts/hosted_repro.py` run the
+    cluster's own SIF on a hosted runner. `cf_mid` is gated within 1 % of a committed cluster
+    reference.
+  - **One host:** both `vv` runners solve on the one aero-build, so never start two FULL runs at
+    once. The independent read-back of a run is `scripts/provenance_readback.py`.
+
 ## Pointers (do not re-derive — read these)
 
 - `CONSTITUTION.md` — invariants in spec-kit form

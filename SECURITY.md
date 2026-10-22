@@ -64,11 +64,21 @@ Acknowledgement target: 72 h. Triage and fix timeline depends on severity.
 
 **Known integrity limits** (stated in every result crate that is affected):
 
-- `dvc_input_hash` is the sha256 of the DVC remote *sync state* (`dvc status -c`), not a content
-  address of the inputs. It shows the inputs were in sync with the remote at run time; it does not
-  identify them.
-- `container_sif_sha256` is looked up by SIF basename in `containers/SHA256SUMS`. The SIF that
-  actually ran is not re-hashed at launch.
+- **Runs recorded before Stage 23** (no `dvc_input_hash_scheme` tag, or `repo-sync-state/v0`; every
+  committed crate and `data/vv` record): `dvc_input_hash` is the sha256 of the repository-wide DVC
+  remote *sync state* (`dvc status -c`), not a content address of the inputs, and it does not
+  identify them. **Erratum (Stage 23):** this file used to add that "it shows the inputs were in
+  sync with the remote at run time". The record does not support that. Every committed crate and
+  `data/vv` tuple carries `7ec8590f…`, which is not sha256(`{}`), so the status was not empty
+  (ADR-052). Their `container_sif_sha256` was looked up by SIF basename in
+  `containers/SHA256SUMS` (`sha256sums-lookup/v0`), and the SIF that ran was not re-hashed.
+- **Runs recorded since Stage 23** name each term's semantics in their tags:
+  - `declared-dvc-pointers-md5/v1` (ADR-052): `dvc_input_hash` is the content address of the
+    `.dvc` inputs the case declares, read from their pointers at `git_sha`, and recomputable from
+    git alone. Every platform read of a DVC-tracked file is checked against the declaration.
+  - `sif-sha256-verified-at-launch/v1` (ADR-053): the SIF is re-hashed on the solve host before
+    every launch, and a mismatch never reaches apptainer. The residual is the sub-second window
+    between that check and apptainer's own read of the file; it does not verify the signature.
 - The RunPod transport uses `StrictHostKeyChecking=no` for the frozen GPU path (ADR-013,
   frozen-optional; ledgered).
 - A result crate's `SHA256SUMS` gives integrity only. **Authenticity comes from the crate digest**
