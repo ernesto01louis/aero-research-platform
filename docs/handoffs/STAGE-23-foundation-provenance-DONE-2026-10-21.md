@@ -312,8 +312,18 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   membership in `containers/SHA256SUMS` and the mirror's eight columns byte for byte, and with
   `AERO_PROVENANCE_REQUIRE_CLUSTER=1` fails instead of skipping when MLflow or the mirror is
   unreachable. The provenance contract now has a gated home: `tests/unit/test_provenance_v2.py`.
-- Planned: `hosted-repro.yml`; MinIO keys only in
-  the steps that pull.
+- **The MinIO keys only where DVC pulls** (PR 9, stacked on the O-07 PRs because before O-07
+  every V&V job's `compute_provenance` ran `dvc status -c` against the remote). The
+  `AERO_DVC_*` secrets are dropped from 11 steps in six workflows: `vv-required`, `vv-smoke`,
+  `vv-transonic`, `vv-scale-resolving`, `moving-vv` and `provenance-completeness`. Only
+  vv-transonic's targeted ONERA M6 `dvc pull` keeps them. MLflow artifacts go through the
+  tracking server (`mlflow-artifacts:/`), so no client needs S3 keys.
+  `test_the_dvc_keys_reach_only_a_step_that_pulls` pins it, and refuses the keys in any
+  workflow- or job-level `env`. The same PR points `aero-nas` (`.dvc/config`,
+  `conf/storage/nas.yaml`) at the NAS's real address, `192.168.2.60:9000`;
+  `192.168.2.100:9000` stopped answering when the NAS took a new identity instead of the
+  planned re-IP. The Stage-09 runbook carries a dated erratum.
+- Planned: `hosted-repro.yml` (PR 8b).
 
 ## 6. Gotchas discovered
 
@@ -363,7 +373,10 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
   `.dvc/config.local` and the `AERO_DVC_*` repo secrets; verify with `ls` and one targeted
   `dvc status -c data/meshes/su2/onera_m6.su2.dvc`. After O-07 the four-tuple no longer touches the
-  DVC remote.
+  DVC remote. **A second copy of the keys,** `/mnt/aero-nfs/aero-dev-repo/.dvc/config.local`, is
+  world-readable (`-rw-r--r--`, root, 2026-06-02; found 2026-10-22 by `stat` alone). Update it in
+  the same rotation and `chmod 600` it. The Vault copy (`aero/minio/dvc-sa`) waits for Vault 217
+  to be unsealed.
 - The Stage-24 prompt (`docs/handoff-bundle/STAGE-24-foundation-run-the-registry.md`) is written
   before the close.
 

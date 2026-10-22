@@ -107,8 +107,6 @@ jobs:
         # They are gated by moving-vv.yml instead, which gives them hours.
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/pytest -m "$VV_SELECTION" --run-slow -v --junitxml=vv-junit.xml tests/vv
 
       - name: Summarise what this job measured
@@ -121,8 +119,6 @@ jobs:
         if: always()
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/aero vv report --latest --html docs/vv-dashboard.html
 
       - name: Upload the V&V dashboard
@@ -136,8 +132,6 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         # No `|| echo "[]"` (Stage 22): a failed report fails this step, and the comment below says
         # so, instead of reading as "no V&V runs found".
         run: .venv/bin/aero vv report --latest --json > vv-status.json

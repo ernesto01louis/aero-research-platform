@@ -92,8 +92,6 @@ jobs:
         if: steps.filter.outputs.relevant == 'true'
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: .venv/bin/pytest -m "$VV_SELECTION" --run-slow -v --junitxml=vv-junit.xml tests/vv
 
       - name: Summarise what this job measured
