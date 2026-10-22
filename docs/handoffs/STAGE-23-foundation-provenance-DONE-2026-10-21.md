@@ -272,6 +272,13 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   declaration table and goldens, the parser against `yaml.safe_load` on every committed pointer,
   every refusal, the read path in a temp checkout, the AST check of every call site, and an
   audit-hook test that no case opens an undeclared DVC output).
+  - **First cluster evidence** (#81's CI on `abe08bb`, merge ref `c825b18`, 2026-10-22): 9 MLflow
+    runs on aero-build, every one with both v1 schemes, `dvc_input_hash` `1ef5b7d9…` (the empty
+    set, never `44136fa3…`), `dvc_inputs` `{"inputs":[]}`, and `c9d7f329…` for
+    `openfoam-esi.sif`. The cases were Blasius ×2, cylinder ×2, laminar airfoil ×2, TMR flat
+    plate ×2 (its known `fail`) and the `aero run naca0012` walking skeleton.
+    `provenance-completeness` found the mirror row byte-equal to the tags. CI runs pass
+    `allow_dirty=True`, so the clean-tree proof remains E2E-1's.
 - **The hosted check's executor and driver** (PR 8a, ADR-050):
   - `aero/orchestration/local_container.py`: `LocalContainerExecutor` runs each command in a local
     `bash`, with no SSH, under the `Executor` contract. Long jobs merge stderr into stdout, as a
@@ -368,6 +375,9 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **Operator, now:** squash-merge #79 (PR 5; all 12 required contexts green at `2dafee3`, FULL
   rerun passed). Then the agent merges `main` into #80 and moves its base to `main`, and #80's
   FULL run starts on an idle host.
+- **A new pip-audit advisory** (2026-10-22, after the PR-2 refresh): `opentelemetry-api` 1.42.0,
+  CVE-2026-114603, fixed in 1.45.1. The check is informational; the agent fixes it with a
+  targeted `uv lock -P opentelemetry-api` as the release PR's first commit, which is FULL anyway.
 - **Operator, from 2026-10-24 14:38 UTC:** approve the CONSTITUTION Invariant 3 amendment in #81
   (opened 2026-10-21 14:38 UTC), after #80 merges and #81's 12 contexts are green.
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
