@@ -560,3 +560,37 @@ def test_every_script_that_launches_is_ported_or_refuses() -> None:
             assert not refused, f"{path.name} is ported and must not refuse"
         else:
             assert refused, f"{path.name} launches a SIF but is neither ported nor refused"
+
+
+# --- one run, one directory (the Stage-23 run-id collision) --------------------------------------
+
+
+def test_two_runs_of_one_case_in_the_same_second_get_their_own_directories(tmp_path: Path) -> None:
+    """vv-required and vv-smoke once started Blasius in the same second: one directory, two runs."""
+    import re
+
+    solver = OpenFOAMSolver(host_nfs_root=tmp_path, remote_nfs_root=tmp_path)
+    ids = {solver._new_run_paths(_SPEC)[0] for _ in range(50)}
+    assert len(ids) == 50
+    assert all(re.fullmatch(r"naca0012-\d{8}-\d{6}-[0-9a-f]{6}", i) for i in ids)
+
+
+def test_an_existing_run_directory_is_refused_not_reused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import secrets
+    from datetime import UTC, datetime
+
+    class _Frozen(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
+            return datetime(2026, 10, 22, 9, 42, 41, tzinfo=UTC)
+
+    monkeypatch.setattr("aero.adapters._base.datetime", _Frozen)
+    monkeypatch.setattr(secrets, "token_hex", lambda n: "abcdef")
+    solver = OpenFOAMSolver(host_nfs_root=tmp_path, remote_nfs_root=tmp_path)
+    run_id, host_path, _ = solver._new_run_paths(_SPEC)
+    host_path.mkdir(parents=True)
+    with pytest.raises(FileExistsError, match="refusing to reuse it"):
+        solver._new_run_paths(_SPEC)
+    assert run_id == "naca0012-20261022-094241-abcdef"
