@@ -319,10 +319,10 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   vv-transonic's targeted ONERA M6 `dvc pull` keeps them. MLflow artifacts go through the
   tracking server (`mlflow-artifacts:/`), so no client needs S3 keys.
   `test_the_dvc_keys_reach_only_a_step_that_pulls` pins it, and refuses the keys in any
-  workflow- or job-level `env`. The same PR points `aero-nas` (`.dvc/config`,
-  `conf/storage/nas.yaml`) at the NAS's real address, `192.168.2.60:9000`;
-  `192.168.2.100:9000` stopped answering when the NAS took a new identity instead of the
-  planned re-IP. The Stage-09 runbook carries a dated erratum.
+  workflow- or job-level `env`. **The `aero-nas` endpoint is left to PR #21.** `.dvc/config`
+  and `conf/storage/nas.yaml` point at `192.168.2.100:9000`, which no longer answers (measured
+  2026-10-22). The NAS's MinIO is at `192.168.2.60:9000`. Repointing it is exactly PR #21, which
+  stays "leave unless the operator asks".
 - Planned: `hosted-repro.yml` (PR 8b).
 
 ## 6. Gotchas discovered

@@ -1,10 +1,5 @@
 # Runbook — TrueNAS VM → dedicated NAS, parallel cutover then re-IP (Stage 09)
 
-> **Erratum, 2026-10-22 (Stage 23).** The re-IP below did not happen: the dedicated NAS took a new
-> identity, `nas.lan` / `192.168.2.60`, and the TrueNAS VM 104 is now the backup. The `aero-nas`
-> DVC remote (`.dvc/config`) and `conf/storage/nas.yaml` point at `192.168.2.60:9000`, where the
-> NAS's MinIO (`aero-minio` app, bucket `aero-dvc`) answers; `192.168.2.100:9000` does not.
-
 > **Goal:** replace the TrueNAS *VM* (CT/VM 104, `192.168.2.100`, ZFS pool `f3`,
 > dataset `aero`) with dedicated NAS hardware **1-to-1**, preserving the IP so the
 > aero platform needs **zero code changes**. Method: stand the new box up on a

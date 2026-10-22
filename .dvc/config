@@ -15,11 +15,9 @@
 # volume mount point. ADR-011.
 ['remote "aero-cloud"']
     url = /runpod-volume/aero-dvc
-# aero-nas: MinIO on the dedicated NAS (nas.lan, 192.168.2.60; the 192.168.2.100 re-IP that
-# the Stage-09 runbook planned did not happen — corrected 2026-10-22, Stage 23).
 ['remote "aero-nas"']
     url = s3://aero-dvc
-    endpointurl = http://192.168.2.60:9000
+    endpointurl = http://192.168.2.100:9000
 # aero-nfs (homelab-now): a LOCAL DVC remote on the TrueNAS NFS export
 # (/mnt/aero/dvc-remote, mounted on aero-dev/aero-vv). Holds the large DrivAerML
 # surface subset (~401 GB) on-prem until the dedicated NAS + its S3 app (aero-nas)
