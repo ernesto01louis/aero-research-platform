@@ -26,6 +26,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage14_flapping_vv.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("case", help="FLAPPING_CASES or UNSTEADY_CASES key, e.g. flapping_wing_wbd2004")
     ap.add_argument(

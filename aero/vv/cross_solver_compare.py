@@ -21,7 +21,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aero.provenance.four_fold import ProvenanceTuple
+from aero.provenance.four_fold import AnyProvenanceTuple
 from aero.vv._base import (
     BenchmarkCase,
     BenchmarkError,
@@ -96,7 +96,7 @@ def _drive_solver(
     runner: BenchmarkRunner,
     case: BenchmarkCase,
     *,
-    provenance: ProvenanceTuple,
+    provenance: AnyProvenanceTuple,
     repo_root: Path,
 ) -> tuple[dict[str, float | Series], str | None]:
     """Run a case through one solver and return the measured metric dict.
@@ -154,8 +154,8 @@ def compare_solvers(
     *,
     openfoam_runner: BenchmarkRunner,
     su2_runner: BenchmarkRunner,
-    openfoam_provenance: ProvenanceTuple,
-    su2_provenance: ProvenanceTuple,
+    openfoam_provenance: AnyProvenanceTuple,
+    su2_provenance: AnyProvenanceTuple,
     repo_root: Path,
 ) -> CrossSolverReport:
     """Run `case` through both solvers and emit a `CrossSolverReport`.

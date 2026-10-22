@@ -188,11 +188,13 @@ def _runner(repo_root: Path, *, solver_name: str):  # type: ignore[no-untyped-de
         stage=stage,
     )
 
-    def _provenance(spec: object) -> object:
+    def _provenance(case: object) -> object:
+        # Takes the CASE, not its spec (Stage 23): the runner refuses a tuple whose config_hash
+        # is not the spec it solves, and the declaration a tuple carries comes from the case.
         return compute_provenance(
             repo_root=repo_root,
             container_sif=sif_name,
-            resolved_config=spec.model_dump(mode="json"),  # type: ignore[attr-defined]
+            resolved_config=case.case_spec().model_dump(mode="json"),  # type: ignore[attr-defined]
             allow_dirty=True,
         )
 

@@ -14,11 +14,12 @@ be citable. This is the bedrock primitive every publish-quality run reuses.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aero.provenance.four_fold import ProvenanceTuple
+from aero.provenance.four_fold import AnyProvenanceTuple
 from aero.vv._base import BenchmarkCase, BenchmarkError, BenchmarkRunner
 
 _STRICT = ConfigDict(extra="forbid", frozen=True, validate_default=True)
@@ -132,19 +133,25 @@ class MeshSweep:
         self.refinement_ratios = refinement_ratios
 
     def run(
-        self, runner: BenchmarkRunner, *, provenance: ProvenanceTuple, repo_root: Any
+        self,
+        runner: BenchmarkRunner,
+        *,
+        provenance_of: Callable[[BenchmarkCase], AnyProvenanceTuple],
+        repo_root: Any,
     ) -> SweepReport:
         """Solve the base case at each refinement ratio and build the GCI report.
 
         A GCI is a *verification* study — it compares a solution against itself
         at three resolutions — so each grid is measured via `measure_scalar`,
-        which needs no (validation) reference data.
+        which needs no (validation) reference data. Each grid gets its own tuple
+        from `provenance_of`: until Stage 23 one tuple served all three, so the
+        refined grids were logged under the finest grid's `config_hash`.
         """
         points: list[GridPoint] = []
         for ratio in self.refinement_ratios:
             case = self.base_case.refined(ratio)
             obs = runner.measure_scalar(
-                case, self.metric, provenance=provenance, repo_root=repo_root
+                case, self.metric, provenance=provenance_of(case), repo_root=repo_root
             )
             if obs.n_elements is None or obs.n_elements <= 0:
                 raise BenchmarkError("mesh sweep needs a reported element count from each grid")

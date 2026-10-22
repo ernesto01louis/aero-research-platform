@@ -36,7 +36,7 @@ def test_bump_2d_cp_cf_within_tolerance_su2(
     case = Bump2D()
     # No try/except: a solver failure is a failure, not a skip (Stage 22). The reference data
     # is committed in-tree, so a BenchmarkError here is a real error and must surface.
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     assert result.status == "pass", (
         "SU2 bump 2D Cp/Cf one or more metrics exceeded their tolerance: "
         + ", ".join(f"{m.name} {m.error:.2%}" for m in result.metrics if not m.passed)
@@ -53,6 +53,6 @@ def test_bump_2d_grid_converged_cp_min_su2(
     runner, provenance_of = vv_runner_su2
     case = Bump2D()
     report = MeshSweep(case, metric="cp_min").run(
-        runner, provenance=provenance_of(case.case_spec()), repo_root=repo_root
+        runner, provenance_of=provenance_of, repo_root=repo_root
     )
     assert report.monotonic, "SU2 bump cp_min sweep is non-monotone — grid convergence not shown"

@@ -97,6 +97,9 @@ BASELINE_CASE = "s17c_base"
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage17_speedup_arm.py")
     ap = argparse.ArgumentParser(description="Run one (arm, seed) of the Stage-17 comparison.")
     ap.add_argument("--arm", choices=("direct", "surrogate"), required=True)
     ap.add_argument("--seed", type=int, required=True)

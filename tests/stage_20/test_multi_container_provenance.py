@@ -251,9 +251,9 @@ class TestPostgresMirror:
         from aero.provenance.db import _INSERT_SQL
 
         assert "container_sif_set" in _INSERT_SQL
-        # Six placeholders for six columns — a positional insert that drifts out of
-        # step with its column list is a silent data-corruption bug.
-        assert _INSERT_SQL.count("%s") == 6
+        # One placeholder per column — a positional insert that drifts out of step with its
+        # column list is a silent data-corruption bug. Nine since migration 006 (Stage 23).
+        assert _INSERT_SQL.count("%s") == 9
 
     def test_a_single_container_run_mirrors_null_not_empty_string(self) -> None:
         """ "No roster" and "an empty roster" must stay distinguishable in a query."""

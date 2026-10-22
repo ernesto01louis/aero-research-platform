@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from aero.provenance.four_fold import ProvenanceError, ProvenanceTuple
+from aero.provenance.four_fold import SCHEME_TAG_KEYS, ProvenanceError, ProvenanceTupleV2
 
 # Default remote experiment for stage-04+ runs. Override via Hydra config.
 EXPERIMENT = "aero-provenance"
@@ -30,7 +30,7 @@ def start_provenance_run(
     *,
     tracking_uri: str,
     experiment: str,
-    provenance: ProvenanceTuple,
+    provenance: ProvenanceTupleV2,
     case_name: str,
     db_dsn: str,
     stage: str = "04",
@@ -39,9 +39,10 @@ def start_provenance_run(
     """Open an MLflow run with the four-fold tuple tagged and mirrored.
 
     The active `mlflow.ActiveRun` is yielded. `provenance` is an already-built
-    `ProvenanceTuple`, so the four tags are guaranteed complete — compute it
-    via `compute_provenance` *before* entering this context manager, so a
-    provenance failure aborts before any run exists.
+    `ProvenanceTupleV2`, so the four tags and their schemes are guaranteed complete —
+    compute it via `compute_provenance` *before* entering this context manager, so a
+    provenance failure aborts before any run exists. A legacy `ProvenanceTuple` is
+    refused: since Stage 23 no run is logged without naming its semantics (ADR-052).
 
     On entry the four tags (plus `case_name`, `stage`, and any `extra_tags`)
     are set, then the tuple is mirrored into Postgres in one transaction. A
@@ -49,6 +50,12 @@ def start_provenance_run(
     satisfied without the mirror row. `stage` tags the run with the stage that
     produced it (V&V harness runs in Stage 05 pass `stage="05"`).
     """
+    if not isinstance(provenance, ProvenanceTupleV2):
+        raise ProvenanceError(
+            f"start_provenance_run needs a ProvenanceTupleV2, got {type(provenance).__name__}: "
+            "a run is never logged without its per-term schemes (ADR-052 D4)"
+        )
+
     import mlflow
 
     from aero.provenance.db import mirror_provenance_row
@@ -71,7 +78,13 @@ def start_provenance_run(
 
     missing = [
         k
-        for k in ("git_sha", "dvc_input_hash", "container_sif_sha256", "config_hash")
+        for k in (
+            "git_sha",
+            "dvc_input_hash",
+            "container_sif_sha256",
+            "config_hash",
+            *SCHEME_TAG_KEYS,
+        )
         if not tags.get(k)
     ]
     if missing:  # defensive — ProvenanceTuple validation should make this unreachable

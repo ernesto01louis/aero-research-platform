@@ -60,6 +60,9 @@ def _cycle_samples_and_mean(run_dir: Path, case: object) -> tuple[object, object
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage14_reportable.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("case", help="FLAPPING_CASES key (e.g. flapping_wing_wbd2004)")
     ap.add_argument("--run-dir", required=True, type=Path)

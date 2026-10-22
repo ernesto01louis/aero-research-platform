@@ -62,6 +62,9 @@ def _gci_2grid(cd_fine: float, cd_coarse: float, *, ratio: float, order: float) 
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage12_cylinder_gci.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--host", default="aero-dev")
     ap.add_argument("--timeout", type=int, default=14400)

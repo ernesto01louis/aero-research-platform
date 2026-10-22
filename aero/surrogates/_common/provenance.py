@@ -15,8 +15,9 @@ surrogate-specific tags Stage 14 queries by:
 * ``cert_expires_at`` — ISO-8601 expiry, for fast-rejection queries.
 * ``non_commercial`` — ``"true" | "false"``, mirror of the cert's taint flag.
 
-Strict pydantic, frozen, ``extra="forbid"``. Lazy-imports MLflow inside
-:meth:`log_to_mlflow` (PLATFORM-NOT-HUB).
+Strict pydantic, frozen, ``extra="forbid"``. It only builds tags: the caller logs them on the run
+it opened. Stage 23 removed ``log_to_mlflow(run_id)``, which had no caller and would have set tags
+on any existing run, i.e. relabelled it (ADR-052: nothing recorded is relabelled).
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aero.provenance.four_fold import ProvenanceTuple
+from aero.provenance.four_fold import AnyProvenanceTuple
 
 if TYPE_CHECKING:
     from aero.surrogates._common.certificate import CertificateOfValidity
@@ -53,7 +54,7 @@ class SurrogateProvenanceTags(BaseModel):
         validate_default=True,
     )
 
-    provenance: ProvenanceTuple = Field(
+    provenance: AnyProvenanceTuple = Field(
         ..., description="The four-fold reproducibility tuple (Invariant 3)."
     )
     training_dataset_dvc_hash: str = Field(
@@ -77,7 +78,7 @@ class SurrogateProvenanceTags(BaseModel):
     def from_certificate(
         cls,
         *,
-        provenance: ProvenanceTuple,
+        provenance: AnyProvenanceTuple,
         cert: CertificateOfValidity,
         hparam_hash: str,
     ) -> SurrogateProvenanceTags:
@@ -116,20 +117,6 @@ class SurrogateProvenanceTags(BaseModel):
             }
         )
         return tags
-
-    def log_to_mlflow(self, run_id: str) -> None:
-        """Set all eight tags on the specified MLflow run.
-
-        Uses :class:`mlflow.MlflowClient` so the run id can be set
-        explicitly — :func:`mlflow.set_tag` only operates on the active
-        run from the fluent API. Lazy-imports ``mlflow``; the import sits
-        behind the ``aero[provenance]`` extra (PLATFORM-NOT-HUB).
-        """
-        import mlflow
-
-        client = mlflow.MlflowClient()
-        for key, value in self.as_mlflow_tags().items():
-            client.set_tag(run_id, key, value)
 
 
 def hparam_hash(hparams: Mapping[str, Any]) -> str:

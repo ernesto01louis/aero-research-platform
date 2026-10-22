@@ -640,6 +640,9 @@ def _campaign(spec: CoupledCaseSpec, args: argparse.Namespace) -> dict[str, Any]
 
 
 def main(argv: list[str] | None = None) -> int:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage19_turek_hron_fsi3.py")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--host", default="aero-dev")
     parser.add_argument("--timeout", type=int, default=172800, help="Wall-clock ceiling, seconds.")

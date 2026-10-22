@@ -360,6 +360,34 @@ visible; it fixes none of the physics or solver problems.
   longer has a window, but the history listing and the MLflow UI do. Consider a separate smoke
   experiment or tag in Stage 24.
 
+## Stage 23 (provenance you can trust) — findings carried forward
+
+- [ ] **19 historical stage drivers refuse to run** (ADR-052/053; PR 5 of Stage 23). They predate the
+  typed tuple and would record runs whose terms they cannot state, so each calls
+  `aero.provenance.four_fold.refuse_unported_driver` before it records anything (exit 4):
+  `stage09_domino_train`, `stage12_cylinder_gci`, `stage12_reportable`, `stage13_gci`,
+  `stage13_reportable`, `stage14_gci`, `stage14_flapping_vv`, `stage14_reportable`,
+  `stage15_airfoil_opt`, `stage15_grid_order`, `stage16_grid_cert`, `stage16_relaxed_cert`,
+  `stage16_urans_cert`, `stage17_corpus`, `stage17_speedup_arm`, `stage17_speedup_report`,
+  `stage19_turek_hron_fsi3`, `stage20_calculix_smoke` and `stage20_hg2007_flexible_foil` (the last
+  refuses at its provenance call, so its pinned Stage-20 refusals still fire first). **Port on
+  demand**: declare the inputs, take the tuple from `compute_provenance`, delete the refusal, and
+  move the script into `PORTED_DRIVERS` in `tests/unit/test_provenance_v2.py`. Ported:
+  `stage11_moving_vv` (weekly CI) and `stage18_turek_hron` (the end-to-end proof's fallback).
+- [ ] **No new-semantics payload exists yet.** `ReportableResult`, `OptimizationResult.cfd_verified`,
+  `CorpusRow` and crate format v1 accept only the legacy `ProvenanceTuple`, so no run recorded under
+  the Stage-23 schemes can become a reportable result, an optimization report, a corpus row or a
+  crate until a **crate-format-v2 ADR** (which also amends Invariant 13's "format v1"). Trigger:
+  before any new-semantics result is reported outside the repository.
+- [ ] **The surrogate training paths and DoMINO stay sync-state.** `dataset_hash` and the certificate's
+  `training_dataset_dvc_hash` (Invariant 9) keep the ADR-004 meaning; `.dir` and `dvc.lock` outputs
+  are not declarable under `declared-dvc-pointers-md5/v1`. Both need their own ADR, the first before
+  the Stage-17 certificate is renewed (expires 2027-01-20).
+- [ ] **The Turek-Hron specs embed an absolute checkout path** (`surface_source`, `archive_path`), so
+  their `config_hash` differs between checkouts of one commit. Fixing it moves `config_hash`.
+- [ ] **`tests/stage_*` runs in no CI job.** `tests/stage_04/test_hydra_config.py` has been stale since
+  `CaseSpec` gained `section`; Stage 23 ported its provenance contract into `tests/unit`.
+
 ## Rigid-flapping optimization — pre-registration items carried from Stage 21
 
 The stage was Stage 22 until ADR-051 moved it behind the foundation stages 22–26. Its prompt draft

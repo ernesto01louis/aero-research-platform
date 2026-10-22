@@ -58,6 +58,9 @@ def _gci_2grid(fine: float, coarse: float, *, ratio: float, order: float) -> flo
 
 
 def main() -> None:
+    from aero.provenance.four_fold import refuse_unported_driver
+
+    refuse_unported_driver("stage14_gci.py")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("case", help="FLAPPING_CASES key (e.g. flapping_wing_wbd2004)")
     ap.add_argument("--host", default="aero-dev")

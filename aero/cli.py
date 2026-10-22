@@ -749,10 +749,21 @@ def vv_run(
         stage=stage_str,
     )
 
+    def _provenance_of(grid_case: Any) -> Any:
+        # One tuple per solved grid (Stage 23): the runner refuses a tuple whose config_hash is
+        # not the spec it solves, and a refined grid's spec is not the base case's.
+        return compute_provenance(
+            repo_root=repo_root,
+            container_sif=container_sif,
+            resolved_config=grid_case.case_spec().model_dump(mode="json"),
+            allow_dirty=allow_dirty,
+            extra_container_sifs=extra_container_sifs,
+        )
+
     try:
         if mesh_sweep:
             report = MeshSweep(benchmark, metric=benchmark.sweep_metric).run(
-                runner, provenance=provenance, repo_root=repo_root
+                runner, provenance_of=_provenance_of, repo_root=repo_root
             )
             typer.echo("")
             typer.echo(f"  GCI mesh sweep — {report.case_name}  (metric: {report.metric})")
@@ -770,6 +781,9 @@ def vv_run(
             return
 
         result = runner.run(benchmark, provenance=provenance, repo_root=repo_root)
+    except ProvenanceError as exc:
+        typer.echo(f"provenance error: {exc}", err=True)
+        raise typer.Exit(code=4) from exc
     except BenchmarkError as exc:
         typer.echo(f"benchmark error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -1098,8 +1112,8 @@ def surrogate_train(
     5. ``set_certificate()`` — builds the cert, propagating the
        ``non_commercial`` taint flag.
     6. ``SurrogateProvenanceTags.from_certificate(...)`` composes the
-       four-fold tuple + four surrogate tags; ``log_to_mlflow(...)``
-       writes all eight to the active run.
+       four-fold tuple + four surrogate tags, which are set on the run this
+       command opened.
     7. The cert JSON lands as the MLflow artifact
        ``certificates/<baseline>.json``.
     """

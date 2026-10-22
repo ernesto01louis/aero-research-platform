@@ -25,6 +25,6 @@ def test_cylinder_strouhal_within_tolerance(
         pytest.skip("V&V cluster not ready (SSH / SIF / extras / AERO_PROVENANCE_DSN)")
     runner, provenance_of = vv_runner
     case = CylinderStrouhal()
-    result = runner.run(case, provenance=provenance_of(case.case_spec()), repo_root=repo_root)
+    result = runner.run(case, provenance=provenance_of(case), repo_root=repo_root)
     st = result.metric("strouhal")
     assert result.status == "pass", f"cylinder St error {st.error:.2%} exceeds {st.tolerance:.0%}"
