@@ -81,7 +81,7 @@ def _rebuild(**solid_overrides: Any) -> AuthoredSource:
 @pytest.fixture
 def materialized(tmp_path: Path) -> tuple[Path, CoupledCaseSpec]:
     spec = _spec()
-    PreciceCoupledSolver()._write_case(spec, tmp_path)
+    PreciceCoupledSolver()._write_case(spec, tmp_path, declared=())
     return tmp_path / CASE_ROOT_DIRNAME, spec
 
 
@@ -118,7 +118,7 @@ def test_config_for_resolves_the_rendered_configuration(tmp_path: Path) -> None:
     """
     spec = _spec()
     solver = PreciceCoupledSolver()
-    solver._write_case(spec, tmp_path)
+    solver._write_case(spec, tmp_path, declared=())
     case_dir = CaseDir(
         run_id="authored-test",
         host_path=tmp_path,
@@ -377,7 +377,7 @@ def test_the_materializer_re_checks_consistency_because_model_copy_bypasses_vali
     )
     # ...and the materializer refuses it anyway, before writing a byte.
     with pytest.raises(CoupledCaseError, match="plate_half_thickness"):
-        PreciceCoupledSolver()._write_case(forged, tmp_path)
+        PreciceCoupledSolver()._write_case(forged, tmp_path, declared=())
     assert not (tmp_path / CASE_ROOT_DIRNAME / spec.case_subdir).exists() or not list(
         (tmp_path / CASE_ROOT_DIRNAME / spec.case_subdir).rglob("*.inp")
     )
@@ -466,7 +466,7 @@ def test_the_adapter_config_is_checked_against_the_rendered_mesh_name(tmp_path: 
     """
     spec = _spec(source=_source(solid=solid(section(), mesh_name="Not-The-Rendered-Mesh")))
     with pytest.raises(Exception) as excinfo:
-        PreciceCoupledSolver()._write_case(spec, tmp_path)
+        PreciceCoupledSolver()._write_case(spec, tmp_path, declared=())
     assert "nodes-mesh" in str(excinfo.value) or "mesh_name" in str(excinfo.value)
 
 

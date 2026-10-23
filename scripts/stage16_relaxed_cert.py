@@ -269,6 +269,7 @@ def main() -> None:
                         **spec.model_dump(mode="json"),
                         "initialization": "steady-RANS fields (time-accurate relaxation)",
                     },
+                    dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
                     allow_dirty=args.allow_dirty,
                 )
             row["provenance"] = prov.model_dump(mode="json")
@@ -459,6 +460,7 @@ def main() -> None:
             resolved_config=make_spec(args.opt_m, "g16r_optimum_fine", mults["fine"]).model_dump(
                 mode="json"
             ),
+            dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
             allow_dirty=args.allow_dirty,
         )
     if go:

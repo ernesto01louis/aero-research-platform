@@ -48,6 +48,8 @@ from aero.adapters.jax_fluids.schemas import (
     JaxGradientResult,
 )
 from aero.orchestration._base import Executor
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import DeclaredInput
 
 _CASE_JSON = "case_setup.json"
 _NUMERICAL_JSON = "numerical_setup.json"
@@ -100,7 +102,9 @@ class JaxFluidsSolver(Solver):
         self.repo_root = Path(repo_root) if repo_root is not None else None
 
     # --- write-case seam ------------------------------------------------------
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         host_path.mkdir(parents=True, exist_ok=True)
         if isinstance(case, JaxFluidsShockTubeSpec):
             write_shock_tube_case_files(host_path, case)
@@ -124,8 +128,11 @@ class JaxFluidsSolver(Solver):
                 raise FileNotFoundError(f"case_setup.json missing: {src_case}")
             if not src_num.is_file():
                 raise FileNotFoundError(f"numerical_setup.json missing: {src_num}")
-            shutil.copyfile(src_case, host_path / _CASE_JSON)
-            shutil.copyfile(src_num, host_path / _NUMERICAL_JSON)
+            # Through the run's declaration (ADR-052).
+            for src, dst in ((src_case, _CASE_JSON), (src_num, _NUMERICAL_JSON)):
+                (host_path / dst).write_bytes(
+                    read_declared_input(self.repo_root, src, declared=declared)
+                )
             (host_path / _DRIVER_SCRIPT).write_text(_JAXFLUIDS_DRIVER_SOURCE)
             (host_path / _OUTPUT_SUBDIR).mkdir(parents=True, exist_ok=True)
             logger.info("wrote JAX-Fluids mesh-file case at {}", host_path)

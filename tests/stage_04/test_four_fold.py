@@ -1,7 +1,8 @@
 """Stage 04 — hermetic tests for the four-fold provenance contract.
 
 These exercise `aero.provenance.four_fold` without any live service: git runs
-in a `tmp_path` repo, `dvc status -c` is mocked. Run in the default CI suite.
+in a `tmp_path` repo. Since Stage 23 the DVC term is the declared-pointer digest
+(ADR-052), computed from git alone, so nothing needs `dvc` mocked.
 """
 
 from __future__ import annotations
@@ -13,9 +14,9 @@ import subprocess
 import pytest
 from aero.provenance import ProvenanceError, ProvenanceTuple, compute_provenance
 from aero.provenance.four_fold import (
+    EMPTY_DVC_INPUTS_DIGEST,
     config_hash,
     container_sif_sha256,
-    dvc_input_hash,
     git_sha,
 )
 from pydantic import ValidationError
@@ -179,63 +180,21 @@ def test_git_sha_dirty_tree_allowed(git_repo) -> None:
     assert len(sha) == 40 + len("-dirty")
 
 
-# --- dvc_input_hash (subprocess mocked) --------------------------------------
+# --- compute_provenance (integration) ------------------------------------------
 
 
-def _fake_run(returncode: int, stdout: str = "", stderr: str = ""):
-    def _run(cmd, *args, **kwargs):
-        return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr=stderr)
-
-    return _run
-
-
-def test_dvc_input_hash_in_sync(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(subprocess, "run", _fake_run(0, stdout="{}"))
-    expected = hashlib.sha256(b"{}").hexdigest()
-    assert dvc_input_hash(tmp_path) == expected
-
-
-def test_dvc_input_hash_changes_with_status(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(subprocess, "run", _fake_run(0, stdout="{}"))
-    in_sync = dvc_input_hash(tmp_path)
-    monkeypatch.setattr(subprocess, "run", _fake_run(0, stdout='{"data/x.csv": ["modified"]}'))
-    assert dvc_input_hash(tmp_path) != in_sync
-
-
-def test_dvc_input_hash_fails_loud_on_error(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(subprocess, "run", _fake_run(1, stderr="no remote"))
-    with pytest.raises(ProvenanceError, match="dvc status"):
-        dvc_input_hash(tmp_path)
-
-
-# --- compute_provenance (integration, dvc mocked) ----------------------------
-
-
-def test_compute_provenance_end_to_end(git_repo, monkeypatch) -> None:
+def test_compute_provenance_end_to_end(git_repo) -> None:
     (git_repo / "containers").mkdir()
     (git_repo / "containers" / "SHA256SUMS").write_text(f"{'c' * 64}  openfoam-esi.sif\n")
     # git_sha needs a clean tree; the SHA256SUMS write dirtied it — commit.
     _git(git_repo, "add", ".")
     _git(git_repo, "commit", "-q", "-m", "add sums")
-    monkeypatch.setattr(subprocess, "run", _real_run_except_dvc())
-
     pt = compute_provenance(
         repo_root=git_repo,
         container_sif="openfoam-esi.sif",
         resolved_config={"case": {"reynolds": 6e6}},
+        dvc_inputs=(),
     )
     assert pt.container_sif_sha256 == "c" * 64
     assert len(pt.git_sha) == 40
-    assert pt.dvc_input_hash == hashlib.sha256(b"{}").hexdigest()
-
-
-def _real_run_except_dvc():
-    """Pass git through to real subprocess, but stub `dvc status -c`."""
-    real = subprocess.run
-
-    def _run(cmd, *args, **kwargs):
-        if cmd and str(cmd[0]).rsplit("/", 1)[-1] == "dvc":
-            return subprocess.CompletedProcess(cmd, 0, stdout="{}", stderr="")
-        return real(cmd, *args, **kwargs)
-
-    return _run
+    assert pt.dvc_input_hash == EMPTY_DVC_INPUTS_DIGEST

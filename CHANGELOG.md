@@ -7,6 +7,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Stage tags
 
 ## [Unreleased]
 
+### Changed — provenance you can trust (Stage 23, ADR-052, ADR-053)
+
+- **CONSTITUTION Invariant 3 item 2 is amended** (ADR-052, after the 72 h window and the
+  operator's approval): `dvc_input_hash` is the content address of the `.dvc` pointers a case
+  declares (scheme `declared-dvc-pointers-md5/v1`), recomputable from git alone; the old value
+  was the digest of the repository-wide `dvc status -c` (`repo-sync-state/v0`), shared by every
+  case run at the same moment. The roster sentence of item 3 and the Enforcement paragraph name
+  `ProvenanceTupleV2`, the scheme tags, the mirror columns and the launch guard. Recorded runs
+  are never relabelled: a run without scheme tags carries the ADR-004 meanings.
+- **Every SIF is re-hashed on the solve host before it is launched** (ADR-053): a SIF that does
+  not hash to the digest the run records, or that the run does not name, never reaches apptainer
+  (exit 86, `ProvenanceError`). The container term is `sif-sha256-verified-at-launch/v1`.
+- **Every tuple names its semantics** (ADR-052 D4): `ProvenanceTupleV2`, the
+  `dvc_input_hash_scheme` / `container_sif_sha256_scheme` / `container_sif_name` / `dvc_inputs`
+  tags, and migration `006_provenance_schemes` (nullable mirror columns, no backfill).
+
 ## [0.1.1] - 2026-10-16
 
 Stage 22, the first foundation stage of ADR-051 (an honest V&V report). It changes what the

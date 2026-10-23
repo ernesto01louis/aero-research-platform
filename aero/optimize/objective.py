@@ -67,6 +67,7 @@ class CFDObjective:
             repo_root=self.repo_root,
             container_sif=self.container_sif,
             resolved_config=case.case_spec().model_dump(mode="json"),
+            dvc_inputs=case.dvc_inputs,
             allow_dirty=self.allow_dirty,
         )
 
@@ -78,6 +79,7 @@ class CFDObjective:
             repo_root=self.repo_root,
             container_sif=self.container_sif,
             resolved_config=case.case_spec().model_dump(mode="json"),
+            dvc_inputs=case.dvc_inputs,
             allow_dirty=self.allow_dirty,
         )
         obs = self.runner.measure_scalar(

@@ -196,6 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root=_REPO_ROOT,
         container_sif=spec.container_of_record,
         resolved_config=json.loads(spec.model_dump_json()),
+        dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
         allow_dirty=args.allow_dirty,
         extra_container_sifs=spec.extra_container_sifs,
     )

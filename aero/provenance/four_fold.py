@@ -449,30 +449,6 @@ def git_sha(repo_root: Path, *, allow_dirty: bool = False) -> str:
     return f"{sha}-dirty" if dirty else sha
 
 
-def dvc_input_hash(repo_root: Path) -> str:
-    """The `repo-sync-state/v0` DVC term: sha256 of the repo-wide `dvc status -c` (ADR-004).
-
-    It compares the repository's whole DVC cache against the configured remote, on whichever
-    machine computes it, and hashes the JSON canonically. It takes no case: it is a sync-state
-    digest, not a content address of any input (ADR-052 replaces it). `{}` (sha256 `44136fa3…`)
-    is an empty status. Since Stage 23 an empty stdout is refused instead of being read as `{}`:
-    with `--json`, dvc always prints the status, so an empty stdout is not a status at all.
-    """
-    proc = _run([_dvc_executable(), "status", "-c", "--json"], cwd=repo_root)
-    if proc.returncode != 0:
-        raise ProvenanceError(
-            f"`dvc status -c` failed (rc={proc.returncode}): {proc.stderr.strip()}"
-        )
-    if not proc.stdout.strip():
-        raise ProvenanceError("`dvc status -c --json` printed nothing — no status to hash")
-    try:
-        status = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise ProvenanceError(f"could not parse `dvc status -c` output: {exc}") from exc
-    canonical = json.dumps(status, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 _SHA256SUMS = Path("containers") / "SHA256SUMS"
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -629,17 +605,25 @@ def compute_provenance(
     repo_root: Path,
     container_sif: Path | str,
     resolved_config: Mapping[str, Any],
+    dvc_inputs: Sequence[str],
     allow_dirty: bool = False,
     extra_container_sifs: Sequence[Path | str] = (),
 ) -> ProvenanceTupleV2:
     """Compute the full four-fold provenance tuple, or raise ProvenanceError.
 
-    Since Stage 23 the result is a `ProvenanceTupleV2` that names each term's scheme. The DVC
-    term is still `repo-sync-state/v0` (ADR-052 moves it to v1). The container term is
-    `sif-sha256-verified-at-launch/v1` (ADR-053): the digest is the committed `SHA256SUMS` entry
-    (`containers/SHA256SUMS` must equal `HEAD`'s, even under `allow_dirty`), and every launch of
-    the run is guarded against it on the solve host. A run that logs this tuple without a guarded
-    launch is refused by the logger that holds it (`assert_launches_guarded`).
+    Since Stage 23 the result is a `ProvenanceTupleV2` that names each term's scheme, and both
+    terms are v1:
+
+    - `declared-dvc-pointers-md5/v1` (ADR-052): `dvc_inputs` is the case's declaration, the
+      repo-relative `.dvc` pointers it reads (`()` for none; required, no default). The pointers
+      are read as committed at `HEAD` (the working copy must equal it, even under `allow_dirty`),
+      and the term is the domain-separated digest of the outputs' `(path, md5, size)`. No `dvc`
+      binary, remote, cache or credential is involved. The tuple carries the resolved inputs, and
+      every staging read checks them (`aero.provenance.dvc_inputs.read_declared_input`).
+    - `sif-sha256-verified-at-launch/v1` (ADR-053): the digest is the committed `SHA256SUMS` entry
+      (`containers/SHA256SUMS` must equal `HEAD`'s, even under `allow_dirty`), and every launch of
+      the run is guarded against it on the solve host. A run that logs this tuple without a guarded
+      launch is refused by the logger that holds it (`assert_launches_guarded`).
 
     Called by the CLI *before* the MLflow run is started, so a provenance
     failure aborts before any partially-tagged run exists.
@@ -656,10 +640,13 @@ def compute_provenance(
     OpenFOAM fluid one. Omitting it yields exactly the tuple this function has
     always returned.
     """
+    from aero.provenance.dvc_inputs import resolve_declared  # imports this module
+
     sha256sums_at_head(repo_root)
+    inputs = resolve_declared(repo_root, dvc_inputs)
     return ProvenanceTupleV2(
         git_sha=git_sha(repo_root, allow_dirty=allow_dirty),
-        dvc_input_hash=dvc_input_hash(repo_root),
+        dvc_input_hash=dvc_inputs_digest(inputs),
         container_sif_sha256=container_sif_sha256(repo_root, container_sif),
         config_hash=config_hash(resolved_config),
         container_sif_name=Path(container_sif).name,
@@ -668,8 +655,8 @@ def compute_provenance(
             container_of_record=container_sif,
             extra_container_sifs=extra_container_sifs,
         ),
-        dvc_inputs=None,
+        dvc_inputs=inputs,
         schemes=TermSchemes(
-            dvc_input_hash=DVC_SYNC_STATE_V0, container_sif_sha256=SIF_VERIFIED_AT_LAUNCH_V1
+            dvc_input_hash=DVC_DECLARED_POINTERS_V1, container_sif_sha256=SIF_VERIFIED_AT_LAUNCH_V1
         ),
     )

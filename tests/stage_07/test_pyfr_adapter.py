@@ -111,7 +111,7 @@ def test_pyfr_solver_write_case_rejects_wrong_spec(tmp_path: Path) -> None:
         name = "x"
 
     with pytest.raises(TypeError, match="cannot handle spec"):
-        solver._write_case(_Foreign(), tmp_path)
+        solver._write_case(_Foreign(), tmp_path, declared=())
 
 
 def test_pyfr_wall_distribution_raises_for_periodic_case(tmp_path: Path) -> None:

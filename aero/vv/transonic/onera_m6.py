@@ -37,6 +37,8 @@ class OneraM6:
         "(ONERA TR-1, 5% normalised tolerance, ADR-006)."
     )
     sweep_metric = "cp"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): the SU2 mesh.
+    dvc_inputs: tuple[str, ...] = ("data/meshes/su2/onera_m6.su2.dvc",)
 
     def __init__(self, spec: SU2MeshFileSpec | None = None) -> None:
         self._spec = spec or SU2MeshFileSpec(

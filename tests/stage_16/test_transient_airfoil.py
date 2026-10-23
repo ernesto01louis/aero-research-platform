@@ -65,5 +65,5 @@ def test_solver_write_case_dispatches(tmp_path: Path) -> None:
     from aero.adapters.openfoam.solver import OpenFOAMSolver
 
     solver = OpenFOAMSolver(host_nfs_root=tmp_path, remote_nfs_root=Path("/mnt/aero"))
-    solver._write_case(_spec(), tmp_path / "case")
+    solver._write_case(_spec(), tmp_path / "case", declared=())
     assert (tmp_path / "case" / "system" / "controlDict").read_text().count("pimpleFoam") >= 1

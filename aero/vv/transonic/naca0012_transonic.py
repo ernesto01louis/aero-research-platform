@@ -32,6 +32,8 @@ class NACA0012Transonic:
         "Schmitt-Charpin reference (5% tolerance, ADR-006)."
     )
     sweep_metric = "cd"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: SU2AirfoilSpec | None = None) -> None:
         self._spec = spec or SU2AirfoilSpec(

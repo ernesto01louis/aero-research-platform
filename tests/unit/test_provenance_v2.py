@@ -231,36 +231,37 @@ def test_legacy_records_reload_as_legacy_and_v2_keeps_its_schemes() -> None:
     assert isinstance(v2, ProvenanceTupleV2) and v2.schemes == V0
 
 
-def test_compute_provenance_labels_its_terms(monkeypatch: pytest.MonkeyPatch) -> None:
-    """DVC term v0 until ADR-052 lands; the container term v1 since ADR-053 (PR 6)."""
+def test_compute_provenance_labels_both_terms_v1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both terms v1 since Stage 23: ADR-052 (PR 7) and ADR-053 (PR 6)."""
     checked: list[Path] = []
     monkeypatch.setattr(four_fold, "git_sha", lambda repo_root, allow_dirty=False: GIT)
-    monkeypatch.setattr(four_fold, "dvc_input_hash", lambda repo_root: SHA_B)
     monkeypatch.setattr(four_fold, "container_sif_sha256", lambda repo_root, sif: SHA_C)
     monkeypatch.setattr(four_fold, "sha256sums_at_head", checked.append)
     prov = four_fold.compute_provenance(
-        repo_root=REPO, container_sif="/opt/aero/containers/openfoam-esi.sif", resolved_config={}
+        repo_root=REPO,
+        container_sif="/opt/aero/containers/openfoam-esi.sif",
+        resolved_config={},
+        dvc_inputs=("data/references/fsi/turek_hron_fsi3/cylinder_flag.stl.dvc",),
     )
     assert isinstance(prov, ProvenanceTupleV2)
-    assert prov.schemes == TermSchemes(
-        dvc_input_hash="repo-sync-state/v0",
-        container_sif_sha256="sif-sha256-verified-at-launch/v1",
+    assert prov.schemes == V1
+    assert prov.dvc_inputs == (CFD2,)
+    assert prov.dvc_input_hash == (
+        "70b49f18e2fd314d3ec305433d74b4a2be494581fc05453f23b74cd66245e000"
     )
-    assert prov.dvc_inputs is None
     assert prov.container_sif_name == "openfoam-esi.sif"
     # SHA256SUMS must equal HEAD's, even for an --allow-dirty run (ADR-053).
     assert checked == [REPO]
 
 
-def test_the_v0_dvc_term_refuses_an_empty_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
-    import subprocess
+def test_the_repository_wide_dvc_status_digest_is_gone() -> None:
+    """ADR-052: nothing computes `repo-sync-state/v0` any more, and the declaration is required."""
+    import inspect
 
-    monkeypatch.setattr(four_fold, "_dvc_executable", lambda: "dvc")
-    monkeypatch.setattr(
-        four_fold, "_run", lambda cmd, cwd: subprocess.CompletedProcess(cmd, 0, "", "")
-    )
-    with pytest.raises(ProvenanceError, match="printed nothing"):
-        four_fold.dvc_input_hash(REPO)
+    assert not hasattr(four_fold, "dvc_input_hash")
+    param = inspect.signature(four_fold.compute_provenance).parameters["dvc_inputs"]
+    assert param.kind is inspect.Parameter.KEYWORD_ONLY
+    assert param.default is inspect.Parameter.empty
 
 
 # --- the writers: MLflow and the Postgres mirror -------------------------------------------------
@@ -445,6 +446,7 @@ class _Spec(BaseModel):
 class _Case:
     name = "fake_case"
     sweep_metric = "cd"
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, n: int = 1) -> None:
         self._spec = _Spec(n=n)
@@ -457,16 +459,35 @@ class _Case:
 
 
 def _tuple_for(case: _Case) -> ProvenanceTupleV2:
-    return _v2(config_hash=four_fold.config_hash(case.case_spec().model_dump(mode="json")))
+    return _v2(
+        config_hash=four_fold.config_hash(case.case_spec().model_dump(mode="json")),
+        schemes=V1,
+        dvc_inputs=(),
+        dvc_input_hash=EMPTY_DVC_INPUTS_DIGEST,
+    )
 
 
 def test_the_runner_refuses_a_tuple_of_another_spec() -> None:
     from aero.vv._base import _check_tuple_describes
 
     case = _Case(n=1)
-    _check_tuple_describes(case, _tuple_for(case))  # type: ignore[arg-type]
+    _check_tuple_describes(case, _tuple_for(case), REPO)  # type: ignore[arg-type]
     with pytest.raises(ProvenanceError, match="one tuple per solved spec"):
-        _check_tuple_describes(case, _tuple_for(_Case(n=2)))  # type: ignore[arg-type]
+        _check_tuple_describes(case, _tuple_for(_Case(n=2)), REPO)  # type: ignore[arg-type]
+
+
+def test_the_runner_refuses_a_tuple_whose_inputs_are_not_the_declaration() -> None:
+    """ADR-052 D1: the hash names exactly what staging may read, so it must be the declaration."""
+    from aero.vv._base import _check_tuple_describes
+
+    case = _Case(n=1)
+    undeclared = _tuple_for(case).model_copy(
+        update={"dvc_inputs": (CFD2,), "dvc_input_hash": dvc_inputs_digest([CFD2])}
+    )
+    with pytest.raises(ProvenanceError, match="not the case's declaration"):
+        _check_tuple_describes(case, undeclared, REPO)  # type: ignore[arg-type]
+    with pytest.raises(ProvenanceError, match="none recorded"):
+        _check_tuple_describes(case, _v2(config_hash=_tuple_for(case).config_hash), REPO)  # type: ignore[arg-type]
 
 
 def test_the_mesh_sweep_computes_one_tuple_per_grid() -> None:

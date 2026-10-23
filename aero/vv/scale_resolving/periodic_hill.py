@@ -47,6 +47,8 @@ class PeriodicHillLES:
         "(headline summary metric; full profile comparison is a Stage-12 item)."
     )
     sweep_metric = "reattachment_length"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, *, solver_kind: PeriodicHillSolverKind = "pyfr") -> None:
         self.solver_kind = solver_kind

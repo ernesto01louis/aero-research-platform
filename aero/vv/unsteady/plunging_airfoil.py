@@ -70,6 +70,8 @@ class PlungingAirfoilHG2007:
         "coefficient vs Heathcote & Gursul 2007 rigid-foil experiment (laminar 2-D)."
     )
     sweep_metric = "thrust_coefficient"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(
         self,

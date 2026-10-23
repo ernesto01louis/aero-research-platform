@@ -38,6 +38,8 @@ class LaminarAirfoil:
         "Laminar NACA 0012 at Re=1000 (forward-regime low-Re airfoil: Cd + Cl=0 symmetry)."
     )
     sweep_metric = "cd"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: CaseSpec | None = None) -> None:
         self._spec = spec or CaseSpec(

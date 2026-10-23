@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import csv
 import re
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +54,8 @@ from aero.adapters.pyfr.schemas import (
     PyFRTaylorGreenSpec,
 )
 from aero.orchestration._base import Executor
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import DeclaredInput
 
 _MESH_MSH = "mesh.msh2"
 _MESH_PYFRM = "mesh.pyfrm"
@@ -94,7 +95,9 @@ class PyFRSolver(Solver):
         self.mpi_n = mpi_n  # None = single-rank single-GPU; > 1 = multi-rank
 
     # --- write-case seam ------------------------------------------------------
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         host_path.mkdir(parents=True, exist_ok=True)
         if isinstance(case, PyFRTaylorGreenSpec):
             n_hex = write_taylor_green_msh2(
@@ -128,8 +131,12 @@ class PyFRSolver(Solver):
                 )
             if not src_ini.is_file():
                 raise FileNotFoundError(f"PyFR ini template missing: {src_ini}")
-            shutil.copyfile(src_mesh, host_path / _MESH_MSH)
-            shutil.copyfile(src_ini, host_path / _SOLVER_INI)
+            # Through the run's declaration (ADR-052): a file in neither git nor the
+            # declaration is refused, which the frozen PyFR assets are.
+            for src, dst in ((src_mesh, _MESH_MSH), (src_ini, _SOLVER_INI)):
+                (host_path / dst).write_bytes(
+                    read_declared_input(self.repo_root, src, declared=declared)
+                )
             (host_path / "out").mkdir(parents=True, exist_ok=True)
             logger.info("wrote PyFR mesh-file case at {}", host_path)
             return

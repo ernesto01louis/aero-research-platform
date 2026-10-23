@@ -43,6 +43,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 from aero.orchestration._base import Executor
 from aero.provenance.four_fold import (
     SIF_VERIFIED_AT_LAUNCH_V1,
+    DeclaredInput,
     ProvenanceError,
     ProvenanceTupleV2,
 )
@@ -534,7 +535,8 @@ class Solver(abc.ABC):
         from loguru import logger  # lazy: keeps loguru off the core import path (H-12)
 
         logger.info("preparing case {} at {}", run_id, host_path)
-        self._write_case(case, host_path)
+        # Staging reads only what the run declared, through the one read path (ADR-052).
+        self._write_case(case, host_path, declared=provenance.dvc_inputs or ())
         return CaseDir(
             run_id=run_id,
             spec=case,
@@ -545,8 +547,14 @@ class Solver(abc.ABC):
 
     # --- solver-specific seams ---
     @abc.abstractmethod
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
-        """Write the solver's input files (mesh, config) under `host_path`."""
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
+        """Write the solver's input files (mesh, config) under `host_path`.
+
+        `declared` is the run's resolved DVC inputs (ADR-052): any DVC-tracked file the case
+        stages is read through `aero.provenance.dvc_inputs.read_declared_input` against them.
+        """
 
     @abc.abstractmethod
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle:

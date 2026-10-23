@@ -467,6 +467,9 @@ def run(
             repo_root=repo_root,
             container_sif=str(cfg.provenance.container_sif),
             resolved_config=resolved,
+            # A conf/case run declares no DVC input (ADR-052): every case under conf/case/ is
+            # generated from its parameters, and a staging read of a DVC output is refused.
+            dvc_inputs=(),
             allow_dirty=allow_dirty,
         )
     except ProvenanceError as exc:
@@ -723,6 +726,7 @@ def vv_run(
             container_sif=container_sif,
             # The case spec IS the V&V run's config — hash it for config_hash.
             resolved_config=spec.model_dump(mode="json"),
+            dvc_inputs=benchmark.dvc_inputs,
             allow_dirty=allow_dirty,
             extra_container_sifs=extra_container_sifs,
         )
@@ -787,6 +791,7 @@ def vv_run(
             repo_root=repo_root,
             container_sif=container_sif,
             resolved_config=grid_case.case_spec().model_dump(mode="json"),
+            dvc_inputs=grid_case.dvc_inputs,
             allow_dirty=allow_dirty,
             extra_container_sifs=extra_container_sifs,
         )
@@ -1248,6 +1253,7 @@ def surrogate_train(
             repo_root=repo_root,
             container_sif=container_sif_basename,
             resolved_config=resolved_str_keys,
+            dvc_inputs=(),  # refused above; the DVC datasets are `.dir` outputs (ADR-052)
             allow_dirty=allow_dirty,
         )
     except Exception as exc:

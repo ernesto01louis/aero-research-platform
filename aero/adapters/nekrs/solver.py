@@ -51,6 +51,8 @@ from aero.adapters.nekrs.schemas import (
     NekRSTaylorGreenSpec,
 )
 from aero.orchestration._base import Executor
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import DeclaredInput
 
 # Log lines emitted by the .udf's UDF_ExecuteStep, e.g.
 #   gradKE: t=2.500000e-01 tstep=500 ke=1.234567890e-01
@@ -78,7 +80,9 @@ class NekRSSolver(Solver):
         self.mpi_n = max(1, int(mpi_n))  # NekRS always launches via mpirun
 
     # --- write-case seam ------------------------------------------------------
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         host_path.mkdir(parents=True, exist_ok=True)
         if isinstance(case, NekRSTaylorGreenSpec):
             case_name = case.case_name
@@ -107,9 +111,13 @@ class NekRSSolver(Solver):
                 raise FileNotFoundError(
                     f"NekRS case asset directory missing: {src} — did you `dvc pull`?"
                 )
-            for entry in src.iterdir():
+            for entry in sorted(src.iterdir()):
                 if entry.is_file():
-                    shutil.copy2(entry, host_path / entry.name)
+                    # Through the run's declaration (ADR-052); a member of a DVC directory
+                    # output is refused.
+                    (host_path / entry.name).write_bytes(
+                        read_declared_input(self.repo_root, entry, declared=declared)
+                    )
             logger.info("wrote NekRS case from {} into {}", src, host_path)
             return
         raise TypeError(

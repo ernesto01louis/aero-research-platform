@@ -28,6 +28,8 @@ class NACA0012Verification:
     name = "naca0012_verification"
     description = "NASA TMR NACA 0012 — drag-coefficient (Cd) verification, with a GCI sweep."
     sweep_metric = "cd"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: CaseSpec | None = None) -> None:
         self._spec = spec or CaseSpec(

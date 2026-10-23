@@ -46,6 +46,8 @@ class OscillatingCylinderLockin:
         "wake shedding frequency locks to the forcing (Placzek 2009; Koopmann 1967)."
     )
     sweep_metric = "strouhal"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: CylinderSpec | None = None) -> None:
         if spec is None:

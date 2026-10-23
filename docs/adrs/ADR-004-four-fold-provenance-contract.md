@@ -1,6 +1,11 @@
 # ADR-004 — Four-Fold Provenance Contract
 
 - **Status:** accepted
+  - **Amended 2026-10-21 (Stage 23), effective at the merge that ratifies the Invariant 3
+    amendment:** term 2 (`dvc_input_hash`) is redefined by ADR-052 for every run whose
+    `dvc_input_hash_scheme` tag is `declared-dvc-pointers-md5/v1`, and term 3's digest is checked
+    against the SIF at every launch by ADR-053 (`sif-sha256-verified-at-launch/v1`). A run without
+    scheme tags keeps the meanings below. The decision text is not edited.
 - **Date:** 2026-05-19
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code
   agent (Stage 04)

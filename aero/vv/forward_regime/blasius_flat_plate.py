@@ -50,6 +50,8 @@ class BlasiusFlatPlate:
     name = "blasius_flat_plate"
     description = "Laminar flat plate vs the Blasius Cf law (forward-regime, low-Re)."
     sweep_metric = "cf_mid"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: FlatPlateSpec | None = None) -> None:
         self._spec = spec or FlatPlateSpec(

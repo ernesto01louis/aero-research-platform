@@ -108,6 +108,8 @@ jobs:
               "aero.crate.writer", "aero.crate.sandbox",
               # Stage 22: the production gate's typed status, stack table and MLflow read.
               "aero.vv.status", "aero.vv.stacks", "aero.vv.report",
+              # Stage 23 (ADR-052): the declared-input parser and the one read path.
+              "aero.provenance.dvc_inputs",
           ):
               importlib.import_module(mod)
 

@@ -29,6 +29,8 @@ class FlatPlateTE:
     name = "flat_plate_te"
     description = "NASA TMR turbulent flat plate — skin-friction (Cf) verification."
     sweep_metric = "cf_mid"
+    #: The `.dvc` pointers this case reads (ADR-052 D1): none.
+    dvc_inputs: tuple[str, ...] = ()
 
     def __init__(self, spec: FlatPlateSpec | None = None) -> None:
         self._spec = spec or FlatPlateSpec(name=self.name, reynolds=5.0e6, mach=0.2)

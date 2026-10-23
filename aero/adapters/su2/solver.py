@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import csv
 import re
-import shutil
 from pathlib import Path
 
 from loguru import logger
@@ -58,6 +57,8 @@ from aero.adapters.su2.schemas import (
     SU2TurbulenceModel,
 )
 from aero.orchestration._base import Executor
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import DeclaredInput
 
 __all__ = ["SU2Solver"]
 
@@ -95,7 +96,9 @@ class SU2Solver(Solver):
         self.repo_root = repo_root
 
     # --- prepare seam ---------------------------------------------------------
-    def _write_case(self, case: SpecLike, host_path: Path) -> None:
+    def _write_case(
+        self, case: SpecLike, host_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
         """Write the `.su2` mesh and the SU2 `.cfg` for `case` under `host_path`."""
         host_path.mkdir(parents=True, exist_ok=True)
         mesh_path = host_path / _MESH_FILENAME
@@ -191,7 +194,7 @@ class SU2Solver(Solver):
                 mesh_filename=_MESH_FILENAME,
             )
         elif isinstance(case, SU2MeshFileSpec):
-            self._copy_mesh_asset(case, mesh_path)
+            self._copy_mesh_asset(case, mesh_path, declared=declared)
             write_su2_cfg(
                 cfg_path,
                 mach=case.mach,
@@ -253,8 +256,10 @@ class SU2Solver(Solver):
             mesh_filename=_MESH_FILENAME,
         )
 
-    def _copy_mesh_asset(self, case: SU2MeshFileSpec, mesh_path: Path) -> None:
-        """Copy a DVC-tracked `.su2` mesh asset into the case directory."""
+    def _copy_mesh_asset(
+        self, case: SU2MeshFileSpec, mesh_path: Path, *, declared: tuple[DeclaredInput, ...]
+    ) -> None:
+        """Copy a DVC-tracked `.su2` mesh asset into the case, through the declaration."""
         if self.repo_root is None:
             raise ValueError(
                 f"SU2MeshFileSpec {case.name!r} needs a `.su2` asset but SU2Solver "
@@ -265,7 +270,7 @@ class SU2Solver(Solver):
             raise FileNotFoundError(
                 f"SU2 mesh asset not found: {src} — is the DVC remote pulled (`dvc pull`)?"
             )
-        shutil.copyfile(src, mesh_path)
+        mesh_path.write_bytes(read_declared_input(self.repo_root, src, declared=declared))
 
     # --- mesh seam ------------------------------------------------------------
     def mesh(self, case_dir: CaseDir, executor: Executor) -> MeshHandle:

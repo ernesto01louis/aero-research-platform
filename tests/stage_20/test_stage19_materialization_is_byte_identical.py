@@ -161,6 +161,7 @@ def _materialize(
     monkeypatch: pytest.MonkeyPatch,
     *,
     expectation: PreciceConfigExpectation | None,
+    dvc_inputs: tuple[str, ...] = (),
 ) -> tuple[Path, object, list[tuple[str, int, int]]]:
     """Drive the REAL `_write_case`; return (materialized root, tree, chown calls).
 
@@ -175,7 +176,10 @@ def _materialize(
         expectation=expectation, host_nfs_root=tmp_path, remote_nfs_root=Path("/mnt/aero")
     )
     case_dir = solver.prepare(
-        spec, provenance=run_tuple(spec.container_of_record, extra=spec.extra_container_sifs)
+        spec,
+        provenance=run_tuple(
+            spec.container_of_record, extra=spec.extra_container_sifs, dvc_inputs=dvc_inputs
+        ),
     )
     root = case_dir.host_path / CASE_ROOT_DIRNAME
     dropped = [call for call in calls if call[1] >= 0]
@@ -290,12 +294,17 @@ class TestTheRealGatedSpec:
         self, archive: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from aero.vv.fsi import TUREK_HRON_FSI3_EXPECTATION
-        from aero.vv.fsi.turek_hron_fsi3 import GATED_MAX_TIME, fsi3_case_spec
+        from aero.vv.fsi.turek_hron_fsi3 import GATED_MAX_TIME, TurekHronFSI3, fsi3_case_spec
 
         spec = fsi3_case_spec(max_time=GATED_MAX_TIME, wall_clock_ceiling_s=172800)
         assert spec.gated, "the golden must be captured on the GATED configuration"
+        # The real archive is a DVC output, staged only under the case's declaration (ADR-052).
         root, tree, _ = _materialize(
-            spec, tmp_path, monkeypatch, expectation=TUREK_HRON_FSI3_EXPECTATION
+            spec,
+            tmp_path,
+            monkeypatch,
+            expectation=TUREK_HRON_FSI3_EXPECTATION,
+            dvc_inputs=TurekHronFSI3.dvc_inputs,
         )
         produced = (root / "aero-manifest.json").read_text(encoding="utf-8")
         assert produced == (_FIXTURES / "golden-fsi3-aero-manifest.json").read_text(

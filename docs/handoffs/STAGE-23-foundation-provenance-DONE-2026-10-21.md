@@ -34,7 +34,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
-| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21, the Invariant 3 text is ratified with PR 7 (≥72 h); code not started |
+| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21. Built and tested in PR 7 (`stage-23-o07-inputs`, stacked on PR 6) with the CONSTITUTION Invariant 3 amendment, which is ratified only by that PR's merge (≥72 h open, operator approval) |
 | 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
 | 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
@@ -51,8 +51,8 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 3 | ADR-052, ADR-053, ADR-050 amended (names and golden values frozen) | — | accept ADR-053 and ADR-050 |
 | 4 | migration `006_provenance_schemes` | — | `alembic upgrade head` before PR 5's first push |
 | 5 (#79) | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns — **merged 2026-10-22 09:04 UTC by the operator, squash `6cfa401`** (ADR-052 D4's first boundary) | yes | — |
-| 6 | O-08: the SIF re-hashed before every launch | yes | read-only digest check of the preCICE/CalculiX SIFs |
-| 7 | O-07 + the Invariant 3 item-2 amendment (open ≥72 h) | yes | approve the amendment after the window |
+| 6 (#80) | O-08: the SIF re-hashed before every launch — **merged 2026-10-22 16:02 UTC by the operator, squash `07937a4`** (ADR-053's boundary; FULL run on `ef8f81c`: 3 passed, 1 xfailed) | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
+| 7 (#81) | O-07 + the Invariant 3 item-2 amendment (open ≥72 h, from 2026-10-21 14:38 UTC) | yes | approve the amendment after the window |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
 | 8 | ADR-050 hosted run (`hosted-repro.yml`) | — | publish `openfoam-esi.sif` (c9d7f329…) |
 | 9 | MinIO keys only in steps that `dvc pull` | — | rotate the keys (open item) |
@@ -248,7 +248,24 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   `/opt/aero/containers/` (2.45 GB, 13 s over NFS) equals `containers/SHA256SUMS` for every one:
   `openfoam-esi.sif` `c9d7f329…`, `precice-fsi.sif` `ce795873…`, `calculix-precice.sif`
   `ac0805d6…`, `calculix-precice-adr045.sif` `ca1937f7…`, `su2-v8.sif` `7b0dc25c…`.
-- Planned: a new core module `aero/provenance/dvc_inputs.py`, `aero/orchestration/local_container.py`.
+- **The declared inputs** (PR 7, ADR-052): a new core module `aero/provenance/dvc_inputs.py`
+  (stdlib + pydantic; registered in `test_core_import_isolation.py` and `import-platform-only.yml`)
+  with the strict pointer parser, `resolve_declared` (pointers read at `HEAD`; a working copy
+  that differs is refused even under `--allow-dirty`) and `read_declared_input`, the one read
+  path. Every case class (18 V&V, 2 optimizer) declares `dvc_inputs` (ADR-052's table: the
+  Turek-Hron CFD pair the STL, FSI3 the tutorial archive, `onera_m6` its mesh, the rest `()`);
+  `compute_provenance(..., dvc_inputs=...)` is required and returns both terms v1; the
+  repository-wide `dvc status` digest (`four_fold.dvc_input_hash`) is deleted. `Solver.prepare`
+  hands the run's resolved inputs to `_write_case(..., declared=...)`, and the six staging sites
+  (external-geometry STL, preCICE tutorial archive, SU2/PyFR/JAX-Fluids mesh files, NekRS case
+  directory) and the two spec-time reads (`_gated_stl`, the FSI3 archive) go through the reader.
+  The runner refuses a tuple whose inputs are not the case's declaration. CONSTITUTION Invariant 3
+  item 2, item 3's roster sentence and the Enforcement paragraph are amended; ADR-004 carries a
+  dated amendment note; CHANGELOG `[Unreleased]`. Tests: `tests/unit/test_dvc_inputs.py` (the
+  declaration table and goldens, the parser against `yaml.safe_load` on every committed pointer,
+  every refusal, the read path in a temp checkout, the AST check of every call site, and an
+  audit-hook test that no case opens an undeclared DVC output).
+- Planned: `aero/orchestration/local_container.py`.
 
 ## 5. CI/CD changes
 
@@ -298,6 +315,19 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 - **The Turek-Hron specs embed an absolute checkout path** (`surface_source`, `archive_path`), so
   their `config_hash` differs between checkouts of one commit. The proof records the path; the fix
   (it moves `config_hash`) is ledgered.
+- **Both `vv` runners solve on the one aero-build.** PR #79's first FULL `vv-required` run lost
+  `cylinder_strouhal_re100` to the executor's 30-min ceiling (rc 124 at t = 149.7) while main's
+  `vv-smoke` shared the host. The rerun of only the failed job, with the host idle, passed: the
+  case took 27 min 45 s (run 39601984722, attempt 2; 3 passed, 1 xfailed). PR 6 raises the V&V
+  ceiling to 45 min. Until the shared host is fixed, start a FULL run only when no other
+  self-hosted job is running.
+- **The self-hosted workflows run only for pull requests into `main`** (`vv-required`, `vv-smoke`,
+  `provenance-completeness`), so a PR stacked on a feature branch costs no cluster time. That is
+  why PR 6 (#80) and PR 7 (#81) were opened stacked: #81's 72 h window runs while its CI waits.
+- **The auto-mode classifier denied the agent's `gh pr merge 79 --squash`** on 2026-10-21, after all
+  12 required contexts were green (#76 to #78 had merged earlier the same day). SECURITY.md
+  names merging a PR, tagging and publishing a Release as operator acts, which is what the
+  classifier enforced. The operator merges (#79 at 09:04 UTC on 2026-10-22).
 - **Run ids collided across concurrent jobs.** A run id was `<case>-<UTC second>`. On #80's first run,
   `vv-required` and `vv-smoke` started `blasius_flat_plate` in the same second (09:42:41), so both
   wrote and meshed the one NFS case directory, and the second `simpleFoam` submit was refused as
@@ -309,6 +339,8 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 
 ## 7. Open items for the next stage (and beyond)
 
+- **Operator, from 2026-10-24 14:38 UTC:** approve the CONSTITUTION Invariant 3 amendment in #81
+  (opened 2026-10-21 14:38 UTC), after #80 merges and #81's 12 contexts are green.
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
   `.dvc/config.local` and the `AERO_DVC_*` repo secrets; verify with `ls` and one targeted
   `dvc status -c data/meshes/su2/onera_m6.su2.dvc`. After O-07 the four-tuple no longer touches the

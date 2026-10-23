@@ -62,6 +62,7 @@ def main() -> None:
         repo_root=_REPO_ROOT,
         container_sif="openfoam-esi.sif",
         resolved_config=spec.model_dump(mode="json"),
+        dvc_inputs=case.dvc_inputs,
         allow_dirty=True,
     )
     result = runner.run(

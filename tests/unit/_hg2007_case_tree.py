@@ -140,7 +140,7 @@ def build(
         analysis_min_cycles=min_cycles,
     )
     solver = PreciceCoupledSolver()
-    solver._write_case(spec, root)
+    solver._write_case(spec, root, declared=())
 
     case_root = root / CASE_ROOT_DIRNAME
     case = case_root / spec.case_subdir

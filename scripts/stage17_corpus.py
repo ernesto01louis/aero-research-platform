@@ -127,6 +127,7 @@ def main() -> None:
                     repo_root=_REPO_ROOT,
                     container_sif="openfoam-esi.sif",
                     resolved_config=case.case_spec().model_dump(mode="json"),
+                    dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
                     allow_dirty=args.allow_dirty,
                 )
             obs = runner.measure_scalar(
@@ -149,6 +150,7 @@ def main() -> None:
                     repo_root=_REPO_ROOT,
                     container_sif="openfoam-esi.sif",
                     resolved_config=case.case_spec().model_dump(mode="json"),
+                    dvc_inputs=(),  # refused above: declare the inputs when porting (ledger, Stage 23)
                     allow_dirty=True,  # provenance of a failed row must never abort the campaign
                 )
             print(f"FAIL  {name} dv={dv} error={type(exc).__name__}: {exc}", flush=True)

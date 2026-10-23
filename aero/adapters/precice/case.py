@@ -30,6 +30,7 @@ so a tree can never be ambiguous about which contract it is under (ADR-037).
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import tarfile
 from collections.abc import Mapping
@@ -52,7 +53,8 @@ from aero.adapters.openfoam.flexible_foil import FlexibleFoilSpec
 from aero.adapters.openfoam.geometry import hg2007_coordinates
 from aero.adapters.precice.calculix import CalculiXDeck, CalculiXSolidSpec, watch_points
 from aero.adapters.precice.template import PreciceConfigValues
-from aero.provenance.four_fold import AnyProvenanceTuple, config_hash
+from aero.provenance.dvc_inputs import read_declared_input
+from aero.provenance.four_fold import AnyProvenanceTuple, DeclaredInput, config_hash
 
 _STRICT = ConfigDict(
     extra="forbid",
@@ -705,12 +707,21 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def materialize_tutorial(source: TutorialSource, *, dest: Path) -> MaterializedTree:
+def materialize_tutorial(
+    source: TutorialSource,
+    *,
+    dest: Path,
+    repo_root: Path,
+    declared: tuple[DeclaredInput, ...],
+) -> MaterializedTree:
     """Extract the pinned tutorial into `dest` and verify every file against the manifest.
 
     The relative layout is preserved exactly: ``solid.py`` opens
     ``'../precice-config.xml'`` and both ``run.sh`` scripts source ``'../../tools/log.sh'``,
     so the case directory and ``tools/`` must be siblings under one root.
+
+    The archive is read once, through the run's declaration (ADR-052): a DVC-tracked archive
+    must be declared and match its pointer, and the extracted bytes are the bytes checked.
     """
     pin = source.pin
     archive = source.archive_path
@@ -720,7 +731,8 @@ def materialize_tutorial(source: TutorialSource, *, dest: Path) -> MaterializedT
             f"{archive}: pinned tutorial archive not found — run `dvc pull` for "
             "data/references/fsi/turek_hron_fsi3/"
         )
-    actual = _sha256(archive)
+    data = read_declared_input(repo_root, archive, declared=declared)
+    actual = hashlib.sha256(data).hexdigest()
     if actual != pin.archive_sha256:
         raise CoupledCaseError(
             f"{archive}: sha256 {actual[:12]}... does not match the pinned "
@@ -728,7 +740,7 @@ def materialize_tutorial(source: TutorialSource, *, dest: Path) -> MaterializedT
         )
 
     dest.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:gz") as tar:
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         # filter="data" refuses absolute paths, "..", links out of the tree and device
         # nodes. The archive is ours, but extraction is the wrong place to be trusting.
         tar.extractall(dest, filter="data")
