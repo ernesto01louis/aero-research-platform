@@ -136,8 +136,6 @@ jobs:
         # different facts in a V&V record. The step still fails if either does.
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
         run: |
           set -u
           # MOVING_VV_CASES comes from the validation step (whole-string checked, defaults filled

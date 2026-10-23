@@ -70,8 +70,6 @@ jobs:
         # absent on a fresh checkout, so they come in via the boto3 env-var chain.
         env:
           AERO_PROVENANCE_DSN: ${{ secrets.AERO_PROVENANCE_DSN }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AERO_DVC_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AERO_DVC_SECRET_ACCESS_KEY }}
           # Stage 23: an unreachable MLflow or mirror FAILS the job instead of skipping to green.
           AERO_PROVENANCE_REQUIRE_CLUSTER: "1"
         run: |

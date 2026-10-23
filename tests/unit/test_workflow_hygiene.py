@@ -479,3 +479,31 @@ def test_pip_audit_waives_exactly_one_advisory_until_its_review_date(
         "the diskcache waiver (PYSEC-2026-2447) is past its review date: re-check whether a "
         "fixed release exists, then renew the waiver with a new date or drop it"
     )
+
+
+# --- Stage 23: the MinIO keys only where DVC pulls (least privilege) --------------------------
+
+_DVC_KEY = re.compile(r"secrets\.AERO_DVC_|AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY)")
+
+
+def test_the_dvc_keys_reach_only_a_step_that_pulls() -> None:
+    """Since O-07 (ADR-052) no provenance term reads the DVC remote, so the keys are exposed only
+    to a step whose own `run` is a `dvc pull`: today, vv-transonic's targeted ONERA M6 mesh pull.
+    A workflow- or job-level `env` would hand them to every step, so they may not appear there."""
+    holders = []
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        wf = _load(path)
+        assert not _DVC_KEY.search(yaml.safe_dump(wf.get("env") or {})), (
+            f"{path.name}: top-level env"
+        )
+        for job_name, job in (wf.get("jobs") or {}).items():
+            assert not _DVC_KEY.search(yaml.safe_dump(job.get("env") or {})), (
+                f"{path.name}:{job_name}: job-level env"
+            )
+            for step in job.get("steps") or []:
+                if _DVC_KEY.search(yaml.safe_dump(step.get("env") or {})):
+                    holders.append((path.name, step.get("name")))
+                    assert "dvc pull" in (step.get("run") or ""), (
+                        f"{path.name}:{step.get('name')}: holds the DVC keys but does not pull"
+                    )
+    assert holders == [("vv-transonic.yml", "Fetch the ONERA M6 mesh (DVC, fail-loud)")]
