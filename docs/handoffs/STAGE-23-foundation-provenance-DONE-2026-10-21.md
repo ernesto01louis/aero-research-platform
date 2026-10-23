@@ -36,7 +36,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
 | 2 | O-07, a content-addressed `dvc_input_hash` | ✅ | ADR-052 accepted 2026-10-21 (D1/D2/D4); built in PR 7 (#81) with the CONSTITUTION Invariant 3 amendment; **merged 2026-10-23 05:38 UTC by the operator (squash `3b02461`), with the recorded approval but 39 h into the ≥72 h window** (§3; re-affirmation after 2026-10-24 14:38 UTC pending) |
 | 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
-| 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
+| 4 | The end-to-end proof | ⚠️ | ADR-050 accepted as amended 2026-10-21. **Cluster solve 1 of 2 done (2026-10-23): `turek_hron_cfd2` on clean `main` `3b02461`, PASS, read back with every check passing (§4, E2E-1)**. Still to do: the Blasius cluster reference through the hosted driver, after #82, and the hosted run (needs the published SIF) |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
 
@@ -295,6 +295,25 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
     - `negative`: a one-byte-flipped copy of the SIF exits 86 and apptainer never starts, proved
       with a `PATH` shim. It passed on the real 455.6 MB SIF on 2026-10-22, in 2.5 s.
   - The Blasius `config_hash` is `d1d264c5…`, as ADR-050 D3 states.
+
+- **E2E-1, cluster solve 1 of 2 (2026-10-23 10:35 UTC, operator-approved).** The run was
+  `aero vv run --case turek_hron_cfd2 --executor local-ssh` in a clean worktree at `main`
+  `3b02461`, the #81 squash, so both terms are v1. Its MLflow run is
+  `95401ce5f6ad482fbcd7165831fbac7c` and its case directory
+  `turek_hron_cfd2-20261023-103515-45e2f1`.
+  - **Result: PASS.** Cd error 0.385 % (tolerance 5 %), Cl error 0.243 % (tolerance 10 %).
+  - **Read back** with `scripts/provenance_readback.py --mirror --config-json`, which does not
+    import `aero`: all 14 checks pass.
+    - `git_sha` `3b0246193c90…` is a clean commit.
+    - `dvc_input_hash` `70b49f18…` is ADR-052's golden value, recomputed from the `dvc_inputs` tag,
+      and the STL's md5 and size match its pointer at `git_sha`.
+    - `container_sif_sha256` `c9d7f329…` is the `SHA256SUMS` entry at `git_sha`.
+    - `config_hash` `47f3fef6…` is recomputed from the spec.
+    - The mirror row is byte-equal to the tags.
+  - **The launch guard:** one `AERO-SIF-VERIFIED sha256=c9d7f329… path=/opt/aero/containers/openfoam-esi.sif`
+    line in each of the two launches' `output.log` (mesh and `simpleFoam`), and no refusal.
+  - **Caveat:** the `config_hash` embeds the worktree's absolute STL path, the ledgered Turek-Hron
+    `surface_source` issue, so it differs between checkouts of one commit.
 
 ## 5. CI/CD changes
 
