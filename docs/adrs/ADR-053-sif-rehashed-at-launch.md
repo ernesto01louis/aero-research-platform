@@ -5,6 +5,9 @@
   after its adversarial review; the acceptance is recorded by the commit that lands it. It fits
   CONSTITUTION Invariant 3 item 3 as written ("SHA256 of the Apptainer SIF that ran the job, pulled
   from `containers/SHA256SUMS`"), so it needs no amendment.
+  - **Boundary on `main`:** `07937a4` (#80, 2026-10-22) is the first commit whose tuples carry
+    `sif-sha256-verified-at-launch/v1`; the DVC term stays `repo-sync-state/v0` until ADR-052's
+    O-07 PR merges.
 - **Date:** 2026-10-21
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 23)
 - **Stage:** 23 (Foundation II, ADR-051 row 23)
