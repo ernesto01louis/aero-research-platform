@@ -274,8 +274,8 @@ The closed hardening list is in ADR-049 R4. These are OUT, with their destinatio
 | O-04 | 3-D external geometry | feature (Stage 18 item above) |
 | O-05 | Fair-test speed-up | new campaign (Stage 17 item above) |
 | O-06 | The 393² rung (Stage-17 thesis-grade) | 10–14 days of compute |
-| O-07 | Content-addressed `dvc_input_hash` | changes four-tuple semantics; post-v0.1.0 ADR |
-| O-08 | Re-hash the SIF at launch | cluster code path; documented in SECURITY.md and every crate |
+| O-07 | ~~Content-addressed `dvc_input_hash`~~ | **CLOSED in Stage 23 (`3b02461`, #81; ADR-052).** `declared-dvc-pointers-md5/v1`; CONSTITUTION Invariant 3 item 2 amended |
+| O-08 | ~~Re-hash the SIF at launch~~ | **CLOSED in Stage 23 (`07937a4`, #80; ADR-053).** `sif-sha256-verified-at-launch/v1`; exit 86 → `ProvenanceError` |
 | O-09 | RunPod `StrictHostKeyChecking=no` | frozen GPU path; documented in SECURITY.md |
 | O-10 | Claude hook changes (Stop-hook path via `$CLAUDE_PROJECT_DIR`; fail-closed Bash hook) | operator-only |
 | O-11 | PyPI (`aero` is taken; the jaxfluids git reference blocks upload) | distribution-name ADR |
@@ -413,6 +413,28 @@ visible; it fixes none of the physics or solver problems.
   their `config_hash` differs between checkouts of one commit. Fixing it moves `config_hash`.
 - [ ] **`tests/stage_*` runs in no CI job.** `tests/stage_04/test_hydra_config.py` has been stale since
   `CaseSpec` gained `section`; Stage 23 ported its provenance contract into `tests/unit`.
+
+## What a CFD specialist would probe — carried from the Stage-23 re-evaluation (2026-10-24)
+
+An outside review of the optimizer (2026-10-15, re-read and checked against `main` on 2026-10-24)
+named gaps a CFD specialist would ask about. None blocks the foundation stages; each has an owner.
+
+- [ ] **y+ is never measured, and the airfoil C-grid's wake cut fails checkMesh on non-orthogonality**
+  (ADR-028). The quoted y+ values are estimates. Owner: **Stage 25** (the turbulent canonical cases:
+  the TMR flat plate, NACA 0012 verification and the 2D bump).
+- [ ] **No checkMesh gate inside the optimizer loop.** `aero/optimize/` never imports
+  `aero.adapters.openfoam.mesh_quality`; a candidate counts if `blockMesh` exited 0. Owner: the
+  optimizer's pre-registration, before rigid-flapping optimization.
+- [ ] **"Held-out" CFD verification is a deterministic re-solve on the same grid**, so it cannot detect
+  selection bias in the sense Hard Rule 14 intends. Make it genuinely held out (a different mesh of
+  the family, or a different seed of what varies), or name it a re-solve. Owner: the same
+  pre-registration.
+- [ ] **The airfoil objective is fixed-AoA L/D, with no lift or thickness constraint, 2-D only, and no
+  experimental reference for the airfoil model.** Owner: **Stage 26** (forward-model validation
+  for the optimization targets).
+- [ ] **FFD, CST or Hicks-Henne parameterisation, mesh morphing, the SU2/DAFoam adjoint, and optimizing
+  over an imported geometry** (the Stage-18 pipeline is forward-only). Named in the mission document,
+  with no stage, ADR or code. After the foundation, behind SCOPE-GATE and its own ADR.
 
 ## Rigid-flapping optimization — pre-registration items carried from Stage 21
 
