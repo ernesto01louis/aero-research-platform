@@ -259,6 +259,7 @@ VV_WORKFLOWS = (
     "vv-required.yml",
     "moving-vv.yml",
     "vv-scale-resolving.yml",
+    "hosted-repro.yml",
 )
 # The jobs that run the cluster V&V suite through pytest (moving-vv uses a driver script).
 _PYTEST_VV_JOBS = (
@@ -479,3 +480,30 @@ def test_pip_audit_waives_exactly_one_advisory_until_its_review_date(
         "the diskcache waiver (PYSEC-2026-2447) is past its review date: re-check whether a "
         "fixed release exists, then renew the waiver with a new date or drop it"
     )
+
+
+# --- Stage 23: the hosted reproducibility check (ADR-050) --------------------------------------
+
+
+def test_the_hosted_check_holds_no_secret_and_uses_the_clusters_pins() -> None:
+    """Read-only, secret-free, on the pinned hosted image. Its Apptainer is the cluster's own
+    pinned release, and the reference it gates on exists before it can run (ADR-050 D2/D5)."""
+    path = WORKFLOWS / "hosted-repro.yml"
+    text = path.read_text(encoding="utf-8")
+    wf = _load(path)
+    assert wf["permissions"] == {"contents": "read"}
+    assert not _SECRET.search(text), "hosted-repro.yml may not reference any secret"
+    (job,) = wf["jobs"].values()
+    assert job["runs-on"] == "ubuntu-24.04"
+    ansible = yaml.safe_load(
+        (REPO / "ansible" / "roles" / "aero-apptainer" / "defaults" / "main.yml").read_text()
+    )
+    assert job["env"]["APPTAINER_DEB_SHA256"] == ansible["apptainer_deb_sha256"]
+    assert ansible["apptainer_version"] in job["env"]["APPTAINER_DEB_URL"]
+    triggers = _triggers(wf)
+    assert set(triggers) == {"schedule", "workflow_dispatch", "pull_request"}
+    assert triggers["pull_request"]["branches"] == ["main"]
+    reference = json.loads((REPO / "ci" / "hosted-repro" / "reference.json").read_text())
+    assert reference["format"] == "aero.hosted-repro.reference/v1" and reference["band"] == 0.01
+    assert "--executor local-container" in text and "band --record" in text
+    assert "negative --sif" in text, "the byte-flipped SIF step (ADR-053) is part of the check"

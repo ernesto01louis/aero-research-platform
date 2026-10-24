@@ -3,6 +3,7 @@
 
     python -I scripts/provenance_readback.py --run-id <mlflow run id> [--mirror]
     python -I scripts/provenance_readback.py --tags-json tags.json [--config-json spec.json]
+    python -I scripts/provenance_readback.py --record record.json --mirror   # a hosted run's record
 
 READ-ONLY. It reads the run's tags from the MLflow REST API (or a JSON file of them), and with
 `--mirror` the run's row of the Postgres mirror, through `AERO_PROVENANCE_DSN` (never printed).
@@ -194,24 +195,32 @@ def main(argv: list[str] | None = None) -> int:
     source = ap.add_mutually_exclusive_group(required=True)
     source.add_argument("--run-id", help="MLflow run id (read over the REST API)")
     source.add_argument("--tags-json", type=Path, help="a JSON object of the run's tags")
+    source.add_argument(
+        "--record",
+        type=Path,
+        help="a hosted_repro.py run record: its run id and tags (a run-local MLflow has no API)",
+    )
     ap.add_argument("--tracking-uri", default=TRACKING_URI)
     ap.add_argument("--config-json", type=Path, help="the resolved config the run hashed")
     ap.add_argument("--mirror", action="store_true", help="also read the Postgres mirror row")
     args = ap.parse_args(argv)
-    if args.mirror and not args.run_id:
-        ap.error("--mirror needs --run-id")
+    if args.mirror and not (args.run_id or args.record):
+        ap.error("--mirror needs --run-id or --record")
 
-    tags = (
-        run_tags(args.run_id, args.tracking_uri)
-        if args.run_id
-        else json.loads(args.tags_json.read_text(encoding="utf-8"))
-    )
+    run_id = args.run_id
+    if args.run_id:
+        tags = run_tags(args.run_id, args.tracking_uri)
+    elif args.record:
+        record = json.loads(args.record.read_text(encoding="utf-8"))
+        tags, run_id = record["tags"], record["mlflow_run_id"]
+    else:
+        tags = json.loads(args.tags_json.read_text(encoding="utf-8"))
     report = Report()
     check_tags(tags, report)
     if args.config_json:
         check_config(tags, args.config_json, report)
     if args.mirror:
-        check_mirror(args.run_id, tags, report)
+        check_mirror(run_id, tags, report)
     print(f"{'ALL CHECKS PASS' if not report.failed else f'{report.failed} CHECK(S) FAILED'}")
     return 0 if not report.failed else 1
 
