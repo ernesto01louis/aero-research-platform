@@ -137,7 +137,10 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          cp "$RUNNER_TEMP/work/mlflow.db" "$RUNNER_TEMP/record/" 2>/dev/null || true
+          # Always runs: when an earlier step failed there may be no record yet, and packing an
+          # empty one must not add a second, unrelated failure to the job.
+          mkdir -p "$RUNNER_TEMP/record"
+          if [ -f "$RUNNER_TEMP/work/mlflow.db" ]; then cp "$RUNNER_TEMP/work/mlflow.db" "$RUNNER_TEMP/record/"; fi
           tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/hosted-repro-record.tar.gz" record
           sha256sum "$RUNNER_TEMP/hosted-repro-record.tar.gz" | awk '{print $1}' > "$RUNNER_TEMP/record-sha256.txt"
 
