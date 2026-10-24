@@ -516,7 +516,7 @@ def test_the_mesh_sweep_computes_one_tuple_per_grid() -> None:
 # --- the historical drivers ----------------------------------------------------------------------
 
 #: Ported to the typed tuple; every other driver that computes provenance refuses (ledgered).
-PORTED_DRIVERS = {"stage11_moving_vv.py", "stage18_turek_hron.py"}
+PORTED_DRIVERS = {"hosted_repro.py", "stage11_moving_vv.py", "stage18_turek_hron.py"}
 
 
 def _calls(tree: ast.AST, name: str) -> list[ast.Call]:

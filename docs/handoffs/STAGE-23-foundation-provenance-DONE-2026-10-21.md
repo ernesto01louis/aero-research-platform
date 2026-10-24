@@ -34,9 +34,9 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | # | Deliverable (verbatim from the stage prompt) | Status | Note |
 |---|---|:-:|---|
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
-| 2 | O-07, a content-addressed `dvc_input_hash` | ⚠️ | ADR-052 written and adversarially reviewed (PR 3); D1/D2/D4 accepted 2026-10-21. Built and tested in PR 7 (`stage-23-o07-inputs`, stacked on PR 6) with the CONSTITUTION Invariant 3 amendment, which is ratified only by that PR's merge (≥72 h open, operator approval) |
+| 2 | O-07, a content-addressed `dvc_input_hash` | ✅ | ADR-052 accepted 2026-10-21 (D1/D2/D4); built in PR 7 (#81) with the CONSTITUTION Invariant 3 amendment; **merged 2026-10-23 05:38 UTC by the operator (squash `3b02461`), with the recorded approval but 39 h into the ≥72 h window** (§3; re-affirmation after 2026-10-24 14:38 UTC pending) |
 | 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
-| 4 | The end-to-end proof | ❌ | ADR-050 accepted as amended 2026-10-21 (PR 3); runs not started — the hosted run, plus `blasius_flat_plate` (through the hosted driver, which logs `cf_mid`) and `turek_hron_cfd2` on the cluster, read back |
+| 4 | The end-to-end proof | ⚠️ | ADR-050 accepted as amended 2026-10-21. **Cluster solve 1 of 2 done (2026-10-23): `turek_hron_cfd2` on clean `main` `3b02461`, PASS, read back with every check passing (§4, E2E-1)**. Still to do: the Blasius cluster reference through the hosted driver, after #82, and the hosted run (needs the published SIF) |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
 
@@ -52,9 +52,11 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 4 | migration `006_provenance_schemes` | — | `alembic upgrade head` before PR 5's first push |
 | 5 (#79) | `ProvenanceTupleV2` with per-term schemes (v0 labels), scheme tags and mirror columns — **merged 2026-10-22 09:04 UTC by the operator, squash `6cfa401`** (ADR-052 D4's first boundary) | yes | — |
 | 6 (#80) | O-08: the SIF re-hashed before every launch — **merged 2026-10-22 16:02 UTC by the operator, squash `07937a4`** (ADR-053's boundary; FULL run on `ef8f81c`: 3 passed, 1 xfailed) | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
-| 7 (#81) | O-07 + the Invariant 3 item-2 amendment (open ≥72 h, from 2026-10-21 14:38 UTC) | yes | approve the amendment after the window |
+| 7 (#81) | O-07 + the Invariant 3 item-2 amendment — **merged 2026-10-23 05:38 UTC by the operator, squash `3b02461`** (both terms v1 from here); opened 2026-10-21 14:38 UTC, so 39 h into the ≥72 h window | yes | approval recorded 05:38 UTC; re-affirm after 2026-10-24 14:38 UTC |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
-| 8 | ADR-050 hosted run (`hosted-repro.yml`) | — | publish `openfoam-esi.sif` (c9d7f329…) |
+| 8a | ADR-050's executor and driver: `LocalContainerExecutor`, `scripts/hosted_repro.py`, the runner's `log_scalars` | yes | — |
+| — | the cluster reference: `hosted_repro.py run --executor local-ssh` on clean `main` after 8a, then `reference` | — | — |
+| 8b | `ci/hosted-repro/reference.json` and `hosted-repro.yml`; its PR run is the first execution | — | publish `openfoam-esi.sif` as `sif-openfoam-esi-c9d7f329` (pre-release) |
 | 9 | MinIO keys only in steps that `dvc pull` | — | rotate the keys (open item) |
 | 10 | SECURITY.md erratum, ledger, proof record | — | — |
 | 11 | release `v0.1.2` and the Stage-24 prompt | yes | cut the tag |
@@ -189,6 +191,17 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   `JaxGradientResult` has no such field). Two refusals the ADR did not list:
   `scripts/stage20_numerics_screen.py` (launches with no tuple) and the hg2007 driver's ADR-045
   restart (`_launch_tuple`, refused before anything is rotated; its rotation tests replace the seam).
+- **PR 8 is two PRs.** ADR-050 D5 needs the cluster reference committed **before the workflow's
+  first execution**, and that reference is a run of the same driver on a clean, reachable commit.
+  So 8a lands the executor and driver on `main`, the cluster reference runs there, and 8b adds the
+  reference and the workflow, whose PR run is its first execution. The SIF's release tag is
+  `sif-openfoam-esi-c9d7f329`, published as a pre-release, which mints no Zenodo version.
+- **The Invariant 3 amendment merged 33 h before its review window ended.** #81 merged on 2026-10-23
+  at 05:38 UTC, 39 h after it opened (2026-10-21 14:38 UTC), with the operator's recorded approval
+  and all 12 contexts green on the merged head. CONSTITUTION's Amendment process asks for ≥72 h. The
+  operator kept the merge and re-affirms after the window. A revert would have added two semantics
+  boundaries on `main` for a window whose only reviewer had already approved. ADR-052's Status line
+  records it.
 - **"Ride-alongs only if 1–6 are done"** cannot hold literally: H-34/H-35 change code paths the tag
   gate compares, so any ride-along merges before the release PR's bump commit.
 
@@ -265,7 +278,42 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   declaration table and goldens, the parser against `yaml.safe_load` on every committed pointer,
   every refusal, the read path in a temp checkout, the AST check of every call site, and an
   audit-hook test that no case opens an undeclared DVC output).
-- Planned: `aero/orchestration/local_container.py`.
+- **The hosted check's executor and driver** (PR 8a, ADR-050):
+  - `aero/orchestration/local_container.py`: `LocalContainerExecutor` runs each command in a local
+    `bash`, with no SSH, under the `Executor` contract. Long jobs merge stderr into stdout, as a
+    detached job's `output.log` does. A timeout is rc 124 and kills the whole process group, and a
+    shell that can't start is a `transport_error`.
+  - `BenchmarkRunner.run(..., log_scalars=("cf_mid",))` logs named scalars of the solve in the same
+    MLflow run, and refuses a name the solve did not produce before logging anything.
+  - `scripts/hosted_repro.py` has four subcommands:
+    - `run`: one Blasius solve through the platform's runner and `start_provenance_run`. A
+      `local-container` run may only log to a run-local sqlite or file store. The record's number
+      and tags are read back from the logged run, and it writes the config preimage.
+    - `band`: the gated 1 % comparison on `float.hex`, with the same terms and v1 schemes on both
+      sides and clean commits.
+    - `reference`: accepts only a clean `local-ssh` record.
+    - `negative`: a one-byte-flipped copy of the SIF exits 86 and apptainer never starts, proved
+      with a `PATH` shim. It passed on the real 455.6 MB SIF on 2026-10-22, in 2.5 s.
+  - The Blasius `config_hash` is `d1d264c5…`, as ADR-050 D3 states.
+
+- **E2E-1, cluster solve 1 of 2 (2026-10-23 10:35 UTC, operator-approved).** The run was
+  `aero vv run --case turek_hron_cfd2 --executor local-ssh` in a clean worktree at `main`
+  `3b02461`, the #81 squash, so both terms are v1. Its MLflow run is
+  `95401ce5f6ad482fbcd7165831fbac7c` and its case directory
+  `turek_hron_cfd2-20261023-103515-45e2f1`.
+  - **Result: PASS.** Cd error 0.385 % (tolerance 5 %), Cl error 0.243 % (tolerance 10 %).
+  - **Read back** with `scripts/provenance_readback.py --mirror --config-json`, which does not
+    import `aero`: all 14 checks pass.
+    - `git_sha` `3b0246193c90…` is a clean commit.
+    - `dvc_input_hash` `70b49f18…` is ADR-052's golden value, recomputed from the `dvc_inputs` tag,
+      and the STL's md5 and size match its pointer at `git_sha`.
+    - `container_sif_sha256` `c9d7f329…` is the `SHA256SUMS` entry at `git_sha`.
+    - `config_hash` `47f3fef6…` is recomputed from the spec.
+    - The mirror row is byte-equal to the tags.
+  - **The launch guard:** one `AERO-SIF-VERIFIED sha256=c9d7f329… path=/opt/aero/containers/openfoam-esi.sif`
+    line in each of the two launches' `output.log` (mesh and `simpleFoam`), and no refusal.
+  - **Caveat:** the `config_hash` embeds the worktree's absolute STL path, the ledgered Turek-Hron
+    `surface_source` issue, so it differs between checkouts of one commit.
 
 ## 5. CI/CD changes
 
@@ -339,8 +387,8 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
 
 ## 7. Open items for the next stage (and beyond)
 
-- **Operator, from 2026-10-24 14:38 UTC:** approve the CONSTITUTION Invariant 3 amendment in #81
-  (opened 2026-10-21 14:38 UTC), after #80 merges and #81's 12 contexts are green.
+- **Operator, from 2026-10-24 14:38 UTC:** re-affirm the CONSTITUTION Invariant 3 amendment on #81
+  (merged early, §3), e.g. "Re-affirmed after the full 72 h amendment window: no change."
 - **Operator:** rotate the MinIO keys for aero-minio (LXC 212) and aero-nas, then update
   `.dvc/config.local` and the `AERO_DVC_*` repo secrets; verify with `ls` and one targeted
   `dvc status -c data/meshes/su2/onera_m6.su2.dvc`. After O-07 the four-tuple no longer touches the

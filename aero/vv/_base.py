@@ -451,6 +451,7 @@ class BenchmarkRunner:
         provenance: AnyProvenanceTuple,
         repo_root: Path,
         log_mlflow: bool = True,
+        log_scalars: tuple[str, ...] = (),
     ) -> BenchmarkResult:
         """Run `case` end-to-end and compare it against its reference data.
 
@@ -458,9 +459,20 @@ class BenchmarkRunner:
         failure raises `BenchmarkError` (fail-loud). When `log_mlflow` is set,
         the four-fold tuple and per-metric errors are logged to MLflow with a
         `validation_tag` tag.
+
+        `log_scalars` names further scalars of `case.evaluate` to log as MLflow metrics in the
+        same run (Stage 23: the hosted reproducibility check's `cf_mid`, ADR-050 D1, which a
+        standard run never logs). A name that is not a scalar of this solve is refused before
+        anything is logged.
         """
         _check_tuple_describes(case, provenance, repo_root)
         measured, mesh, result = self._drive(case, provenance)
+        scalars: dict[str, float] = {}
+        for name in log_scalars:
+            value = measured.get(name)
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise BenchmarkError(f"{case.name}: evaluate() produced no scalar {name!r} to log")
+            scalars[name] = float(value)
         reference = case.reference(repo_root)
         metric_results = tuple(compare(m, measured[m.name], reference) for m in case.metrics())
         status: Literal["pass", "fail"] = (
@@ -470,7 +482,7 @@ class BenchmarkRunner:
 
         mlflow_run_id: str | None = None
         if log_mlflow:
-            mlflow_run_id = self._log(case, provenance, metric_results, result, status)
+            mlflow_run_id = self._log(case, provenance, metric_results, result, status, scalars)
 
         return BenchmarkResult(
             case_name=case.name,
@@ -523,8 +535,9 @@ class BenchmarkRunner:
         metric_results: tuple[MetricResult, ...],
         result: Any,
         status: str,
+        scalars: Mapping[str, float],
     ) -> str:
-        """Log the run to MLflow — four-fold tags, per-metric errors, artifacts."""
+        """Log the run to MLflow — four-fold tags, per-metric errors, named scalars, artifacts."""
         from aero.provenance.mlflow import log_artifact, log_metrics, start_provenance_run
 
         metrics: Mapping[str, float] = {f"{m.name}_error": m.error for m in metric_results}
@@ -545,6 +558,8 @@ class BenchmarkRunner:
             for m in metric_results:
                 if m.measured is not None:
                     log_metrics({m.name: m.measured})
+            if scalars:
+                log_metrics(dict(scalars))
             pp = getattr(result, "output_host_path", None)
             if pp is not None and Path(pp).exists():
                 log_artifact(pp)

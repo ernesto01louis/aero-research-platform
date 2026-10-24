@@ -10,7 +10,18 @@
   operator's recorded approval (CONSTITUTION "Amendment process").
   - **Boundaries on `main`** (D4, "interim states are labelled, never absent"): `6cfa401` (#79,
     2026-10-22) is the first commit whose tuples carry scheme tags, both terms v0
-    (`repo-sync-state/v0`, `sha256sums-lookup/v0`).
+    (`repo-sync-state/v0`, `sha256sums-lookup/v0`); `07937a4` (#80, 2026-10-22) moves the container
+    term to v1 (ADR-053); `3b02461` (#81, 2026-10-23) is the first with both terms v1
+    (`declared-dvc-pointers-md5/v1`, `sif-sha256-verified-at-launch/v1`).
+  - **Ratification, and a deviation from the Amendment process (recorded 2026-10-23).** #81 merged on
+    2026-10-23 at 05:38 UTC. It carried the operator's recorded approval ("Approved: the CONSTITUTION
+    Invariant 3 amendment (ADR-052) as written in this PR. — Louis", 05:38 UTC) and all 12 required
+    contexts green on the head it merged (`abe08bb`). But it merged **39 h into the ≥72 h review
+    window** that opened at 14:38 UTC on 2026-10-21: about 33 h short of the window CONSTITUTION's
+    "Amendment process" step 3 requires. The operator chose to keep the merge rather than revert it.
+    A revert would have added two more semantics boundaries on `main` (v1 → v0 → v1) to protect a
+    window whose only reviewer had already approved. The operator re-affirms the amendment on #81
+    after the window ends (2026-10-24 14:38 UTC), and that comment is recorded here when it exists.
 - **Date:** 2026-10-21
 - **Deciders:** Operator (Louis Ernesto Schulte Moredo); Claude Code agent (Stage 23)
 - **Stage:** 23 (Foundation II, ADR-051 row 23)
