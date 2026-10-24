@@ -1,0 +1,21 @@
+{
+  "band": 0.01,
+  "case": "blasius_flat_plate",
+  "cf_mid": 0.0030119608,
+  "cf_mid_hex": "0x1.8ac8a24402d15p-9",
+  "experiment": "aero-provenance",
+  "format": "aero.hosted-repro.reference/v1",
+  "host": "aero-build",
+  "mlflow_run_id": "b15cf3c1a8244efebcb0828faddaf7f0",
+  "note": "committed before the hosted workflow's first execution (ADR-050 D5)",
+  "tags": {
+    "config_hash": "d1d264c56c893e2120178e076f1064b39dabb51ea37726bca958fdd05e459442",
+    "container_sif_name": "openfoam-esi.sif",
+    "container_sif_sha256": "c9d7f32974c66bfbc924d407193bbf488fa165b2b35b01ee21ed9fdf9606e91c",
+    "container_sif_sha256_scheme": "sif-sha256-verified-at-launch/v1",
+    "dvc_input_hash": "1ef5b7d9a694e703ccb270937035bdcc006487fa5a5b6fd92ac9c10f94453ec3",
+    "dvc_input_hash_scheme": "declared-dvc-pointers-md5/v1",
+    "dvc_inputs": "{\"inputs\":[]}",
+    "git_sha": "08b512c26e89d738365c98260995960a6ce3e846"
+  }
+}

@@ -128,3 +128,18 @@ def test_the_read_back_never_imports_aero() -> None:
         if isinstance(node, ast.ImportFrom)
     }
     assert "aero" not in imported
+
+
+def test_a_hosted_record_reads_back_through_its_own_run_id_and_tags(tmp_path: Path) -> None:
+    """`--record` takes a hosted_repro.py record: a run-local MLflow store has no REST API."""
+    record = {"mlflow_run_id": "abc", "tags": _tags()}
+    path = tmp_path / "record.json"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "-I", str(SCRIPT), "--record", str(path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout
+    assert proc.stdout.rstrip().endswith("ALL CHECKS PASS")

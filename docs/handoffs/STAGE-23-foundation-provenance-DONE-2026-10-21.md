@@ -36,7 +36,7 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 1 | Bookkeeping (first commit) | ✅ | `.aero-stage` 23, Dependabot prefix `ci(stage-23)`, this handoff, README regenerated; moving-vv's H-09 guard fixed in the same PR (Stage-22 left-over 1) |
 | 2 | O-07, a content-addressed `dvc_input_hash` | ✅ | ADR-052 accepted 2026-10-21 (D1/D2/D4); built in PR 7 (#81) with the CONSTITUTION Invariant 3 amendment; **merged 2026-10-23 05:38 UTC by the operator (squash `3b02461`), with the recorded approval but 39 h into the ≥72 h window** (§3; re-affirmation after 2026-10-24 14:38 UTC pending) |
 | 3 | O-08, the SIF re-hashed at launch | ⚠️ | ADR-053 accepted 2026-10-21 (PR 3); the guard is built and tested (PR 6, `stage-23-o08-guard`: 1661 unit tests, mypy strict clean), not yet merged; from its merge every tuple's container term is `sif-sha256-verified-at-launch/v1` |
-| 4 | The end-to-end proof | ⚠️ | ADR-050 accepted as amended 2026-10-21. **Cluster solve 1 of 2 done (2026-10-23): `turek_hron_cfd2` on clean `main` `3b02461`, PASS, read back with every check passing (§4, E2E-1)**. Still to do: the Blasius cluster reference through the hosted driver, after #82, and the hosted run (needs the published SIF) |
+| 4 | The end-to-end proof | ⚠️ | ADR-050 accepted as amended 2026-10-21. **Both cluster solves done and read back (§4, E2E-1):** `turek_hron_cfd2` on clean `main` `3b02461` (2026-10-23, PASS), and the Blasius reference through the hosted driver on clean `main` `08b512c` (2026-10-24, `cf_mid` 0.0030119608), committed as `ci/hosted-repro/reference.json`. Still to do: the hosted run itself (PR 8b's workflow; needs the published SIF), then the citable dispatch on `main` |
 | 5 | The lock refresh for the pip-audit advisories | ⚠️ | PR 2 open: re-measured 2026-10-21 at 179 rows = 116 advisories in 21 packages; after `uv lock -P` on the 20 fixable packages only diskcache's PYSEC-2026-2447 (no fix) remains, waived with a dated rationale; licence scan 302 packages, 0 FAIL, no exception change; self-hosted V&V jobs install from the lock; the PR's FULL run is the evidence |
 | 6 | The close: `v0.1.2` | ❌ | release PR, then the operator cuts the tag (by 2026-12-21 UTC, the Stage-17 certificate margin) |
 
@@ -54,8 +54,8 @@ next_stage_name: "Stage 24 — Foundation III: Run the Registry"
 | 6 (#80) | O-08: the SIF re-hashed before every launch — **merged 2026-10-22 16:02 UTC by the operator, squash `07937a4`** (ADR-053's boundary; FULL run on `ef8f81c`: 3 passed, 1 xfailed) | yes | read-only digest check of the preCICE/CalculiX SIFs (done 2026-10-21, all match) |
 | 7 (#81) | O-07 + the Invariant 3 item-2 amendment — **merged 2026-10-23 05:38 UTC by the operator, squash `3b02461`** (both terms v1 from here); opened 2026-10-21 14:38 UTC, so 39 h into the ≥72 h window | yes | approval recorded 05:38 UTC; re-affirm after 2026-10-24 14:38 UTC |
 | — | two cluster solves, read back (no PR) | — | approve the two verification-scale solves |
-| 8a | ADR-050's executor and driver: `LocalContainerExecutor`, `scripts/hosted_repro.py`, the runner's `log_scalars` | yes | — |
-| — | the cluster reference: `hosted_repro.py run --executor local-ssh` on clean `main` after 8a, then `reference` | — | — |
+| 8a (#84) | ADR-050's executor and driver: `LocalContainerExecutor`, `scripts/hosted_repro.py`, the runner's `log_scalars` — **merged 2026-10-24 16:59 UTC by the operator, squash `08b512c`** (#82, the same tree, was closed for a 101-character header) | yes | — |
+| — | the cluster reference: `hosted_repro.py run --executor local-ssh` on clean `main` `08b512c` — **done 2026-10-24**, MLflow `b15cf3c1…`, `cf_mid` 0.0030119608 | — | — |
 | 8b | `ci/hosted-repro/reference.json` and `hosted-repro.yml`; its PR run is the first execution | — | publish `openfoam-esi.sif` as `sif-openfoam-esi-c9d7f329` (pre-release) |
 | 9 | MinIO keys only in steps that `dvc pull` | — | rotate the keys (open item) |
 | 10 | SECURITY.md erratum, ledger, proof record | — | — |
@@ -315,6 +315,19 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   - **Caveat:** the `config_hash` embeds the worktree's absolute STL path, the ledgered Turek-Hron
     `surface_source` issue, so it differs between checkouts of one commit.
 
+- **E2E-1, cluster solve 2 of 2: the hosted check's reference (2026-10-24 17:38 UTC,
+  operator-approved).** The run was `scripts/hosted_repro.py run --executor local-ssh` in a clean
+  worktree at `main` `08b512c`, the #84 squash. MLflow run `b15cf3c1a8244efebcb0828faddaf7f0`,
+  68 s on aero-build.
+  - **The number:** `cf_mid` = 0.0030119608 (`0x1.8ac8a24402d15p-9`). The Blasius diagnostic is
+    2.154 % against 5 % and gates nothing.
+  - **The terms**, exactly ADR-050 D3's: `config_hash` `d1d264c5…`, `dvc_input_hash` `1ef5b7d9…`
+    (no declared input), container `c9d7f329…`, both v1 schemes, `git_sha` `08b512c26e89…` clean.
+  - **Read back** with `provenance_readback.py --mirror --config-json`: every check passes,
+    including the mirror row, byte-equal to the tags.
+  - **The launch guard:** one `AERO-SIF-VERIFIED` line in the solve's `output.log`, and no refusal.
+  - Committed as `ci/hosted-repro/reference.json` (PR 8b) **before** the workflow that gates on it.
+
 ## 5. CI/CD changes
 
 - **moving-vv** (PR 1): the dispatch input is read only by a new, secret-less step, "Validate the
@@ -339,6 +352,15 @@ All taken by the operator on 2026-10-21, before any ADR or provenance code (plan
   unreachable. The provenance contract now has a gated home: `tests/unit/test_provenance_v2.py`.
 - Planned: `hosted-repro.yml`; MinIO keys only in
   the steps that pull.
+
+- **`hosted-repro.yml`** (PR 8b, ADR-050 D5): ubuntu-24.04, `contents: read`, no secret; weekly,
+  `workflow_dispatch`, and PRs into `main` that touch its paths. It installs the cluster's pinned
+  Apptainer `.deb` and downloads `openfoam-esi.sif` from the `sif-openfoam-esi-c9d7f329`
+  pre-release, checking both. It builds a throwaway mirror (`alembic upgrade head` on the runner's
+  PostgreSQL, peer-authenticated) and runs the negative step. Then it runs, reads back
+  (`provenance_readback.py --record --mirror`) and gates the 1 % band, and uploads the record,
+  citing its sha256. Only a scheduled or dispatched run on `main` is citable. A hygiene test pins
+  its pins against the Ansible defaults.
 
 ## 6. Gotchas discovered
 

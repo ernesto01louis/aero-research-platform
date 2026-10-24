@@ -1,0 +1,179 @@
+# hosted-repro.yml — the hosted reproducibility check (ADR-050, Stage 23).
+#
+# One CFD number with its full four-tuple, recomputed on a GitHub-hosted runner from the public
+# repository and the cluster's own container: `blasius_flat_plate`'s `cf_mid`, run in
+# `openfoam-esi.sif` (c9d7f329…, published as a pre-release asset) under the ADR-053 launch guard,
+# logged through the platform's own `start_provenance_run` to a run-local MLflow store and a
+# throwaway Postgres mirror. It never contacts the platform's tracking server, so a hosted run can
+# never become the V&V gate's newest Blasius evidence (ADR-050 D4).
+#
+# The gate is pre-registered: |cf_mid_h - cf_mid_c| / |cf_mid_c| <= 0.01 against the committed
+# cluster reference (ci/hosted-repro/reference.json), at the same config_hash, dvc_input_hash,
+# container digest and scheme tags. Never bitwise, never widened. The Blasius comparison is a
+# diagnostic. Only a workflow_dispatch or scheduled run on main is citable; a PR run executes on an
+# ephemeral merge ref. This is a CI check of the pipeline, not a platform result (Invariant 13).
+#
+# Not a required check. It holds no secret.
+
+name: hosted-repro
+
+on:
+  schedule:
+    - cron: "17 6 * * 0" # weekly, Sunday 06:17 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "aero/adapters/openfoam/**"
+      - "aero/adapters/_base.py"
+      - "aero/provenance/**"
+      - "aero/orchestration/local_container.py"
+      - "aero/vv/_base.py"
+      - "aero/vv/forward_regime/**"
+      - "containers/SHA256SUMS"
+      - "scripts/hosted_repro.py"
+      - "scripts/provenance_readback.py"
+      - "ci/hosted-repro/**"
+      - ".github/workflows/hosted-repro.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-repro:
+    name: hosted reproducibility check (ADR-050)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # The throwaway mirror: the runner's own PostgreSQL over its unix socket, peer-authenticated
+      # as the runner user. No password, no service, gone with the runner.
+      AERO_PROVENANCE_DSN: postgresql:///aero_provenance
+      # The cluster's own pinned Apptainer release (ansible/roles/aero-apptainer/defaults/main.yml).
+      APPTAINER_DEB_URL: https://github.com/apptainer/apptainer/releases/download/v1.5.0/apptainer_1.5.0_amd64.deb
+      APPTAINER_DEB_SHA256: fbc27204d0ec0440dfa0ae589089e4b2baf192315b4ac22dfae02b78b28981ea
+      SIF_RELEASE_TAG: sif-openfoam-esi-c9d7f329
+      REPO_SLUG: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.14"
+
+      - name: Install aero from the lock (openfoam + provenance + vv)
+        run: uv sync --locked --python 3.12 --extra openfoam --extra provenance --extra vv
+
+      - name: Refuse a dirty tree
+        # compute_provenance refuses one too; this says so before anything is installed.
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the checkout is dirty; a hosted run records a clean git_sha only"
+            exit 1
+          fi
+
+      - name: Install the pinned Apptainer
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/apptainer.deb" "$APPTAINER_DEB_URL"
+          echo "$APPTAINER_DEB_SHA256  $RUNNER_TEMP/apptainer.deb" | sha256sum --check -
+          sudo apt-get update -q
+          sudo apt-get install -y -q "$RUNNER_TEMP/apptainer.deb"
+          # Ubuntu 24.04 restricts unprivileged user namespaces, which a non-root apptainer needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          apptainer --version
+
+      - name: Download and check the cluster's SIF
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sif"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/sif/openfoam-esi.sif" \
+            "https://github.com/$REPO_SLUG/releases/download/$SIF_RELEASE_TAG/openfoam-esi.sif"
+          # The digest is the committed SHA256SUMS entry at this run's git_sha.
+          expected=$(awk '$2 == "openfoam-esi.sif" && $1 ~ /^[0-9a-f]{64}$/ {print $1}' containers/SHA256SUMS)
+          test -n "$expected"
+          echo "$expected  $RUNNER_TEMP/sif/openfoam-esi.sif" | sha256sum --check -
+
+      - name: Build the throwaway mirror (alembic upgrade head)
+        run: |
+          set -euo pipefail
+          sudo systemctl start postgresql.service
+          sudo -u postgres createuser --superuser "$USER"
+          createdb aero_provenance
+          .venv/bin/alembic upgrade head
+
+      - name: A swapped SIF is refused before apptainer starts (ADR-053)
+        run: .venv/bin/python scripts/hosted_repro.py negative --sif "$RUNNER_TEMP/sif/openfoam-esi.sif"
+
+      - name: Run blasius_flat_plate in the cluster's SIF
+        # From the work directory, so the run-local MLflow store and its artifacts land there.
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/work" "$RUNNER_TEMP/record"
+          cd "$RUNNER_TEMP/work"
+          "$GITHUB_WORKSPACE/.venv/bin/python" "$GITHUB_WORKSPACE/scripts/hosted_repro.py" run \
+            --executor local-container \
+            --sif "$RUNNER_TEMP/sif/openfoam-esi.sif" \
+            --workdir "$RUNNER_TEMP/work" \
+            --record "$RUNNER_TEMP/record/record.json" 2>&1 | tee "$RUNNER_TEMP/record/run.log"
+
+      - name: Read the run back (git alone, and the mirror row byte for byte)
+        run: |
+          set -euo pipefail
+          config=$(ls "$RUNNER_TEMP"/record/configs/*.json)
+          .venv/bin/python -I scripts/provenance_readback.py --record "$RUNNER_TEMP/record/record.json" \
+            --mirror --config-json "$config" | tee "$RUNNER_TEMP/record/readback.txt"
+
+      - name: The gated band against the committed cluster reference
+        run: |
+          set -euo pipefail
+          .venv/bin/python scripts/hosted_repro.py band --record "$RUNNER_TEMP/record/record.json" \
+            --reference ci/hosted-repro/reference.json | tee "$RUNNER_TEMP/record/band.txt"
+
+      - name: Pack the run record
+        if: always()
+        run: |
+          set -euo pipefail
+          # Always runs: when an earlier step failed there may be no record yet, and packing an
+          # empty one must not add a second, unrelated failure to the job.
+          mkdir -p "$RUNNER_TEMP/record"
+          if [ -f "$RUNNER_TEMP/work/mlflow.db" ]; then cp "$RUNNER_TEMP/work/mlflow.db" "$RUNNER_TEMP/record/"; fi
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/hosted-repro-record.tar.gz" record
+          sha256sum "$RUNNER_TEMP/hosted-repro-record.tar.gz" | awk '{print $1}' > "$RUNNER_TEMP/record-sha256.txt"
+
+      - name: Summarise what this job measured
+        if: always()
+        run: |
+          {
+            echo "## Hosted reproducibility check (ADR-050)"
+            echo
+            if [ -f "$RUNNER_TEMP/record/record.json" ]; then
+              .venv/bin/python - "$RUNNER_TEMP/record/record.json" <<'PY'
+          import json, sys
+          r = json.load(open(sys.argv[1]))
+          d = r["diagnostic"]
+          print(f"- `cf_mid` = `{r['cf_mid']!r}` (`{r['cf_mid_hex']}`), {r['wall_clock_s']} s on {r['host']}")
+          print(f"- terms: config_hash `{r['tags']['config_hash'][:12]}…`, dvc_input_hash "
+                f"`{r['tags']['dvc_input_hash'][:12]}…`, container `{r['tags']['container_sif_sha256'][:12]}…`")
+          print(f"- diagnostic (not gated): max |Cf - Blasius| / Blasius = "
+                f"{d['max_relative_error_vs_blasius']:.3%} against {d['tolerance']:.0%}")
+          PY
+            else
+              echo "- **Nothing measured**: no run record was written (see the failed step)."
+            fi
+            echo
+            [ -f "$RUNNER_TEMP/record/band.txt" ] && { echo '```'; cat "$RUNNER_TEMP/record/band.txt"; echo '```'; }
+            [ -f "$RUNNER_TEMP/record-sha256.txt" ] && echo "- run record sha256: \`$(cat "$RUNNER_TEMP/record-sha256.txt")\`"
+            echo "- citable only from a scheduled or workflow_dispatch run on main (event: \`$GITHUB_EVENT_NAME\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the run record
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hosted-repro-record
+          path: ${{ runner.temp }}/hosted-repro-record.tar.gz
+          if-no-files-found: warn
